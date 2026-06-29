@@ -8,8 +8,8 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 class MiscTests {
 
-	@Test
-	void testTestingWorks() {
-	}
+    @Test
+    void testTestingWorks() {
+    }
 
 }

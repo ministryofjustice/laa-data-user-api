@@ -80,6 +80,7 @@ The application relies on several environment variables for configuration. Below
 - [ ] API Authentication
 - [ ] Dependabot configuration
 - [ ] Sentry configuration
+- [x] Checkstyle configured
 - [ ] Grafana / Prometheus configuration
 - [ ] AlertManager configuration
 - [ ] CodeQL configuration
