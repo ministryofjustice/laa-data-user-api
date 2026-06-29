@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: laa-data-user-api
+  labels:
+    app: laa-data-user-api
+spec:
+  selector:
+    app: laa-data-user-api # this should match the pod label in deployment.yml
+  ports:
+    - name: https
+      port: 8080
+      targetPort: 8080

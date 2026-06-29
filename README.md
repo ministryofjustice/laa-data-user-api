@@ -1,70 +1,94 @@
-# Ministry of Justice Template Repository
+# LAA Data User API
 
-[![Ministry of Justice Repository Compliance Badge](https://github-community.service.justice.gov.uk/repository-standards/api/template-repository/badge)](https://github-community.service.justice.gov.uk/repository-standards/template-repository)
+Fill me in.
 
-This template repository equips you with the default initial files required for a Ministry of Justice GitHub repository.
+---
 
-## Included Files
+## Prerequisites
 
-The repository comes with the following preset files:
+- Java 21
+- Docker (optional, for running dependencies or the application container)
 
-- LICENSE
-- .gitignore
-- CODEOWNERS
-- dependabot.yml
-- GitHub Actions example files
-- Ministry of Justice Compliance Badge (public repositories only)
+### GitHub Packages Authentication
+This project relies on the LAA GitHub Package Registry (`maven.pkg.github.com/ministryofjustice/laa-spring-boot-common`). To successfully download dependencies and build the project, you **must** configure your environment with a GitHub Personal Access Token (PAT).
 
-## Setup Instructions
-
-Once you've created your repository using this template, ensure the following steps:
-
-### Update README
-
-Edit this README.md file to document your project accurately. Take the time to create a clear, engaging, and informative README.md file. Include information like what your project does, how to install and run it, how to contribute, and any other pertinent details.
-
-### Update repository description
-
-After you've created your repository, GitHub provides a brief description field that appears on the top of your repository's main page. This is a summary that gives visitors quick insight into the project. Using this field to provide a succinct overview of your repository is highly recommended.
-
-This description and your README.md will be one of the first things people see when they visit your repository. It's a good place to make a strong, concise first impression. Remember, this is often visible in search results on GitHub and search engines, so it's also an opportunity to help people discover your project.
-
-### Grant Team Permissions
-
-Assign permissions to the appropriate Ministry of Justice teams. Ensure at least one team is granted Admin permissions. Whenever possible, assign permissions to teams rather than individual users.
-
-Prefer to user GitHub Teams over individual access to repositories. Where appropriate, ensure GitHub Teams used are related to a Parent Team associated with a Business Unit to help ensure ownership can be easily identified.
-
-### Read about the GitHub repository standards
-
-Familiarise yourself with the Ministry of Justice GitHub Repository Standards. These standards ensure consistency, maintainability, and best practices across all our repositories.
-
-You can find the standards [here](https://github-community.service.justice.gov.uk/repository-standards/guidance).
-
-Please read and understand these standards thoroughly and enable them when you feel comfortable.
-
-### Modify the GitHub Standards Badge
-
-Once you've ensured that all the [GitHub Repository Standards](https://github-community.service.justice.gov.uk/repository-standards/guidance) have been applied to your repository, it's time to update the Ministry of Justice (MoJ) Compliance Badge located in the README file.
-
-The badge demonstrates that your repository is compliant with MoJ's standards.
-
-To update the badge, replace the `template-repository` in the badge URL with your repository's name. The badge URL should look like this:
-
-```markdown
-[![Ministry of Justice Repository Compliance Badge](https://github-community.service.justice.gov.uk/repository-standards/api/${your-repository-name}/badge)](https://github-community.service.justice.gov.uk/repository-standards/${your-reposistory-name})
+1. Generate a classic PAT with `read:packages` permissions.
+2. Export the credentials in your local environment (`~/.zshrc` or `~/.bashrc`):
+```bash
+export GITHUB_ACTOR="<your-github-username>"
+export GITHUB_TOKEN="<your-personal-access-token>"
 ```
 
-**Please note** the badge will not function correctly if your repository is internal or private. In this case, you may remove the badge from your README.
+---
 
-### Update CODEOWNERS
+## Running Locally
 
-(Optional) Modify the CODEOWNERS file to specify the teams or users authorized to approve pull requests.
+To start the application locally using Gradle, run:
 
-### Configure Dependabot
+```bash
+./gradlew bootRun
+```
 
-Adapt the dependabot.yml file to match your project's [dependency manager](https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#package-ecosystem) and to enable [automated pull requests for package updates](https://docs.github.com/en/code-security/supply-chain-security).
+The application will start on port `8080` by default. You can test the application is running by visiting the health endpoint:
+[http://localhost:8080/actuator/health](http://localhost:8080/actuator/health)
 
-### Dependency Review
+---
 
-If your repository is private with no GitHub Advanced Security license, remove the `.github/workflows/dependency-review.yml` file.
+## Testing 
+
+To run the full suite of unit and integration tests:
+
+```bash
+./gradlew test
+```
+
+---
+
+## Docker
+
+To build the Docker image locally:
+```bash
+docker build -t laa-data-user-api .
+```
+
+---
+
+## Environment Variables
+
+The application relies on several environment variables for configuration. Below is a list of the variables currently configured in the project:
+
+<details>
+<summary>Click to expand</summary>
+
+| Variable Name | Description | Default Value |
+| --- | --- | --- |
+| `POSTGRES_DB_ADDRESS` | The host address for the Postgres database. | `localhost` |
+| `POSTGRES_DB_NAME` | The name of the Postgres database. |
+| `POSTGRES_USERNAME` | The username to authenticate with Postgres. | `postgres` |
+| `POSTGRES_PASSWORD` | The password to authenticate with Postgres. | `postgres` |
+
+</details>
+
+---
+
+## TODO 
+
+> This section is a work in progress, it currently only contains immediate baseline goals
+
+- [ ] Integrate Database 
+- [ ] Add OpenAPI/Swagger documentation generation.
+- [ ] API Authentication
+- [ ] Dependabot configuration
+- [ ] Sentry configuration
+- [ ] Grafana / Prometheus configuration
+- [ ] AlertManager configuration
+- [ ] CodeQL configuration
+- [ ] Linter check configuration
+- [ ] ASH scan configuration
+- [ ] Branching strategy setup & promotion pipeline configured
+- [ ] GitGuardian configuration
+- [ ] GitLeaks configuration
+- [ ] Trufflehog configuration
+- [ ] Snyk configuration
+- [ ] Test coverage on PRs setup
+- [ ] ZAP scan setup

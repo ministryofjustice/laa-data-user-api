@@ -1,0 +1,49 @@
+plugins {
+    id 'uk.gov.laa.java.laa-java-gradle-plugin' version '2.1.5'
+    id 'uk.gov.laa.springboot.laa-spring-boot-gradle-plugin' version '2.1.5'
+    id "io.sentry.jvm.gradle" version "6.11.0"
+}
+
+group = 'uk.gov.justice.laa'
+version = '0.0.1-SNAPSHOT'
+
+ext {
+    springDocVersion = "3.0.0"
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url = uri("https://maven.pkg.github.com/ministryofjustice/laa-spring-boot-common")
+        credentials {
+            username = System.getenv("GITHUB_ACTOR")?.trim() ?: providers.gradleProperty("gitPackageUser").orNull
+            password = System.getenv("GITHUB_TOKEN")?.trim() ?: providers.gradleProperty("gitPackageKey").orNull
+        }
+    }
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springDocVersion}"
+    implementation 'tools.jackson.dataformat:jackson-dataformat-csv:3.0.3'
+    implementation 'io.sentry:sentry-spring-boot-4:8.43.2'
+    
+    runtimeOnly 'org.springframework.boot:spring-boot-properties-migrator'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        showStandardStreams = true
+        events "failed", "skipped", "standard_out", "standard_error"
+    }
+}

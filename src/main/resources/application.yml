@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: laa-data-user-api
+
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_DB_ADDRESS:localhost}:5432/${POSTGRES_DB_NAME}
+    username: ${POSTGRES_USERNAME:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
