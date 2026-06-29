@@ -93,3 +93,4 @@ The application relies on several environment variables for configuration. Below
 - [ ] Snyk configuration
 - [ ] Test coverage on PRs setup
 - [ ] ZAP scan setup
+- [ ] Pingdom setup
