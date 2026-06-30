@@ -39,12 +39,8 @@ metadata:
       }
 spec:
   ingressClassName: ${INGRESS_CLASS_NAME}
-  tls:
-    - hosts:
-      - ${BASE_URL_HOMEPAGE}
-      secretName: "laa-data-user-api-homepage-secret"
   rules:
-    - host: ${BASE_URL_HOMEPAGE}
+    - host: laa-data-user-api.internal.cloud-platform.service.justice.gov.uk
       http:
         paths:
           - path: /
