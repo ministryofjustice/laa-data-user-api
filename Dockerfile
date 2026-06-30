@@ -1,30 +1,27 @@
-# Stage 1: Build the application
-FROM eclipse-temurin:21-jdk-alpine AS builder
-WORKDIR /workspace/app
+FROM amazoncorretto:21-alpine
 
-# Copy gradle wrapper and necessary build files
-COPY gradlew .
-COPY gradle gradle
-COPY build.gradle .
-COPY settings.gradle .
-COPY src src
+# Apply security updates
+RUN apk update && \
+    apk add --no-cache --upgrade openssl busybox zlib && \
+    rm -rf /var/cache/apk/*
 
-# Make gradle wrapper executable and build the application
-# We use --no-daemon to avoid spawning gradle daemons in the container
-# We skip tests since this is just building the image
-RUN chmod +x ./gradlew
-RUN ./gradlew build -x test --no-daemon
+# Create a group and user to run the application
+RUN addgroup --gid 10000 appgroup && \
+    adduser --uid 10000 --ingroup appgroup --disabled-password --gecos "" appuser
 
-# Stage 2: Create a lightweight runtime image
-FROM eclipse-temurin:21-jre-alpine
+# Define a volume to safely store temporary files across restarts
 VOLUME /tmp
 WORKDIR /app
 
-# Copy the built jar from the builder stage
-COPY --from=builder /workspace/app/build/libs/*.jar app.jar
+# Copy the built jar from the build output
+COPY build/libs/*.jar /app/application.jar
+
+# Set the user to run the application
+RUN chown -R appuser:appgroup /app
+USER 10000
 
 # Expose the application port
 EXPOSE 8080
 
 # Run the application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+CMD ["java", "-jar", "application.jar"]
