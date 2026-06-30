@@ -76,7 +76,8 @@ The application relies on several environment variables for configuration. Below
 > This section is a work in progress, it currently only contains immediate baseline goals
 
 - [ ] Integrate Database 
-- [ ] Add OpenAPI/Swagger documentation generation.
+- [x] Add OpenAPI/Swagger documentation generation.
+- [ ] Add IRSA & fix deployment serviceaccount name
 - [ ] API Authentication
 - [ ] Dependabot configuration
 - [ ] Sentry configuration
