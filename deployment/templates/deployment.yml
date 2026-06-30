@@ -19,7 +19,7 @@ spec:
       labels:
         app: laa-data-user-api
     spec:
-      serviceAccountName: irsa-laa-data-user-api-${ENV_NAME}
+      serviceAccountName: cd-serviceacccount
       securityContext:
         runAsUser: 10000
         runAsNonRoot: true
