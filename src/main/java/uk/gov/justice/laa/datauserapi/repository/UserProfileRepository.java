@@ -1,0 +1,210 @@
+package uk.gov.justice.laa.datauserapi.repository;
+
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
+
+
+import uk.gov.justice.laa.datauserapi.entity.CountFirms;
+import uk.gov.justice.laa.datauserapi.entity.EntraUser;
+import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.entity.UserType;
+
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
+@Repository
+public interface UserProfileRepository extends JpaRepository<UserProfile, UUID>, JpaSpecificationExecutor<UserProfile> {
+
+    @Query("""
+            SELECT DISTINCT u.entraOid FROM EntraUser u
+            JOIN u.userProfiles ups
+            WHERE ups.userType IN (:userType)
+            """)
+    List<UUID> findByUserTypes(@Param("userType") UserType userType);
+
+    @Query("""
+            SELECT ups FROM UserProfile ups
+                        JOIN FETCH ups.entraUser u
+            WHERE (:firmId IS NULL OR ups.firm.id = :firmId)
+            AND (:userType IS NULL OR ups.userType = :userType)
+            AND (
+                :search = '' OR
+                EXISTS (
+                    SELECT 1 FROM ups.entraUser u
+                    WHERE LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%'))
+                    OR LOWER(CONCAT(u.firstName, ' ', u.lastName)) LIKE LOWER(CONCAT('%', :search, '%'))
+                )
+            )
+            AND (:showFirmAdmins = false OR EXISTS (
+                SELECT 1 FROM ups.appRoles ar
+                WHERE ar.authzRole = true
+                AND ar.name = 'External User Manager'
+            ))
+            """)
+    Page<UserProfile> findByNameOrEmailAndPermissionsAndFirm(@Param("search") String search,
+            @Param("firmId") UUID firmId, @Param("userType") UserType userType,
+            @Param("showFirmAdmins") boolean showFirmAdmins, Pageable pageable);
+
+
+
+    @Query("""
+            SELECT ups FROM UserProfile ups
+                        JOIN FETCH ups.firm f
+                        JOIN FETCH ups.entraUser u
+            WHERE ups.firm.id = :firmId
+            AND EXISTS (
+                SELECT 1 FROM ups.appRoles ar
+                WHERE ar.authzRole = true
+                AND ar.name = :role
+            )
+            """)
+    Page<UserProfile> findFirmUserByAuthzRoleAndFirm(@Param("firmId") UUID firmId, @Param("role") String role,
+            Pageable pageable);
+
+    @Query("""
+            SELECT ups FROM UserProfile ups
+                        JOIN FETCH ups.entraUser u
+            WHERE ups.firm IS NULL
+            AND EXISTS (
+                SELECT 1 FROM ups.appRoles ar
+                WHERE ar.authzRole = true
+                AND ar.name = :role
+            )
+            """)
+    Page<UserProfile> findInternalUserByAuthzRole(@Param("role") String role, Pageable pageable);
+
+    @Query("""
+            SELECT up FROM UserProfile up
+            LEFT JOIN FETCH up.firm
+            WHERE up.entraUser = :entraUser
+            """)
+    List<UserProfile> findAllByEntraUser(@Param("entraUser") EntraUser entraUser);
+
+    @Query("""
+            SELECT ups FROM UserProfile ups
+                        JOIN FETCH ups.entraUser u
+                        JOIN FETCH ups.firm f
+            WHERE ups.entraUser.id = :entraUserId
+            AND f.enabled = true
+            AND (
+                :search IS NULL OR :search = '' OR
+                LOWER(f.name) LIKE LOWER(CONCAT('%', :search, '%')) OR
+                LOWER(f.code) LIKE LOWER(CONCAT('%', :search, '%'))
+            )
+            """)
+    List<UserProfile> findByEntraUserIdAndFirmSearch(@Param("entraUserId") UUID entraUserId,
+            @Param("search") String search);
+
+    @Query("""
+            SELECT COUNT(ups) FROM UserProfile ups
+            WHERE ups.entraUser.id = :entraUserId
+            """)
+    long countByEntraUserId(@Param("entraUserId") UUID entraUserId);
+
+    @Query("""
+            SELECT ups FROM UserProfile ups
+                        JOIN FETCH ups.entraUser eu
+                        JOIN FETCH ups.firm f
+                        JOIN FETCH ups.appRoles ars
+            WHERE ups.lastCcmsSyncSuccessful = false
+                AND ars.legacySync = true
+            """)
+    List<UserProfile> findUserProfilesForCcmsSync();
+
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM user_profile_app_role WHERE app_role_id = :roleId", nativeQuery = true)
+    void deleteAllByAppRoleId(@Param("roleId") UUID roleId);
+
+    @Query(value = """
+                SELECT COUNT(*)
+                FROM user_profile_app_role
+                WHERE app_role_id = :roleId
+            """, nativeQuery = true)
+    long countUserProfilesByAppRoleId(@Param("roleId") UUID roleId);
+
+    @Query(value = """
+                SELECT COUNT(DISTINCT up.firm_id)
+                FROM user_profile up
+                JOIN user_profile_app_role upar
+                    ON up.id = upar.user_profile_id
+                WHERE upar.app_role_id = :roleId
+                  AND up.firm_id IS NOT NULL
+            """, nativeQuery = true)
+    long countFirmsWithRole(@Param("roleId") UUID roleId);
+
+
+    @Query("""
+            SELECT DISTINCT ups FROM UserProfile ups
+                        JOIN FETCH ups.offices o
+            WHERE o.id = :officeId
+            """)
+    List<UserProfile> findByOfficeId(@Param("officeId") UUID officeId);
+
+    @Query("""
+            SELECT DISTINCT ups FROM UserProfile ups
+                        JOIN ups.offices o
+            WHERE o.id IN :officeIds
+            """)
+    List<UserProfile> findByOfficeIdIn(@Param("officeIds") List<UUID> officeIds);
+
+    @Query("""
+            SELECT ups FROM UserProfile ups
+            WHERE ups.firm.id = :firmId
+            """)
+    List<UserProfile> findByFirmId(@Param("firmId") UUID firmId);
+
+    /**
+     * Counts user profile-office associations for each office ID.
+     * Returns a list of Object arrays where each array contains [officeId, count].
+     * This is more efficient than loading UserProfile entities with their offices collection.
+     *
+     * @param officeIds the list of office IDs to query
+     * @return list of Object[] where [0] is office_id (UUID) and [1] is count (Long/Integer)
+     */
+    @Query(value = """
+            SELECT office_id, COUNT(*)
+            FROM user_profile_office
+            WHERE office_id IN :officeIds
+            GROUP BY office_id
+            """, nativeQuery = true)
+    List<Object[]> countAssociationsByOfficeIds(@Param("officeIds") List<UUID> officeIds);
+
+    @Query(
+            value = """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM user_profile up
+                        INNER JOIN entra_user eu ON up.entra_user_id = eu.id
+                        WHERE up.firm_id = :firmId
+                          AND eu.enabled = TRUE
+                    )
+                    """,
+            nativeQuery = true
+    )
+    boolean hasActiveUserByFirmId(@Param("firmId") UUID firmId);
+
+
+    @Query(value = """
+            SELECT
+                eu.multi_firm_user AS isMultiFirm,
+                COUNT(*) AS userCount
+            FROM user_profile up
+            INNER JOIN entra_user eu ON up.entra_user_id = eu.id
+            WHERE up.firm_id = :firmId
+              AND eu.enabled = TRUE
+            GROUP BY eu.multi_firm_user
+            """,
+            nativeQuery = true)
+    List<CountFirms> countFirmsById(@Param("firmId") UUID firmId);
+
+
+}

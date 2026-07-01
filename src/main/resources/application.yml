@@ -1,11 +1,14 @@
 spring:
   application:
     name: laa-data-user-api
+  mvc:
+    problem-details:
+      enabled: true
 
   datasource:
-    url: jdbc:postgresql://${POSTGRES_DB_ADDRESS:localhost}:5432/${POSTGRES_DB_NAME}
-    username: ${POSTGRES_USERNAME:postgres}
-    password: ${POSTGRES_PASSWORD:postgres}
+    url: jdbc:postgresql://${POSTGRES_DB_ADDRESS:localhost}:5432/${POSTGRES_DB_NAME:data_user_api}
+    username: ${POSTGRES_USERNAME:cptJXFyh0U}
+    password: ${POSTGRES_PASSWORD:password}
 
 server:
   port: 8080

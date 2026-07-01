@@ -1,0 +1,33 @@
+package uk.gov.justice.laa.datauserapi.repository;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import uk.gov.justice.laa.datauserapi.entity.EntraUser;
+import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
+
+import java.util.List;
+import java.util.UUID;
+
+public interface UserAccountStatusAuditRepository extends JpaRepository<UserAccountStatusAudit, UUID> {
+
+    List<UserAccountStatusAudit> findByEntraUser(EntraUser entraUser);
+
+    @Query("""
+        SELECT u FROM UserAccountStatusAudit u
+        WHERE u.entraUser.id = :entraUserId
+        ORDER BY u.statusChangedDate DESC
+        """)
+    List<UserAccountStatusAudit> findByEntraUserIdOrderByStatusChangedDateDesc(@Param("entraUserId") UUID entraUserId);
+
+    @Query("""
+        SELECT u FROM UserAccountStatusAudit u
+        WHERE u.statusChange = 'DELETED'
+        AND (:searchTerm IS NULL OR :searchTerm = '' OR LOWER(CAST(u.userEmail AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%')))
+        """)
+    Page<UserAccountStatusAudit> findDeletedUsers(
+            @Param("searchTerm") String searchTerm,
+            Pageable pageable);
+}

@@ -1,0 +1,15 @@
+package uk.gov.justice.laa.datauserapi.entity;
+
+public enum EventType {
+    CREATE_USER,
+    UPDATE_USER,
+    REASSIGN_USER_FIRM,
+    USER_DELETE_EXECUTED,
+    USER_DELETE_ATTEMPT,
+    SWITCH_FIRM,
+    UPDATE_LAA_APP_METADATA,
+    DELETE_LAA_APP_ROLE,
+    SYNCHRONISE_LAA_APPS,
+    CREATE_LAA_APP_ROLE,
+    BULK_DISABLE_FIRM_USERS,
+}
