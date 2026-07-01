@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: cptJXFyh0U
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: data_user_api
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./schema_dump.sql:/docker-entrypoint-initdb.d/01_schema_dump.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cptJXFyh0U -d data_user_api"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  data-generator:
+    build:
+      context: ./data-generator
+      dockerfile: Dockerfile
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: cptJXFyh0U
+      DB_PASSWORD: password
+      DB_NAME: data_user_api
+    depends_on:
+      postgres:
+        condition: service_healthy

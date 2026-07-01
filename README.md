@@ -23,7 +23,15 @@ export GITHUB_TOKEN="<your-personal-access-token>"
 
 ## Running Locally
 
-To start the application locally using Gradle, run:
+Before starting the application, you must spin up the local mock database. This uses Docker Compose to launch PostgreSQL and automatically seeds it with fake data:
+
+```bash
+cd local-dev-db
+docker-compose up -d
+cd ..
+```
+
+Once the database is running, start the application using Gradle:
 
 ```bash
 ./gradlew bootRun
@@ -75,7 +83,7 @@ The application relies on several environment variables for configuration. Below
 
 > This section is a work in progress, it currently only contains immediate baseline goals
 
-- [ ] Integrate Database 
+- [x] Integrate Database locally
 - [x] Add OpenAPI/Swagger documentation generation.
 - [ ] Add IRSA & fix deployment serviceaccount name
 - [ ] API Authentication

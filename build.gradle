@@ -30,10 +30,16 @@ repositories {
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    compileOnly 'org.jetbrains:annotations:24.0.0'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    implementation 'org.springframework.data:spring-data-commons'
     implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springDocVersion}"
     implementation 'tools.jackson.dataformat:jackson-dataformat-csv:3.0.3'
     implementation 'io.sentry:sentry-spring-boot-4:8.43.2'
     
+    runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'org.springframework.boot:spring-boot-properties-migrator'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
