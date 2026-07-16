@@ -1,2 +1,35 @@
 sentry:
   enabled: false
+
+spring:
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: https://login.microsoftonline.com/test/discovery/v2.0/keys
+    tech:
+      services:
+        credentials:
+          scope: placeholder
+          client-id: placeholder
+          client-secret: placeholder
+          tenant-id: placeholder
+          base-url: placeholder
+
+app:
+  enable:
+    tech:
+      services:
+        call: false
+  tech:
+    services:
+      laa:
+        business:
+          unit: placeholder
+      req:
+        read:
+          timeout: 30
+        connect:
+          timeout: 30
+
