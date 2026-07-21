@@ -7,6 +7,7 @@ info:
     This API provides access to user account and profile data for Legal Aid Agency (LAA) users. 
 
     Notes for consumers:
+    - Users access SiLAS and all systems using their User Account, this is directly mapped to the Entra ID account. Their access is linked their user profile which is a child record of the account.
     - Users can have multiple profiles, each of which will belong to a different provider firm. When working with external users, the profile ID MUST be used to identify the user, as the Entra Object ID is shared across all profiles for a given user.
     - The Provider Data endpoints are temporary and will be replaced by PDAv2. They are provided for consumption by the Manage Your Users service only. Consumers should not rely on these endpoints for any other purpose and should use PDA instead.
 
@@ -24,17 +25,17 @@ security:
 
 tags:
   - name: User Account
-    description: Commands and queries used for the management of User Account (`entra_user`)
+    description: Commands and queries used for the management of user accounts (`entra_user`)
   - name: User Profiles
     description: Commands and queries used for the management of user profiles including assigning roles and offices (`user_profile`, junction tables)
   - name: Provider Data
     description: Temporary endpoints which expose firms and offices to support user management. Will be replaced by PDAv2. (`firm`, `office`)
   - name: Application & Role Management
-    description: Apps, roles, permissions, and assignments (`app`, `app_role`, `role_assignment`)
+    description: Administration endpoints for the creation and management of SiLAS apps and roles, including defining which roles can assign which other roles (`app`, `app_role`, `role_assignment`)
   - name: User Account Security Audit & Management
-    description: Allows security users to view audit data and bulk disable users as required (`user_account_status_audit`, reason tables)
+    description: Endpoints to allow security users to view audit data and bulk disable users as required (`user_account_status_audit`, reason tables)
   - name: Admin Triggers
-    description: Operational commands triggered by system administrators
+    description: Operational commands triggered by system administrators. Used by SiLAS team only.
 
 paths:
   # --- User Account queries ---
@@ -42,7 +43,10 @@ paths:
     get:
       operationId: queryUsersSearch
       tags: [User Account]
-      summary: Search SiLAS users
+      summary: Search SiLAS users accounts. This returns the user account, not the user profile. The user profile is the entity which is linked to firms and has access granted.
+      description: |
+        app_id_filter and app_role_id_filter can be used to retrieve a set of users with access to a specified app or app role respectively.
+        firm_id can be used to retrieve a set of users with access to a firm, note that will include multi-firm users who may have access to other firms, including as their active profile. To filter by office ID, use the /queries/user-profiles endpoint.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
@@ -54,7 +58,7 @@ paths:
         - $ref: '#/components/parameters/FirmIdFilter'
         - $ref: '#/components/parameters/AppIdFilter'
         - $ref: '#/components/parameters/AppRoleIdFilter'
-        - name: neverActivatedFilter
+        - name: never_activated_filter
           in: query
           schema:
             type: boolean
@@ -70,7 +74,7 @@ paths:
     get:
       operationId: queryUserById
       tags: [User Account]
-      summary: Get SiLAS User Account by Entra Object ID
+      summary: Get SiLAS user account by Entra Object ID
       parameters:
         - $ref: '#/components/parameters/UserEntraObjectId'
       responses:
@@ -88,7 +92,7 @@ paths:
     get:
       operationId: queryUserProfilesByEntraUser
       tags: [User Profiles]
-      summary: List profiles for an Entra user
+      summary: List profiles for a SiLAS user account
       parameters:
         - $ref: '#/components/parameters/UserEntraObjectId'
       responses:
@@ -105,7 +109,7 @@ paths:
     get:
       operationId: queryActiveProfileByEntraUser
       tags: [User Profiles]
-      summary: Get active profile for Entra user
+      summary: Get active profile for a SiLAS user account
       parameters:
         - $ref: '#/components/parameters/UserEntraObjectId'
       responses:
@@ -123,6 +127,9 @@ paths:
       operationId: queryUserProfilesSearch
       tags: [User Profiles]
       summary: Search user profiles
+      description: |
+        app_id_filter and app_role_id_filter can be used to retrieve a set of users with access to a specified app or app role respectively.
+        firm_id can be used to retrieve a set of users with access to a firm and office_id will limit to just a set LAA office account. These filters can be used in conjunction e.g. to get a set of users with the 'Billing approver' role for a set firm/office.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
@@ -136,12 +143,12 @@ paths:
         - $ref: '#/components/parameters/UserQuery'
         - $ref: '#/components/parameters/FirmQuery'
         
-        - name: firmAdminFilter
+        - name: firm_admin_filter
           in: query
           schema:
             type: boolean
             default: false
-        - name: multiFirmUsersFilter
+        - name: multi_firm_users_filter
           in: query
           schema:
             type: boolean
@@ -163,7 +170,7 @@ paths:
         - $ref: '#/components/parameters/UserProfileId'
       responses:
         '200':
-          description: User profile detail
+          description: User profile detail, including roles and offices
           content:
             application/json:
               schema:
@@ -175,7 +182,7 @@ paths:
     get:
       operationId: queryUserProfileAppRoles
       tags: [User Profiles]
-      summary: Get all app roles for profile
+      summary: Get all app roles for a user profile, can be filtered by app_id
       parameters:
         - $ref: '#/components/parameters/UserProfileId'
         - $ref: '#/components/parameters/AppIdFilter'
@@ -193,7 +200,7 @@ paths:
     get:
       operationId: queryUserProfileApps
       tags: [User Profiles]
-      summary: Get all apps for profile
+      summary: Get all apps for a user profile
       parameters:
         - $ref: '#/components/parameters/UserProfileId'
       responses:
@@ -210,7 +217,7 @@ paths:
     get:
       operationId: queryUserProfileOffices
       tags: [User Profiles]
-      summary: Get offices for profile
+      summary: Get offices for a user profile
       parameters:
         - $ref: '#/components/parameters/UserProfileId'
       responses:
@@ -229,7 +236,7 @@ paths:
     get:
       operationId: queryFirms
       tags: [Provider Data]
-      summary: Get list of firms, with pagination and query field.
+      summary: Get list of firms, with pagination and query field. Used for firm directory.
       security: 
         - entraIdOAuth: ["api://user-data/user.admin"]
       parameters:
@@ -248,7 +255,7 @@ paths:
     get:
       operationId: queryFirmById
       tags: [Provider Data]
-      summary: Get firm by ID
+      summary: Get firm by ID. Used for firm directory detail.
       security: 
         - entraIdOAuth: ["api://user-data/user.admin"]
       parameters:
@@ -315,7 +322,7 @@ paths:
     get:
       operationId: queryAppsAll
       tags: [Application & Role Management]
-      summary: List all apps
+      summary: List all SiLAS applications
       responses:
         '200':
           description: Apps
@@ -328,7 +335,7 @@ paths:
     get:
       operationId: queryAppById
       tags: [Application & Role Management]
-      summary: Get app by ID (Application client ID in Entra ID)
+      summary: Get app by ID (Application Client ID in Entra ID)
       parameters:
         - $ref: '#/components/parameters/AppId'
       responses:
@@ -345,7 +352,7 @@ paths:
     get:
       operationId: queryAppRolesByApp
       tags: [Application & Role Management]
-      summary: List roles for app
+      summary: List roles for specified app
       parameters:
         - $ref: '#/components/parameters/AppId'
         - $ref: '#/components/parameters/UserType'
@@ -361,7 +368,7 @@ paths:
     get:
       operationId: queryAppRoleById
       tags: [Application & Role Management]
-      summary: Get app role by ID
+      summary: Get details for app role by its app role ID
       parameters:
         - $ref: '#/components/parameters/AppRoleId'
       responses:
@@ -382,11 +389,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
-        - name: appId
-          in: query
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/AppIdFilter'
       responses:
         '200':
           description: Role assignment restrictions
@@ -430,7 +433,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
-        - name: emailQuery
+        - name: email_query
           in: query
           schema:
             type: string
@@ -460,7 +463,7 @@ paths:
         - $ref: '#/components/parameters/OfficeIdFilter'
         - $ref: '#/components/parameters/AppIdFilter'
         - $ref: '#/components/parameters/AppRoleIdFilter'
-        - name: neverActivatedFilter
+        - name: never_activated_filter
           in: query
           schema:
             type: boolean
@@ -779,6 +782,12 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
   /api/v1/commands/user-profiles/remove-app-roles:
     post:
@@ -808,6 +817,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
   /api/v1/commands/user-profiles/update-app-roles:
     post:
@@ -839,6 +854,12 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
   /api/v1/commands/user-profiles/update-offices:
     post:
@@ -932,6 +953,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
 
   /api/v1/commands/firms/bulk-disable-users:
@@ -962,6 +989,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
   # --- Application & Role Management commands ---
   /api/v1/commands/apps/update:
@@ -1213,16 +1246,16 @@ paths:
     post:
       operationId: commandCcmsTriggerRoleSync
       tags: [Admin Triggers]
-      summary: Trigger CCMS role sync
+      summary: Re-trigger CCMS role sync for profiles where last_sync_successful=false
       security:
         - entraIdOAuth: ["api://user-data/system.admin"]
       responses:
         '200':
-          description: Sync triggered
+          description: CCMS User sync triggered
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CommandResult'
+                $ref: '#/components/schemas/TriggerCcmsRoleSyncResult'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1264,7 +1297,7 @@ components:
         type: string
         format: uuid
     FirmQuery:
-      name: firmQuery
+      name: firm
       description: Search term to filter firms by name and ID. This is a case-insensitive search and will return all firms that contain the search term in either their name or ID.
       in: query
       schema:
@@ -1277,13 +1310,13 @@ components:
       schema:
         type: string
     FirmIdFilter:
-      name: firmId
+      name: firm_id
       description: The firm number for each firm. This is numerical key and is shared with PDA. Used to filter user results to only show users with this firm assigned.
       in: query
       schema:
         type: string
     OfficeIdFilter:
-      name: officeId
+      name: office_id
       description: The office account number for the office. This is a 5 or 6 digit key.
       in: query
       schema:
@@ -1304,28 +1337,30 @@ components:
         type: string
         format: uuid
     AppIdFilter:
-      name: appId
+      name: app_id
       description: Identifier for the application. This uses the Entra client ID. Used to filter user results to only show users with this app assigned.
       in: query
       schema:
         type: string
         format: uuid
     AppRoleIdFilter:
-      name: appRoleId
+      name: app_role_id
       description: Identifier for the application role. This uses the SiLAS ID. Used to filter user results to only show users with this role assigned.
       in: query
       schema:
         type: string
         format: uuid
     Page:
-      name: page
+      name: page_number
+      description: Zero-indexed page number to retrieve. Defaults to 0 (the first page).
       in: query
       schema:
         type: integer
         minimum: 0
         default: 0
     Size:
-      name: size
+      name: page_size
+      description: Number of items to return per page, from 1 to 100. Defaults to 20.
       in: query
       schema:
         type: integer
@@ -1333,27 +1368,32 @@ components:
         maximum: 100
         default: 20
     Sort:
-      name: sort
+      name: sort_by
+      description: >-
+        Field and direction to sort by, in the form `{field},{asc|desc}`,
+        e.g. `lastName,desc`. Direction defaults to `asc` if omitted.
+        Repeat this parameter to sort by multiple fields in priority order.
       in: query
       schema:
         type: string
     UserQuery:
-      name: userQuery
+      name: user
+      description: Allows searching on user name or email address. Will return all results where the name or email address match the provided query.
       in: query
       schema:
         type: string
     UserType:
-      name: userType
+      name: user_type
       in: query
       schema:
         $ref: '#/components/schemas/UserType'
     UserAccountStatus:
-      name: userAccountStatus
+      name: user_account_status
       in: query
       schema:
         $ref: '#/components/schemas/UserAccountStatus'
     UserProfileStatus:
-      name: userProfileStatus
+      name: user_profile_status
       in: query
       schema:
         $ref: '#/components/schemas/UserProfileStatus'
@@ -1396,19 +1436,19 @@ components:
           schema:
             $ref: '#/components/schemas/ProblemDetail'
     BadGateway:
-      description: Entra ID returned an invalid or unexpected response
+      description: Downstream API returned an invalid or unexpected response
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/ProblemDetail'
     ServiceUnavailable:
-      description: Entra ID is unreachable
+      description: Downstream API is unreachable
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/ProblemDetail'
     GatewayTimeout:
-      description: Entra ID did not respond in time
+      description: Downstream API did not respond in time
       content:
         application/problem+json:
           schema:
@@ -2194,6 +2234,17 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/AppView'
+
+    TriggerCcmsRoleSyncResult:
+      allOf:
+        - $ref: '#/components/schemas/CommandResult'
+        - type: object
+          properties:
+            userProfiles:
+              type: array
+              description: Profiles for which CCMS role sync was triggered
+              items:
+                $ref: '#/components/schemas/UserProfileSummaryView'
 
     CreateAppRoleCommand:
       type: object
