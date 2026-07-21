@@ -75,7 +75,7 @@ The application relies on several environment variables for configuration. Below
 
 > This section is a work in progress, it currently only contains immediate baseline goals
 
-- [ ] Integrate Database 
+- [x] Integrate Database 
 - [x] Add OpenAPI/Swagger documentation generation.
 - [ ] Add IRSA & fix deployment serviceaccount name
 - [ ] API Authentication
