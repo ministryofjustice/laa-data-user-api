@@ -1373,6 +1373,7 @@ components:
         Field and direction to sort by, in the form `{field},{asc|desc}`,
         e.g. `lastName,desc`. Direction defaults to `asc` if omitted.
         Repeat this parameter to sort by multiple fields in priority order.
+        Unless mentioned in the query path description, all fields in the response can be sorted.
       in: query
       schema:
         type: string
@@ -1458,6 +1459,8 @@ components:
     ProblemDetail:
       type: object
       description: RFC 7807 problem detail
+      #TO DO: Decide if the RFC8087 standard is appropriate or if a lighter weight error response is suitable
+      required: [ type, title, status, detail, instance ]
       properties:
         type:
           type: string
@@ -1471,7 +1474,16 @@ components:
         instance:
           type: string
           format: uri
-
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              detail:
+                type: string
+ 
     CommandResult:
       type: object
       required: [success]
@@ -1484,14 +1496,14 @@ components:
     PageMetadata:
       type: object
       properties:
-        page:
+        page_number:
           type: integer
-        size:
+        page_size:
           type: integer
-        totalElements:
+        total_elements:
           type: integer
           format: int64
-        totalPages:
+        total_pages:
           type: integer
 
     AppRoleUserType:
@@ -1748,6 +1760,7 @@ components:
           type: integer
         appEntraObjectId:
           type: string
+          format: uuid
 
     AppViewList:
       type: object
