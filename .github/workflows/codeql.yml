@@ -16,15 +16,16 @@ permissions:
   security-events: write
 
 on:
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - edited
-      - synchronize
-  schedule:
-    - cron: '40 3 * * 6'  
-  workflow_call:
+  # pull_request:
+  #   types:
+  #     - opened
+  #     - reopened
+  #     - edited
+  #     - synchronize
+  # schedule:
+  #   - cron: '40 3 * * 6'  
+  # workflow_call:
+  workflow_dispatch:
 
 jobs:
   analyze:

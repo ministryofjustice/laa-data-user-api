@@ -1,14 +1,14 @@
 name: Snyk Security Scan
 on:
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - edited
-      - synchronize
-      - closed
-  schedule:
-    - cron: '0 0 * * *'  # Run daily at midnight UTC
+  # pull_request:
+  #   types:
+  #     - opened
+  #     - reopened
+  #     - edited
+  #     - synchronize
+  #     - closed
+  # schedule:
+  #   - cron: '0 0 * * *'  # Run daily at midnight UTC
   workflow_call:
     secrets:
       SNYK_TOKEN:
@@ -19,6 +19,7 @@ on:
         description: 'Snyk Organization ID'
       SNYK_SLACK_WEBHOOK_URL:
         required: false
+  workflow_dispatch:
 
 permissions:
   contents: read
