@@ -84,9 +84,9 @@ The application relies on several environment variables for configuration. Below
 - [x] Checkstyle configured
 - [ ] Grafana / Prometheus configuration
 - [ ] AlertManager configuration
-- [ ] CodeQL configuration
+- [x] CodeQL configuration
 - [ ] Linter check configuration
-- [ ] ASH scan configuration
+- [x] ASH scan configuration
 - [ ] Branching strategy setup & promotion pipeline configured
 - [x] GitGuardian configuration
 - [x] GitLeaks configuration
