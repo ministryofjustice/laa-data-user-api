@@ -37,7 +37,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Run Snyk to check Docker images for vulnerabilities
-        run: docker build . --file Dockerfile --tag laa-data-user-api:latest --progress=plain --no-cache
+        run: docker build . --file Dockerfile-WorkFlow --tag laa-data-user-api:latest --progress=plain --no-cache
 
       # Using the Snyk Docker Action to check the container for vulnerabilities
       - name: Docker Vulnerabilities
