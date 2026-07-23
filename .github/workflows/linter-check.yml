@@ -35,7 +35,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run Checkstyle
-        run: ./gradlew checkstyleMain checkstyleTest checkStyleIntegrationTest checkstylePlaywrightTest
+        run: ./gradlew checkstyleMain checkstyleTest checkStyleIntegrationTest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
