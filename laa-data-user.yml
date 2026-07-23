@@ -47,6 +47,7 @@ paths:
       description: |
         app_id_filter and app_role_id_filter can be used to retrieve a set of users with access to a specified app or app role respectively.
         firm_id can be used to retrieve a set of users with access to a firm, note that will include multi-firm users who may have access to other firms, including as their active profile. To filter by office ID, use the /queries/user-profiles endpoint.
+        This endpoint will only return user accounts that the actor user included in the JWT has access to view.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
@@ -69,6 +70,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserAccountSummaryPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/queries/users/{userEntraObjectId}:
     get:
@@ -84,6 +89,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -102,6 +111,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserProfileSummaryList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -119,6 +132,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserProfileDetailView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -130,6 +147,7 @@ paths:
       description: |
         app_id_filter and app_role_id_filter can be used to retrieve a set of users with access to a specified app or app role respectively.
         firm_id can be used to retrieve a set of users with access to a firm and office_id will limit to just a set LAA office account. These filters can be used in conjunction e.g. to get a set of users with the 'Billing approver' role for a set firm/office.
+        This endpoint will only return user profile that the actor user included in the JWT has access to view.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
@@ -160,6 +178,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserProfileSummaryPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/queries/user-profiles/{userProfileId}:
     get:
@@ -175,6 +197,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserProfileDetailView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -193,6 +219,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppRoleViewList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -210,6 +240,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppViewList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -227,9 +261,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OfficeViewList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-
 
   # --- Provider data queries ---
   /api/v1/queries/firms:
@@ -250,6 +287,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FirmViewPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/queries/firms/{firmId}:
     get:
@@ -267,6 +308,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FirmView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -297,7 +342,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FirmSearchViewList'
-
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          
   /api/v1/queries/firms/{firmId}/offices:
     get:
       operationId: queryFirmOffices
@@ -314,6 +363,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OfficeViewList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -330,6 +383,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppViewList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/queries/apps/{appId}:
     get:
@@ -345,6 +402,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -363,6 +424,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppRoleViewList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/queries/app-roles/{appRoleId}:
     get:
@@ -378,6 +443,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppRoleView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -397,6 +466,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RoleAssignmentRestrictionViewPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
 
 
   # --- Audit queries ---
@@ -1375,8 +1449,12 @@ components:
         Repeat this parameter to sort by multiple fields in priority order.
         Unless mentioned in the query path description, all fields in the response can be sorted.
       in: query
+      style: form
+      explode: true
       schema:
-        type: string
+        type: array
+        items:
+          type: string
     UserQuery:
       name: user
       description: Allows searching on user name or email address. Will return all results where the name or email address match the provided query.
@@ -1458,8 +1536,8 @@ components:
   schemas:
     ProblemDetail:
       type: object
-      description: RFC 7807 problem detail
-      #TO DO: Decide if the RFC8087 standard is appropriate or if a lighter weight error response is suitable
+      description: RFC 9457 problem detail
+      #TO DO: Decide if the RFC 9457 standard is appropriate or if a lighter weight error response is suitable
       required: [ type, title, status, detail, instance ]
       properties:
         type:
@@ -1516,11 +1594,11 @@ components:
 
     UserAccountStatus:
       type: string
-      enum: ["ACTIVE", "DEACTIVATED", "ACTIVATION REQUIRED"]
+      enum: ["ACTIVE", "DEACTIVATED", "ACTIVATION_REQUIRED"]
 
     UserProfileStatus:
       type: string
-      enum: ["COMPLETE", "NO ROLES ASSIGNED", "ACTIVATION REQUIRED"]
+      enum: ["COMPLETE", "NO_ROLES_ASSIGNED", "ACTIVATION_REQUIRED"]
 
     FirmType:
       type: string
@@ -1967,6 +2045,10 @@ components:
     UpdateUserDetailsCommand:
       type: object
       required: [userEntraObjectId]
+      anyOf:
+        - required: [firstName]
+        - required: [lastName]
+        - required: [email]
       properties:
         userEntraObjectId:
           type: string
