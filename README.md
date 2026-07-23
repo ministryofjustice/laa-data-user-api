@@ -88,10 +88,10 @@ The application relies on several environment variables for configuration. Below
 - [ ] Linter check configuration
 - [ ] ASH scan configuration
 - [ ] Branching strategy setup & promotion pipeline configured
-- [ ] GitGuardian configuration
+- [x] GitGuardian configuration
 - [x] GitLeaks configuration
 - [x] Trufflehog configuration
-- [ ] Snyk configuration
+- [x] Snyk configuration
 - [ ] Test coverage on PRs setup
-- [ ] ZAP scan setup
+- [x] ZAP scan setup
 - [ ] Pingdom setup
