@@ -89,8 +89,8 @@ The application relies on several environment variables for configuration. Below
 - [ ] ASH scan configuration
 - [ ] Branching strategy setup & promotion pipeline configured
 - [ ] GitGuardian configuration
-- [ ] GitLeaks configuration
-- [ ] Trufflehog configuration
+- [x] GitLeaks configuration
+- [x] Trufflehog configuration
 - [ ] Snyk configuration
 - [ ] Test coverage on PRs setup
 - [ ] ZAP scan setup
