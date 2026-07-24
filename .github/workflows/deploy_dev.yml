@@ -74,36 +74,24 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           ENV_NAME: ${{ vars.ENV_NAME }}
 
-      - name: Generate Deployment Files
-        run: |
-          # Get all env vars, filter out server_protocol, uri and http1_reject, and format with leading dollar signs
-          ALLOWED_VARS=$(printenv | cut -d= -f1 | grep -v -E '^(server_protocol|uri|http1_reject)$' | sed 's/^/$/' | tr '\n' ' ')
-          
-          # Pass the dynamic list into envsubst for all templates
-          if [ -d "deployment/templates" ]; then
-            for template in deployment/templates/*.yml; do
-              filename=$(basename -- "$template")
-              envsubst "$ALLOWED_VARS" < "$template" > "deployment/$filename"
-            done
-          else
-            echo "Warning: deployment/templates directory not found. Assuming manifests are already rendered."
-          fi
-        env:
-          IMAGE_TAG: ${{ github.sha }}
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-          NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
-          ENV_NAME: ${{ vars.ENV_NAME }}
-          INGRESS_CLASS_NAME: ${{ vars.INGRESS_CLASS_NAME }}
+      - name: Set up Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: 'v3.21.3'
 
       - name: Deploy to Cloud Platform
         run: |
-          kubectl -n ${KUBE_NAMESPACE} apply -f deployment/
+          helm upgrade --install laa-data-user-api deployment/helm/laa-data-user-api \
+            --namespace ${KUBE_NAMESPACE} \
+            -f deployment/helm/laa-data-user-api/values.yaml \
+            -f deployment/helm/laa-data-user-api/values-dev.yaml \
+            --set image.registry=${REGISTRY} \
+            --set image.repository=${REPOSITORY} \
+            --set image.tag=${IMAGE_TAG} \
+            --atomic \
+            --timeout 7m0s
         env:
           KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
-
-      - name: Wait for new deployment to finish
-        run: |
-          kubectl -n ${KUBE_NAMESPACE} rollout status deployment laa-data-user-api --timeout=7m
-        env:
-          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
