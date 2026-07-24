@@ -2,4 +2,4 @@ ingress:
   # TODO: set to the current value of the `INGRESS_CLASS_NAME` GitHub
   # Environment variable for `development` (Settings > Environments >
   # development > Variables) before merging.
-  className: "modesc-non-prod"
+  className: "modsec-non-prod"

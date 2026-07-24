@@ -4,3 +4,4 @@ image:
   tag: "latest"
 ingress:
   className: "default"
+  host: "laa-data-user-api.internal.cloud-platform.service.justice.gov.uk"
