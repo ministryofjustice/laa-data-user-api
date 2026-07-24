@@ -75,7 +75,7 @@ The application relies on several environment variables for configuration. Below
 
 > This section is a work in progress, it currently only contains immediate baseline goals
 
-- [ ] Integrate Database 
+- [x] Integrate Database 
 - [x] Add OpenAPI/Swagger documentation generation.
 - [ ] Add IRSA & fix deployment serviceaccount name
 - [ ] API Authentication
@@ -84,14 +84,14 @@ The application relies on several environment variables for configuration. Below
 - [x] Checkstyle configured
 - [ ] Grafana / Prometheus configuration
 - [ ] AlertManager configuration
-- [ ] CodeQL configuration
-- [ ] Linter check configuration
-- [ ] ASH scan configuration
+- [x] CodeQL configuration
+- [x] Linter check configuration
+- [x] ASH scan configuration
 - [ ] Branching strategy setup & promotion pipeline configured
-- [ ] GitGuardian configuration
-- [ ] GitLeaks configuration
-- [ ] Trufflehog configuration
-- [ ] Snyk configuration
+- [x] GitGuardian configuration
+- [x] GitLeaks configuration
+- [x] Trufflehog configuration
+- [x] Snyk configuration
 - [ ] Test coverage on PRs setup
-- [ ] ZAP scan setup
+- [x] ZAP scan setup
 - [ ] Pingdom setup
