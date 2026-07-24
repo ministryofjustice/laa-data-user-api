@@ -31,14 +31,14 @@ jobs:
 
       - name: Generate Deployment the Files
         run: |
-          cat deployments/zap-templates/zapjob.yml | envsubst > deployments/zapjob.yml
+          cat deployment/zap-templates/zapjob.yml | envsubst > deployment/zapjob.yml
         env:
           NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
 
       - name: Apply ZAP job
         run: |
           kubectl delete job zap-scan -n ${{ secrets.KUBE_NAMESPACE }} --ignore-not-found
-          kubectl apply -f deployments/zapjob.yml
+          kubectl apply -f deployment/zapjob.yml
 
       - name: Wait for job completion
         run: |
