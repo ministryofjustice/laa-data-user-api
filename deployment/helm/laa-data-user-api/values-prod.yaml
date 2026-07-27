@@ -1,0 +1,5 @@
+ingress:
+  # TODO: set to the current value of the `INGRESS_CLASS_NAME` GitHub
+  # Environment variable for `prod` (Settings > Environments >
+  # prod > Variables), once the prod namespace is provisioned.
+  className: "CHANGEME-prod-ingress-class"

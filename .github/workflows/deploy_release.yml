@@ -1,0 +1,78 @@
+name: Deploy Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        type: choice
+        options:
+          - test
+          - prd
+        required: true
+      version:
+        description: 'Release version tag to deploy, e.g. v1.2.0'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write # This is required for requesting the JWT
+      contents: read # This is required for actions/checkout
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-to-assume: ${{ secrets.ECR_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.ECR_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2
+        id: login-ecr
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBE_CERT }}" > ca.crt
+          kubectl config set-cluster ${KUBE_CLUSTER} --certificate-authority=./ca.crt --server=https://${KUBE_CLUSTER}
+          kubectl config set-credentials deploy-user --token=${{ secrets.KUBE_TOKEN }}
+          kubectl config set-context ${KUBE_CLUSTER} --cluster=${KUBE_CLUSTER} --user=deploy-user --namespace=${KUBE_NAMESPACE}
+          kubectl config use-context ${KUBE_CLUSTER}
+        env:
+          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
+          KUBE_CLUSTER: ${{ secrets.KUBE_CLUSTER }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: 'v3.21.3'
+
+      - name: Deploy release to Cloud Platform
+        run: |
+          helm upgrade --install laa-data-user-api deployment/helm/laa-data-user-api \
+            --namespace ${KUBE_NAMESPACE} \
+            -f deployment/helm/laa-data-user-api/values.yaml \
+            -f deployment/helm/laa-data-user-api/values-${ENVIRONMENT}.yaml \
+            --set image.registry=${REGISTRY} \
+            --set image.repository=${REPOSITORY} \
+            --set image.tag=${VERSION} \
+            --atomic \
+            --timeout 7m0s
+        env:
+          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          VERSION: ${{ inputs.version }}
+
+      - name: Wait for new deployment to finish
+        run: |
+          kubectl -n ${KUBE_NAMESPACE} rollout status deployment laa-data-user-api --timeout=7m
+        env:
+          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}

@@ -11,8 +11,11 @@ permissions:
 
 jobs:
   lint:
-    name: Lint and Template Helm Chart
+    name: Lint and Template Helm Chart (${{ matrix.environment }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [dev, test, prod]
 
     steps:
       - name: Checkout Code
@@ -27,13 +30,17 @@ jobs:
         run: |
           helm lint deployment/helm/laa-data-user-api \
             -f deployment/helm/laa-data-user-api/values.yaml \
-            -f deployment/helm/laa-data-user-api/values-dev.yaml
+            -f deployment/helm/laa-data-user-api/values-${ENVIRONMENT}.yaml
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
 
       - name: Helm Template
         run: |
           helm template deployment/helm/laa-data-user-api \
             -f deployment/helm/laa-data-user-api/values.yaml \
-            -f deployment/helm/laa-data-user-api/values-dev.yaml \
+            -f deployment/helm/laa-data-user-api/values-${ENVIRONMENT}.yaml \
             --set image.registry=example.com \
             --set image.repository=laa-data-user-api \
             --set image.tag=test > /dev/null
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
