@@ -1,0 +1,15 @@
+replicaCount: 3
+image:
+  registry: "CHANGEME.dkr.ecr.eu-west-2.amazonaws.com"
+  repository: "laa-data-user-api"
+  tag: "latest"
+ingress:
+  className: "default"
+  host: "laa-data-user-api.internal.cloud-platform.service.justice.gov.uk"
+resources:
+  requests:
+    memory: "1200Mi"
+    cpu: "300m"
+  limits:
+    memory: "3000Mi"
+    cpu: "1"
