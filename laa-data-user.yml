@@ -1,0 +1,2421 @@
+openapi: 3.0.3
+info:
+  title: LAA User Data API
+  description: |
+    LAA User Data API
+
+    This API provides access to user account and profile data for Legal Aid Agency (LAA) users. 
+
+    Notes for consumers:
+    - Users access SiLAS and all systems using their User Account, this is directly mapped to the Entra ID account. Their access is linked their user profile which is a child record of the account.
+    - Users can have multiple profiles, each of which will belong to a different provider firm. When working with external users, the profile ID MUST be used to identify the user, as the Entra Object ID is shared across all profiles for a given user.
+    - The Provider Data endpoints are temporary and will be replaced by PDAv2. They are provided for consumption by the Manage Your Users service only. Consumers should not rely on these endpoints for any other purpose and should use PDA instead.
+
+
+  version: 1.0.0
+  contact:
+    name: LAA SiLAS Team #laa-silas-idam
+
+servers:
+  - url: /
+    description: Relative to deployment host
+
+security:
+  - entraIdOAuth: ["api://user-data/user.read"]
+
+tags:
+  - name: User Account
+    description: Commands and queries used for the management of user accounts (`entra_user`)
+  - name: User Profiles
+    description: Commands and queries used for the management of user profiles including assigning roles and offices (`user_profile`, junction tables)
+  - name: Provider Data
+    description: Temporary endpoints which expose firms and offices to support user management. Will be replaced by PDAv2. (`firm`, `office`)
+  - name: Application & Role Management
+    description: Administration endpoints for the creation and management of SiLAS apps and roles, including defining which roles can assign which other roles (`app`, `app_role`, `role_assignment`)
+  - name: User Account Security Audit & Management
+    description: Endpoints to allow security users to view audit data and bulk disable users as required (`user_account_status_audit`, reason tables)
+  - name: Admin Triggers
+    description: Operational commands triggered by system administrators. Used by SiLAS team only.
+
+paths:
+  # --- User Account queries ---
+  /api/v1/queries/users:
+    get:
+      operationId: queryUsersSearch
+      tags: [User Account]
+      summary: Search SiLAS users accounts. This returns the user account, not the user profile. The user profile is the entity which is linked to firms and has access granted.
+      description: |
+        app_id_filter and app_role_id_filter can be used to retrieve a set of users with access to a specified app or app role respectively.
+        firm_id can be used to retrieve a set of users with access to a firm, note that will include multi-firm users who may have access to other firms, including as their active profile. To filter by office ID, use the /queries/user-profiles endpoint.
+        This endpoint will only return user accounts that the actor user included in the JWT has access to view.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/UserType'
+        - $ref: '#/components/parameters/UserAccountStatus'
+        - $ref: '#/components/parameters/UserQuery'
+        - $ref: '#/components/parameters/FirmQuery'
+        - $ref: '#/components/parameters/FirmIdFilter'
+        - $ref: '#/components/parameters/AppIdFilter'
+        - $ref: '#/components/parameters/AppRoleIdFilter'
+        - name: never_activated_filter
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated user search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAccountSummaryPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/queries/users/{userEntraObjectId}:
+    get:
+      operationId: queryUserById
+      tags: [User Account]
+      summary: Get SiLAS user account by Entra Object ID
+      parameters:
+        - $ref: '#/components/parameters/UserEntraObjectId'
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # --- User profile queries ---
+  /api/v1/queries/users/{userEntraObjectId}/profiles:
+    get:
+      operationId: queryUserProfilesByEntraUser
+      tags: [User Profiles]
+      summary: List profiles for a SiLAS user account
+      parameters:
+        - $ref: '#/components/parameters/UserEntraObjectId'
+      responses:
+        '200':
+          description: Profile list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileSummaryList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/queries/users/{userEntraObjectId}/active-profile:
+    get:
+      operationId: queryActiveProfileByEntraUser
+      tags: [User Profiles]
+      summary: Get active profile for a SiLAS user account
+      parameters:
+        - $ref: '#/components/parameters/UserEntraObjectId'
+      responses:
+        '200':
+          description: Details for active profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileDetailView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/queries/user-profiles:
+    get:
+      operationId: queryUserProfilesSearch
+      tags: [User Profiles]
+      summary: Search user profiles
+      description: |
+        app_id_filter and app_role_id_filter can be used to retrieve a set of users with access to a specified app or app role respectively.
+        firm_id can be used to retrieve a set of users with access to a firm and office_id will limit to just a set LAA office account. These filters can be used in conjunction e.g. to get a set of users with the 'Billing approver' role for a set firm/office.
+        This endpoint will only return user profile that the actor user included in the JWT has access to view.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/UserType'
+        - $ref: '#/components/parameters/UserProfileStatus'
+        - $ref: '#/components/parameters/AppIdFilter'
+        - $ref: '#/components/parameters/AppRoleIdFilter'
+        - $ref: '#/components/parameters/OfficeIdFilter'
+        - $ref: '#/components/parameters/FirmIdFilter'
+        - $ref: '#/components/parameters/UserQuery'
+        - $ref: '#/components/parameters/FirmQuery'
+        
+        - name: firm_admin_filter
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: multi_firm_users_filter
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Paginated profile search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileSummaryPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/queries/user-profiles/{userProfileId}:
+    get:
+      operationId: queryUserProfileById
+      tags: [User Profiles]
+      summary: Get user profile detail
+      parameters:
+        - $ref: '#/components/parameters/UserProfileId'
+      responses:
+        '200':
+          description: User profile detail, including roles and offices
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileDetailView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/queries/user-profiles/{userProfileId}/app-roles:
+    get:
+      operationId: queryUserProfileAppRoles
+      tags: [User Profiles]
+      summary: Get all app roles for a user profile, can be filtered by app_id
+      parameters:
+        - $ref: '#/components/parameters/UserProfileId'
+        - $ref: '#/components/parameters/AppIdFilter'
+      responses:
+        '200':
+          description: App roles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppRoleViewList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/queries/user-profiles/{userProfileId}/apps:
+    get:
+      operationId: queryUserProfileApps
+      tags: [User Profiles]
+      summary: Get all apps for a user profile
+      parameters:
+        - $ref: '#/components/parameters/UserProfileId'
+      responses:
+        '200':
+          description: Applications for user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppViewList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/queries/user-profiles/{userProfileId}/offices:
+    get:
+      operationId: queryUserProfileOffices
+      tags: [User Profiles]
+      summary: Get offices for a user profile
+      parameters:
+        - $ref: '#/components/parameters/UserProfileId'
+      responses:
+        '200':
+          description: Offices
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfficeViewList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # --- Provider data queries ---
+  /api/v1/queries/firms:
+    get:
+      operationId: queryFirms
+      tags: [Provider Data]
+      summary: Get list of firms, with pagination and query field. Used for firm directory.
+      security: 
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      parameters:
+        - $ref: '#/components/parameters/FirmQuery'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Firm
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FirmViewPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/queries/firms/{firmId}:
+    get:
+      operationId: queryFirmById
+      tags: [Provider Data]
+      summary: Get firm by ID. Used for firm directory detail.
+      security: 
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      parameters:
+        - $ref: '#/components/parameters/FirmId'
+      responses:
+        '200':
+          description: Firm
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FirmView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/queries/firms/search:
+    get:
+      operationId: queryFirmsSearch
+      tags: [Provider Data]
+      summary: Type-ahead search for firms, returns a list of firms to be used for identifying firms in search boxes.
+      security: 
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Matching firms
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FirmSearchViewList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          
+  /api/v1/queries/firms/{firmId}/offices:
+    get:
+      operationId: queryFirmOffices
+      tags: [Provider Data]
+      summary: List offices for firm
+      security: 
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      parameters:
+        - $ref: '#/components/parameters/FirmId'
+      responses:
+        '200':
+          description: Office page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfficeViewList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # --- Application & Role Management queries ---
+  /api/v1/queries/apps:
+    get:
+      operationId: queryAppsAll
+      tags: [Application & Role Management]
+      summary: List all SiLAS applications
+      responses:
+        '200':
+          description: Apps
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppViewList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/queries/apps/{appId}:
+    get:
+      operationId: queryAppById
+      tags: [Application & Role Management]
+      summary: Get app by ID (Application Client ID in Entra ID)
+      parameters:
+        - $ref: '#/components/parameters/AppId'
+      responses:
+        '200':
+          description: App
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/queries/apps/{appId}/roles:
+    get:
+      operationId: queryAppRolesByApp
+      tags: [Application & Role Management]
+      summary: List roles for specified app
+      parameters:
+        - $ref: '#/components/parameters/AppId'
+        - $ref: '#/components/parameters/UserType'
+      responses:
+        '200':
+          description: App roles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppRoleViewList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/queries/app-roles/{appRoleId}:
+    get:
+      operationId: queryAppRoleById
+      tags: [Application & Role Management]
+      summary: Get details for app role by its app role ID
+      parameters:
+        - $ref: '#/components/parameters/AppRoleId'
+      responses:
+        '200':
+          description: App role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppRoleView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/queries/role-restrictions:
+    get:
+      operationId: queryRoleAssignmentRestrictions
+      tags: [Application & Role Management]
+      summary: List role assignment restrictions
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/AppIdFilter'
+      responses:
+        '200':
+          description: Role assignment restrictions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleAssignmentRestrictionViewPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+
+
+  # --- Audit queries ---
+  /api/v1/queries/audit/users/{userEntraObjectId}:
+    get:
+      operationId: queryAuditUserDetail
+      tags: [User Account Security Audit & Management]
+      summary: Get audit user detail
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      parameters:
+        - $ref: '#/components/parameters/UserEntraObjectId'
+      responses:
+        '200':
+          description: Audit detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditUserDetailView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/queries/audit/users/deleted:
+    get:
+      operationId: queryAuditUsersDeleted
+      tags: [User Account Security Audit & Management]
+      summary: List deleted users
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: email_query
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted users page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedUserAuditPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/queries/audit/users/export:
+    get:
+      operationId: queryAuditUsersExport
+      tags: [User Account Security Audit & Management]
+      summary: Export audit users CSV, must be constrained to a single firm (or internal users only)
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      parameters:
+        - $ref: '#/components/parameters/UserType'
+        - $ref: '#/components/parameters/UserAccountStatus'
+        - $ref: '#/components/parameters/FirmIdFilter'
+        - $ref: '#/components/parameters/OfficeIdFilter'
+        - $ref: '#/components/parameters/AppIdFilter'
+        - $ref: '#/components/parameters/AppRoleIdFilter'
+        - name: never_activated_filter
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: CSV export
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # --- Identity commands ---
+  /api/v1/commands/users/create:
+    post:
+      operationId: commandUserAccountCreate
+      tags: [User Account]
+      summary: Create Entra user and initial profile
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserAccountCommand'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateUserAccountResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: User account already exists. This will return the complete user object from Entra ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateUserAccountResult'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  /api/v1/commands/users/update-details:
+    post:
+      operationId: commandUserAccountUpdateDetails
+      tags: [User Account]
+      summary: Update User Account details
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserDetailsCommand'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  /api/v1/commands/users/disable:
+    post:
+      operationId: commandUserAccountDisable
+      tags: [User Account]
+      summary: Disable SiLAS User Account
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DisableUserCommand'
+      responses:
+        '200':
+          description: User account disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  /api/v1/commands/users/enable:
+    post:
+      operationId: commandUserAccountEnable
+      tags: [User Account]
+      summary: Enable User Account
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnableUserCommand'
+      responses:
+        '200':
+          description: User account enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  /api/v1/commands/users/delete:
+    post:
+      operationId: commandUserAccountDelete
+      tags: [User Account]
+      summary: Delete User Account and all associated profiles
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteUserAccountCommand'
+      responses:
+        '200':
+          description: User account deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteUserResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  /api/v1/commands/users/convert-to-multi-firm:
+    post:
+      operationId: commandUserAccountConvertMultiFirm
+      tags: [User Account]
+      summary: Convert user to multi-firm. This cannot be undone.
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConvertToMultiFirmCommand'
+      responses:
+        '200':
+          description: User account converted to multi-firm
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/commands/users/set-active-profile:
+    post:
+      operationId: commandUserSetActiveProfile
+      tags: [User Profiles]
+      summary: Set active profile for SiLAS user account
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetActiveProfileCommand'
+      responses:
+        '200':
+          description: Active profile set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # --- User profile commands ---
+  /api/v1/commands/user-profiles/create:
+    post:
+      operationId: commandUserProfileCreate
+      tags: [User Profiles]
+      summary: Create user profile
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserProfileCommand'
+      responses:
+        '201':
+          description: Profile created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateUserProfileResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/commands/user-profiles/assign-app-roles:
+    post:
+      operationId: commandUserProfileAssignAppRoles
+      tags: [User Profiles]
+      summary: Assign app roles to profile
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignAppRolesCommand'
+      responses:
+        '200':
+          description: Roles assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  /api/v1/commands/user-profiles/remove-app-roles:
+    post:
+      operationId: commandUserProfileRemoveAppRoles
+      tags: [User Profiles]
+      summary: Remove app roles from profile
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveAppRolesCommand'
+      responses:
+        '200':
+          description: Roles removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  /api/v1/commands/user-profiles/update-app-roles:
+    post:
+      operationId: commandUserProfileUpdateAppRoles
+      tags: [User Profiles]
+      summary: Updates roles for a specified set of apps
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAppRolesCommand'
+      responses:
+        '200':
+          description: App roles updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateAppRolesResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  /api/v1/commands/user-profiles/update-offices:
+    post:
+      operationId: commandUserProfileUpdateOffices
+      tags: [User Profiles]
+      summary: Update offices for profile
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - $ref: '#/components/schemas/UpdateOfficesCommand'
+              - $ref: '#/components/schemas/UpdateOfficesUnrestrictedCommand'
+      responses:
+        '200':
+          description: Offices updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateOfficesResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /api/v1/commands/user-profiles/change-firm:
+    post:
+      operationId: commandUserProfileChangeFirm
+      tags: [User Profiles]
+      summary: Reassign profile to a different firm
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeProfileFirmCommand'
+      responses:
+        '200':
+          description: Firm reassigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/commands/user-profiles/delete:
+    post:
+      operationId: commandUserProfileDelete
+      tags: [User Profiles]
+      summary: Delete external user profile
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteUserProfileCommand'
+      responses:
+        '200':
+          description: User profile deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteUserResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+
+  /api/v1/commands/firms/bulk-disable-users:
+    post:
+      operationId: commandFirmBulkDisableUsers
+      tags: [User Account Security Audit & Management]
+      summary: Bulk disable users for firm
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkDisableFirmUsersCommand'
+      responses:
+        '200':
+          description: All users in firm disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  # --- Application & Role Management commands ---
+  /api/v1/commands/apps/update:
+    post:
+      operationId: commandAppUpdate
+      tags: [Application & Role Management]
+      summary: Update app metadata
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAppCommand'
+      responses:
+        '200':
+          description: App updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/commands/apps/reorder:
+    post:
+      operationId: commandAppsReorder
+      tags: [Application & Role Management]
+      summary: Reorder LAA apps
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderAppsCommand'
+      responses:
+        '200':
+          description: Apps reordered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/commands/apps/sync-from-tech-services:
+    post:
+      operationId: commandAppsSyncTechServices
+      tags: [Application & Role Management]
+      summary: Sync apps from Tech Services
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      responses:
+        '200':
+          description: Apps synchronised
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncAppsResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+
+  /api/v1/commands/app-roles/create:
+    post:
+      operationId: commandAppRoleCreate
+      tags: [Application & Role Management]
+      summary: Create app role
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppRoleCommand'
+      responses:
+        '201':
+          description: Role created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateAppRoleResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/commands/app-roles/update:
+    post:
+      operationId: commandAppRoleUpdate
+      tags: [Application & Role Management]
+      summary: Update app role
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAppRoleCommand'
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/commands/app-roles/delete:
+    post:
+      operationId: commandAppRoleDelete
+      tags: [Application & Role Management]
+      summary: Delete app role
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteAppRoleCommand'
+      responses:
+        '200':
+          description: Role deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/commands/app-roles/reorder:
+    post:
+      operationId: commandAppRolesReorder
+      tags: [Application & Role Management]
+      summary: Reorder app roles
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderAppRolesCommand'
+      responses:
+        '200':
+          description: Roles reordered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/commands/role-assignments/update-restrictions:
+    post:
+      operationId: commandRoleAssignmentsUpdateRestrictions
+      tags: [Application & Role Management]
+      summary: Update role assignment restrictions
+      security:
+        - entraIdOAuth: ["api://user-data/user.admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleAssignmentRestrictionsCommand'
+      responses:
+        '200':
+          description: Restrictions updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # --- Admin triggers ---
+  /api/v1/commands/user-profiles/refresh-silas-status:
+    post:
+      operationId: commandUserProfilesRefreshSilasStatus
+      tags: [Admin Triggers]
+      summary: Refresh SiLAS status for all profiles
+      security:
+        - entraIdOAuth: ["api://user-data/system.admin"]
+      responses:
+        '200':
+          description: Refresh started or completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/commands/ccms/trigger-role-sync:
+    post:
+      operationId: commandCcmsTriggerRoleSync
+      tags: [Admin Triggers]
+      summary: Re-trigger CCMS role sync for profiles where last_sync_successful=false
+      security:
+        - entraIdOAuth: ["api://user-data/system.admin"]
+      responses:
+        '200':
+          description: CCMS User sync triggered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriggerCcmsRoleSyncResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    entraIdOAuth:
+      type: oauth2
+      description: Entra ID OAuth 2.0 authentication. Use 'user.read' scope for LAA apps reading user profiles. Use 'user.admin' scope for user administration services with full endpoint access.
+      flows:
+        authorizationCode:
+          authorizationUrl: https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/authorize
+          tokenUrl: https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token
+          scopes:
+            api://user-data/user.read: Read user account and profile details
+            api://user-data/user.admin: Full administrative access to all endpoints
+            api://user-data/system.admin: Privileged administrative access to initiate system functions
+        clientCredentials:
+          tokenUrl: https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token
+          scopes:
+            api://user-data/user.read: Read user account and profile details
+            api://user-data/user.admin: Full administrative access to all endpoints
+
+  parameters:
+    UserEntraObjectId:
+      name: userEntraObjectId
+      description: The Entra Object ID for the user. This is a GUID and is the unique identifier for the user in Entra.
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    UserProfileId:
+      name: userProfileId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    FirmQuery:
+      name: firm
+      description: Search term to filter firms by name and ID. This is a case-insensitive search and will return all firms that contain the search term in either their name or ID.
+      in: query
+      schema:
+        type: string
+    FirmId:
+      name: firmId
+      description: The firm number for each firm. This is numerical key and is shared with PDA.
+      in: path
+      required: true
+      schema:
+        type: string
+    FirmIdFilter:
+      name: firm_id
+      description: The firm number for each firm. This is numerical key and is shared with PDA. Used to filter user results to only show users with this firm assigned.
+      in: query
+      schema:
+        type: string
+    OfficeIdFilter:
+      name: office_id
+      description: The office account number for the office. This is a 5 or 6 digit key.
+      in: query
+      schema:
+        type: string
+    AppId:
+      name: appId
+      description: Identifier for the application. This uses the Entra client ID.
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AppRoleId:
+      name: appRoleId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AppIdFilter:
+      name: app_id
+      description: Identifier for the application. This uses the Entra client ID. Used to filter user results to only show users with this app assigned.
+      in: query
+      schema:
+        type: string
+        format: uuid
+    AppRoleIdFilter:
+      name: app_role_id
+      description: Identifier for the application role. This uses the SiLAS ID. Used to filter user results to only show users with this role assigned.
+      in: query
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page_number
+      description: Zero-indexed page number to retrieve. Defaults to 0 (the first page).
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Size:
+      name: page_size
+      description: Number of items to return per page, from 1 to 100. Defaults to 20.
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Sort:
+      name: sort_by
+      description: >-
+        Field and direction to sort by, in the form `{field},{asc|desc}`,
+        e.g. `lastName,desc`. Direction defaults to `asc` if omitted.
+        Repeat this parameter to sort by multiple fields in priority order.
+        Unless mentioned in the query path description, all fields in the response can be sorted.
+      in: query
+      style: form
+      explode: true
+      schema:
+        type: array
+        items:
+          type: string
+    UserQuery:
+      name: user
+      description: Allows searching on user name or email address. Will return all results where the name or email address match the provided query.
+      in: query
+      schema:
+        type: string
+    UserType:
+      name: user_type
+      in: query
+      schema:
+        $ref: '#/components/schemas/UserType'
+    UserAccountStatus:
+      name: user_account_status
+      in: query
+      schema:
+        $ref: '#/components/schemas/UserAccountStatus'
+    UserProfileStatus:
+      name: user_profile_status
+      in: query
+      schema:
+        $ref: '#/components/schemas/UserProfileStatus'
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    Forbidden:
+      description: Token lacks required scope or user lacks lower level granular permissions.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    Conflict:
+      description: Conflict with current resource state
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    UnprocessableEntity:
+      description: Well-formed but semantically invalid (e.g. role not allowed for user type)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    BadGateway:
+      description: Downstream API returned an invalid or unexpected response
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    ServiceUnavailable:
+      description: Downstream API is unreachable
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    GatewayTimeout:
+      description: Downstream API did not respond in time
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+  schemas:
+    ProblemDetail:
+      type: object
+      description: RFC 9457 problem detail
+      #TO DO: Decide if the RFC 9457 standard is appropriate or if a lighter weight error response is suitable
+      required: [ type, title, status, detail, instance ]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              detail:
+                type: string
+ 
+    CommandResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    PageMetadata:
+      type: object
+      properties:
+        page_number:
+          type: integer
+        page_size:
+          type: integer
+        total_elements:
+          type: integer
+          format: int64
+        total_pages:
+          type: integer
+
+    AppRoleUserType:
+      type: string
+      enum: ["INTERNAL", "EXTERNAL", "BOTH"]
+
+    UserType:
+      type: string
+      enum: ["INTERNAL", "EXTERNAL"]
+
+    UserAccountStatus:
+      type: string
+      enum: ["ACTIVE", "DEACTIVATED", "ACTIVATION_REQUIRED"]
+
+    UserProfileStatus:
+      type: string
+      enum: ["COMPLETE", "NO_ROLES_ASSIGNED", "ACTIVATION_REQUIRED"]
+
+    FirmType:
+      type: string
+      enum: ["ADVOCATE", "CHAMBERS", "LEGAL_SERVICES_PROVIDER"]
+
+    DeleteUserReason:
+      type: string
+      enum: ["CyberRisk", "LeftFirm", "ProviderDiscretion", "ContractEnded", "RoleChangeorNoLongerRequired", "FirmClosureorMerger", "ComplianceBreach", "DuplicateAccount", "UserRequest", "SystemIssue", "ExpiredInvitation", "NotActiveAfterMaxLifetime", "NoGroupsDelete"]
+
+    DisableUserReason:
+      type: string
+      enum: [ "Absence", "ComplianceBreach", "ContractEnded", "CyberRisk", "DuplicateAccount", "FirmClosureorMerger", "InvestigationPending", "RoleChangeorNoLongerRequired", "UserRequest", "Inactivity", "ProviderDiscretion", "NotActive", "PendingAcceptance" ]
+
+    # --- Query views ---
+    UserAccountSummaryView:
+      type: object
+      description: Summary view of User Account (entra_user), does not contain any profile information
+      required: [ userEntraObjectId, email, firstName, lastName, accountStatus ]
+      properties:
+        userEntraObjectId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        accountStatus:
+          $ref: '#/components/schemas/UserAccountStatus'
+        multiFirmUser:
+          type: boolean
+        mailOnly:
+          type: boolean
+        lastSyncedOn:
+          type: string
+          format: date-time
+        createdDate:
+          type: string
+          format: date-time
+        lastModifiedDate:
+          type: string
+          format: date-time
+        profileCount:
+          type: integer
+          format: int32
+
+    UserView:
+      type: object
+      description: Complete user view containing both the User Account and their active profile (including roles and offices)
+      required: [ userAccount, activeProfile ]
+      properties:
+        userAccount:
+          $ref: '#/components/schemas/UserAccountSummaryView'
+        activeProfile:
+          $ref: '#/components/schemas/UserProfileDetailView'
+
+    UserAccountSummaryPage:
+      type: object
+      required: [ items, page ]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserAccountSummaryView'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    UserProfileSummaryView:
+      type: object
+      description: List/search projection for user_profile + entra_user
+      required: [ userProfileId, userType, email, fullName, accountStatus, profileStatus, hasAppRoles ]
+      properties:
+        userProfileId:
+          type: string
+          format: uuid
+        activeProfile:
+          type: boolean
+        userType:
+          $ref: '#/components/schemas/UserType'
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        firmName:
+          type: string
+        firmId:
+          type: string
+        multiFirmUser:
+          type: boolean
+        accountStatus:
+          $ref: '#/components/schemas/UserAccountStatus'
+        profileStatus:
+          $ref: '#/components/schemas/UserProfileStatus'
+        hasAppRoles:
+          type: boolean
+
+    UserProfileSummaryList:
+      type: object
+      description: List of profile summaries, used for non-paginated contexts e.g. multi-firm user profile switcher
+      required: [ items ]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserProfileSummaryView'
+
+    UserProfileSummaryPage:
+      type: object
+      required: [ items, page ]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserProfileSummaryView'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    UserProfileDetailView:
+      type: object
+      description: Read model for user_profile + entra_user + app_roles + offices
+      required: [ userProfileId, userType, email, fullName, accountStatus, profileStatus, hasAppRoles ]
+      allOf:
+        - $ref: '#/components/schemas/UserProfileSummaryView'
+        - type: object
+          properties:
+            userEntraObjectId:
+              type: string
+              format: uuid
+            unrestrictedOfficeAccess:
+              type: boolean
+            lastSyncSuccessful:
+              type: boolean
+            roles:
+              type: array
+              items:
+                $ref: '#/components/schemas/AppRoleView'
+            offices:
+              type: array
+              items:
+                $ref: '#/components/schemas/OfficeView'
+
+    FirmView:
+      type: object
+      description: Read model for firm
+      required: [ firmId, name, type ]
+      properties:
+        firmId:
+          type: string
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/FirmType'
+        parentFirmId:
+          type: string
+        enabled:
+          type: boolean
+
+    FirmViewPage:
+      type: object
+      required: [ items, page ]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FirmView'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    FirmSearchView:
+      type: object
+      description: Read model for firm type-ahead search
+      required: [ firmId, name ]
+      properties:
+        firmId:
+          type: string
+        name:
+          type: string
+
+    FirmSearchViewList:
+      type: object
+      required: [ items ]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FirmSearchView'      
+
+    OfficeView:
+      type: object
+      description: Read model for office
+      required: [ officeId, firmId ]
+      properties:
+        officeId:
+          type: string
+        firmId:
+          type: string
+        postCode:
+          type: string
+        addressLine1:
+          type: string
+        addressLine2:
+          type: string
+        addressLine3:
+          type: string
+        city:
+          type: string
+
+    OfficeViewList:
+      type: object
+      required: [ items ]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OfficeView'
+
+    AppView:
+      type: object
+      description: Read model for app
+      required: [ appId, name, description, url, enabled, ordinal, appEntraObjectId ]
+      properties:
+        appId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+        enabled:
+          type: boolean
+        ordinal:
+          type: integer
+        appEntraObjectId:
+          type: string
+          format: uuid
+
+    AppViewList:
+      type: object
+      required: [ items ]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppView'
+
+    AppRoleView:
+      type: object
+      description: Read model for app_role
+      required: [ appRoleId, appId, name, description, authzRole, legacySync, ordinal, appRoleUserTypeRestriction ]
+      properties:
+        appRoleId:
+          type: string
+          format: uuid
+        appId:
+          type: string
+          format: uuid
+        appName:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        authzRole:
+          type: boolean
+        ccmsCode:
+          type: string
+        legacySync:
+          type: boolean
+        ordinal:
+          type: integer
+        appRoleUserTypeRestriction:
+          $ref: '#/components/schemas/AppRoleUserType'
+        firmTypeRestriction:
+          type: array
+          items:
+            $ref: '#/components/schemas/FirmType'
+
+    AppRoleViewList:
+      type: object
+      required: [ items ]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppRoleView'
+
+    RoleAssignmentRestrictionView:
+      type: object
+      description: Read model for role assignment restrictions
+      required: [ appRoleId, appRoleName, appId, appName, assigningAppRoleId, assigningAppRoleName ]
+      properties:
+        appRoleId:
+          type: string
+          format: uuid
+        appRoleName:
+          type: string
+        appId:
+          type: string
+          format: uuid
+        appName:
+          type: string
+        assigningAppRoleId:
+          type: string
+          format: uuid
+        assigningAppRoleName:
+          type: string
+    
+    RoleAssignmentRestrictionViewPage:
+      type: object
+      required: [ items, page ]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleAssignmentRestrictionView'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    AuditUserDetailView:
+      type: object
+      required: [ entraUser, profiles, accountStatusHistory ]
+      properties:
+        entraUser:
+          allOf:
+            - $ref: '#/components/schemas/UserAccountSummaryView'
+            - type: object
+              properties:
+                entraInviteStatus:
+                  type: string
+                lastLoginDate:
+                  type: string
+                  format: date-time
+        profiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserProfileDetailView'
+        accountStatusHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountStatusHistoryView'
+
+    AccountStatusHistoryView:
+      type: object
+      description: Read model from user_account_status_audit
+      required: [ userEntraObjectId, statusChange, statusChangedDate, statusChangedBy ]
+      properties:
+        userEntraObjectId:
+          type: string
+          format: uuid
+        statusChange:
+          type: string
+        statusChangedDate:
+          type: string
+          format: date-time
+        statusChangedBy:
+          type: string
+        disableReason:
+          $ref: '#/components/schemas/DisableUserReason'
+        disableReasonLabel:
+          type: string
+
+    DeletedUserAuditView:
+      type: object
+      description: Read model of deleted users for audit purposes
+      required: [ userEntraObjectId, email, deletedBy, deletedDate, deleteReasonLabel ]
+      properties:
+        userEntraObjectId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        deletedBy:
+          type: string
+        deletedDate:
+          type: string
+          format: date-time
+        deleteReason:
+          $ref: '#/components/schemas/DeleteUserReason'
+        deleteReasonLabel:
+          type: string
+
+    DeletedUserAuditPage:
+      type: object
+      required: [ items, page ]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeletedUserAuditView'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    # --- Commands ---
+    CreateUserAccountCommand:
+      type: object
+      required: [email, firstName, lastName, userType, multiFirmUser]
+      properties:
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        userType:
+          $ref: '#/components/schemas/UserType'
+        firmId:
+          type: string
+        multiFirmUser:
+          type: boolean
+        appRoleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        unrestrictedOfficeAccess:
+          type: boolean
+        officeIds:
+          type: array
+          items:
+            type: string
+
+    CreateUserAccountResult:
+      allOf:
+        - $ref: '#/components/schemas/CommandResult'
+        - type: object
+          required: [ userEntraObjectId ]
+          properties:
+            userEntraObjectId:
+              type: string
+              format: uuid
+            userProfileId:
+              type: string
+              format: uuid
+
+    UpdateUserDetailsCommand:
+      type: object
+      required: [userEntraObjectId]
+      anyOf:
+        - required: [firstName]
+        - required: [lastName]
+        - required: [email]
+      properties:
+        userEntraObjectId:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+
+    DisableUserCommand:
+      type: object
+      required: [userEntraObjectId, disableReason]
+      properties:
+        userEntraObjectId:
+          type: string
+          format: uuid
+        disableReason:
+          $ref: "#/components/schemas/DisableUserReason"
+
+    EnableUserCommand:
+      type: object
+      required: [userEntraObjectId]
+      properties:
+        userEntraObjectId:
+          type: string
+          format: uuid
+
+    DeleteUserAccountCommand:
+      type: object
+      required: [userEntraObjectId, deleteReason]
+      properties:
+        userEntraObjectId:
+          type: string
+          format: uuid
+        deleteReason:
+          $ref: '#/components/schemas/DeleteUserReason'
+
+    ConvertToMultiFirmCommand:
+      type: object
+      required: [userEntraObjectId]
+      properties:
+        userEntraObjectId:
+          type: string
+          format: uuid
+
+    CreateUserProfileCommand:
+      type: object
+      required: [userEntraObjectId, firmId]
+      properties:
+        userEntraObjectId:
+          type: string
+          format: uuid
+        firmId:
+          type: string
+        unrestrictedOfficeAccess:
+          type: boolean
+        appRoleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        officeIds:
+          type: array
+          items:
+            type: string
+
+    CreateUserProfileResult:
+      allOf:
+        - $ref: '#/components/schemas/CommandResult'
+        - type: object
+          properties:
+            userProfileId:
+              type: string
+              format: uuid
+
+    AssignAppRolesCommand:
+      type: object
+      required: [userProfileId, appRoleIds]
+      properties:
+        userProfileId:
+          type: string
+          format: uuid
+        appRoleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    RemoveAppRolesCommand:
+      type: object
+      required: [userProfileId ]
+      properties:
+        userProfileId:
+          type: string
+          format: uuid
+        appIds:
+          type: array
+          description: Use to remove all roles for the specified applications.
+          items:
+            type: string
+            format: uuid
+        appRoleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    AppRoleAssignment:
+      type: object
+      description: A single app and the set of role IDs to apply for it
+      required: [appId, appRoleIds]
+      properties:
+        appId:
+          type: string
+          format: uuid
+        appRoleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    AppOrdinal:
+      type: object
+      description: An app and its display position
+      required: [appId, ordinal]
+      properties:
+        appId:
+          type: string
+          format: uuid
+        ordinal:
+          type: integer
+
+    AppRoleOrdinal:
+      type: object
+      description: An app role and its display position
+      required: [appRoleId, ordinal]
+      properties:
+        appRoleId:
+          type: string
+          format: uuid
+        ordinal:
+          type: integer
+
+    UpdateAppRolesCommand:
+      type: object
+      required: [userProfileId, appsAndRoles]
+      properties:
+        userProfileId:
+          type: string
+          format: uuid
+        appsAndRoles:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppRoleAssignment'
+    
+    UpdateAppRolesResult:
+      allOf:
+        - $ref: '#/components/schemas/CommandResult'
+        - type: object
+          properties:
+            appRoles:
+              $ref: '#/components/schemas/AppRoleViewList'
+
+    UpdateOfficesCommand:
+      type: object
+      required: [userProfileId, officeIds]
+      properties:
+        userProfileId:
+          type: string
+          format: uuid
+        officeIds:
+          type: array
+          items:
+            type: string
+
+    UpdateOfficesUnrestrictedCommand:
+      type: object
+      required: [userProfileId, unrestrictedOfficeAccess]
+      properties:
+        userProfileId:
+          type: string
+          format: uuid
+        unrestrictedOfficeAccess:
+          type: boolean
+
+    UpdateOfficesResult:
+      allOf:
+        - $ref: '#/components/schemas/CommandResult'
+        - type: object
+          properties:
+            officeIds:
+              type: array
+              items:
+                type: string
+
+    SetActiveProfileCommand:
+      type: object
+      required: [userEntraObjectId, userProfileId]
+      properties:
+        userEntraObjectId:
+          type: string
+          format: uuid
+        userProfileId:
+          type: string
+          format: uuid
+
+    ChangeProfileFirmCommand:
+      type: object
+      required: [userProfileId, targetFirmId]
+      properties:
+        userProfileId:
+          type: string
+          format: uuid
+        targetFirmId:
+          type: string
+
+    DeleteUserProfileCommand:
+      type: object
+      required: [userProfileId]
+      properties:
+        userProfileId:
+          type: string
+          format: uuid
+
+    DeleteUserResult:
+      allOf:
+        - $ref: '#/components/schemas/CommandResult'
+        - type: object
+          properties:
+            userEntraObjectId:
+              type: string
+              format: uuid
+            userProfileId:
+              type: string
+              format: uuid
+
+    BulkDisableFirmUsersCommand:
+      type: object
+      required: [firmId, disableReason]
+      properties:
+        firmId:
+          type: string
+        disableReason:
+          $ref: '#/components/schemas/DisableUserReason'
+
+    UpdateAppCommand:
+      type: object
+      required: [appId]
+      properties:
+        appId:
+          type: string
+          format: uuid
+        description:
+          type: string
+        enabled:
+          type: boolean
+
+    ReorderAppsCommand:
+      type: object
+      required: [ appOrdinals]
+      properties:
+        appOrdinals:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppOrdinal'
+
+    SyncAppsResult:
+      allOf:
+        - $ref: '#/components/schemas/CommandResult'
+        - type: object
+          properties:
+            syncedCount:
+              type: integer
+            apps:
+              type: array
+              items:
+                $ref: '#/components/schemas/AppView'
+
+    TriggerCcmsRoleSyncResult:
+      allOf:
+        - $ref: '#/components/schemas/CommandResult'
+        - type: object
+          properties:
+            userProfiles:
+              type: array
+              description: Profiles for which CCMS role sync was triggered
+              items:
+                $ref: '#/components/schemas/UserProfileSummaryView'
+
+    CreateAppRoleCommand:
+      type: object
+      required: [appId, name, description, appRoleUserTypeRestriction]
+      properties:
+        appId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        ccmsCode:
+          type: string
+        legacySync:
+          type: boolean
+          default: false
+        appRoleUserTypeRestriction:
+          $ref: '#/components/schemas/AppRoleUserType'
+        firmTypeRestriction:
+          type: array
+          items:
+            $ref: '#/components/schemas/FirmType'
+
+    CreateAppRoleResult:
+      allOf:
+        - $ref: '#/components/schemas/CommandResult'
+        - type: object
+          properties:
+            appRoleId:
+              type: string
+              format: uuid
+
+    UpdateAppRoleCommand:
+      type: object
+      required: [appRoleId]
+      properties:
+        appRoleId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+
+    DeleteAppRoleCommand:
+      type: object
+      required: [appRoleId]
+      properties:
+        appRoleId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+
+    ReorderAppRolesCommand:
+      type: object
+      required: [appId, appRoleOrdinals]
+      properties:
+        appId:
+          type: string
+          format: uuid
+        appRoleOrdinals:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppRoleOrdinal'
+
+    UpdateRoleAssignmentRestrictionsCommand:
+      type: object
+      required: [ assignableRoleId ]
+      properties:
+        assignableRoleId:
+          type: string
+          format: uuid
+        assigningRoleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
