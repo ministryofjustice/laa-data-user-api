@@ -18,25 +18,6 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/configuration-snippet: |
       more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload";
-    nginx.ingress.kubernetes.io/modsecurity-snippet: |
-      SecRuleEngine On
-      SecAuditEngine On
-      SecDefaultAction "phase:2,pass,log,tag:github_team=laa-portal-stabilisation-tech"
-      SecDebugLogLevel 1
-    nginx.ingress.kubernetes.io/server-snippet: |
-      set $http1_reject 0;
-      if ($server_protocol = "HTTP/1.1") {
-        set $http1_reject 1;
-      }
-      if ($uri ~ "^/api/v1/claims/enrich") {
-        set $http1_reject 0;
-      }
-      if ($uri ~ "^/actuator/health") {
-        set $http1_reject 0;
-      }
-      if ($http1_reject = 1) {
-        return 426;
-      }
 spec:
   ingressClassName: "{{ .Values.ingress.className }}"
   rules:

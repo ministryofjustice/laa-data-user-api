@@ -1,6 +1,5 @@
 replicaCount: 3
 image:
-  registry: "CHANGEME.dkr.ecr.eu-west-2.amazonaws.com"
   repository: "laa-data-user-api"
   tag: "latest"
 ingress:
