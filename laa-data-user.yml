@@ -1453,6 +1453,7 @@ components:
       explode: true
       schema:
         type: array
+        maxItems: 10
         items:
           type: string
     UserQuery:
