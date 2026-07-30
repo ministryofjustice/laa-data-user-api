@@ -1453,6 +1453,7 @@ components:
       explode: true
       schema:
         type: array
+        maxItems: 20
         items:
           type: string
     UserQuery:
@@ -1554,6 +1555,7 @@ components:
           format: uri
         errors:
           type: array
+          maxItems: 100
           items:
             type: object
             properties:
@@ -1663,6 +1665,7 @@ components:
       properties:
         items:
           type: array
+          maxItems: 100
           items:
             $ref: '#/components/schemas/UserAccountSummaryView'
         page:
@@ -1705,6 +1708,7 @@ components:
       properties:
         items:
           type: array
+          maxItems: 100
           items:
             $ref: '#/components/schemas/UserProfileSummaryView'
 
@@ -1714,6 +1718,7 @@ components:
       properties:
         items:
           type: array
+          maxItems: 100
           items:
             $ref: '#/components/schemas/UserProfileSummaryView'
         page:
@@ -1736,10 +1741,12 @@ components:
               type: boolean
             roles:
               type: array
+              maxItems: 500
               items:
                 $ref: '#/components/schemas/AppRoleView'
             offices:
               type: array
+              maxItems: 100
               items:
                 $ref: '#/components/schemas/OfficeView'
 
@@ -1765,6 +1772,7 @@ components:
       properties:
         items:
           type: array
+          maxItems: 100
           items:
             $ref: '#/components/schemas/FirmView'
         page:
@@ -1786,6 +1794,7 @@ components:
       properties:
         items:
           type: array
+          maxItems: 100
           items:
             $ref: '#/components/schemas/FirmSearchView'      
 
@@ -1815,6 +1824,7 @@ components:
       properties:
         items:
           type: array
+          maxItems: 100
           items:
             $ref: '#/components/schemas/OfficeView'
 
@@ -1846,6 +1856,7 @@ components:
       properties:
         items:
           type: array
+          maxItems: 100
           items:
             $ref: '#/components/schemas/AppView'
 
@@ -1878,6 +1889,7 @@ components:
           $ref: '#/components/schemas/AppRoleUserType'
         firmTypeRestriction:
           type: array
+          maxItems: 10
           items:
             $ref: '#/components/schemas/FirmType'
 
@@ -1887,6 +1899,7 @@ components:
       properties:
         items:
           type: array
+          maxItems: 500
           items:
             $ref: '#/components/schemas/AppRoleView'
 
@@ -1917,6 +1930,7 @@ components:
       properties:
         items:
           type: array
+          maxItems: 100
           items:
             $ref: '#/components/schemas/RoleAssignmentRestrictionView'
         page:
@@ -1938,10 +1952,12 @@ components:
                   format: date-time
         profiles:
           type: array
+          maxItems: 100
           items:
             $ref: '#/components/schemas/UserProfileDetailView'
         accountStatusHistory:
           type: array
+          maxItems: 500
           items:
             $ref: '#/components/schemas/AccountStatusHistoryView'
 
@@ -1994,6 +2010,7 @@ components:
       properties:
         items:
           type: array
+          maxItems: 100
           items:
             $ref: '#/components/schemas/DeletedUserAuditView'
         page:
@@ -2019,6 +2036,7 @@ components:
           type: boolean
         appRoleIds:
           type: array
+          maxItems: 500
           items:
             type: string
             format: uuid
@@ -2026,6 +2044,7 @@ components:
           type: boolean
         officeIds:
           type: array
+          maxItems: 100
           items:
             type: string
 
@@ -2110,11 +2129,13 @@ components:
           type: boolean
         appRoleIds:
           type: array
+          maxItems: 500
           items:
             type: string
             format: uuid
         officeIds:
           type: array
+          maxItems: 100
           items:
             type: string
 
@@ -2136,6 +2157,7 @@ components:
           format: uuid
         appRoleIds:
           type: array
+          maxItems: 500
           items:
             type: string
             format: uuid
@@ -2149,12 +2171,15 @@ components:
           format: uuid
         appIds:
           type: array
+          maxItems: 100
           description: Use to remove all roles for the specified applications.
           items:
             type: string
             format: uuid
         appRoleIds:
           type: array
+          maxItems: 500
+          description: Use to remove a set of roles across multiple apps
           items:
             type: string
             format: uuid
@@ -2169,6 +2194,7 @@ components:
           format: uuid
         appRoleIds:
           type: array
+          maxItems: 100
           items:
             type: string
             format: uuid
@@ -2204,6 +2230,7 @@ components:
           format: uuid
         appsAndRoles:
           type: array
+          maxItems: 100
           items:
             $ref: '#/components/schemas/AppRoleAssignment'
     
@@ -2224,6 +2251,7 @@ components:
           format: uuid
         officeIds:
           type: array
+          maxItems: 100
           items:
             type: string
 
@@ -2244,6 +2272,7 @@ components:
           properties:
             officeIds:
               type: array
+              maxItems: 100
               items:
                 type: string
 
@@ -2315,6 +2344,7 @@ components:
       properties:
         appOrdinals:
           type: array
+          maxItems: 100
           items:
             $ref: '#/components/schemas/AppOrdinal'
 
@@ -2327,6 +2357,7 @@ components:
               type: integer
             apps:
               type: array
+              maxItems: 100
               items:
                 $ref: '#/components/schemas/AppView'
 
@@ -2335,11 +2366,9 @@ components:
         - $ref: '#/components/schemas/CommandResult'
         - type: object
           properties:
-            userProfiles:
-              type: array
-              description: Profiles for which CCMS role sync was triggered
-              items:
-                $ref: '#/components/schemas/UserProfileSummaryView'
+            userProfileCount:
+              type: integer
+              description: Number of profiles for which CCMS role sync was triggered
 
     CreateAppRoleCommand:
       type: object
@@ -2361,6 +2390,7 @@ components:
           $ref: '#/components/schemas/AppRoleUserType'
         firmTypeRestriction:
           type: array
+          maxItems: 10
           items:
             $ref: '#/components/schemas/FirmType'
 
@@ -2404,6 +2434,7 @@ components:
           format: uuid
         appRoleOrdinals:
           type: array
+          maxItems: 500
           items:
             $ref: '#/components/schemas/AppRoleOrdinal'
 
@@ -2416,6 +2447,7 @@ components:
           format: uuid
         assigningRoleIds:
           type: array
+          maxItems: 100
           items:
             type: string
             format: uuid
