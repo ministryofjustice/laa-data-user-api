@@ -1,3 +1,3 @@
 ingress:
-  className: "modesec-non-prod"
+  className: "modsec-non-prod"
   host: "laa-data-user-api-dev.cloud-platform.service.justice.gov.uk"
