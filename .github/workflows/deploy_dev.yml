@@ -17,10 +17,41 @@ concurrency:
 
 jobs:
   get-allowlist:
-    uses: ministryofjustice/laa-ip-allowlist/.github/workflows/generate-allowlist.yml@v1.1.0
-    with:
-      # Separate tags within a group with spaces, separate groups with semicolons
-      groups: "internal staff;internal cp"
+    runs-on: ubuntu-latest
+    outputs:
+      allowlist: ${{ steps.generate.outputs.allowlist }}
+    steps:
+      - name: Checkout allowlist repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ministryofjustice/laa-ip-allowlist
+          ref: v1.1.0
+          path: laa-ip-allowlist
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install allowlist dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Generate allowlist
+        id: generate
+        run: |
+          set -o pipefail
+
+          GROUP_ARGS=()
+          IFS=';' read -ra GROUP_ARRAY <<< "internal staff;internal cp"
+          for group in "${GROUP_ARRAY[@]}"; do
+            GROUP_ARGS+=(--group "$group")
+          done
+
+          cd laa-ip-allowlist
+          ALLOWLIST=$(python ./filter_cidrs.py "${GROUP_ARGS[@]}" | paste -sd "," -)
+          echo "allowlist=$ALLOWLIST" >> "$GITHUB_OUTPUT"
 
   ecr:
     runs-on: ubuntu-latest
