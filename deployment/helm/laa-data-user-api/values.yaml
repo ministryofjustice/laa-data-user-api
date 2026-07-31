@@ -8,6 +8,7 @@ ingress:
 allowlist:
   enabled: false
   cidr: ""
+  groups: ""
 resources:
   requests:
     memory: "1200Mi"

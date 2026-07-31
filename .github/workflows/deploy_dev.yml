@@ -21,6 +21,9 @@ jobs:
     outputs:
       allowlist: ${{ steps.generate.outputs.allowlist }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
       - name: Checkout allowlist repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -43,9 +46,12 @@ jobs:
         run: |
           set -o pipefail
 
+          GROUPS=$(python -c "import yaml; d = yaml.safe_load(open('deployment/helm/laa-data-user-api/values-dev.yaml')) or {}; print(d.get('allowlist', {}).get('groups', ''))")
+
           GROUP_ARGS=()
-          IFS=';' read -ra GROUP_ARRAY <<< "internal staff;internal cp"
+          IFS=';' read -ra GROUP_ARRAY <<< "$GROUPS"
           for group in "${GROUP_ARRAY[@]}"; do
+            # shellcheck disable=SC2086 # intentional word-splitting: filter_cidrs.py --group takes each tag as a separate arg
             GROUP_ARGS+=(--group $group)
           done
 
