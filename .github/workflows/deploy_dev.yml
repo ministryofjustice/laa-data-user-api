@@ -44,20 +44,20 @@ jobs:
       - name: Generate allowlist
         id: generate
         run: |
-          echo "STEP 1"
-          GROUPS="internal staff;internal cp;external staff"
-          echo "STEP 2 GROUPS=[$GROUPS]"
+          set -o pipefail
+
+          GROUPS=$(sed -n 's/^[[:space:]]*groups:[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' deployment/helm/laa-data-user-api/values-dev.yaml)
+
           GROUP_ARGS=()
           IFS=';' read -ra GROUP_ARRAY <<< "$GROUPS"
-          echo "STEP 3"
           for group in "${GROUP_ARRAY[@]}"; do
+            # shellcheck disable=SC2086 # intentional word-splitting: filter_cidrs.py --group takes each tag as a separate arg
             GROUP_ARGS+=(--group $group)
           done
-          echo "STEP 4"
-          declare -p GROUP_ARGS
-          echo "STEP 5"
-          echo "allowlist=dummy" >> "$GITHUB_OUTPUT"
-          echo "STEP 6 done"
+
+          cd laa-ip-allowlist
+          ALLOWLIST=$(python ./filter_cidrs.py "${GROUP_ARGS[@]}" | paste -sd "," -)
+          echo "allowlist=$ALLOWLIST" >> "$GITHUB_OUTPUT"
 
   ecr:
     runs-on: ubuntu-latest
