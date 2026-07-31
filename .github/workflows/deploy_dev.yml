@@ -46,10 +46,8 @@ jobs:
         run: |
           set -o pipefail
 
-          GROUPS=$(sed -n 's/^[[:space:]]*groups:[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' deployment/helm/laa-data-user-api/values-dev.yaml)
-
           GROUP_ARGS=()
-          IFS=';' read -ra GROUP_ARRAY <<< "$GROUPS"
+          IFS=';' read -ra GROUP_ARRAY < <(sed -n 's/^[[:space:]]*groups:[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' deployment/helm/laa-data-user-api/values-dev.yaml)
           for group in "${GROUP_ARRAY[@]}"; do
             # shellcheck disable=SC2086 # intentional word-splitting: filter_cidrs.py --group takes each tag as a separate arg
             GROUP_ARGS+=(--group $group)
