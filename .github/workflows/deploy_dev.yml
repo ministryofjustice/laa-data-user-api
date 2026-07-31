@@ -44,9 +44,19 @@ jobs:
       - name: Generate allowlist
         id: generate
         run: |
+          set -x
           set -o pipefail
 
-          GROUPS=$(python -c "import yaml; d = yaml.safe_load(open('deployment/helm/laa-data-user-api/values-dev.yaml')) or {}; print(d.get('allowlist', {}).get('groups', ''))")
+          set +e
+          python -c "import yaml; d = yaml.safe_load(open('deployment/helm/laa-data-user-api/values-dev.yaml')) or {}; print(d.get('allowlist', {}).get('groups', ''))" > /tmp/groups.out 2> /tmp/groups.err
+          PY_EXIT=$?
+          set -e
+          echo "DEBUG python exit=$PY_EXIT"
+          echo "DEBUG python stdout:"
+          cat /tmp/groups.out
+          echo "DEBUG python stderr:"
+          cat /tmp/groups.err
+          GROUPS=$(cat /tmp/groups.out)
           echo "DEBUG GROUPS=[$GROUPS]"
 
           GROUP_ARGS=()
