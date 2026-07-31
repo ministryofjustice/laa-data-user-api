@@ -46,7 +46,7 @@ jobs:
           GROUP_ARGS=()
           IFS=';' read -ra GROUP_ARRAY <<< "internal staff;internal cp"
           for group in "${GROUP_ARRAY[@]}"; do
-            GROUP_ARGS+=(--group "$group")
+            GROUP_ARGS+=(--group $group)
           done
 
           cd laa-ip-allowlist
