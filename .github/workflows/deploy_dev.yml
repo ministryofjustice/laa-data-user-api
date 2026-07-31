@@ -47,6 +47,7 @@ jobs:
           set -o pipefail
 
           GROUPS=$(python -c "import yaml; d = yaml.safe_load(open('deployment/helm/laa-data-user-api/values-dev.yaml')) or {}; print(d.get('allowlist', {}).get('groups', ''))")
+          echo "DEBUG GROUPS=[$GROUPS]"
 
           GROUP_ARGS=()
           IFS=';' read -ra GROUP_ARRAY <<< "$GROUPS"
@@ -54,9 +55,16 @@ jobs:
             # shellcheck disable=SC2086 # intentional word-splitting: filter_cidrs.py --group takes each tag as a separate arg
             GROUP_ARGS+=(--group $group)
           done
+          declare -p GROUP_ARGS
 
           cd laa-ip-allowlist
-          ALLOWLIST=$(python ./filter_cidrs.py "${GROUP_ARGS[@]}" | paste -sd "," -)
+          set +e
+          FILTERED=$(python ./filter_cidrs.py "${GROUP_ARGS[@]}")
+          FILTER_EXIT=$?
+          set -e
+          echo "DEBUG filter_cidrs.py exit=$FILTER_EXIT"
+          echo "DEBUG filter_cidrs.py stdout=[$FILTERED]"
+          ALLOWLIST=$(echo "$FILTERED" | paste -sd "," -)
           echo "allowlist=$ALLOWLIST" >> "$GITHUB_OUTPUT"
 
   ecr:
