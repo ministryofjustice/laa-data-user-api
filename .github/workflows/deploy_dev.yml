@@ -44,17 +44,16 @@ jobs:
       - name: Generate allowlist
         id: generate
         run: |
+          exec 3>&1 4>&2
+          exec > /tmp/trace.log 2>&1
+          trap 'exec 1>&3 2>&4; echo "===== TRACE LOG ====="; cat /tmp/trace.log; echo "===== END TRACE LOG ====="' EXIT
           set -x
           set -o pipefail
 
-          set +e
           python -c "import yaml; d = yaml.safe_load(open('deployment/helm/laa-data-user-api/values-dev.yaml')) or {}; print(d.get('allowlist', {}).get('groups', ''))" > /tmp/groups.out 2> /tmp/groups.err
           PY_EXIT=$?
-          set -e
           echo "DEBUG python exit=$PY_EXIT"
-          echo "DEBUG python stdout:"
           cat /tmp/groups.out
-          echo "DEBUG python stderr:"
           cat /tmp/groups.err
           GROUPS=$(cat /tmp/groups.out)
           echo "DEBUG GROUPS=[$GROUPS]"
@@ -68,10 +67,8 @@ jobs:
           declare -p GROUP_ARGS
 
           cd laa-ip-allowlist
-          set +e
           FILTERED=$(python ./filter_cidrs.py "${GROUP_ARGS[@]}")
           FILTER_EXIT=$?
-          set -e
           echo "DEBUG filter_cidrs.py exit=$FILTER_EXIT"
           echo "DEBUG filter_cidrs.py stdout=[$FILTERED]"
           ALLOWLIST=$(echo "$FILTERED" | paste -sd "," -)
