@@ -127,7 +127,7 @@ jobs:
             --set image.repository=${REPOSITORY} \
             --set image.tag=${IMAGE_TAG} \
             --set allowlist.enabled=true \
-            --set allowlist.cidr=${ALLOWLIST} \
+            --set-literal allowlist.cidr="${ALLOWLIST}" \
             --atomic \
             --timeout 7m0s
         env:

@@ -5,9 +5,9 @@ image:
 ingress:
   className: "default"
   host: "laa-data-user-api.internal.cloud-platform.service.justice.gov.uk"
-  allowlist:
-    enabled: true
-    cidr: ""
+allowlist:
+  enabled: false
+  cidr: ""
 resources:
   requests:
     memory: "1200Mi"
