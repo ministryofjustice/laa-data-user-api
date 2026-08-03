@@ -1,5 +1,5 @@
 ingress:
-  # TODO: set to the current value of the `INGRESS_CLASS_NAME` GitHub
-  # Environment variable for `test` (Settings > Environments >
-  # test > Variables), once the test namespace is provisioned.
-  className: "CHANGEME-test-ingress-class"
+  className: "modsec-non-prod"
+  host: "laa-data-user-api-test.cloud-platform.service.justice.gov.uk"
+allowlist:
+  groups: "internal staff;internal cp;external staff"
