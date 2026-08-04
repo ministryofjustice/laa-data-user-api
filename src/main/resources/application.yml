@@ -13,7 +13,7 @@ spring:
         jwt:
           issuer-uri: https://sts.windows.net/${AZURE_TENANT_ID}/
           jwk-set-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/discovery/v2.0/keys
-          audience: ${USER_DATA_API_CLIENT_ID}
+          audience: ${AZURE_CLIENT_ID}
 
 azure:
   tenant-id: ${AZURE_TENANT_ID}
