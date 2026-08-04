@@ -25,19 +25,6 @@ class ExampleControllerTest {
     private JwtDecoder jwtDecoder;
 
     @Test
-    void hello_returns200_whenBearerTokenPresent() throws Exception {
-        mockMvc.perform(get("/api/v1/hello").with(jwt()))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.message").value("Hello from LAA Data User API"));
-    }
-
-    @Test
-    void hello_returns401_whenNoToken() throws Exception {
-        mockMvc.perform(get("/api/v1/hello"))
-            .andExpect(status().isUnauthorized());
-    }
-
-    @Test
     void me_returnsOidFromJwtClaim() throws Exception {
         String oid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
         mockMvc.perform(get("/api/v1/me")

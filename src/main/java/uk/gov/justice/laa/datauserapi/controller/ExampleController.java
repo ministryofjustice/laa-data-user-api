@@ -13,11 +13,6 @@ import java.util.Map;
 @RequestMapping("/api/v1")
 public class ExampleController {
 
-    @GetMapping("/hello")
-    public ResponseEntity<Map<String, String>> hello() {
-        return ResponseEntity.ok(Map.of("message", "Hello from LAA Data User API"));
-    }
-
     /**
      * Returns the caller's identity derived from the validated JWT {@code oid} claim.
      * No Graph lookup — actor is identified locally from the JWT only.
