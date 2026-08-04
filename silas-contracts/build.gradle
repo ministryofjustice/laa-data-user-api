@@ -1,0 +1,57 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+group = 'uk.gov.justice.laa'
+version = project.findProperty('contractsVersion') ?: '0.1.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    withSourcesJar()
+    withJavadocJar()
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    api 'jakarta.validation:jakarta.validation-api:3.1.0'
+    compileOnly 'org.projectlombok:lombok:1.18.36'
+    annotationProcessor 'org.projectlombok:lombok:1.18.36'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            groupId = 'uk.gov.justice.laa'
+            artifactId = 'silas-contracts'
+            version = project.version
+
+            pom {
+                name = 'SiLAS Contracts'
+                description = 'Shared request/response DTOs and enums for the SiLAS service boundary'
+                url = 'https://github.com/ministryofjustice/laa-data-user-api'
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'https://opensource.org/licenses/MIT'
+                    }
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/ministryofjustice/laa-data-user-api")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR")?.trim() ?: providers.gradleProperty("gitPackageUser").orNull
+                password = System.getenv("GITHUB_TOKEN")?.trim() ?: providers.gradleProperty("gitPackageKey").orNull
+            }
+        }
+    }
+}

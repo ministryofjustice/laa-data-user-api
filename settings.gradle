@@ -14,3 +14,5 @@ pluginManagement {
 }
 
 rootProject.name = 'laa-data-user-api'
+
+include 'silas-contracts'
