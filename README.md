@@ -76,7 +76,7 @@ ommit was never deployed to dev, since the source image wouldn't exist yet.
 yaml` layered under `values-test.yaml`/`values-prd.yaml`. `prd` runs are gated by whatever GitHub Environment protection rules (e.g. required reviewers) are
 configured on the `prd` environment.
  
-> **Note:** the `test`/`prd` Cloud Platform namespaces and their GitHub Environment secrets aren't provisioned yet — see the TODO list below.
+> **Note:** the `prd` Cloud Platform namespaces and their GitHub Environment secrets aren't provisioned yet — see the TODO list below.
  
 ---
 
@@ -104,7 +104,8 @@ The application relies on several environment variables for configuration. Below
 
 - [x] Integrate Database 
 - [x] Add OpenAPI/Swagger documentation generation.
-- [ ] Add IRSA & fix deployment serviceaccount name
+- [ ] Add IRSA
+- [x] Fix deployment serviceaccount name
 - [ ] API Authentication
 - [ ] Dependabot configuration
 - [ ] Sentry configuration
@@ -114,7 +115,7 @@ The application relies on several environment variables for configuration. Below
 - [x] CodeQL configuration
 - [x] Linter check configuration
 - [x] ASH scan configuration
-- [ ] Branching strategy setup & promotion pipeline configured
+- [x] Branching strategy setup & promotion pipeline configured
 - [x] GitGuardian configuration
 - [x] GitLeaks configuration
 - [x] Trufflehog configuration
