@@ -5,7 +5,7 @@ metadata:
   labels:
     app: laa-data-user-api
 spec:
-  replicas: 3
+  replicas: {{ .Values.replicaCount }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -25,7 +25,7 @@ spec:
       automountServiceAccountToken: false # Prevents the default service account token from being mounted, which is a security best practice when using IRSA
       containers:
         - name: laa-data-user-api
-          image: ${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: Always
           securityContext:
             runAsUser: 10000
@@ -40,11 +40,11 @@ spec:
             - containerPort: 8080
           resources:
             requests:
-              memory: "1200Mi"
-              cpu: "300m"
+              memory: "{{ .Values.resources.requests.memory }}"
+              cpu: "{{ .Values.resources.requests.cpu }}"
             limits:
-              memory: "3000Mi"
-              cpu: "1"
+              memory: "{{ .Values.resources.limits.memory }}"
+              cpu: "{{ .Values.resources.limits.cpu }}"
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness

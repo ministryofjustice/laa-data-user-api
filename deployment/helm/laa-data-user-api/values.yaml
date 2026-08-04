@@ -1,0 +1,18 @@
+replicaCount: 3
+image:
+  repository: "laa-data-user-api"
+  tag: "latest"
+ingress:
+  className: "default"
+  host: "laa-data-user-api.internal.cloud-platform.service.justice.gov.uk"
+allowlist:
+  enabled: false
+  cidr: ""
+  groups: ""
+resources:
+  requests:
+    memory: "1200Mi"
+    cpu: "300m"
+  limits:
+    memory: "3000Mi"
+    cpu: "1"

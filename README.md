@@ -53,6 +53,33 @@ docker build -t laa-data-user-api .
 
 ---
 
+## Releases
+ 
+Pushes to `main` deploy automatically to `development` (`.github/workflows/deploy_dev.yml`), building a fresh image tagged with the commit SHA.
+ 
+Deploying a specific, already-tested build to `test` or `prod` is a separate, manual two-step process — the same image built for dev is promoted, nothing is re
+built:
+ 
+1. **Cut a release** — tag a commit already on `main`:
+   ```bash
+   git tag v1.2.0 <commit-sha>
+   git push origin v1.2.0
+   ```
+   Pushing a `v*.*.*` tag triggers `.github/workflows/release.yml`, which re-tags that commit's existing ECR image (`:<sha>`) as `:v1.2.0` — it fails if that c
+ommit was never deployed to dev, since the source image wouldn't exist yet.
+ 
+2. **Deploy the release** — manually run `.github/workflows/deploy_release.yml` from the Actions tab (`Deploy Release` → `Run workflow`), choosing:
+   - `environment`: `test` or `prd`
+   - `version`: the tag from step 1, e.g. `v1.2.0`
+ 
+   This runs `helm upgrade --install` against that environment's Cloud Platform namespace, using the chart at `deployment/helm/laa-data-user-api` with `values.
+yaml` layered under `values-test.yaml`/`values-prd.yaml`. `prd` runs are gated by whatever GitHub Environment protection rules (e.g. required reviewers) are
+configured on the `prd` environment.
+ 
+> **Note:** the `test`/`prd` Cloud Platform namespaces and their GitHub Environment secrets aren't provisioned yet — see the TODO list below.
+ 
+---
+
 ## Environment Variables
 
 The application relies on several environment variables for configuration. Below is a list of the variables currently configured in the project:

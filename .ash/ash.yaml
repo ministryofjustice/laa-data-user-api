@@ -29,6 +29,9 @@ global_settings:
     - rule_id: "CKV_K8S_40" 
       path: "deployment/zap-templates/zap*.yml"
       reason: "UID 1000 is used to run zap container is specified by the image and therefore cannot be changed."
+    - rule_id: "CKV_GHA_7"
+      path: ".github/workflows/deploy_release.yml"
+      reason: "The inputs allowed are limited to a choice of environments and a version tag, so this is very low risk."
 
 scanners:
   bandit:
