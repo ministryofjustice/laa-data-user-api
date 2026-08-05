@@ -32,7 +32,7 @@ class ExampleControllerTest {
     }
 
     @Test
-    void me_returnsEmptyOid_whenOidClaimMissing() {
+    void me_returns422_whenOidClaimMissing() {
         Jwt jwt = Jwt.withTokenValue("token")
             .header("alg", "none")
             .subject("no-oid-user")
@@ -42,7 +42,7 @@ class ExampleControllerTest {
 
         ResponseEntity<Map<String, String>> response = controller.me(jwt);
 
-        assertThat(response.getBody()).containsEntry("oid", "");
-        assertThat(response.getBody()).containsEntry("sub", "no-oid-user");
+        assertThat(response.getStatusCode().value()).isEqualTo(422);
+        assertThat(response.getBody()).containsKey("error");
     }
 }

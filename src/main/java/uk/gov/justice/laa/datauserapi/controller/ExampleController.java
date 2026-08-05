@@ -20,7 +20,11 @@ public class ExampleController {
     @GetMapping("/me")
     public ResponseEntity<Map<String, String>> me(@AuthenticationPrincipal Jwt jwt) {
         String oid = jwt.getClaimAsString("oid");
+        if (oid == null || oid.isBlank()) {
+            return ResponseEntity.unprocessableContent()
+                .body(Map.of("error", "Token is missing required 'oid' claim"));
+        }
         String subject = jwt.getSubject();
-        return ResponseEntity.ok(Map.of("oid", oid != null ? oid : "", "sub", subject != null ? subject : ""));
+        return ResponseEntity.ok(Map.of("oid", oid, "sub", subject != null ? subject : ""));
     }
 }
