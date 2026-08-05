@@ -44,7 +44,7 @@ spec:
             - name: AZURE_TENANT_ID
               valueFrom:
                 secretKeyRef:
-                  name: laa-data-user-api-azure-tenant-id-k8s
+                  name: laa-data-user-api-azure-tenant-secret-k8s
                   key: AZURE_TENANT_ID
             - name: AZURE_CLIENT_ID
               valueFrom:
