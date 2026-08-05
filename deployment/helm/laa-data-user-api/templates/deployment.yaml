@@ -38,6 +38,9 @@ spec:
               type: RuntimeDefault
           ports:
             - containerPort: 8080
+          env:
+            - name: SPRING_PROFILE
+              value: {{ .Values.springProfile }}
           resources:
             requests:
               memory: "{{ .Values.resources.requests.memory }}"
