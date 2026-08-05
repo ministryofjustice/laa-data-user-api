@@ -14,6 +14,8 @@ spring:
           issuer-uri: https://sts.windows.net/${AZURE_TENANT_ID}/
           jwk-set-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/discovery/v2.0/keys
           audience: ${AZURE_CLIENT_ID}
+  profiles:
+    active: ${SPRING_PROFILE:local}
 
 azure:
   tenant-id: ${AZURE_TENANT_ID}
