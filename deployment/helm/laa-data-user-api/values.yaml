@@ -16,3 +16,6 @@ resources:
   limits:
     memory: "3000Mi"
     cpu: "1"
+grafanaDashboard:
+  name: ""
+  namespace: ""
