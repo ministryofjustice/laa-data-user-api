@@ -130,6 +130,7 @@ jobs:
             --set image.registry=${REGISTRY} \
             --set image.repository=${REPOSITORY} \
             --set image.tag=${IMAGE_TAG} \
+            --set springProfile=${SPRING_PROFILE} \
             --set allowlist.enabled=true \
             --set-literal allowlist.cidr="${ALLOWLIST}" \
             --atomic \
@@ -139,4 +140,5 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
+          SPRING_PROFILE: ${{ vars.SPRING_PROFILE }}
           ALLOWLIST: ${{ needs.get-allowlist.outputs.allowlist }}

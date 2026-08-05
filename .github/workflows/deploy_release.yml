@@ -62,6 +62,7 @@ jobs:
             --set image.registry=${REGISTRY} \
             --set image.repository=${REPOSITORY} \
             --set image.tag=${VERSION} \
+            --set springProfile=${SPRING_PROFILE} \
             --atomic \
             --timeout 7m0s
         env:
@@ -70,6 +71,7 @@ jobs:
           REPOSITORY: ${{ vars.ECR_REPOSITORY }}
           ENVIRONMENT: ${{ inputs.environment }}
           VERSION: ${{ inputs.version }}
+          SPRING_PROFILE: ${{ vars.SPRING_PROFILE }}
 
       - name: Wait for new deployment to finish
         run: |

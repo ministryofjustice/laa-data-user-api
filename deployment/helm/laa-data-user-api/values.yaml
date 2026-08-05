@@ -1,4 +1,5 @@
 replicaCount: 3
+springProfile: "local"
 image:
   repository: "laa-data-user-api"
   tag: "latest"
