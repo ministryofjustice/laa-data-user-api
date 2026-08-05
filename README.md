@@ -110,7 +110,7 @@ The application relies on several environment variables for configuration. Below
 - [ ] Dependabot configuration
 - [ ] Sentry configuration
 - [x] Checkstyle configured
-- [ ] Grafana / Prometheus configuration
+- [x] Grafana / Prometheus configuration
 - [ ] AlertManager configuration
 - [x] CodeQL configuration
 - [x] Linter check configuration
