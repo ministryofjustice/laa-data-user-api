@@ -225,7 +225,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "sum by(instance) (increase(http_server_requests_seconds_count{namespace='${cpnamespace}',status='200'}[$__rate_interval])) ",
+              "expr": "sum by(instance) (increase(http_server_requests_seconds_count{namespace='${cpnamespace}',status=~'2..'}[$__rate_interval])) ",
               "legendFormat": "__auto",
               "range": true,
               "refId": "A"
@@ -321,7 +321,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "sum by(uri) (increase(http_server_requests_seconds_count{namespace='${cpnamespace}', uri!~'.*health.*', status='200'}[$__rate_interval])) ",
+              "expr": "sum by(uri) (increase(http_server_requests_seconds_count{namespace='${cpnamespace}', uri!~'.*health.*', status=~'2..'}[$__rate_interval])) ",
               "legendFormat": "{{uri}}",
               "range": true,
               "refId": "A"
@@ -523,7 +523,7 @@
             {
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "sum(rate(nginx_ingress_controller_requests{exported_namespace = \"\",status=~\"5.*\"}[5m])) by (status)",
+              "expr": "sum(rate(nginx_ingress_controller_requests{exported_namespace = \"${cpnamespace}\",status=~\"5.*\"}[5m])) by (status)",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "legendFormat": "__auto",
@@ -636,7 +636,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "sum by(uri) (rate(http_server_requests_seconds_sum{namespace='${cpnamespace}', uri!~'.*health.*', status='200'}[$__rate_interval])) / sum by(uri) (rate(http_server_requests_seconds_count{namespace='${cpnamespace}', uri!~'.*health.*', status='200'}[$__rate_interval]))",
+              "expr": "sum by(uri) (rate(http_server_requests_seconds_sum{namespace='${cpnamespace}', uri!~'.*health.*', status=~'2..'}[$__rate_interval])) / sum by(uri) (rate(http_server_requests_seconds_count{namespace='${cpnamespace}', uri!~'.*health.*', status=~'2..'}[$__rate_interval]))",
               "legendFormat": "__auto",
               "range": true,
               "refId": "A"
@@ -733,7 +733,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "max by(uri) (http_server_requests_seconds_max{namespace='${cpnamespace}', uri!~'.*health.*', status='200'}) ",
+              "expr": "max by(uri) (http_server_requests_seconds_max{namespace='${cpnamespace}', uri!~'.*health.*', status=~'2..'}) ",
               "legendFormat": "__auto",
               "range": true,
               "refId": "A"
@@ -1056,7 +1056,7 @@
               "disableTextWrap": false,
               "editorMode": "code",
               "exemplar": false,
-              "expr": "100 * kube_resourcequota{job=\"kube-state-metrics\", type=\"used\", namespace=\"\"}\n/ ignoring(instance, job, type)\n(kube_resourcequota{job=\"kube-state-metrics\", type=\"hard\", namespace=\"\"} > 0)",
+              "expr": "100 * kube_resourcequota{job=\"kube-state-metrics\", type=\"used\", namespace=\"${cpnamespace}\"}\n/ ignoring(instance, job, type)\n(kube_resourcequota{job=\"kube-state-metrics\", type=\"hard\", namespace=\"${cpnamespace}\"} > 0)",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -1386,7 +1386,7 @@
             {
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "round(\n  100 *\n    sum(container_memory_working_set_bytes{image!=\"\", namespace='${cpnamespace}', container_name!=\"laa-data-user-api.*\"}) by (container, pod)\n      /\n    sum(kube_pod_container_resource_limits{namespace='${cpnamespace}', container_name!=\"laa-data-user-api.*\",resource=\"memory\"} > 0) by (container, pod)\n)",
+              "expr": "round(\n  100 *\n    sum(container_memory_working_set_bytes{image!=\"\", namespace='${cpnamespace}', container_name=~\"laa-data-user-api.*\"}) by (container, pod)\n      /\n    sum(kube_pod_container_resource_limits{namespace='${cpnamespace}', container_name=~\"laa-data-user-api.*\",resource=\"memory\"} > 0) by (container, pod)\n)",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "legendFormat": "{{pod}}",
@@ -1625,7 +1625,7 @@
             {
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "round(\n  100 *\n    sum(\n      rate(container_cpu_usage_seconds_total{namespace='${cpnamespace}', container_name!=\"laa-data-user-api.*\"}[5m])\n    ) by (pod, container_name, namespace)\n      /\n    sum(\n      kube_pod_container_resource_limits{namespace='${cpnamespace}', container_name!='laa-data-user-api.*', resource='cpu'}\n    ) by (pod, container_name, namespace)\n)",
+              "expr": "round(\n  100 *\n    sum(\n      rate(container_cpu_usage_seconds_total{namespace='${cpnamespace}', container_name=~\"laa-data-user-api.*\"}[5m])\n    ) by (pod, container_name, namespace)\n      /\n    sum(\n      kube_pod_container_resource_limits{namespace='${cpnamespace}', container_name=~'laa-data-user-api.*', resource='cpu'}\n    ) by (pod, container_name, namespace)\n)",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "legendFormat": "__auto",
@@ -1726,7 +1726,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "round(\n  100 *\n    sum(\n      rate(container_cpu_usage_seconds_total{namespace='${cpnamespace}', container_name!=\"laa-data-user-api.*\"}[5m])\n    ) by (pod_name, container_name, namespace)\n      /\n    sum(\n      kube_pod_container_resource_limits{namespace='${cpnamespace}', container_name!=\"laa-data-user-api.*\",resource='cpu'}\n    ) by (pod_name, container_name, namespace)\n)",
+              "expr": "round(\n  100 *\n    sum(\n      rate(container_cpu_usage_seconds_total{namespace='${cpnamespace}', container_name=~\"laa-data-user-api.*\"}[5m])\n    ) by (pod_name, container_name, namespace)\n      /\n    sum(\n      kube_pod_container_resource_limits{namespace='${cpnamespace}', container_name=~\"laa-data-user-api.*\",resource='cpu'}\n    ) by (pod_name, container_name, namespace)\n)",
               "fullMetaSearch": false,
               "hide": false,
               "includeNullMetadata": true,
@@ -1922,7 +1922,7 @@
             {
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "sum(executor_active_threads{namespace=\"\"})",
+              "expr": "sum(executor_active_threads{namespace=\"${cpnamespace}\"})",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "legendFormat": "Number of threads actively executing tasks",
@@ -1937,7 +1937,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "sum(executor_pool_max_threads{namespace=\"\"})",
+              "expr": "sum(executor_pool_max_threads{namespace=\"${cpnamespace}\"})",
               "fullMetaSearch": false,
               "hide": false,
               "includeNullMetadata": true,
