@@ -87,12 +87,22 @@ The application relies on several environment variables for configuration. Below
 <details>
 <summary>Click to expand</summary>
 
-| Variable Name | Description | Default Value |
-| --- | --- | --- |
-| `POSTGRES_DB_ADDRESS` | The host address for the Postgres database. | `localhost` |
-| `POSTGRES_DB_NAME` | The name of the Postgres database. |
-| `POSTGRES_USERNAME` | The username to authenticate with Postgres. | `postgres` |
-| `POSTGRES_PASSWORD` | The password to authenticate with Postgres. | `postgres` |
+| Variable Name                       | Description                                           | Default Value |
+|-------------------------------------|-------------------------------------------------------|---------------|
+| `POSTGRES_DB_ADDRESS`               | The host address for the Postgres database.           | `localhost`   |
+| `POSTGRES_DB_NAME`                  | The name of the Postgres database.                    |
+| `POSTGRES_USERNAME`                 | The username to authenticate with Postgres.           | `postgres`    |
+| `POSTGRES_PASSWORD`                 | The password to authenticate with Postgres.           | `postgres`    |
+| `AZURE_TENANT_ID`                   | The Azure AD tenant ID.                               | None          |
+| `TECH_SERVICES_AZURE_SCOPE`         | The Azure AD scope for the Tech Services API.         | None          |
+| `TECH_SERVICES_AZURE_CLIENT_ID`     | The Azure AD client ID for the Tech Services API.     | None          |
+| `TECH_SERVICES_AZURE_CLIENT_SECRET` | The Azure AD client secret for the Tech Services API. | None          |
+| `TECH_SERVICES_TENANT_ID`           | The Azure AD tenant ID for the Tech Services API.     | None          |
+| `TECH_SERVICES_BASE_URL`            | The base URL for the Tech Services API.               | None          |
+| `TECH_SERVICES_CALLS_ENABLED`       | Whether to enable calls to the Tech Services API.     | `false`       |
+| `TECH_SERVICES_LAA_BUSINESS_UNIT`   | The business unit for the Tech Services API.          | `laa`         |
+| `TECH_SERVICES_REQ_READ_TIMEOUT`    | The read timeout for the Tech Services API.           | `30`          |
+| `TECH_SERVICES_REQ_CONNECT_TIMEOUT` | The connect timeout for the Tech Services API.        | `30`          |
 
 </details>
 

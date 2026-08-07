@@ -14,6 +14,15 @@ spring:
           issuer-uri: https://sts.windows.net/${AZURE_TENANT_ID}/
           jwk-set-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/discovery/v2.0/keys
           audience: ${AZURE_CLIENT_ID}
+    tech:
+      services:
+        credentials:
+          scope: ${TECH_SERVICES_AZURE_SCOPE}
+          client-id: ${TECH_SERVICES_AZURE_CLIENT_ID}
+          client-secret: ${TECH_SERVICES_AZURE_CLIENT_SECRET}
+          tenant-id: ${TECH_SERVICES_TENANT_ID}
+          base-url: ${TECH_SERVICES_BASE_URL}
+
   profiles:
     active: ${SPRING_PROFILE:local}
 
@@ -32,3 +41,19 @@ management:
     health:
       probes:
         enabled: true
+
+app:
+  enable:
+    tech:
+      services:
+        call: ${TECH_SERVICES_CALLS_ENABLED:false}
+  tech:
+    services:
+      laa:
+        business:
+          unit: ${TECH_SERVICES_LAA_BUSINESS_UNIT:laa}
+      req:
+        read:
+          timeout: ${TECH_SERVICES_REQ_READ_TIMEOUT:30}
+        connect:
+          timeout: ${TECH_SERVICES_REQ_CONNECT_TIMEOUT:30}
