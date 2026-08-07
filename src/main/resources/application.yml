@@ -11,7 +11,9 @@ spring:
     oauth2:
       resourceserver:
         jwt:
+          issuer-uri: https://sts.windows.net/${AZURE_TENANT_ID}/
           jwk-set-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/discovery/v2.0/keys
+          audience: ${AZURE_CLIENT_ID}
     tech:
       services:
         credentials:
@@ -20,6 +22,12 @@ spring:
           client-secret: ${TECH_SERVICES_AZURE_CLIENT_SECRET}
           tenant-id: ${TECH_SERVICES_TENANT_ID}
           base-url: ${TECH_SERVICES_BASE_URL}
+
+  profiles:
+    active: ${SPRING_PROFILE:local}
+
+azure:
+  tenant-id: ${AZURE_TENANT_ID}
 
 server:
   port: 8080

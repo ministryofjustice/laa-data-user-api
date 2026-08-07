@@ -45,7 +45,7 @@ dependencies {
     implementation 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     implementation 'org.apache.httpcomponents.client5:httpclient5'
-    
+
     runtimeOnly 'org.springframework.boot:spring-boot-properties-migrator'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

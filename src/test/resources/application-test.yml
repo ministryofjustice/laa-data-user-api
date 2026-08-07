@@ -2,12 +2,18 @@ sentry:
   enabled: false
 
 spring:
-
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.liquibase.LiquibaseAutoConfiguration
   security:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: https://login.microsoftonline.com/test/discovery/v2.0/keys
+          issuer-uri: http://test-issuer
+          jwk-set-uri: http://test-jwks
+          audience: test-audience
     tech:
       services:
         credentials:
@@ -33,3 +39,5 @@ app:
         connect:
           timeout: 30
 
+azure:
+  tenant-id: test-tenant

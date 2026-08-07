@@ -1,0 +1,13 @@
+{{- $dashboardName := .Values.grafanaDashboard.name | default (printf "%s-dashboard" .Release.Name) -}}
+{{- $dashboardNamespace := .Values.grafanaDashboard.namespace | default .Release.Namespace -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $dashboardName }}
+  namespace: {{ $dashboardNamespace }}
+  labels:
+    grafana_dashboard: {{ $dashboardName }}
+data:
+  {{ printf "%s.json" $dashboardName }}: |
+{{ .Files.Get "files/grafana-dashboard.json" | nindent 4 }}
