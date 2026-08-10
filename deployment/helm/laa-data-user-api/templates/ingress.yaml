@@ -13,6 +13,12 @@ metadata:
     nginx.ingress.kubernetes.io/session-cookie-samesite: "Lax"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/enable-modsecurity: "true"
+    nginx.ingress.kubernetes.io/modsecurity-snippet: |
+      SecRuleRemoveTargetById 942440 "REQUEST_HEADERS:Authorization"
+      SecRuleRemoveTargetById 942400 "REQUEST_HEADERS:Authorization"
+      SecRuleRemoveTargetById 941130 "REQUEST_HEADERS:Authorization"
+      SecRuleRemoveTargetById 949110 "REQUEST_HEADERS:Authorization"
+      SecRuleRemoveTargetById 980130 "REQUEST_HEADERS:Authorization"
     {{- if .Values.allowlist.enabled }}
     nginx.ingress.kubernetes.io/whitelist-source-range: "{{ .Values.allowlist.cidr }}"
     {{- end }}
