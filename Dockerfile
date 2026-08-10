@@ -1,4 +1,4 @@
-FROM amazoncorretto:25-alpine
+FROM amazoncorretto:26-alpine
 
 # Apply security updates
 RUN apk update && \
