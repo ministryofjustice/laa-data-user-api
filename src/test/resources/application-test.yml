@@ -14,6 +14,30 @@ spring:
           issuer-uri: http://test-issuer
           jwk-set-uri: http://test-jwks
           audience: test-audience
+    tech:
+      services:
+        credentials:
+          scope: EXAMPLE
+          client-id: EXAMPLE
+          client-secret: EXAMPLE
+          tenant-id: EXAMPLE
+          base-url: EXAMPLE
+
+app:
+  enable:
+    tech:
+      services:
+        call: false
+  tech:
+    services:
+      laa:
+        business:
+          unit: EXAMPLE
+      req:
+        read:
+          timeout: 30
+        connect:
+          timeout: 30
 
 azure:
   tenant-id: test-tenant
