@@ -131,6 +131,8 @@ jobs:
             --set image.repository=${REPOSITORY} \
             --set image.tag=${IMAGE_TAG} \
             --set springProfile=${SPRING_PROFILE} \
+            --set sentryEnvironment=${ENV_NAME} \
+            --set-string sentryDsn=${SENTRY_DSN} \
             --set allowlist.enabled=true \
             --set-literal allowlist.cidr="${ALLOWLIST}" \
             --atomic \
@@ -141,4 +143,6 @@ jobs:
           REPOSITORY: ${{ vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
           SPRING_PROFILE: ${{ vars.SPRING_PROFILE }}
+          ENV_NAME: ${{ vars.ENV_NAME }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           ALLOWLIST: ${{ needs.get-allowlist.outputs.allowlist }}
