@@ -1,5 +1,10 @@
 replicaCount: 3
 springProfile: "local"
+techServicesAzureScope: ""
+techServicesAzureClientId: ""
+techServicesTenantId: ""
+techServicesAzureClientSecret: ""
+techServicesBaseUrl: ""
 sentryEnvironment: "local"
 sentryDsn: ""
 image:

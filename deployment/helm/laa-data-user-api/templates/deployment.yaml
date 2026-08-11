@@ -41,6 +41,16 @@ spec:
           env:
             - name: SPRING_PROFILE
               value: {{ .Values.springProfile }}
+            - name: TECH_SERVICES_AZURE_SCOPE
+              value: {{ .Values.techServicesAzureScope }}
+            - name: TECH_SERVICES_AZURE_CLIENT_ID
+              value: {{ .Values.techServicesAzureClientId }}
+            - name: TECH_SERVICES_TENANT_ID
+              value: {{ .Values.techServicesTenantId }}
+            - name: TECH_SERVICES_AZURE_CLIENT_SECRET
+              value: {{ .Values.techServicesAzureClientSecret }}
+            - name: TECH_SERVICES_BASE_URL
+              value: {{ .Values.techServicesBaseUrl }}
             - name: AZURE_TENANT_ID
               valueFrom:
                 secretKeyRef:
