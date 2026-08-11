@@ -4,6 +4,19 @@ plugins {
     id "io.sentry.jvm.gradle" version "6.15.0"
 }
 
+sentry {
+  includeSourceContext = true
+
+  org = "ministryofjustice"
+  projectName = "laa-data-user-api"
+  authToken = System.getenv("SENTRY_AUTH_TOKEN")
+
+  autoInstallation {
+    sentryVersion = "8.49.0"
+    enabled = true
+  }
+}
+
 group = 'uk.gov.justice.laa'
 version = '0.0.1-SNAPSHOT'
 

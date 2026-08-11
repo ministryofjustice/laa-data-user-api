@@ -1,5 +1,7 @@
 replicaCount: 3
 springProfile: "local"
+sentryEnvironment: "local"
+sentryDsn: ""
 image:
   repository: "laa-data-user-api"
   tag: "latest"

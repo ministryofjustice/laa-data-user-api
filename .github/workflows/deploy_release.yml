@@ -63,6 +63,8 @@ jobs:
             --set image.repository=${REPOSITORY} \
             --set image.tag=${VERSION} \
             --set springProfile=${SPRING_PROFILE} \
+            --set sentryEnvironment=${ENV_NAME} \
+            --set-string sentryDsn=${SENTRY_DSN} \
             --atomic \
             --timeout 7m0s
         env:
@@ -72,6 +74,8 @@ jobs:
           ENVIRONMENT: ${{ inputs.environment }}
           VERSION: ${{ inputs.version }}
           SPRING_PROFILE: ${{ vars.SPRING_PROFILE }}
+          ENV_NAME: ${{ vars.ENV_NAME }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
       - name: Wait for new deployment to finish
         run: |
