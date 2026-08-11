@@ -17,11 +17,11 @@ spring:
     tech:
       services:
         credentials:
-          scope: ${TECH_SERVICES_AZURE_SCOPE:example}
-          client-id: ${TECH_SERVICES_AZURE_CLIENT_ID:example}
-          client-secret: ${TECH_SERVICES_AZURE_CLIENT_SECRET:example}
-          tenant-id: ${TECH_SERVICES_TENANT_ID:example}
-          base-url: ${TECH_SERVICES_BASE_URL:example}
+          scope: ${TECH_SERVICES_AZURE_SCOPE}
+          client-id: ${TECH_SERVICES_AZURE_CLIENT_ID}
+          client-secret: ${TECH_SERVICES_AZURE_CLIENT_SECRET}
+          tenant-id: ${TECH_SERVICES_TENANT_ID}
+          base-url: ${TECH_SERVICES_BASE_URL}
 
   profiles:
     active: ${SPRING_PROFILE:local}

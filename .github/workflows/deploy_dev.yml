@@ -148,3 +148,8 @@ jobs:
           ENV_NAME: ${{ vars.ENV_NAME }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           ALLOWLIST: ${{ needs.get-allowlist.outputs.allowlist }}
+          TECH_SERVICES_AZURE_SCOPE: ${{ vars.TECH_SERVICES_AZURE_SCOPE }}
+          TECH_SERVICES_AZURE_CLIENT_ID: ${{ secrets.TECH_SERVICES_AZURE_CLIENT_ID }}
+          TECH_SERVICES_AZURE_CLIENT_SECRET: ${{ secrets.TECH_SERVICES_AZURE_CLIENT_SECRET }}
+          TECH_SERVICES_TENANT_ID: ${{ secrets.TECH_SERVICES_TENANT_ID }}
+          TECH_SERVICES_BASE_URL: ${{ secrets.TECH_SERVICES_BASE_URL }}
