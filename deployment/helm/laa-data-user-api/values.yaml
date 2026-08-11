@@ -6,6 +6,7 @@ image:
 ingress:
   className: "default"
   host: "laa-data-user-api.internal.cloud-platform.service.justice.gov.uk"
+  enableModSecurity: false
 allowlist:
   enabled: false
   cidr: ""
