@@ -63,3 +63,14 @@ spec:
               port: 8080
             failureThreshold: 15
             periodSeconds: 10
+          env:
+            - name: TECH_SERVICES_AZURE_SCOPE
+              value: "${TECH_SERVICES_AZURE_SCOPE}"
+            - name: TECH_SERVICES_AZURE_CLIENT_ID
+              value: "${TECH_SERVICES_AZURE_CLIENT_ID}"
+            - name: TECH_SERVICES_AZURE_CLIENT_SECRET
+              value: "${TECH_SERVICES_AZURE_CLIENT_SECRET}"
+            - name: TECH_SERVICES_TENANT_ID
+              value: "${TECH_SERVICES_TENANT_ID}"
+            - name: TECH_SERVICES_BASE_URL
+              value: "${TECH_SERVICES_BASE_URL}"
