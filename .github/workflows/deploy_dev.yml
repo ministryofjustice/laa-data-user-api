@@ -133,6 +133,11 @@ jobs:
             --set image.repository=${REPOSITORY} \
             --set image.tag=${IMAGE_TAG} \
             --set springProfile=${SPRING_PROFILE} \
+            --set techServicesAzureScope=${TECH_SERVICES_AZURE_SCOPE} \
+            --set techServicesAzureClientId=${TECH_SERVICES_AZURE_CLIENT_ID} \
+            --set techServicesTenantId=${TECH_SERVICES_TENANT_ID} \
+            --set techServicesAzureClientSecret=${TECH_SERVICES_AZURE_CLIENT_SECRET} \
+            --set techServicesBaseUrl=${TECH_SERVICES_BASE_URL} \
             --set sentryEnvironment=${ENV_NAME} \
             --set-string sentryDsn=${SENTRY_DSN} \
             --set allowlist.enabled=true \
