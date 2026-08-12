@@ -65,6 +65,10 @@ spec:
               value: {{ .Values.sentryDsn }}
             - name: SENTRY_ENVIRONMENT
               value: {{ .Values.sentryEnvironment }}
+            - name: SENTRY_ENABLED
+              value: {{ .Values.sentryEnabled }}
+            - name: SENTRY_SAMPLE_RATE
+              value: {{ .Values.sentrySampleRate }}
             - name: POSTGRES_USERNAME
               valueFrom:
                 secretKeyRef:

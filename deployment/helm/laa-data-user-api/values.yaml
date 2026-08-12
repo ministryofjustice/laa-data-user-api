@@ -7,6 +7,8 @@ techServicesAzureClientSecret: ""
 techServicesBaseUrl: ""
 sentryEnvironment: "local"
 sentryDsn: ""
+sentryEnabled: "true"
+sentrySampleRate: "0.05"
 image:
   repository: "laa-data-user-api"
   tag: "latest"

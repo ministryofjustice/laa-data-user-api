@@ -32,6 +32,9 @@ azure:
 sentry:
   dsn: ${SENTRY_DSN:}
   environment: ${SENTRY_ENVIRONMENT:local}
+  enabled: ${SENTRY_ENABLED:true}
+  send-default-pii: false
+  traces-sample-rate: ${SENTRY_SAMPLE_RATE:0.05}
 
 server:
   port: 8080
