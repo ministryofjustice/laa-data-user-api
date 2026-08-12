@@ -28,3 +28,5 @@ resources:
 grafanaDashboard:
   name: ""
   namespace: ""
+networkPolicy:
+  allowedNamespaces: []
