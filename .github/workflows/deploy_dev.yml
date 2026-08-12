@@ -102,6 +102,14 @@ jobs:
           KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
           KUBE_CLUSTER: ${{ secrets.KUBE_CLUSTER }}
 
+      - name: Get RDS DB identifier
+        id: rds-id
+        run: |
+          RDS_DB_IDENTIFIER=$(kubectl get secret rds-postgresql-instance-output -n ${KUBE_NAMESPACE} -o jsonpath='{.data.rds_instance_endpoint}' | base64 -d | cut -d. -f1)
+          echo "rds_db_identifier=${RDS_DB_IDENTIFIER}" >> "$GITHUB_OUTPUT"
+        env:
+          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
+
       - name: Build and Push Docker Image to the container repository
         run: |
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
@@ -142,6 +150,8 @@ jobs:
             --set-string sentryDsn=${SENTRY_DSN} \
             --set-string sentryEnabled=${SENTRY_ENABLED} \
             --set-string sentrySampleRate=${SENTRY_SAMPLE_RATE} \
+            --set rdsDbIdentifier=${{ steps.rds-id.outputs.rds_db_identifier }} \
+            --set envName=${ENV_NAME} \
             --set allowlist.enabled=true \
             --set-literal allowlist.cidr="${ALLOWLIST}" \
             --atomic \

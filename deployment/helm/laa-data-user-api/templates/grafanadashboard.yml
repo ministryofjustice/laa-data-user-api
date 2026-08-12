@@ -1,5 +1,9 @@
 {{- $dashboardName := .Values.grafanaDashboard.name | default (printf "%s-dashboard" .Release.Name) -}}
 {{- $dashboardNamespace := .Values.grafanaDashboard.namespace | default .Release.Namespace -}}
+{{- $dashboardJson := .Files.Get "files/grafana-dashboard.json" -}}
+{{- $dashboardJson = $dashboardJson | replace "laa-data-user-api-dev" .Release.Namespace -}}
+{{- $dashboardJson = $dashboardJson | replace "cloud-platform-faeb1d14a7275a64" .Values.rdsDbIdentifier -}}
+{{- $dashboardJson = $dashboardJson | replace "LAA Data User API (dev) dashboard" (printf "LAA Data User API (%s) dashboard" .Values.envName) -}}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -10,4 +14,4 @@ metadata:
     grafana_dashboard: {{ $dashboardName }}
 data:
   {{ printf "%s.json" $dashboardName }}: |
-{{ .Files.Get "files/grafana-dashboard.json" | nindent 4 }}
+{{ $dashboardJson | nindent 4 }}

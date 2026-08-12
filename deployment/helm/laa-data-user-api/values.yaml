@@ -30,3 +30,8 @@ resources:
 grafanaDashboard:
   name: ""
   namespace: ""
+serviceMonitor:
+  interval: "15s"
+rdsDbIdentifier: ""
+envName: ""
+rdsLowFreeableMemoryTriggerMb: 150

@@ -3,3 +3,4 @@ ingress:
   host: "laa-data-user-api-test.cloud-platform.service.justice.gov.uk"
 allowlist:
   groups: "internal staff;internal cp;external staff"
+rdsLowFreeableMemoryTriggerMb: 150
