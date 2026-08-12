@@ -140,8 +140,8 @@ jobs:
             --set techServicesBaseUrl=${TECH_SERVICES_BASE_URL} \
             --set sentryEnvironment=${ENV_NAME} \
             --set-string sentryDsn=${SENTRY_DSN} \
-            --set sentryEnabled=${SENTRY_ENABLED} \
-            --set sentrySampleRate=${SENTRY_SAMPLE_RATE} \
+            --set-string sentryEnabled=${SENTRY_ENABLED} \
+            --set-string sentrySampleRate=${SENTRY_SAMPLE_RATE} \
             --set allowlist.enabled=true \
             --set-literal allowlist.cidr="${ALLOWLIST}" \
             --atomic \
