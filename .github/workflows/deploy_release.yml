@@ -70,6 +70,8 @@ jobs:
             --set techServicesBaseUrl=${TECH_SERVICES_BASE_URL} \
             --set sentryEnvironment=${ENV_NAME} \
             --set-string sentryDsn=${SENTRY_DSN} \
+            --set-string sentryEnabled=${SENTRY_ENABLED} \
+            --set-string sentrySampleRate=${SENTRY_SAMPLE_RATE} \
             --atomic \
             --timeout 7m0s
         env:
@@ -81,6 +83,10 @@ jobs:
           SPRING_PROFILE: ${{ vars.SPRING_PROFILE }}
           ENV_NAME: ${{ vars.ENV_NAME }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          # 'true' fallback must match the default in src/main/resources/application.yml (sentry.enabled)
+          SENTRY_ENABLED: ${{ vars.SENTRY_ENABLED || 'true' }}
+          # '0.05' fallback must match the default in src/main/resources/application.yml (sentry.traces-sample-rate)
+          SENTRY_SAMPLE_RATE: ${{ vars.SENTRY_SAMPLE_RATE || '0.05' }}
 
       - name: Wait for new deployment to finish
         run: |

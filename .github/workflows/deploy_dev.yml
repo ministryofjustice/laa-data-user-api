@@ -140,6 +140,8 @@ jobs:
             --set techServicesBaseUrl=${TECH_SERVICES_BASE_URL} \
             --set sentryEnvironment=${ENV_NAME} \
             --set-string sentryDsn=${SENTRY_DSN} \
+            --set-string sentryEnabled=${SENTRY_ENABLED} \
+            --set-string sentrySampleRate=${SENTRY_SAMPLE_RATE} \
             --set allowlist.enabled=true \
             --set-literal allowlist.cidr="${ALLOWLIST}" \
             --atomic \
@@ -152,6 +154,10 @@ jobs:
           SPRING_PROFILE: ${{ vars.SPRING_PROFILE }}
           ENV_NAME: ${{ vars.ENV_NAME }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          # 'true' fallback must match the default in src/main/resources/application.yml (sentry.enabled)
+          SENTRY_ENABLED: ${{ vars.SENTRY_ENABLED || 'true' }}
+          # '0.05' fallback must match the default in src/main/resources/application.yml (sentry.traces-sample-rate)
+          SENTRY_SAMPLE_RATE: ${{ vars.SENTRY_SAMPLE_RATE || '0.05' }}
           ALLOWLIST: ${{ needs.get-allowlist.outputs.allowlist }}
           TECH_SERVICES_AZURE_SCOPE: ${{ vars.TECH_SERVICES_AZURE_SCOPE }}
           TECH_SERVICES_AZURE_CLIENT_ID: ${{ secrets.TECH_SERVICES_AZURE_CLIENT_ID }}

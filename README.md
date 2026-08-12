@@ -118,7 +118,7 @@ The application relies on several environment variables for configuration. Below
 - [x] Fix deployment serviceaccount name
 - [ ] API Authentication
 - [ ] Dependabot configuration
-- [ ] Sentry configuration
+- [x] Sentry configuration
 - [x] Checkstyle configured
 - [x] Grafana / Prometheus configuration
 - [ ] AlertManager configuration
