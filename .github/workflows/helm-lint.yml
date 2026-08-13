@@ -41,6 +41,8 @@ jobs:
             -f deployment/helm/laa-data-user-api/values-${ENVIRONMENT}.yaml \
             --set image.registry=example.com \
             --set image.repository=laa-data-user-api \
-            --set image.tag=test > /dev/null
+            --set image.tag=test \
+            --set rdsDbIdentifier=test-rds-id \
+            --set envName=${ENVIRONMENT} > /dev/null
         env:
           ENVIRONMENT: ${{ matrix.environment }}
