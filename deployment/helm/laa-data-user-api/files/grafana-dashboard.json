@@ -1386,7 +1386,7 @@
             {
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "round(\n  100 *\n    sum(container_memory_working_set_bytes{image!=\"\", namespace='${cpnamespace}', container_name=~\"laa-data-user-api.*\"}) by (container, pod)\n      /\n    sum(kube_pod_container_resource_limits{namespace='${cpnamespace}', container_name=~\"laa-data-user-api.*\",resource=\"memory\"} > 0) by (container, pod)\n)",
+              "expr": "round(\n  100 *\n    sum(container_memory_working_set_bytes{image!=\"\", namespace='${cpnamespace}', pod=~\"laa-data-user-api.*\"}) by (container, pod)\n      /\n    sum(kube_pod_container_resource_limits{namespace='${cpnamespace}', pod=~\"laa-data-user-api.*\",resource=\"memory\"} > 0) by (container, pod)\n)",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "legendFormat": "{{pod}}",
@@ -1625,7 +1625,7 @@
             {
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "round(\n  100 *\n    sum(\n      rate(container_cpu_usage_seconds_total{namespace='${cpnamespace}', container_name=~\"laa-data-user-api.*\"}[5m])\n    ) by (pod, container_name, namespace)\n      /\n    sum(\n      kube_pod_container_resource_limits{namespace='${cpnamespace}', container_name=~'laa-data-user-api.*', resource='cpu'}\n    ) by (pod, container_name, namespace)\n)",
+              "expr": "round(\n  100 *\n    sum(\n      rate(container_cpu_usage_seconds_total{namespace='${cpnamespace}', pod=~\"laa-data-user-api.*\"}[5m])\n    ) by (pod, container, namespace)\n      /\n    sum(\n      kube_pod_container_resource_limits{namespace='${cpnamespace}', pod=~'laa-data-user-api.*', resource='cpu'}\n    ) by (pod, container, namespace)\n)",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "legendFormat": "__auto",
@@ -1726,7 +1726,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "round(\n  100 *\n    sum(\n      rate(container_cpu_usage_seconds_total{namespace='${cpnamespace}', container_name=~\"laa-data-user-api.*\"}[5m])\n    ) by (pod_name, container_name, namespace)\n      /\n    sum(\n      kube_pod_container_resource_limits{namespace='${cpnamespace}', container_name=~\"laa-data-user-api.*\",resource='cpu'}\n    ) by (pod_name, container_name, namespace)\n)",
+              "expr": "round(\n  100 *\n    sum(\n      rate(container_cpu_usage_seconds_total{namespace='${cpnamespace}', pod=~\"laa-data-user-api.*\"}[5m])\n    ) by (pod, container, namespace)\n      /\n    sum(\n      kube_pod_container_resource_limits{namespace='${cpnamespace}', pod=~\"laa-data-user-api.*\",resource='cpu'}\n    ) by (pod, container, namespace)\n)",
               "fullMetaSearch": false,
               "hide": false,
               "includeNullMetadata": true,
