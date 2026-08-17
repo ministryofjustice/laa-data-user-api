@@ -20,11 +20,13 @@ runs:
   steps:
     - shell: bash
       run: |
-        echo "${{ inputs.kube-cert }}" > ca.crt
-        kubectl config set-cluster ${KUBE_CLUSTER} --certificate-authority=./ca.crt --server=https://${KUBE_CLUSTER}
-        kubectl config set-credentials deploy-user --token=${{ inputs.kube-token }}
-        kubectl config set-context ${KUBE_CLUSTER} --cluster=${KUBE_CLUSTER} --user=deploy-user --namespace=${KUBE_NAMESPACE}
-        kubectl config use-context ${KUBE_CLUSTER}
+        echo "${KUBE_CERT}" > ca.crt
+        kubectl config set-cluster "${KUBE_CLUSTER}" --certificate-authority=./ca.crt --server="https://${KUBE_CLUSTER}"
+        kubectl config set-credentials deploy-user --token="${KUBE_TOKEN}"
+        kubectl config set-context "${KUBE_CLUSTER}" --cluster="${KUBE_CLUSTER}" --user=deploy-user --namespace="${KUBE_NAMESPACE}"
+        kubectl config use-context "${KUBE_CLUSTER}"
       env:
+        KUBE_CERT: ${{ inputs.kube-cert }}
+        KUBE_TOKEN: ${{ inputs.kube-token }}
         KUBE_CLUSTER: ${{ inputs.kube-cluster }}
         KUBE_NAMESPACE: ${{ inputs.kube-namespace }}

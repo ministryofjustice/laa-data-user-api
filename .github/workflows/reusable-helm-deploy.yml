@@ -1,5 +1,8 @@
 name: Reusable Helm Deploy
 
+permissions:
+  contents: read
+
 on:
   workflow_call:
     inputs:
@@ -65,7 +68,7 @@ jobs:
       - name: Get RDS DB identifier
         id: rds-id
         run: |
-          RDS_DB_IDENTIFIER=$(kubectl get secret rds-postgresql-instance-output -n ${KUBE_NAMESPACE} -o jsonpath='{.data.rds_instance_endpoint}' | base64 -d | cut -d. -f1)
+          RDS_DB_IDENTIFIER=$(kubectl get secret rds-postgresql-instance-output -n "${KUBE_NAMESPACE}" -o jsonpath='{.data.rds_instance_endpoint}' | base64 -d | cut -d. -f1)
           echo "rds_db_identifier=${RDS_DB_IDENTIFIER}" >> "$GITHUB_OUTPUT"
         env:
           KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
@@ -116,16 +119,19 @@ jobs:
       - name: Deploy to Cloud Platform
         run: |
           helm upgrade --install laa-data-user-api deployment/helm/laa-data-user-api \
-            --namespace ${{ secrets.KUBE_NAMESPACE }} \
+            --namespace "${KUBE_NAMESPACE}" \
             -f deployment/helm/laa-data-user-api/values.yaml \
-            -f deployment/helm/laa-data-user-api/values-${{ inputs.helm_values_env }}.yaml \
+            -f "deployment/helm/laa-data-user-api/values-${HELM_VALUES_ENV}.yaml" \
             -f deployment/helm/laa-data-user-api/values-secrets.generated.yaml \
             --atomic \
             --timeout 7m0s
+        env:
+          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
+          HELM_VALUES_ENV: ${{ inputs.helm_values_env }}
 
       - name: Wait for new deployment to finish
         if: inputs.wait_for_rollout
         run: |
-          kubectl -n ${KUBE_NAMESPACE} rollout status deployment laa-data-user-api --timeout=7m
+          kubectl -n "${KUBE_NAMESPACE}" rollout status deployment laa-data-user-api --timeout=7m
         env:
           KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}

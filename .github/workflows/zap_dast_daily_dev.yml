@@ -13,6 +13,8 @@ jobs:
     name: Run ZAP DEV DAST Daily Baseline Scan Against Live App
     runs-on: ubuntu-latest
     environment: development
+    env:
+      KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
 
     steps:
       - name: Checkout
@@ -34,7 +36,7 @@ jobs:
 
       - name: Apply ZAP job
         run: |
-          kubectl delete job zap-scan -n ${{ secrets.KUBE_NAMESPACE }} --ignore-not-found
+          kubectl delete job zap-scan -n "${KUBE_NAMESPACE}" --ignore-not-found
           kubectl apply -f deployment/zapjob.yml
 
       - name: Wait for job completion
@@ -42,12 +44,12 @@ jobs:
           kubectl wait \
             --for=condition=complete \
             job/zap-scan \
-            -n ${{ secrets.KUBE_NAMESPACE }} \
+            -n "${KUBE_NAMESPACE}" \
             --timeout=900s
 
       - name: Get logs (debugging)
         run: |
-          kubectl logs job/zap-scan -n ${{ secrets.KUBE_NAMESPACE }} | tee zap-output.txt
+          kubectl logs job/zap-scan -n "${KUBE_NAMESPACE}" | tee zap-output.txt
 
       - name: Extract report.md from logs
         shell: bash
