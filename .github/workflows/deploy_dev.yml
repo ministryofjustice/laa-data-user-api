@@ -91,25 +91,6 @@ jobs:
       - uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2
         id: login-ecr
 
-      - name: Configure kubectl
-        run: |
-          echo "${{ secrets.KUBE_CERT }}" > ca.crt
-          kubectl config set-cluster ${KUBE_CLUSTER} --certificate-authority=./ca.crt --server=https://${KUBE_CLUSTER}
-          kubectl config set-credentials deploy-user --token=${{ secrets.KUBE_TOKEN }}
-          kubectl config set-context ${KUBE_CLUSTER} --cluster=${KUBE_CLUSTER} --user=deploy-user --namespace=${KUBE_NAMESPACE}
-          kubectl config use-context ${KUBE_CLUSTER}
-        env:
-          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
-          KUBE_CLUSTER: ${{ secrets.KUBE_CLUSTER }}
-
-      - name: Get RDS DB identifier
-        id: rds-id
-        run: |
-          RDS_DB_IDENTIFIER=$(kubectl get secret rds-postgresql-instance-output -n ${KUBE_NAMESPACE} -o jsonpath='{.data.rds_instance_endpoint}' | base64 -d | cut -d. -f1)
-          echo "rds_db_identifier=${RDS_DB_IDENTIFIER}" >> "$GITHUB_OUTPUT"
-        env:
-          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
-
       - name: Build and Push Docker Image to the container repository
         run: |
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
@@ -126,51 +107,14 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           ENV_NAME: ${{ vars.ENV_NAME }}
 
-      - name: Set up Helm
-        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
-        with:
-          version: 'v3.21.3'
-
-      - name: Deploy to Cloud Platform
-        run: |
-          helm upgrade --install laa-data-user-api deployment/helm/laa-data-user-api \
-            --namespace ${KUBE_NAMESPACE} \
-            -f deployment/helm/laa-data-user-api/values.yaml \
-            -f deployment/helm/laa-data-user-api/values-dev.yaml \
-            --set image.registry=${REGISTRY} \
-            --set image.repository=${REPOSITORY} \
-            --set image.tag=${IMAGE_TAG} \
-            --set springProfile=${SPRING_PROFILE} \
-            --set techServicesAzureScope=${TECH_SERVICES_AZURE_SCOPE} \
-            --set techServicesAzureClientId=${TECH_SERVICES_AZURE_CLIENT_ID} \
-            --set techServicesTenantId=${TECH_SERVICES_TENANT_ID} \
-            --set techServicesAzureClientSecret=${TECH_SERVICES_AZURE_CLIENT_SECRET} \
-            --set techServicesBaseUrl=${TECH_SERVICES_BASE_URL} \
-            --set sentryEnvironment=${ENV_NAME} \
-            --set-string sentryDsn=${SENTRY_DSN} \
-            --set-string sentryEnabled=${SENTRY_ENABLED} \
-            --set-string sentrySampleRate=${SENTRY_SAMPLE_RATE} \
-            --set rdsDbIdentifier=${{ steps.rds-id.outputs.rds_db_identifier }} \
-            --set envName=${ENV_NAME} \
-            --set allowlist.enabled=true \
-            --set-literal allowlist.cidr="${ALLOWLIST}" \
-            --atomic \
-            --timeout 7m0s
-        env:
-          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-          IMAGE_TAG: ${{ github.sha }}
-          SPRING_PROFILE: ${{ vars.SPRING_PROFILE }}
-          ENV_NAME: ${{ vars.ENV_NAME }}
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          # 'true' fallback must match the default in src/main/resources/application.yml (sentry.enabled)
-          SENTRY_ENABLED: ${{ vars.SENTRY_ENABLED || 'true' }}
-          # '0.05' fallback must match the default in src/main/resources/application.yml (sentry.traces-sample-rate)
-          SENTRY_SAMPLE_RATE: ${{ vars.SENTRY_SAMPLE_RATE || '0.05' }}
-          ALLOWLIST: ${{ needs.get-allowlist.outputs.allowlist }}
-          TECH_SERVICES_AZURE_SCOPE: ${{ vars.TECH_SERVICES_AZURE_SCOPE }}
-          TECH_SERVICES_AZURE_CLIENT_ID: ${{ secrets.TECH_SERVICES_AZURE_CLIENT_ID }}
-          TECH_SERVICES_AZURE_CLIENT_SECRET: ${{ secrets.TECH_SERVICES_AZURE_CLIENT_SECRET }}
-          TECH_SERVICES_TENANT_ID: ${{ secrets.TECH_SERVICES_TENANT_ID }}
-          TECH_SERVICES_BASE_URL: ${{ secrets.TECH_SERVICES_BASE_URL }}
+  deploy:
+    needs: [get-allowlist, ecr]
+    permissions:
+      id-token: write # This is required for requesting the JWT
+      contents: read # This is required for actions/checkout
+    uses: ./.github/workflows/reusable-helm-deploy.yml
+    with:
+      environment: development
+      helm_values_env: dev
+      image_tag: ${{ github.sha }}
+      allowlist_cidr: ${{ needs.get-allowlist.outputs.allowlist }}
