@@ -126,6 +126,35 @@ Deployment config flows: GitHub Actions secret/variable → `.github/workflows/r
 
 Prefer Case B whenever possible — it needs no GitHub secret and no workflow changes, and the value stays visible and diffable in the PR that introduces it rather than living in GitHub Settings. Reach for Case A only when the value is genuinely sensitive or can't be known until deploy time.
 
+**Case C — the value already exists as a Kubernetes Secret in the namespace, provisioned outside this repo:**
+ 
+Some values never pass through Helm or GitHub Actions at all — they're read straight from a Kubernetes `Secret` object that already exists in the Cloud Platform namespace, via `secr
+etKeyRef` in `templates/deployment.yaml`. For example:
+ 
+```yaml
+- name: AZURE_TENANT_ID
+  valueFrom:
+    secretKeyRef:
+      name: laa-data-user-api-azure-tenant-secret-k8s
+      key: AZURE_TENANT_ID
+```
+ 
+These Secrets are created by Terraform in the [`cloud-platform-environments`](https://github.com/ministryofjustice/cloud-platform-environments) repo (one Secret per namespace/enviro
+nment), not by anything in this repo. The Secret's *value* is populated separately — for the RDS credentials (`rds-postgresql-instance-output`) this happens automatically when the R
+DS instance is provisioned; for the Azure app-registration values (`laa-data-user-api-azure-tenant-secret-k8s`, `laa-data-user-api-azure-client-id-k8s`) the value is set/updated man
+ually via the AWS console (Secrets Manager), and Cloud Platform's sync mechanism propagates it into the namespace as a native k8s Secret, which Kubernetes then mounts into the pod a
+s an env var on the next rollout.
+ 
+Use this pattern only for values that are already being provisioned this way at the infrastructure level — it's not something you can opt into for an arbitrary new variable from wit
+hin this repo alone; it requires a corresponding change in `cloud-platform-environments` first. To add one:
+ 
+1. Add/confirm the Secret and its key exist in the namespace (via `cloud-platform-environments`, or check with `kubectl get secret <name> -n <namespace> -o yaml`).
+2. Add the `secretKeyRef` env entry in `deployment/helm/laa-data-user-api/templates/deployment.yaml`, pointing at that Secret's name/key.
+3. Reference it in `application.yml` if Spring needs to read it.
+ 
+Unlike Case A, there's no GitHub Actions secret and no `values-secrets.yaml` entry — the value never touches CI at all, and updating it in AWS doesn't require a deploy (the running
+pod picks it up on its next restart/rollout, once Cloud Platform's sync has run).
+
 ---
 
 ## TODO 
