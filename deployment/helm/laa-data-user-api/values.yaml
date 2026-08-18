@@ -7,6 +7,10 @@ techServicesAzureClientSecret: ""
 techServicesBaseUrl: ""
 sentryEnvironment: "local"
 sentryDsn: ""
+# Deployed-environment default; override per-environment in values-<env>.yaml if ever
+# needed. Keep roughly in sync with application.yml's ${SENTRY_ENABLED:...}/
+# ${SENTRY_SAMPLE_RATE:...} placeholder defaults, which only apply outside Helm
+# (local dev/tests).
 sentryEnabled: "true"
 sentrySampleRate: "0.05"
 image:

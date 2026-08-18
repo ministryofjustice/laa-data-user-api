@@ -106,6 +106,26 @@ The application relies on several environment variables for configuration. Below
 
 </details>
 
+### Adding a New Environment Variable
+
+Deployment config flows: GitHub Actions secret/variable → `.github/workflows/reusable-helm-deploy.yml` → `deployment/helm/laa-data-user-api/values.yaml` → the chart's `templates/deployment.yaml` → the container env var → (optionally) `application.yml`. Which files you need to touch depends on whether the value is sensitive/deploy-time-only, or just ordinary static config.
+
+**Case A — it's a secret, or its value is only known at deploy time** (e.g. an API key, or something CI computes like the image tag):
+
+1. Add the GitHub Actions secret (or `vars.*` variable) in the relevant Environment(s) — Settings → Environments → `development`/`test`/`prd`.
+2. In `.github/workflows/reusable-helm-deploy.yml`, in the "Generate values-secrets.yaml" step, add one line to the `yq eval` pipeline (e.g. `| .newThing = strenv(NEW_THING)`) and one line to that step's `env:` block (e.g. `NEW_THING: ${{ secrets.NEW_THING }}`).
+3. Add the default in `deployment/helm/laa-data-user-api/values.yaml`.
+4. Add the container env entry in `deployment/helm/laa-data-user-api/templates/deployment.yaml`.
+5. Reference it in `src/main/resources/application.yml` if Spring needs to read it.
+
+**Case B — it's an ordinary, non-sensitive value whose value is already known** (not computed by CI):
+
+1. Add it directly to `deployment/helm/laa-data-user-api/values.yaml` (default) and/or `values-dev.yaml`/`values-test.yaml`/`values-prd.yaml` (per-environment override) — the same pattern already used for `ingress.className`/`allowlist.groups`.
+2. Add the container env entry in `templates/deployment.yaml`.
+3. Reference it in `application.yml` if needed.
+
+Prefer Case B whenever possible — it needs no GitHub secret and no workflow changes, and the value stays visible and diffable in the PR that introduces it rather than living in GitHub Settings. Reach for Case A only when the value is genuinely sensitive or can't be known until deploy time.
+
 ---
 
 ## TODO 

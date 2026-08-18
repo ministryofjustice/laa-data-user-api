@@ -13,21 +13,20 @@ jobs:
     name: Run ZAP DEV DAST Daily Baseline Scan Against Live App
     runs-on: ubuntu-latest
     environment: development
+    env:
+      KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Configure kubectl
-        run: |
-          echo "${{ secrets.KUBE_CERT }}" > ca.crt
-          kubectl config set-cluster ${KUBE_CLUSTER} --certificate-authority=./ca.crt --server=https://${KUBE_CLUSTER}
-          kubectl config set-credentials deploy-user --token=${{ secrets.KUBE_TOKEN }}
-          kubectl config set-context ${KUBE_CLUSTER} --cluster=${KUBE_CLUSTER} --user=deploy-user --namespace=${KUBE_NAMESPACE}
-          kubectl config use-context ${KUBE_CLUSTER}
-        env:
-          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
-          KUBE_CLUSTER: ${{ secrets.KUBE_CLUSTER }}
+        uses: ./.github/actions/configure-kubectl
+        with:
+          kube-cert: ${{ secrets.KUBE_CERT }}
+          kube-token: ${{ secrets.KUBE_TOKEN }}
+          kube-cluster: ${{ secrets.KUBE_CLUSTER }}
+          kube-namespace: ${{ secrets.KUBE_NAMESPACE }}
 
       - name: Generate Deployment the Files
         run: |
@@ -37,7 +36,7 @@ jobs:
 
       - name: Apply ZAP job
         run: |
-          kubectl delete job zap-scan -n ${{ secrets.KUBE_NAMESPACE }} --ignore-not-found
+          kubectl delete job zap-scan -n "${KUBE_NAMESPACE}" --ignore-not-found
           kubectl apply -f deployment/zapjob.yml
 
       - name: Wait for job completion
@@ -45,12 +44,12 @@ jobs:
           kubectl wait \
             --for=condition=complete \
             job/zap-scan \
-            -n ${{ secrets.KUBE_NAMESPACE }} \
+            -n "${KUBE_NAMESPACE}" \
             --timeout=900s
 
       - name: Get logs (debugging)
         run: |
-          kubectl logs job/zap-scan -n ${{ secrets.KUBE_NAMESPACE }} | tee zap-output.txt
+          kubectl logs job/zap-scan -n "${KUBE_NAMESPACE}" | tee zap-output.txt
 
       - name: Extract report.md from logs
         shell: bash
