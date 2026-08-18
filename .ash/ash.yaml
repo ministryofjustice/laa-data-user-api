@@ -32,6 +32,12 @@ global_settings:
     - rule_id: "CKV_GHA_7"
       path: ".github/workflows/deploy_release.yml"
       reason: "The inputs allowed are limited to a choice of environments and a version tag, so this is very low risk."
+    - rule_id: "yaml.github-actions.security.secrets-inherit.secrets-inherit"
+      path: ".github/workflows/deploy_dev.yml"
+      reason: "secrets: inherit here only forwards this repo's own GitHub Environment secrets to our own reusable-helm-deploy.yml in the same repo - there is no third-party or cross-repo workflow involved, so least-privilege scoping does not apply."
+    - rule_id: "yaml.github-actions.security.secrets-inherit.secrets-inherit"
+      path: ".github/workflows/deploy_release.yml"
+      reason: "secrets: inherit here only forwards this repo's own GitHub Environment secrets to our own reusable-helm-deploy.yml in the same repo - there is no third-party or cross-repo workflow involved, so least-privilege scoping does not apply."
 
 scanners:
   bandit:
