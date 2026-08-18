@@ -39,12 +39,13 @@ public class JwtDecoderConfig {
         log.debug("JWT Decoder — issuer: {}, jwkSetUri: {}, audience: {}", issuerUri, jwkSetUri, audience);
         try {
             OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(audience);
+            OAuth2TokenValidator<Jwt> delegatedTokenValidator = new DelegatedTokenValidator();
             OAuth2TokenValidator<Jwt> timestampValidator = new JwtTimestampValidator();
             OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
 
             NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
             jwtDecoder.setJwtValidator(
-                new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator, timestampValidator));
+                new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator, delegatedTokenValidator, timestampValidator));
             return jwtDecoder;
         } catch (Exception e) {
             log.error("Failed to create JWT Decoder: {}", e.getMessage(), e);
