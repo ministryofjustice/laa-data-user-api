@@ -54,30 +54,26 @@ docker build -t laa-data-user-api .
 ---
 
 ## Releases
- 
+
 Pushes to `main` deploy automatically to `development` (`.github/workflows/deploy_dev.yml`), building a fresh image tagged with the commit SHA.
- 
-Deploying a specific, already-tested build to `test` or `prod` is a separate, manual two-step process — the same image built for dev is promoted, nothing is re
-built:
- 
+
+Deploying a specific, already-tested build to `test` or `prod` is a separate, manual two-step process — the same image built for dev is promoted, nothing is rebuilt:
+
 1. **Cut a release** — tag a commit already on `main`:
    ```bash
    git tag v1.2.0 <commit-sha>
    git push origin v1.2.0
    ```
-   Pushing a `v*.*.*` tag triggers `.github/workflows/release.yml`, which re-tags that commit's existing ECR image (`:<sha>`) as `:v1.2.0` — it fails if that c
-ommit was never deployed to dev, since the source image wouldn't exist yet.
- 
+   Pushing a `v*.*.*` tag triggers `.github/workflows/release.yml`, which re-tags that commit's existing ECR image (`:<sha>`) as `:v1.2.0` — it fails if that commit was never deployed to dev, since the source image wouldn't exist yet.
+
 2. **Deploy the release** — manually run `.github/workflows/deploy_release.yml` from the Actions tab (`Deploy Release` → `Run workflow`), choosing:
    - `environment`: `test` or `prd`
    - `version`: the tag from step 1, e.g. `v1.2.0`
- 
-   This runs `helm upgrade --install` against that environment's Cloud Platform namespace, using the chart at `deployment/helm/laa-data-user-api` with `values.
-yaml` layered under `values-test.yaml`/`values-prd.yaml`. `prd` runs are gated by whatever GitHub Environment protection rules (e.g. required reviewers) are
-configured on the `prd` environment.
- 
+
+   This runs `helm upgrade --install` against that environment's Cloud Platform namespace, using the chart at `deployment/helm/laa-data-user-api` with `values.yaml` layered under `values-test.yaml`/`values-prd.yaml`. `prd` runs are gated by whatever GitHub Environment protection rules (e.g. required reviewers) are configured on the `prd` environment.
+
 > **Note:** the `prd` Cloud Platform namespaces and their GitHub Environment secrets aren't provisioned yet — see the TODO list below.
- 
+
 ---
 
 ## Environment Variables
@@ -87,22 +83,25 @@ The application relies on several environment variables for configuration. Below
 <details>
 <summary>Click to expand</summary>
 
-| Variable Name                       | Description                                           | Default Value |
-|-------------------------------------|-------------------------------------------------------|---------------|
-| `POSTGRES_DB_ADDRESS`               | The host address for the Postgres database.           | `localhost`   |
-| `POSTGRES_DB_NAME`                  | The name of the Postgres database.                    |
-| `POSTGRES_USERNAME`                 | The username to authenticate with Postgres.           | `postgres`    |
-| `POSTGRES_PASSWORD`                 | The password to authenticate with Postgres.           | `postgres`    |
-| `AZURE_TENANT_ID`                   | The Azure AD tenant ID.                               | None          |
-| `TECH_SERVICES_AZURE_SCOPE`         | The Azure AD scope for the Tech Services API.         | None          |
-| `TECH_SERVICES_AZURE_CLIENT_ID`     | The Azure AD client ID for the Tech Services API.     | None          |
-| `TECH_SERVICES_AZURE_CLIENT_SECRET` | The Azure AD client secret for the Tech Services API. | None          |
-| `TECH_SERVICES_TENANT_ID`           | The Azure AD tenant ID for the Tech Services API.     | None          |
-| `TECH_SERVICES_BASE_URL`            | The base URL for the Tech Services API.               | None          |
-| `TECH_SERVICES_CALLS_ENABLED`       | Whether to enable calls to the Tech Services API.     | `false`       |
-| `TECH_SERVICES_LAA_BUSINESS_UNIT`   | The business unit for the Tech Services API.          | `laa`         |
-| `TECH_SERVICES_REQ_READ_TIMEOUT`    | The read timeout for the Tech Services API.           | `30`          |
-| `TECH_SERVICES_REQ_CONNECT_TIMEOUT` | The connect timeout for the Tech Services API.        | `30`          |
+| Variable Name                       | Description                                           | Default Value | Source |
+|-------------------------------------|-------------------------------------------------------|---------------|--------|
+| `POSTGRES_DB_ADDRESS`               | The host address for the Postgres database.           | `localhost`   | K8s Secret `rds-postgresql-instance-output` |
+| `POSTGRES_DB_NAME`                  | The name of the Postgres database.                    |               | K8s Secret `rds-postgresql-instance-output` |
+| `POSTGRES_USERNAME`                 | The username to authenticate with Postgres.           | `postgres`    | K8s Secret `rds-postgresql-instance-output` |
+| `POSTGRES_PASSWORD`                 | The password to authenticate with Postgres.           | `postgres`    | K8s Secret `rds-postgresql-instance-output` |
+| `AZURE_TENANT_ID`                   | The Azure AD tenant ID, used to validate inbound JWTs. | None          | K8s Secret `laa-data-user-api-azure-tenant-secret-k8s` |
+| `AZURE_CLIENT_ID`                   | The Azure AD client (app) ID, used to validate inbound JWTs' audience. | None | K8s Secret `laa-data-user-api-azure-client-id-k8s` |
+| `TECH_SERVICES_AZURE_SCOPE`         | The Azure AD scope for the Tech Services API.         | None          | Helm value (GitHub Actions var) |
+| `TECH_SERVICES_AZURE_CLIENT_ID`     | The Azure AD client ID for the Tech Services API.     | None          | GitHub Actions secret |
+| `TECH_SERVICES_AZURE_CLIENT_SECRET` | The Azure AD client secret for the Tech Services API. | None          | GitHub Actions secret |
+| `TECH_SERVICES_TENANT_ID`           | The Azure AD tenant ID for the Tech Services API.     | None          | GitHub Actions secret |
+| `TECH_SERVICES_BASE_URL`            | The base URL for the Tech Services API.               | None          | GitHub Actions secret |
+| `TECH_SERVICES_CALLS_ENABLED`       | Whether to enable calls to the Tech Services API.     | `false`       | Not yet wired into the Helm chart (`application.yml` default only) |
+| `TECH_SERVICES_LAA_BUSINESS_UNIT`   | The business unit for the Tech Services API.          | `laa`         | Not yet wired into the Helm chart (`application.yml` default only) |
+| `TECH_SERVICES_REQ_READ_TIMEOUT`    | The read timeout for the Tech Services API.           | `30`          | Not yet wired into the Helm chart (`application.yml` default only) |
+| `TECH_SERVICES_REQ_CONNECT_TIMEOUT` | The connect timeout for the Tech Services API.        | `30`          | Not yet wired into the Helm chart (`application.yml` default only) |
+
+Note there are two distinct Azure AD app registrations in play here, each with its own credentials: the values under `AZURE_*` validate JWTs presented *to* this API (inbound), while `TECH_SERVICES_AZURE_*`/`TECH_SERVICES_TENANT_ID` authenticate this API's outbound calls *to* the Tech Services API. There's currently no `AZURE_CLIENT_SECRET` — the inbound-validation app registration only needs the tenant and client ID.
 
 </details>
 
@@ -127,10 +126,9 @@ Deployment config flows: GitHub Actions secret/variable → `.github/workflows/r
 Prefer Case B whenever possible — it needs no GitHub secret and no workflow changes, and the value stays visible and diffable in the PR that introduces it rather than living in GitHub Settings. Reach for Case A only when the value is genuinely sensitive or can't be known until deploy time.
 
 **Case C — the value already exists as a Kubernetes Secret in the namespace, provisioned outside this repo:**
- 
-Some values never pass through Helm or GitHub Actions at all — they're read straight from a Kubernetes `Secret` object that already exists in the Cloud Platform namespace, via `secr
-etKeyRef` in `templates/deployment.yaml`. For example:
- 
+
+Some values never pass through Helm or GitHub Actions at all — they're read straight from a Kubernetes `Secret` object that already exists in the Cloud Platform namespace, via `secretKeyRef` in `templates/deployment.yaml`. For example:
+
 ```yaml
 - name: AZURE_TENANT_ID
   valueFrom:
@@ -138,22 +136,16 @@ etKeyRef` in `templates/deployment.yaml`. For example:
       name: laa-data-user-api-azure-tenant-secret-k8s
       key: AZURE_TENANT_ID
 ```
- 
-These Secrets are created by Terraform in the [`cloud-platform-environments`](https://github.com/ministryofjustice/cloud-platform-environments) repo (one Secret per namespace/enviro
-nment), not by anything in this repo. The Secret's *value* is populated separately — for the RDS credentials (`rds-postgresql-instance-output`) this happens automatically when the R
-DS instance is provisioned; for the Azure app-registration values (`laa-data-user-api-azure-tenant-secret-k8s`, `laa-data-user-api-azure-client-id-k8s`) the value is set/updated man
-ually via the AWS console (Secrets Manager), and Cloud Platform's sync mechanism propagates it into the namespace as a native k8s Secret, which Kubernetes then mounts into the pod a
-s an env var on the next rollout.
- 
-Use this pattern only for values that are already being provisioned this way at the infrastructure level — it's not something you can opt into for an arbitrary new variable from wit
-hin this repo alone; it requires a corresponding change in `cloud-platform-environments` first. To add one:
- 
+
+These Secrets are created by Terraform in the [`cloud-platform-environments`](https://github.com/ministryofjustice/cloud-platform-environments) repo (one Secret per namespace/environment), not by anything in this repo. The Secret's *value* is populated separately — for the RDS credentials (`rds-postgresql-instance-output`) this happens automatically when the RDS instance is provisioned; for the Azure app-registration values (`laa-data-user-api-azure-tenant-secret-k8s`, `laa-data-user-api-azure-client-id-k8s`) the value is set/updated manually via the AWS console (Secrets Manager), and Cloud Platform's sync mechanism propagates it into the namespace as a native k8s Secret, which Kubernetes then mounts into the pod as an env var on the next rollout.
+
+Use this pattern only for values that are already being provisioned this way at the infrastructure level — it's not something you can opt into for an arbitrary new variable from within this repo alone; it requires a corresponding change in `cloud-platform-environments` first. To add one:
+
 1. Add/confirm the Secret and its key exist in the namespace (via `cloud-platform-environments`, or check with `kubectl get secret <name> -n <namespace> -o yaml`).
 2. Add the `secretKeyRef` env entry in `deployment/helm/laa-data-user-api/templates/deployment.yaml`, pointing at that Secret's name/key.
 3. Reference it in `application.yml` if Spring needs to read it.
- 
-Unlike Case A, there's no GitHub Actions secret and no `values-secrets.yaml` entry — the value never touches CI at all, and updating it in AWS doesn't require a deploy (the running
-pod picks it up on its next restart/rollout, once Cloud Platform's sync has run).
+
+Unlike Case A, there's no GitHub Actions secret and no `values-secrets.yaml` entry — the value never touches CI at all, and updating it in AWS doesn't require a deploy (the running pod picks it up on its next restart/rollout, once Cloud Platform's sync has run).
 
 ---
 
