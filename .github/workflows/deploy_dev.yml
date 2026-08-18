@@ -113,6 +113,7 @@ jobs:
       id-token: write # This is required for requesting the JWT
       contents: read # This is required for actions/checkout
     uses: ./.github/workflows/reusable-helm-deploy.yml
+    secrets: inherit
     with:
       environment: development
       helm_values_env: dev

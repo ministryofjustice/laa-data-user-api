@@ -29,13 +29,11 @@ on:
         required: false
         default: false
 
-# No `secrets:` interface here deliberately: KUBE_*/TECH_SERVICES_*/SENTRY_DSN/
-# ECR_ROLE_TO_ASSUME are GitHub Environment secrets. Environment secrets cannot cross
-# the workflow_call boundary via explicit passing (GitHub ignores/ overrides passed
-# values with the called job's own environment secret of the same name) - instead the
-# `deploy` job below gets access to them directly because it declares
-# `environment: ${{ inputs.environment }}` itself, exactly as the single-job workflows
-# it replaces already did.
+# ECR_ROLE_TO_ASSUME are GitHub Environment secrets. Unlike Environment vars, Environment
+# secrets do NOT cross the workflow_call boundary just because the `deploy` job below
+# declares `environment: ${{ inputs.environment }}` - the calling workflow must also
+# pass `secrets: inherit` (or list each secret explicitly) when it does `uses:` on this
+# workflow, otherwise every `secrets.*` reference here resolves to an empty string.
 
 jobs:
   deploy:
