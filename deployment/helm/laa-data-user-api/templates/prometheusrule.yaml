@@ -130,6 +130,15 @@ spec:
           labels:
             severity: {{ .Release.Namespace }}
 
+        - alert: ServiceDown
+          annotations:
+            message: laa-data-user-api in {{ .Values.envName }} is not responding to Prometheus scrapes.
+            dashboard_url: "https://grafana.live.cloud-platform.service.justice.gov.uk/d/{{ .Release.Namespace }}"
+          expr: up{job="laa-data-user-api"} == 0
+          for: 5m
+          labels:
+            severity: {{ .Release.Namespace }}
+
     - name: database-rules
       rules:
         - alert: RDSHighCPU
