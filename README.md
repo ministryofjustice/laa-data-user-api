@@ -103,8 +103,7 @@ The application relies on several environment variables for configuration. Below
 
 Note there are two distinct Azure AD app registrations in play here, each with its own credentials: the values under `AZURE_*` validate JWTs presented *to* this API (inbound), while `TECH_SERVICES_AZURE_*`/`TECH_SERVICES_TENANT_ID` authenticate this API's outbound calls *to* the Tech Services API. There's currently no `AZURE_CLIENT_SECRET` — the inbound-validation app registration only needs the tenant and client ID.
 
-> **Orphaned secret:** a Kubernetes Secret named `laa-data-user-api-azure-client-secret-k8s` also exists in the namespace, following the same naming convention as `laa-data-user-api-azure-tenant-secret-k8s`/`laa-data-user-api-azure-client-id-k8s`. However, nothing in this repo — chart or code — consumes it: there's no `secretKeyRef` for it in `templates/deployment.yaml`, and no `AZURE_CLIENT_SECRET` env var or `@Value` binding anywhere in the codebase (the only client secret actually read by the code is `TECH_SERVICES_AZURE_CLIENT_SECRET`, via `TechServicesConfig`). It was likely provisioned defensively alongside the tenant/client-ID pair, or in anticipation of the still-open "API Authentication" TODO item below. Before wiring it up, confirm with whoever provisioned it whether it's still needed.
-
+> **Orphaned secret:** a Kubernetes Secret named `laa-data-user-api-azure-client-secret-k8s` also exists in the namespace,  However, nothing in this repo — chart or code — consumes it: there's no `secretKeyRef` for it in `templates/deployment.yaml`, and no `AZURE_CLIENT_SECRET` env var or `@Value` binding anywhere in the codebase (the only client secret actually read by the code is `TECH_SERVICES_AZURE_CLIENT_SECRET`, via `TechServicesConfig`). 
 </details>
 
 ### Adding a New Environment Variable
@@ -139,7 +138,7 @@ Some values never pass through Helm or GitHub Actions at all — they're read st
       key: AZURE_TENANT_ID
 ```
 
-These Secrets are created by Terraform in the [`cloud-platform-environments`](https://github.com/ministryofjustice/cloud-platform-environments) repo (one Secret per namespace/environment), not by anything in this repo. The Secret's *value* is populated separately — for the RDS credentials (`rds-postgresql-instance-output`) this happens automatically when the RDS instance is provisioned; for the Azure app-registration values (`laa-data-user-api-azure-tenant-secret-k8s`, `laa-data-user-api-azure-client-id-k8s`) the value is set/updated manually via the AWS console (Secrets Manager), and Cloud Platform's sync mechanism propagates it into the namespace as a native k8s Secret, which Kubernetes then mounts into the pod as an env var on the next rollout.
+These Secrets are created by Terraform in the [`cloud-platform-environments`](https://github.com/ministryofjustice/cloud-platform-environments) repo. The Secret's *value* is populated separately — for the RDS credentials (`rds-postgresql-instance-output`) this happens automatically when the RDS instance is provisioned; for the Azure app-registration values (`laa-data-user-api-azure-tenant-secret-k8s`, `laa-data-user-api-azure-client-id-k8s`) the value is set/updated manually via the AWS console (Secrets Manager), and the External Secrets Operator (ESO) in the Kubernetes cluster manages the synchronisation to the Kubernetes Secret, which Kubernetes then mounts into the pod as an env var on the next rollout.
 
 Use this pattern only for values that are already being provisioned this way at the infrastructure level — it's not something you can opt into for an arbitrary new variable from within this repo alone; it requires a corresponding change in `cloud-platform-environments` first. To add one:
 
