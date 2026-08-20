@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: laa-data-user-api-uptime-check
+spec:
+  schedule: {{ .Values.pingdomCheck.schedule | quote }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          containers:
+            - name: uptime-check
+              image: curlimages/curl:8.21.0
+              command: ["/bin/sh", "-c"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsUser: 1000
+                runAsNonRoot: true
+              args:
+                - |
+                  URL="https://{{ .Values.ingress.host }}/actuator/health"
+                  if ! curl -fsS --max-time 10 "$URL"; then
+                    curl -fsS -X POST -H 'Content-type: application/json' \
+                      --data "{\"text\":\":red_circle: laa-data-user-api ($ENV_NAME) failed external health check: $URL\"}" \
+                      "$SLACK_WEBHOOK_URL"
+                  fi
+              env:
+                - name: ENV_NAME
+                  value: {{ .Values.envName }}
+                - name: SLACK_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: slack-alert-webhook-secret
+                      key: webhook_url

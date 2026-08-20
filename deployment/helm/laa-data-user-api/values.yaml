@@ -13,6 +13,8 @@ sentryDsn: ""
 # (local dev/tests).
 sentryEnabled: "true"
 sentrySampleRate: "0.05"
+pingdomCheck:
+  schedule: "*/5 * * * *"
 image:
   repository: "laa-data-user-api"
   tag: "latest"

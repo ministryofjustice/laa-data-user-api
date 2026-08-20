@@ -5480,6 +5480,169 @@
           ],
           "title": "MaximumUsedTransactionIDs/TransactionLogsGeneration",
           "type": "timeseries"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 156
+          },
+          "id": 200,
+          "panels": [],
+          "title": "Service Uptime",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Percentage of time the service was reporting as up, over the currently selected dashboard time range. Widen the time range (e.g. 30d/90d) to see uptime over a longer period, up to Prometheus's retention window.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 99
+                  },
+                  {
+                    "color": "green",
+                    "value": 99.9
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 157
+          },
+          "id": 201,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "pluginVersion": "11.3.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "avg_over_time(up{job=\"laa-data-user-api\"}[$__range]) * 100",
+              "legendFormat": "Uptime %",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Uptime %",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Service up/down status over time, based on the same up{job=\"laa-data-user-api\"} metric the ServiceDown alert uses.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "color": "red",
+                      "index": 1,
+                      "text": "Down"
+                    },
+                    "1": {
+                      "color": "green",
+                      "index": 0,
+                      "text": "Up"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 18,
+            "x": 6,
+            "y": 157
+          },
+          "id": 202,
+          "options": {
+            "alignValue": "center",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "mergeValues": true,
+            "rowHeight": 0.9,
+            "showValue": "never",
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.3.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "up{job=\"laa-data-user-api\"}",
+              "legendFormat": "Uptime status",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Uptime Over Time",
+          "type": "state-timeline"
         }
       ],
       "preload": false,
