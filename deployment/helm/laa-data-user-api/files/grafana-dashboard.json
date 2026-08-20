@@ -5556,7 +5556,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "avg_over_time(up{job=\"laa-data-user-api\"}[$__range]) * 100",
+              "expr": "avg(avg_over_time(up{job=\"laa-data-user-api\", namespace=\"${cpnamespace}\"}[$__range])) * 100",
               "legendFormat": "Uptime %",
               "range": true,
               "refId": "A"
@@ -5570,7 +5570,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Service up/down status over time, based on the same up{job=\"laa-data-user-api\"} metric the ServiceDown alert uses.",
+          "description": "Service up/down status over time. Considered up if at least one pod replica is up, based on the same up{job=\"laa-data-user-api\"} metric the ServiceDown alert uses.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -5635,8 +5635,8 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "up{job=\"laa-data-user-api\"}",
-              "legendFormat": "Uptime status",
+              "expr": "max(up{job=\"laa-data-user-api\", namespace=\"${cpnamespace}\"})",
+              "legendFormat": "Service",
               "range": true,
               "refId": "A"
             }
