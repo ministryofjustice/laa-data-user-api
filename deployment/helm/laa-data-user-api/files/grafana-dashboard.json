@@ -5499,7 +5499,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Percentage of time the service was reporting as up, over the currently selected dashboard time range. Widen the time range (e.g. 30d/90d) to see uptime over a longer period, up to Prometheus's retention window.",
+          "description": "Percentage of time the service was available (at least one pod replica up), over the currently selected dashboard time range. Widen the time range (e.g. 30d/90d) to see uptime over a longer period, up to Prometheus's retention window.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -5556,7 +5556,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "avg(avg_over_time(up{job=\"laa-data-user-api\", namespace=\"${cpnamespace}\"}[$__range])) * 100",
+              "expr": "avg_over_time((max(up{job=\"laa-data-user-api\", namespace=\"${cpnamespace}\"}))[$__range:]) * 100",
               "legendFormat": "Uptime %",
               "range": true,
               "refId": "A"
