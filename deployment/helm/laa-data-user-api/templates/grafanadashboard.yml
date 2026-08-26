@@ -1,4 +1,4 @@
-{{- $dashboardName := .Values.grafanaDashboard.name | default (printf "%s-dashboard" .Release.Name) -}}
+{{- $dashboardName := .Values.grafanaDashboard.name | default (printf "%s-dashboard" .Release.Namespace) -}}
 {{- $dashboardNamespace := .Values.grafanaDashboard.namespace | default .Release.Namespace -}}
 {{- $dashboardJson := .Files.Get "files/grafana-dashboard.json" -}}
 {{- $dashboardJson = $dashboardJson | replace "laa-data-user-api-dev" .Release.Namespace -}}
