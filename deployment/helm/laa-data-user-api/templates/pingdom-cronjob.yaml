@@ -24,11 +24,24 @@ spec:
               args:
                 - |
                   URL="https://{{ .Values.ingress.host }}/actuator/health"
-                  if ! curl -fsS --max-time 10 "$URL"; then
-                    curl -fsS -X POST -H 'Content-type: application/json' \
-                      --data "{\"text\":\":red_circle: laa-data-user-api ($ENV_NAME) failed external health check: $URL\"}" \
-                      "$SLACK_WEBHOOK_URL"
-                  fi
+                  ATTEMPTS={{ .Values.pingdomCheck.retries }}
+                  DELAY={{ .Values.pingdomCheck.retryDelaySeconds }}
+                  n=1
+                  while true; do
+                    if curl -fsS --max-time 10 "$URL"; then
+                      exit 0
+                    fi
+                    if [ "$n" -ge "$ATTEMPTS" ]; then
+                      break
+                    fi
+                    echo "Health check failed (attempt $n/$ATTEMPTS), retrying in ${DELAY}s..."
+                    sleep "$DELAY"
+                    n=$((n + 1))
+                  done
+                  curl -fsS -X POST -H 'Content-type: application/json' \
+                    --data "{\"text\":\":red_circle: laa-data-user-api ($ENV_NAME) failed external health check after $ATTEMPTS attempts: $URL\"}" \
+                    "$SLACK_WEBHOOK_URL"
+                  exit 1
               env:
                 - name: ENV_NAME
                   value: {{ .Values.envName }}
