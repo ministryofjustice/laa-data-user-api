@@ -175,4 +175,4 @@ Unlike Case A, there's no GitHub Actions secret and no `values-secrets.yaml` ent
 - [x] Snyk configuration
 - [ ] Test coverage on PRs setup
 - [x] ZAP scan setup
-- [ ] Pingdom setup
+- [x] Pingdom setup
