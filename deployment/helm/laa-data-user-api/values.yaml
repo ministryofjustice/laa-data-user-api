@@ -15,6 +15,9 @@ sentryEnabled: "true"
 sentrySampleRate: "0.05"
 pingdomCheck:
   schedule: "*/5 * * * *"
+  # Number of health-check attempts before alerting, and seconds to wait between them.
+  retries: 3
+  retryDelaySeconds: 60
 image:
   repository: "laa-data-user-api"
   tag: "latest"
