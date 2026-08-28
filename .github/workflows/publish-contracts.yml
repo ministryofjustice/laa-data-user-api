@@ -1,0 +1,32 @@
+name: Publish Contracts
+
+on:
+  push:
+    tags:
+      - 'contracts/v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Java
+        uses: actions/setup-java@c5195efec0e7543c06fee579b98f9c7a0adc29f1 # v4.7.1
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@94baf225fe0cdf0efa12a6a1c5e48e82dd0c638d # v4.3.0
+
+      - name: Publish contracts to GitHub Packages
+        run: ./gradlew :contracts:publish
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
