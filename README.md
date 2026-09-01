@@ -151,6 +151,85 @@ Unlike Case A, there's no GitHub Actions secret and no `values-secrets.yaml` ent
 
 ---
 
+## Contracts Library (`laa-data-user-api-contracts`)
+
+This repo publishes a lightweight JAR containing shared request/response POJOs used by both `laa-data-user-api` and its consumers (e.g. `laa-landing-page`). It has no Spring dependencies, only `jakarta.validation-api`.
+
+### Structure
+
+```
+contracts/
+├── build.gradle
+└── src/main/java/uk/gov/justice/laa/datauserapi/contracts/
+    ├── DisableUserReason.java           ← enum
+    ├── request/
+    │   ├── DisableUserRequest.java
+    │   └── EnableUserRequest.java
+    └── response/
+        └── UserProfileDetailResponse.java
+```
+
+### Publishing a new version
+
+1. Update the version in `contracts/build.gradle`:
+   ```groovy
+   version = '1.1.0'
+   ```
+
+2. Commit and push the change to `main`.
+
+3. Tag the commit using the `contracts/v*.*.*` convention and push:
+   ```bash
+   git tag contracts/v1.1.0
+   git push origin contracts/v1.1.0
+   ```
+   Pushing the tag triggers `.github/workflows/publish-contracts.yml`, which runs `./gradlew :contracts:publish` and uploads the JAR to GitHub Packages at `maven.pkg.github.com/ministryofjustice/laa-data-user-api`.
+
+> You can also trigger the publish manually from the Actions tab → **Publish Contracts** → **Run workflow**, which is useful for re-publishing without cutting a new tag.
+
+### Consuming in a downstream repo
+
+Add the GitHub Packages repository and pin the version. In `laa-landing-page/build.gradle`:
+
+```groovy
+repositories {
+    maven {
+        name = 'GitHubPackages'
+        url = uri('https://maven.pkg.github.com/ministryofjustice/laa-data-user-api')
+        credentials {
+            username = System.getenv('GITHUB_ACTOR') ?: project.findProperty('gpr.user')
+            password = System.getenv('GITHUB_TOKEN') ?: project.findProperty('gpr.token')
+        }
+    }
+}
+
+ext {
+    dataUserApiContractsVersion = "1.1.0"   // ← bump this line to upgrade
+}
+
+dependencies {
+    implementation "uk.gov.justice.laa:laa-data-user-api-contracts:${dataUserApiContractsVersion}"
+}
+```
+
+For local development, add credentials to `~/.gradle/gradle.properties` (never commit this file):
+```properties
+gpr.user=your-github-username
+gpr.token=your-classic-token-with-read:packages-scope
+```
+
+### Versioning policy
+
+| Change type | Version bump | Example |
+|---|---|---|
+| Bug fix, no API surface change | Patch | `1.0.0` → `1.0.1` |
+| New optional field added to a record | Minor | `1.0.0` → `1.1.0` |
+| Field removed, renamed, or type changed | **Major** | `1.0.0` → `2.0.0` |
+
+Breaking changes (major bumps) require coordinating with all consumers before merging.
+
+---
+
 ## TODO 
 
 > This section is a work in progress, it currently only contains immediate baseline goals

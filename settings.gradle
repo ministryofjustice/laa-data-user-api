@@ -6,3 +6,5 @@ pluginManagement {
 }
 
 rootProject.name = 'laa-data-user-api'
+
+include 'contracts'
