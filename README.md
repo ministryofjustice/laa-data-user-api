@@ -90,7 +90,8 @@ The application relies on several environment variables for configuration. Below
 | `POSTGRES_USERNAME`                 | The username to authenticate with Postgres.           | `postgres`    | K8s Secret `rds-postgresql-instance-output` |
 | `POSTGRES_PASSWORD`                 | The password to authenticate with Postgres.           | `postgres`    | K8s Secret `rds-postgresql-instance-output` |
 | `AZURE_TENANT_ID`                   | The Azure AD tenant ID, used to validate inbound JWTs. | None          | K8s Secret `laa-data-user-api-azure-tenant-secret-k8s` |
-| `AZURE_CLIENT_ID`                   | The Azure AD client (app) ID, used to validate inbound JWTs' audience. | None | K8s Secret `laa-data-user-api-azure-client-id-k8s` |
+| `AZURE_CLIENT_ID`                   | The Azure AD client (app) ID (UUID). Used for outbound auth only; not used for audience validation. | None | K8s Secret `laa-data-user-api-azure-client-id-k8s` |
+| `AZURE_APP_URI`                     | The App URI configured in the Entra app registration. Must match the `aud` claim in inbound OBO tokens. | `api://laa-user-data-api` | Helm value |
 | `TECH_SERVICES_AZURE_SCOPE`         | The Azure AD scope for the Tech Services API.         | None          | Helm value (GitHub Actions var) |
 | `TECH_SERVICES_AZURE_CLIENT_ID`     | The Azure AD client ID for the Tech Services API.     | None          | GitHub Actions secret |
 | `TECH_SERVICES_AZURE_CLIENT_SECRET` | The Azure AD client secret for the Tech Services API. | None          | GitHub Actions secret |
