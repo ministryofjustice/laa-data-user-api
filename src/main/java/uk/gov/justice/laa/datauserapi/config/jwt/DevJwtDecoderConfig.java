@@ -28,7 +28,7 @@ public class DevJwtDecoderConfig {
                     .claim("sub", "dev-user")
                     .claim("oid", "00000000-0000-0000-0000-000000000000")
                     .claim("idtyp", "user")
-                    .claim("scp", "user.read")
+                    .claim("scp", "user_data.read")
                     .claim("roles", "USER")
                     .issuedAt(Instant.now())
                     .expiresAt(Instant.now().plusSeconds(3600))

@@ -61,6 +61,8 @@ spec:
                 secretKeyRef:
                   name: laa-data-user-api-azure-client-id-k8s
                   key: AZURE_CLIENT_ID
+            - name: AZURE_APP_URI
+              value: {{ .Values.azureAppUri }}
             - name: SENTRY_DSN
               value: {{ .Values.sentryDsn }}
             - name: SENTRY_ENVIRONMENT
