@@ -93,6 +93,7 @@ jobs:
             | .techServicesAzureClientSecret = strenv(TECH_SERVICES_AZURE_CLIENT_SECRET)
             | .techServicesBaseUrl = strenv(TECH_SERVICES_BASE_URL)
             | .allowlist.cidr = strenv(ALLOWLIST_CIDR)
+            | .azureAppUri = strenv(AZURE_APP_URI)
           ' > deployment/helm/laa-data-user-api/values-secrets.generated.yaml
         env:
           IMAGE_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -108,6 +109,7 @@ jobs:
           TECH_SERVICES_BASE_URL: ${{ secrets.TECH_SERVICES_BASE_URL }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           ALLOWLIST_CIDR: ${{ inputs.allowlist_cidr }}
+          AZURE_APP_URI: ${{ secrets.AZURE_APP_URI }}
 
       - name: Set up Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
