@@ -49,3 +49,6 @@ updates:
       interval: "daily"
     cooldown:
       default-days: 7
+    ignore:
+      - dependency-name: "amazoncorretto"
+        versions: ["version-update:semver-major"]
