@@ -17,7 +17,7 @@ on:
 
 jobs:
   ash:
-    uses: awslabs/automated-security-helper/.github/workflows/run-ash-security-scan.yml@v3
+    uses: awslabs/automated-security-helper/.github/workflows/run-ash-security-scan.yml@af1206aff596f1288ad066828058b3011de2a998 # v3.7.1
     permissions:
       actions: read # Required for CodeQL action API access during SARIF upload in the called workflow
       contents: read # Required to read the repository contents in order to scan them with ASH
@@ -25,9 +25,16 @@ jobs:
       pull-requests: write # Required for writing comments with scan results to pull requests
       security-events: write # Required for collection of SARIF code scanning results for GitHub Advanced Security checks
     with:
-      ash-version: v3
+      # Keep in step with the reusable-workflow pin above - this selects the ASH
+      # CLI release that workflow installs (git+https://.../automated-security-helper@<ash-version>).
+      ash-version: v3.7.1
       ash-mode: container
       config: .ash/ash.yaml
+      # NOTE: currently a no-op upstream - run-ash-security-scan.yml compares
+      # this boolean input against the string 'true', which is always false, so
+      # ASH always runs with --no-fail-on-findings. The check-ash-findings job
+      # below is the real gate. Left set to true for intent and in case upstream
+      # fixes the comparison.
       fail-on-findings: true
       collect-junit-xml-report: false
       collect-sarif-report: false
@@ -56,109 +63,63 @@ jobs:
         run: |
           set -euo pipefail
 
-          repo_root="${{ github.workspace }}"
-          config_path="$repo_root/.ash/ash.yaml"
-          output_dir="$repo_root/.ash/ash_output"
+          output_dir="${{ github.workspace }}/.ash/ash_output"
+          results_json="$output_dir/ash_aggregated_results.json"
 
-          echo "Checking ASH findings against the configured severity threshold from $config_path..."
-          echo "Contents of $output_dir:"
-          find "$output_dir" -type f 2>/dev/null || true
+          echo "ASH output files:"
+          find "$output_dir" -maxdepth 2 -type f 2>/dev/null | sort || true
+          echo
 
-          if [ ! -f "$config_path" ]; then
-            echo "⚠️  No .ash/ash.yaml found; skipping threshold-based verification."
-            exit 0
+          # Fail closed: no machine-readable results means the scan did not
+          # complete, and the pipeline must not pass silently.
+          if [ ! -f "$results_json" ]; then
+            echo "::error::ASH did not produce $results_json - failing closed."
+            exit 1
           fi
 
-          threshold_raw=$(grep -E '^[[:space:]]*severity_threshold:[[:space:]]*(ALL|LOW|MEDIUM|HIGH|CRITICAL)[[:space:]]*$' "$config_path" | head -n 1 | sed -E 's/.*severity_threshold:[[:space:]]*//; s/[[:space:]]*$//' || true)
-          threshold="${threshold_raw^^}"
-          if [ -z "$threshold" ]; then
-            echo "⚠️  Could not determine severity threshold from .ash/ash.yaml; defaulting to CRITICAL."
-            threshold="CRITICAL"
+          # The severity gate is configured in .ash/ash.yaml
+          # (global_settings.severity_threshold). ASH's own "actionable" count is
+          # the number of findings at or above that threshold, so gate on it
+          # directly rather than re-deriving severity ranking here.
+          actionable=$(jq -r '.metadata.summary_stats.actionable // 0' "$results_json")
+          total=$(jq -r '.metadata.summary_stats.total // 0' "$results_json")
+
+          echo "Findings by severity (after suppressions):"
+          jq -r '(.metadata.summary_stats.severity_counts // {})
+                 | to_entries[] | "  \(.key): \(.value)"' "$results_json"
+          echo "Total findings: $total"
+          echo "Actionable findings (at or above configured threshold): $actionable"
+          echo
+
+          # A scanner that errored or is missing its dependencies leaves a
+          # coverage gap - treat that as a failure, not a pass.
+          broken=$(jq -r '[.scanner_results // {}
+                           | to_entries[]
+                           | select(.value.status == "ERROR" or .value.status == "MISSING")
+                           | "\(.key) (\(.value.status))"] | join(", ")' "$results_json")
+
+          rc=0
+
+          if [ "$actionable" -gt 0 ]; then
+            echo "::error::ASH reported $actionable actionable finding(s) at or above the configured severity threshold."
+            echo "Scanners with actionable findings:"
+            jq -r '.scanner_results // {}
+                   | to_entries[]
+                   | select((.value.actionable_finding_count // 0) > 0)
+                   | "  \(.key): \(.value.actionable_finding_count)"' "$results_json"
+            rc=1
           fi
 
-          case "$threshold" in
-            ALL) min_rank=0 ;;
-            LOW) min_rank=1 ;;
-            MEDIUM) min_rank=2 ;;
-            HIGH) min_rank=3 ;;
-            CRITICAL) min_rank=4 ;;
-            *)
-              echo "⚠️  Unsupported threshold '$threshold'; defaulting to CRITICAL."
-              min_rank=4
-              ;;
-          esac
-
-          echo "Configured threshold: $threshold"
-
-          summary_reports=(
-            "$output_dir/reports/ash.summary.md"
-            "$output_dir/reports/ash.summary.txt"
-            "$output_dir/reports/ash.html"
-          )
-
-          found_summary=0
-          for summary in "${summary_reports[@]}"; do
-            if [ -f "$summary" ]; then
-              found_summary=1
-              echo "Using report: $summary"
-
-              if grep -Eq '^[[:space:]]*[|│┃].*$' "$summary"; then
-                failed_rows=$(awk '
-                  function trim(s) {
-                    sub(/^[[:space:]]+/, "", s)
-                    sub(/[[:space:]]+$/, "", s)
-                    return s
-                  }
-                  BEGIN { in_table=0; result_idx=0; scanner_idx=0 }
-                  /Scanner/ && /Result/ && /Threshold/ {
-                    in_table=1
-                    n=split($0, cols, /[|│┃]+/)
-                    for (i=1; i<=n; i++) {
-                      key=trim(cols[i])
-                      if (key == "Result") result_idx=i
-                      if (key == "Scanner") scanner_idx=i
-                    }
-                    next
-                  }
-                  in_table && /^[[:space:]]*[-+]/ { next }
-                  in_table && /^[[:space:]]*[|│┃]/ {
-                    n=split($0, cols, /[|│┃]+/)
-                    for (i=1; i<=n; i++) {
-                      cols[i]=trim(cols[i])
-                    }
-                    if (scanner_idx > 0 && result_idx > 0 && cols[result_idx] == "FAILED") {
-                      print cols[scanner_idx]
-                    }
-                  }
-                ' "$summary")
-
-                if [ -n "$failed_rows" ]; then
-                  echo "❌ ASH report shows failed scanners:"
-                  echo "$failed_rows"
-                  exit 1
-                fi
-
-                echo "✅ No scanner rows in the ASH report were marked as FAILED."
-              else
-                echo "ℹ️  Summary report format was not recognized; continuing without failing."
-              fi
-              exit 0
-            fi
-          done
-
-          if [ "$found_summary" -eq 0 ]; then
-            echo "ℹ️  No ASH summary report found; falling back to SARIF-based threshold evaluation."
-
-            sarif_files=$(find "$output_dir" -name "*.sarif" -type f 2>/dev/null)
-            if [ -z "$sarif_files" ]; then
-              echo "ℹ️  No SARIF files found - ASH did not produce a report to evaluate."
-              exit 0
-            fi
-
-            echo "SARIF files found:"
-            printf '%s\n' "$sarif_files"
-            echo "✅ No actionable findings above the configured threshold were reported."
+          if [ -n "$broken" ]; then
+            echo "::error::ASH scanner(s) did not run cleanly: $broken"
+            rc=1
           fi
+
+          if [ "$rc" -eq 0 ]; then
+            echo "✅ No actionable ASH findings; all enabled scanners executed."
+          fi
+
+          exit "$rc"
 
   syft-image-scan:
     name: Syft Image Scan
@@ -207,7 +168,9 @@ jobs:
   upload-sarif:
     name: Upload ASH SARIF
     needs: ash
-    if: ${{ github.actor != 'dependabot[bot]' && github.event_name != 'pull_request' }}
+    # Runs on push/schedule/dispatch and on non-fork PRs. Fork PRs and dependabot
+    # lack the security-events: write token, so stay excluded.
+    if: ${{ github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
