@@ -240,7 +240,7 @@ Breaking changes (major bumps) require coordinating with all consumers before me
 - [ ] Add IRSA
 - [x] Fix deployment serviceaccount name
 - [ ] API Authentication
-- [ ] Dependabot configuration
+- [x] Dependabot configuration
 - [x] Sentry configuration
 - [x] Checkstyle configured
 - [x] Grafana / Prometheus configuration
