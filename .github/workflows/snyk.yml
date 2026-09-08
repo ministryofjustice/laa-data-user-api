@@ -28,6 +28,9 @@ permissions:
 
 jobs:
   vulnerability-scan:
+    # Skip for Dependabot PRs - heavy Docker/gradle scans, and SNYK_TOKEN is not
+    # available to Dependabot PRs anyway. Scheduled and push runs still cover main.
+    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     env:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}

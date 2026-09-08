@@ -11,6 +11,8 @@ permissions:
 jobs:
   lint:
     name: Run Checkstyle
+    # Skip for Dependabot PRs - Dependabot does not edit Java source.
+    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
 
     steps:
