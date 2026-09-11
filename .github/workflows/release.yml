@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  tag-release:
+    runs-on: ubuntu-latest
+    environment: development
+    permissions:
+      id-token: write # This is required for requesting the JWT
+      contents: read # This is required for actions/checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ secrets.ECR_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.ECR_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
+        id: login-ecr
+
+      - name: Retag SHA image with release version
+        run: |
+          # Fails loudly if the commit's image was never built/pushed via deploy_dev.yml
+          # (i.e. the tag wasn't cut from a commit already deployed to dev)
+          docker pull $REGISTRY/$REPOSITORY:$SHA
+          docker tag $REGISTRY/$REPOSITORY:$SHA $REGISTRY/$REPOSITORY:$VERSION
+          docker push $REGISTRY/$REPOSITORY:$VERSION
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          SHA: ${{ github.sha }}
+          VERSION: ${{ github.ref_name }}

@@ -1,0 +1,95 @@
+package uk.gov.justice.laa.datauserapi.config;
+
+import com.azure.identity.ClientSecretCredential;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.cache.CacheManager;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.RestClient;
+import uk.gov.justice.laa.datauserapi.client.ts.DoNothingTechServicesClient;
+import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@ExtendWith(MockitoExtension.class)
+public class TechServicesConfigTest {
+
+    @Mock
+    private ClientSecretCredential clientSecretCredential;
+    @Mock
+    private CacheManager cacheManager;
+    @Mock
+    private JwtDecoder jwtDecoder;
+    @Mock
+    private ObjectMapper objectMapper;
+
+    private TechServicesConfig techServicesConfig;
+
+    @BeforeEach
+    void setUp() {
+        techServicesConfig = new TechServicesConfig();
+    }
+
+    @Test
+    void techServicesConfig_shouldCreateRestClientInstance() {
+        RestClient client = techServicesConfig.restClient("http://localhost");
+        assertThat(client).isNotNull();
+    }
+
+    @Test
+    void techServicesConfig_shouldCreateTechServicesNotifierInstance() {
+        RestClient client = techServicesConfig.restClient("http://localhost");
+        TechServicesClient techServicesClient = techServicesConfig.liveTechServicesClient(
+                clientSecretCredential, client, objectMapper, cacheManager, jwtDecoder);
+
+        assertThat(techServicesClient).isNotNull();
+        assertThat(techServicesClient).isInstanceOf(TechServicesClient.class);
+    }
+
+    @Test
+    void techServicesConfig_shouldCreateTechServicesClientSecretCredential() {
+        ClientSecretCredential client = techServicesConfig.techServicesClientSecretCredential(
+                "client", "secret", "tenant");
+        assertThat(client).isNotNull();
+    }
+
+    @Test
+    void techServicesConfig_shouldCreateTechServicesJwtDecoder() {
+        ReflectionTestUtils.setField(techServicesConfig, "jwkSetUri",
+                "https://login.microsoftonline.com/test-tenant-id/discovery/v2.0/keys");
+        JwtDecoder jwtDecoder = techServicesConfig.jwtDecoderForTokenExpiry();
+        assertThat(jwtDecoder).isNotNull();
+    }
+
+    @Test
+    void techServicesConfig_shouldCreateDoNothingTechServicesNotifierInstance() {
+        TechServicesClient techServicesClient = techServicesConfig.doNothingTechServicesClient();
+        assertThat(techServicesClient).isNotNull();
+        assertThat(techServicesClient).isInstanceOf(DoNothingTechServicesClient.class);
+    }
+
+    @Test
+    void getClientHttpRequestFactory_shouldCreateFactory() {
+        // Set custom timeout values
+        int readTimeout = 45;
+        int connectTimeout = 10;
+
+        // Set the values using ReflectionTestUtils
+        ReflectionTestUtils.setField(techServicesConfig, "technicalServicesReqReadTimeout", readTimeout);
+        ReflectionTestUtils.setField(techServicesConfig, "technicalServicesReqConnectTimeout", connectTimeout);
+
+        // Call the method under test
+        ClientHttpRequestFactory factory = techServicesConfig.getClientHttpRequestFactory();
+
+        // Verify the factory is created and has the correct type
+        assertThat(factory).isInstanceOf(HttpComponentsClientHttpRequestFactory.class);
+        assertThat(factory).isNotNull();
+    }
+}

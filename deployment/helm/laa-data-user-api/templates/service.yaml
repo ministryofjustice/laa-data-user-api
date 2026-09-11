@@ -6,7 +6,7 @@ metadata:
     app: laa-data-user-api
 spec:
   selector:
-    app: laa-data-user-api # this should match the pod label in deployment.yml
+    app: laa-data-user-api # this should match the pod label in deployment.yaml
   ports:
     - name: https
       port: 8080

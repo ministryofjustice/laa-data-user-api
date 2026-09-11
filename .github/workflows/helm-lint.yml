@@ -1,0 +1,48 @@
+name: Helm Lint
+
+on:
+  pull_request:
+    paths:
+      - 'deployment/helm/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint and Template Helm Chart (${{ matrix.environment }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [dev, test, prd]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: 'v3.21.3'
+
+      - name: Helm Lint
+        run: |
+          helm lint deployment/helm/laa-data-user-api \
+            -f deployment/helm/laa-data-user-api/values.yaml \
+            -f deployment/helm/laa-data-user-api/values-${ENVIRONMENT}.yaml
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
+
+      - name: Helm Template
+        run: |
+          helm template deployment/helm/laa-data-user-api \
+            -f deployment/helm/laa-data-user-api/values.yaml \
+            -f deployment/helm/laa-data-user-api/values-${ENVIRONMENT}.yaml \
+            --set image.registry=example.com \
+            --set image.repository=laa-data-user-api \
+            --set image.tag=test \
+            --set rdsDbIdentifier=test-rds-id \
+            --set envName=${ENVIRONMENT} > /dev/null
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}

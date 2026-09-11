@@ -1,0 +1,137 @@
+name: Reusable Helm Deploy
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'GitHub Environment name for secret/var scoping (development | test | prd)'
+        type: string
+        required: true
+      helm_values_env:
+        description: 'Suffix selecting deployment/helm/laa-data-user-api/values-<x>.yaml (dev | test | prd)'
+        type: string
+        required: true
+      image_tag:
+        description: 'Image tag to deploy (commit sha for dev, release version for release)'
+        type: string
+        required: true
+      allowlist_cidr:
+        description: 'Precomputed allowlist CIDR list (dev only; empty elsewhere)'
+        type: string
+        required: false
+        default: ''
+      wait_for_rollout:
+        description: 'Run an extra kubectl rollout status check after helm upgrade'
+        type: boolean
+        required: false
+        default: false
+
+# ECR_ROLE_TO_ASSUME are GitHub Environment secrets. Unlike Environment vars, Environment
+# secrets do NOT cross the workflow_call boundary just because the `deploy` job below
+# declares `environment: ${{ inputs.environment }}` - the calling workflow must also
+# pass `secrets: inherit` (or list each secret explicitly) when it does `uses:` on this
+# workflow, otherwise every `secrets.*` reference here resolves to an empty string.
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write # This is required for requesting the JWT
+      contents: read # This is required for actions/checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Assume role in Cloud Platform
+      - uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ secrets.ECR_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.ECR_REGION }}
+
+      # Login to container repository
+      - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
+        id: login-ecr
+
+      - name: Configure kubectl
+        uses: ./.github/actions/configure-kubectl
+        with:
+          kube-cert: ${{ secrets.KUBE_CERT }}
+          kube-token: ${{ secrets.KUBE_TOKEN }}
+          kube-cluster: ${{ secrets.KUBE_CLUSTER }}
+          kube-namespace: ${{ secrets.KUBE_NAMESPACE }}
+
+      - name: Get RDS DB identifier
+        id: rds-id
+        run: |
+          RDS_DB_IDENTIFIER=$(kubectl get secret rds-postgresql-instance-output -n "${KUBE_NAMESPACE}" -o jsonpath='{.data.rds_instance_endpoint}' | base64 -d | cut -d. -f1)
+          echo "rds_db_identifier=${RDS_DB_IDENTIFIER}" >> "$GITHUB_OUTPUT"
+        env:
+          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
+
+      - name: Generate values-secrets.yaml
+        # Built with `yq`'s strenv()/AST assignment rather than text substitution
+        # (e.g. envsubst) because these values are secrets whose content is arbitrary -
+        # a value containing a `"`, `:` or `,` would corrupt or reinterpret a
+        # text-substituted YAML file. yq assigns each value as a proper YAML scalar
+        # node and quotes/escapes it correctly regardless of content.
+        run: |
+          yq eval -n '
+              .image.registry = strenv(IMAGE_REGISTRY)
+            | .image.repository = strenv(IMAGE_REPOSITORY)
+            | .image.tag = strenv(IMAGE_TAG)
+            | .springProfile = strenv(SPRING_PROFILE)
+            | .envName = strenv(ENV_NAME)
+            | .sentryEnvironment = strenv(ENV_NAME)
+            | .sentryDsn = strenv(SENTRY_DSN)
+            | .rdsDbIdentifier = strenv(RDS_DB_IDENTIFIER)
+            | .techServicesAzureScope = strenv(TECH_SERVICES_AZURE_SCOPE)
+            | .techServicesAzureClientId = strenv(TECH_SERVICES_AZURE_CLIENT_ID)
+            | .techServicesTenantId = strenv(TECH_SERVICES_TENANT_ID)
+            | .techServicesAzureClientSecret = strenv(TECH_SERVICES_AZURE_CLIENT_SECRET)
+            | .techServicesBaseUrl = strenv(TECH_SERVICES_BASE_URL)
+            | .allowlist.cidr = strenv(ALLOWLIST_CIDR)
+            | .azureAppUri = strenv(AZURE_APP_URI)
+          ' > deployment/helm/laa-data-user-api/values-secrets.generated.yaml
+        env:
+          IMAGE_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          SPRING_PROFILE: ${{ vars.SPRING_PROFILE }}
+          ENV_NAME: ${{ vars.ENV_NAME }}
+          RDS_DB_IDENTIFIER: ${{ steps.rds-id.outputs.rds_db_identifier }}
+          TECH_SERVICES_AZURE_SCOPE: ${{ vars.TECH_SERVICES_AZURE_SCOPE }}
+          TECH_SERVICES_AZURE_CLIENT_ID: ${{ secrets.TECH_SERVICES_AZURE_CLIENT_ID }}
+          TECH_SERVICES_TENANT_ID: ${{ secrets.TECH_SERVICES_TENANT_ID }}
+          TECH_SERVICES_AZURE_CLIENT_SECRET: ${{ secrets.TECH_SERVICES_AZURE_CLIENT_SECRET }}
+          TECH_SERVICES_BASE_URL: ${{ secrets.TECH_SERVICES_BASE_URL }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          ALLOWLIST_CIDR: ${{ inputs.allowlist_cidr }}
+          AZURE_APP_URI: ${{ secrets.AZURE_APP_URI }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: 'v3.21.3'
+
+      - name: Deploy to Cloud Platform
+        run: |
+          helm upgrade --install laa-data-user-api deployment/helm/laa-data-user-api \
+            --namespace "${KUBE_NAMESPACE}" \
+            -f deployment/helm/laa-data-user-api/values.yaml \
+            -f "deployment/helm/laa-data-user-api/values-${HELM_VALUES_ENV}.yaml" \
+            -f deployment/helm/laa-data-user-api/values-secrets.generated.yaml \
+            --atomic \
+            --timeout 7m0s
+        env:
+          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
+          HELM_VALUES_ENV: ${{ inputs.helm_values_env }}
+
+      - name: Wait for new deployment to finish
+        if: inputs.wait_for_rollout
+        run: |
+          kubectl -n "${KUBE_NAMESPACE}" rollout status deployment laa-data-user-api --timeout=7m
+        env:
+          KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
