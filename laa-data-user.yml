@@ -21,7 +21,7 @@ servers:
     description: Relative to deployment host
 
 security:
-  - entraIdOAuth: ["api://user-data/user_data.read"]
+  - entraIdOAuth: ["api://devlexternal.onmicrosoft.com/laa-data-user-api/user_data.read"]
 
 tags:
   - name: User Account
@@ -33,7 +33,7 @@ tags:
   - name: Application & Role Management
     description: Administration endpoints for the creation and management of SiLAS apps and roles, including defining which roles can assign which other roles (`app`, `app_role`, `role_assignment`)
   - name: User Account Security Audit & Management
-    description: Endpoints to allow security users to view audit data and bulk disable users as required (`user_account_status_audit`, reason tables)
+    description: Endpoints to allow security users to view audit data and bulk deactivate users as required (`user_account_status_audit`, reason tables)
   - name: Admin Triggers
     description: Operational commands triggered by system administrators. Used by SiLAS team only.
 
@@ -629,11 +629,11 @@ paths:
         '504':
           $ref: '#/components/responses/GatewayTimeout'
 
-  /api/v1/commands/users/disable:
+  /api/v1/commands/users/deactivate:
     post:
-      operationId: commandUserAccountDisable
+      operationId: commandUserAccountDeactivate
       tags: [User Account]
-      summary: Disable SiLAS User Account
+      summary: Deactivate SiLAS User Account
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
@@ -641,10 +641,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DisableUserCommand'
+              $ref: '#/components/schemas/DeactivateUserCommand'
       responses:
         '200':
-          description: User account disabled
+          description: User account deactivated
           content:
             application/json:
               schema:
@@ -664,11 +664,11 @@ paths:
         '504':
           $ref: '#/components/responses/GatewayTimeout'
 
-  /api/v1/commands/users/enable:
+  /api/v1/commands/users/reactivate:
     post:
-      operationId: commandUserAccountEnable
+      operationId: commandUserAccountReactivate
       tags: [User Account]
-      summary: Enable User Account
+      summary: Reactivate User Account
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
@@ -676,10 +676,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/EnableUserCommand'
+              $ref: '#/components/schemas/ReactivateUserCommand'
       responses:
         '200':
-          description: User account enabled
+          description: User account reactivated
           content:
             application/json:
               schema:
@@ -1035,11 +1035,11 @@ paths:
           $ref: '#/components/responses/GatewayTimeout'
 
 
-  /api/v1/commands/firms/bulk-disable-users:
+  /api/v1/commands/firms/bulk-deactivate-users:
     post:
-      operationId: commandFirmBulkDisableUsers
+      operationId: commandFirmBulkDeactivateUsers
       tags: [User Account Security Audit & Management]
-      summary: Bulk disable users for firm
+      summary: Bulk deactivate users for firm
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
@@ -1047,10 +1047,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BulkDisableFirmUsersCommand'
+              $ref: '#/components/schemas/BulkDeactivateFirmUsersCommand'
       responses:
         '200':
-          description: All users in firm disabled
+          description: All users in firm deactivated
           content:
             application/json:
               schema:
@@ -1345,14 +1345,14 @@ components:
           authorizationUrl: https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/authorize
           tokenUrl: https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token
           scopes:
-            api://user-data/user_data.read: Read user account and profile details
-            api://user-data/user_data.admin: Full administrative access to all endpoints
-            api://user-data/system.admin: Privileged administrative access to initiate system functions
+            api://devlexternal.onmicrosoft.com/laa-data-user-api/user_data.read: Read user account and profile details
+            api://devlexternal.onmicrosoft.com/laa-data-user-api/user_data.admin: Full administrative access to all endpoints
+            api://devlexternal.onmicrosoft.com/laa-data-user-api/user_system.admin: Privileged administrative access to initiate system functions
         clientCredentials:
           tokenUrl: https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token
           scopes:
-            api://user-data/user_data.read: Read user account and profile details
-            api://user-data/user_data.admin: Full administrative access to all endpoints
+            api://devlexternal.onmicrosoft.com/laa-data-user-api/user_data.read: Read user account and profile details
+            api://devlexternal.onmicrosoft.com/laa-data-user-api/user_data.admin: Full administrative access to all endpoints
 
   parameters:
     UserEntraObjectId:
@@ -1610,7 +1610,7 @@ components:
       type: string
       enum: ["CyberRisk", "LeftFirm", "ProviderDiscretion", "ContractEnded", "RoleChangeorNoLongerRequired", "FirmClosureorMerger", "ComplianceBreach", "DuplicateAccount", "UserRequest", "SystemIssue", "ExpiredInvitation", "NotActiveAfterMaxLifetime", "NoGroupsDelete"]
 
-    DisableUserReason:
+    DeactivateUserReason:
       type: string
       enum: [ "Absence", "ComplianceBreach", "ContractEnded", "CyberRisk", "DuplicateAccount", "FirmClosureorMerger", "InvestigationPending", "RoleChangeorNoLongerRequired", "UserRequest", "Inactivity", "ProviderDiscretion", "NotActive", "PendingAcceptance" ]
 
@@ -1763,7 +1763,7 @@ components:
           $ref: '#/components/schemas/FirmType'
         parentFirmId:
           type: string
-        enabled:
+        active:
           type: boolean
 
     FirmViewPage:
@@ -1831,7 +1831,7 @@ components:
     AppView:
       type: object
       description: Read model for app
-      required: [ appId, name, description, url, enabled, ordinal, appEntraObjectId ]
+      required: [ appId, name, description, url, active, ordinal, appEntraObjectId ]
       properties:
         appId:
           type: string
@@ -1842,7 +1842,7 @@ components:
           type: string
         url:
           type: string
-        enabled:
+        active:
           type: boolean
         ordinal:
           type: integer
@@ -1976,9 +1976,9 @@ components:
           format: date-time
         statusChangedBy:
           type: string
-        disableReason:
-          $ref: '#/components/schemas/DisableUserReason'
-        disableReasonLabel:
+        deactivateReason:
+          $ref: '#/components/schemas/DeactivateUserReason'
+        deactivateReasonLabel:
           type: string
 
     DeletedUserAuditView:
@@ -2080,17 +2080,17 @@ components:
           type: string
           format: email
 
-    DisableUserCommand:
+    DeactivateUserCommand:
       type: object
-      required: [userEntraObjectId, disableReason]
+      required: [userEntraObjectId, deactivateReason]
       properties:
         userEntraObjectId:
           type: string
           format: uuid
-        disableReason:
-          $ref: "#/components/schemas/DisableUserReason"
+        deactivateReason:
+          $ref: "#/components/schemas/DeactivateUserReason"
 
-    EnableUserCommand:
+    ReactivateUserCommand:
       type: object
       required: [userEntraObjectId]
       properties:
@@ -2317,14 +2317,14 @@ components:
               type: string
               format: uuid
 
-    BulkDisableFirmUsersCommand:
+    BulkDeactivateFirmUsersCommand:
       type: object
-      required: [firmId, disableReason]
+      required: [firmId, deactivateReason]
       properties:
         firmId:
           type: string
-        disableReason:
-          $ref: '#/components/schemas/DisableUserReason'
+        deactivateReason:
+          $ref: '#/components/schemas/DeactivateUserReason'
 
     UpdateAppCommand:
       type: object
@@ -2335,7 +2335,7 @@ components:
           format: uuid
         description:
           type: string
-        enabled:
+        active:
           type: boolean
 
     ReorderAppsCommand:
