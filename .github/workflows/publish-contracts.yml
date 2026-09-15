@@ -23,7 +23,7 @@ jobs:
           distribution: 'corretto'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@94baf225fe0cdf0efa12a6a1c5e48e82dd0c638d # v4.3.0
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Publish contracts to GitHub Packages
         run: ./gradlew :contracts:publish
