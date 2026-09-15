@@ -19,8 +19,8 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v4.7.1
         with:
-          java-version: '21'
-          distribution: 'temurin'
+          java-version: '25'
+          distribution: 'corretto'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@94baf225fe0cdf0efa12a6a1c5e48e82dd0c638d # v4.3.0
