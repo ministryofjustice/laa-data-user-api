@@ -2,8 +2,10 @@ name: Publish Contracts
 
 on:
   push:
-    tags:
-      - 'contracts/v*.*.*'
+    branches:
+      - main
+    paths:
+      - 'contracts/**'
   workflow_dispatch:
 
 permissions:
