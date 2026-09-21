@@ -49,6 +49,8 @@ dependencies {
     }
     implementation 'com.azure:azure-identity'
 
+    implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
+
     // Utilities & Core Framework Enhancements
     implementation 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
