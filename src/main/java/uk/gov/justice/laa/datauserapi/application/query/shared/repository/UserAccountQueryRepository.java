@@ -24,6 +24,6 @@ public interface UserAccountQueryRepository extends JpaRepository<UserAccountSta
         FROM UserAccountStatusAudit a
         WHERE a.entraUser.entraOid = :userEntraObjectId
         ORDER BY a.statusChangedDate DESC
-    """)
+        """)
     List<AccountStatusHistoryView> findAuditHistoryByUserEntraObjectId(@Param("userEntraObjectId") UUID userEntraObjectId);
 }

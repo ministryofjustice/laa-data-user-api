@@ -34,14 +34,14 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "entra_user", indexes = {
-        @Index(name = "UserFirstNameIdx", columnList = "first_name"),
-        @Index(name = "UserLastNameIdx", columnList = "last_name"),
-        @Index(name = "UserEmailIdx", columnList = "email"),
-        @Index(name = "UserEntraOidIdx", columnList = "entra_oid"),
-        @Index(name = "UserCreatedByIdx", columnList = "created_by"),
-        @Index(name = "UserCreatedDateIdx", columnList = "created_date"),
-        @Index(name = "UserLastModifiedDateIdx", columnList = "last_modified_date"),
-        @Index(name = "UserLastModifiedByIdx", columnList = "last_modified_by"),
+    @Index(name = "UserFirstNameIdx", columnList = "first_name"),
+    @Index(name = "UserLastNameIdx", columnList = "last_name"),
+    @Index(name = "UserEmailIdx", columnList = "email"),
+    @Index(name = "UserEntraOidIdx", columnList = "entra_oid"),
+    @Index(name = "UserCreatedByIdx", columnList = "created_by"),
+    @Index(name = "UserCreatedDateIdx", columnList = "created_date"),
+    @Index(name = "UserLastModifiedDateIdx", columnList = "last_modified_date"),
+    @Index(name = "UserLastModifiedByIdx", columnList = "last_modified_by"),
 })
 @Getter
 @Setter
