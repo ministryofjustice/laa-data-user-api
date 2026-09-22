@@ -1,0 +1,134 @@
+package uk.gov.justice.laa.datauserapi.entity;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.annotation.Nullable;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Index;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
+import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.ColumnDefault;
+import uk.gov.justice.laa.datauserapi.contracts.domain.DisableUserReason;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
+import uk.gov.justice.laa.datauserapi.model.DisableType;
+import uk.gov.justice.laa.datauserapi.model.InvitationStatus;
+
+import java.time.LocalDateTime;
+import java.util.Set;
+import java.util.UUID;
+
+@Entity
+@Table(name = "entra_user", indexes = {
+        @Index(name = "UserFirstNameIdx", columnList = "first_name"),
+        @Index(name = "UserLastNameIdx", columnList = "last_name"),
+        @Index(name = "UserEmailIdx", columnList = "email"),
+        @Index(name = "UserEntraOidIdx", columnList = "entra_oid"),
+        @Index(name = "UserCreatedByIdx", columnList = "created_by"),
+        @Index(name = "UserCreatedDateIdx", columnList = "created_date"),
+        @Index(name = "UserLastModifiedDateIdx", columnList = "last_modified_date"),
+        @Index(name = "UserLastModifiedByIdx", columnList = "last_modified_by"),
+})
+@Getter
+@Setter
+@SuperBuilder
+@NoArgsConstructor(access = AccessLevel.PROTECTED, force = true)
+@ToString(doNotUseGetters = true)
+public class EntraUser extends AuditableEntity {
+
+    @Column(name = "entra_oid", nullable = false, length = 255, unique = true)
+    @NotBlank(message = "Entra Object ID must be provided")
+    @Size(min = 1, max = 255, message = "Entra Object ID must be between 1 and 255 characters")
+    private String entraOid;
+
+    @Column(name = "first_name", nullable = false, length = 255)
+    @NotBlank(message = "User first name must be provided")
+    @Size(min = 1, max = 255, message = "User first name must be between 1 and 255 characters")
+    private String firstName;
+
+    @Column(name = "last_name", nullable = false, length = 255)
+    @NotBlank(message = "User last name must be provided")
+    @Size(min = 1, max = 255, message = "User last name must be between 1 and 255 characters")
+    private String lastName;
+
+    @Column(name = "email", nullable = false, length = 255, unique = true)
+    @NotBlank(message = "User email must be provided")
+    @Email(message = "User email must be a valid email address")
+    private String email;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 255)
+    @NotNull(message = "User account status must be provided")
+    @ColumnDefault("ACTIVATION_REQUIRED")
+    private UserAccountStatus userAccountStatus;
+
+    @Column(name = "multi_firm_user", nullable = false)
+    @ColumnDefault("false")
+    private boolean multiFirmUser;
+
+    @Column(name = "last_synced_on")
+    private LocalDateTime lastSyncedOn;
+
+    @Column(name = "mail_only")
+    private boolean mailOnly;
+
+    @Column(name = "enabled", nullable = false)
+    @ColumnDefault("true")
+    @Builder.Default
+    private boolean enabled = true;
+
+    @Column(name = "disabled_by", nullable = true, length = 255, comment = "The EntraUser id of the admin who disabled the user")
+    @Nullable
+    private UUID disabledBy;
+
+    @Column(name = "ccms_ebs_user", nullable = false)
+    @ColumnDefault("false")
+    @Builder.Default
+    private boolean ccmsEbsUser = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "disable_type", nullable = true, length = 20,
+            comment = "The delegation level of the user who disabled this account. NULL means unknown/legacy"
+                    + " (any role may re-enable). Set at disable-time from the disabling user's highest-delegation role.")
+    @Nullable
+    private DisableType disableType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "invitation_status", length = 255)
+    private InvitationStatus invitationStatus;
+
+    @OneToMany(mappedBy = "entraUser", fetch = FetchType.LAZY, cascade = CascadeType.PERSIST)
+    @ToString.Exclude
+    @JsonIgnore
+    private Set<UserProfile> userProfiles;
+
+    public void enable(String actorId) {
+        this.userAccountStatus = UserAccountStatus.ACTIVE;
+        setLastModified(LocalDateTime.now());
+        setLastModifiedBy(actorId);
+        setDisabledBy(null);
+        setDisableType(null);
+    }
+
+    public void disable(String actorId, DisableUserReason disableReason, DisableType disableType) {
+        this.userAccountStatus = UserAccountStatus.DEACTIVATED;
+        setLastModified(LocalDateTime.now());
+        setDisabledBy(UUID.fromString(actorId));
+        setDisableType(disableType);
+    }
+
+}

@@ -1,7 +1,7 @@
 package uk.gov.justice.laa.datauserapi.contracts.request;
 
-/**
- * Request to re-enable a previously disabled SiLAS user account.
- *
- */
-public record EnableUserRequest() {}
+import jakarta.validation.constraints.NotNull;
+
+import java.util.UUID;
+
+public record EnableUserRequest(@NotNull UUID userEntraObjectId, String comments) {}

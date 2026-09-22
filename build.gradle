@@ -36,11 +36,13 @@ repositories {
 dependencies {
     implementation project(':contracts')
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springDocVersion}"
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.17.2'
     implementation 'tools.jackson.dataformat:jackson-dataformat-csv:3.0.3'
     implementation 'io.sentry:sentry-spring-boot-4:8.43.2'
     implementation('com.azure.spring:spring-cloud-azure-starter-active-directory:7.3.0') {
@@ -48,6 +50,7 @@ dependencies {
         exclude group: 'com.fasterxml.jackson.core'
     }
     implementation 'com.azure:azure-identity'
+    implementation 'org.modelmapper:modelmapper:3.2.6'
 
     implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
 
