@@ -2,9 +2,9 @@ package uk.gov.justice.laa.datauserapi.application.query.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.query.dto.AccountStatusHistoryView;
 import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountStatusView;
+import uk.gov.justice.laa.datauserapi.application.query.shared.repository.EntraUserQueryRepository;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserAccountQueryRepository;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
@@ -17,10 +17,10 @@ import java.util.UUID;
 public class UserAccountQueryService {
 
     private final UserAccountQueryRepository queryRepository;
-    private final EntraUserCommandRepository userRepository;
+    private final EntraUserQueryRepository userRepository;
 
     public UserAccountQueryService(UserAccountQueryRepository queryRepository,
-                                   EntraUserCommandRepository userRepository) {
+                                   EntraUserQueryRepository userRepository) {
         this.queryRepository = queryRepository;
         this.userRepository = userRepository;
     }
