@@ -1,4 +1,4 @@
-package uk.gov.justice.laa.datauserapi.contracts;
+package uk.gov.justice.laa.datauserapi.contracts.domain;
 
 public enum DisableUserReason {
     Absence,
