@@ -55,6 +55,11 @@ paths:
         - $ref: '#/components/parameters/UserType'
         - $ref: '#/components/parameters/UserAccountStatus'
         - $ref: '#/components/parameters/UserQuery'
+        - name: email_query
+          description: Email address to use when searching for user accounts.
+          in: query
+          schema:
+            type: string
         - $ref: '#/components/parameters/FirmQuery'
         - $ref: '#/components/parameters/FirmIdFilter'
         - $ref: '#/components/parameters/AppIdFilter'
@@ -70,6 +75,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserAccountSummaryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -89,6 +96,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -111,6 +120,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserProfileSummaryList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -132,6 +143,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserProfileDetailView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -178,6 +191,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserProfileSummaryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -197,6 +212,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserProfileDetailView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -219,6 +236,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppRoleViewList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -240,6 +259,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppViewList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -261,6 +282,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OfficeViewList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -287,6 +310,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FirmViewPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -342,6 +367,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FirmSearchViewList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -402,6 +429,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -424,6 +453,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppRoleViewList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -443,6 +474,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppRoleView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -466,6 +499,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RoleAssignmentRestrictionViewPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -490,6 +525,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuditUserDetailView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -518,6 +555,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeletedUserAuditPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -549,6 +588,8 @@ paths:
               schema:
                 type: string
                 format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
