@@ -1,0 +1,33 @@
+name: Deploy Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        type: choice
+        options:
+          - test
+          - prd
+        required: true
+      version:
+        description: 'Release version tag to deploy, e.g. v1.2.0'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    permissions:
+      id-token: write # This is required for requesting the JWT
+      contents: read # This is required for actions/checkout
+    uses: ./.github/workflows/reusable-helm-deploy.yml
+    secrets: inherit
+    with:
+      environment: ${{ inputs.environment }}
+      helm_values_env: ${{ inputs.environment }}
+      image_tag: ${{ inputs.version }}
+      wait_for_rollout: true

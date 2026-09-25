@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: laa-data-user-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: laa-data-user-api
+spec:
+  selector:
+    matchLabels:
+      app: laa-data-user-api
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: https
+      path: /actuator/prometheus
+      interval: {{ .Values.serviceMonitor.interval | default "15s" }}

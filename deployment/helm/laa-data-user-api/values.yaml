@@ -1,0 +1,47 @@
+replicaCount: 3
+springProfile: "local"
+azureAppUri: ""
+techServicesAzureScope: ""
+techServicesAzureClientId: ""
+techServicesTenantId: ""
+techServicesAzureClientSecret: ""
+techServicesBaseUrl: ""
+sentryEnvironment: "local"
+sentryDsn: ""
+# Deployed-environment default; override per-environment in values-<env>.yaml if ever
+# needed. Keep roughly in sync with application.yml's ${SENTRY_ENABLED:...}/
+# ${SENTRY_SAMPLE_RATE:...} placeholder defaults, which only apply outside Helm
+# (local dev/tests).
+sentryEnabled: "true"
+sentrySampleRate: "0.05"
+pingdomCheck:
+  schedule: "*/5 * * * *"
+  # Number of health-check attempts before alerting, and seconds to wait between them.
+  retries: 3
+  retryDelaySeconds: 60
+image:
+  repository: "laa-data-user-api"
+  tag: "latest"
+ingress:
+  className: "default"
+  host: "laa-data-user-api.internal.cloud-platform.service.justice.gov.uk"
+  enableModSecurity: false
+allowlist:
+  enabled: false
+  cidr: ""
+  groups: ""
+resources:
+  requests:
+    memory: "500Mi"
+    cpu: "125m"
+  limits:
+    memory: "1000Mi"
+    cpu: "500m"
+grafanaDashboard:
+  name: ""
+  namespace: ""
+serviceMonitor:
+  interval: "15s"
+rdsDbIdentifier: ""
+envName: ""
+rdsLowFreeableMemoryTriggerMb: 150

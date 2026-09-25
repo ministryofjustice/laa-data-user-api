@@ -298,7 +298,7 @@ paths:
       tags: [Provider Data]
       summary: Get list of firms, with pagination and query field. Used for firm directory.
       security: 
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
         - $ref: '#/components/parameters/FirmQuery'
         - $ref: '#/components/parameters/Page'
@@ -323,7 +323,7 @@ paths:
       tags: [Provider Data]
       summary: Get firm by ID. Used for firm directory detail.
       security: 
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
         - $ref: '#/components/parameters/FirmId'
       responses:
@@ -346,7 +346,7 @@ paths:
       tags: [Provider Data]
       summary: Type-ahead search for firms, returns a list of firms to be used for identifying firms in search boxes.
       security: 
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
         - name: query
           in: query
@@ -380,7 +380,7 @@ paths:
       tags: [Provider Data]
       summary: List offices for firm
       security: 
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
         - $ref: '#/components/parameters/FirmId'
       responses:
@@ -515,7 +515,7 @@ paths:
       tags: [User Account Security Audit & Management]
       summary: Get audit user detail
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
         - $ref: '#/components/parameters/UserEntraObjectId'
       responses:
@@ -540,7 +540,7 @@ paths:
       tags: [User Account Security Audit & Management]
       summary: List deleted users
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
@@ -568,7 +568,7 @@ paths:
       tags: [User Account Security Audit & Management]
       summary: Export audit users CSV, must be constrained to a single firm (or internal users only)
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
         - $ref: '#/components/parameters/UserType'
         - $ref: '#/components/parameters/UserAccountStatus'
@@ -602,7 +602,7 @@ paths:
       tags: [User Account]
       summary: Create Entra user and initial profile
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -641,7 +641,7 @@ paths:
       tags: [User Account]
       summary: Update User Account details
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -676,7 +676,7 @@ paths:
       tags: [User Account]
       summary: Deactivate SiLAS User Account
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -711,7 +711,7 @@ paths:
       tags: [User Account]
       summary: Reactivate User Account
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -746,7 +746,7 @@ paths:
       tags: [User Account]
       summary: Delete User Account and all associated profiles
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -781,7 +781,7 @@ paths:
       tags: [User Account]
       summary: Convert user to multi-firm. This cannot be undone.
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -812,7 +812,7 @@ paths:
       tags: [User Profiles]
       summary: Set active profile for SiLAS user account
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -842,7 +842,7 @@ paths:
       tags: [User Profiles]
       summary: Create user profile
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -873,7 +873,7 @@ paths:
       tags: [User Profiles]
       summary: Assign app roles to profile
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -910,7 +910,7 @@ paths:
       tags: [User Profiles]
       summary: Remove app roles from profile
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -945,7 +945,7 @@ paths:
       tags: [User Profiles]
       summary: Updates roles for a specified set of apps
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -982,7 +982,7 @@ paths:
       tags: [User Profiles]
       summary: Update offices for profile
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -1015,7 +1015,7 @@ paths:
       tags: [User Profiles]
       summary: Reassign profile to a different firm
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -1046,7 +1046,7 @@ paths:
       tags: [User Profiles]
       summary: Delete external user profile
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -1082,7 +1082,7 @@ paths:
       tags: [User Account Security Audit & Management]
       summary: Bulk deactivate users for firm
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -1118,7 +1118,7 @@ paths:
       tags: [Application & Role Management]
       summary: Update app metadata
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -1147,7 +1147,7 @@ paths:
       tags: [Application & Role Management]
       summary: Reorder LAA apps
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -1174,7 +1174,7 @@ paths:
       tags: [Application & Role Management]
       summary: Sync apps from Tech Services
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       responses:
         '200':
           description: Apps synchronised
@@ -1200,7 +1200,7 @@ paths:
       tags: [Application & Role Management]
       summary: Create app role
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -1229,7 +1229,7 @@ paths:
       tags: [Application & Role Management]
       summary: Update app role
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -1258,7 +1258,7 @@ paths:
       tags: [Application & Role Management]
       summary: Delete app role
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -1287,7 +1287,7 @@ paths:
       tags: [Application & Role Management]
       summary: Reorder app roles
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
@@ -1314,7 +1314,7 @@ paths:
       tags: [Application & Role Management]
       summary: Update role assignment restrictions
       security:
-        - entraIdOAuth: ["api://user-data/user.admin"]
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
         required: true
         content:
