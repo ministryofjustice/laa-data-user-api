@@ -21,7 +21,7 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
-import uk.gov.justice.laa.datauserapi.model.DisableType;
+import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 import java.time.LocalDateTime;
 
@@ -41,7 +41,7 @@ public class UserAccountStatusAudit extends BaseEntity {
 
     @Column(name = "status_changed_by", nullable = false, length = 255)
     @NotBlank(message = "Status changed by must be provided")
-    @Size(min = 1, max = 255, message = "Disabled by must be between 1 and 255 characters")
+    @Size(min = 1, max = 255, message = "Status changed by must be between 1 and 255 characters")
     @CreatedBy
     private String statusChangedBy;
 
@@ -68,11 +68,11 @@ public class UserAccountStatusAudit extends BaseEntity {
     @JoinColumn(name = "disable_user_reason_id", nullable = true, foreignKey = @ForeignKey(name = "fk_disable_user_audit_disable_user_reason_id"))
     @ToString.Exclude
     @JsonIgnore
-    private DisableUserReasonLookup disableUserReasonLookup;
+    private DeactivateUserReasonLookup deactivateUserReasonLookup;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "disable_type", nullable = true, length = 20)
-    private DisableType disableType;
+    private DeactivationType deactivationType;
 
     @ManyToOne
     @JoinColumn(name = "delete_user_reason_id", nullable = true, foreignKey = @ForeignKey(name = "fk_user_account_status_audit_delete_user_reason_id"))

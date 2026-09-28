@@ -27,8 +27,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import reactor.core.publisher.Mono;
-import uk.gov.justice.laa.datauserapi.client.ts.request.ChangeAccountEnabledRequest;
-import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
+import uk.gov.justice.laa.datauserapi.client.ts.request.ChangeAccountReactivationRequest;
+import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorResponse;
 import uk.gov.justice.laa.datauserapi.config.CachingConfig;
@@ -111,13 +111,13 @@ class LiveTechServicesClientTest {
         when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
         when(requestBodySpec.header(eq(HttpHeaders.AUTHORIZATION), eq("Bearer " + mockToken))).thenReturn(requestBodySpec);
         when(requestBodySpec.contentType(MediaType.APPLICATION_JSON)).thenReturn(requestBodySpec);
-        when(requestBodySpec.body(any(ChangeAccountEnabledRequest.class))).thenReturn(requestBodySpec);
+        when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
         when(requestBodySpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.toEntity(String.class)).thenReturn(responseEntity);
     }
 
     @Nested
-    class EnableUserTests {
+    class ReactivateUserTests {
 
         @Test
         void shouldReturnSuccessAndLogWhenApiReturns2xx() throws Exception {
@@ -125,10 +125,10 @@ class LiveTechServicesClientTest {
             String jsonResponse = "{\"status\":\"success\"}";
             mockFluentRestClient(new ResponseEntity<>(jsonResponse, HttpStatus.OK));
 
-            ChangeAccountEnabledResponse expectedDto = new ChangeAccountEnabledResponse();
-            when(objectMapper.readValue(jsonResponse, ChangeAccountEnabledResponse.class)).thenReturn(expectedDto);
+            ChangeAccountReactivationResponse expectedDto = new ChangeAccountReactivationResponse();
+            when(objectMapper.readValue(jsonResponse, ChangeAccountReactivationResponse.class)).thenReturn(expectedDto);
 
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result = client.enableUser(validUser);
+            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.reactivateUser(validUser);
 
             assertThat(result).isNotNull();
             assertThat(result.isSuccess()).isTrue();
@@ -136,8 +136,8 @@ class LiveTechServicesClientTest {
             verify(cache).put(LiveTechServicesClient.ACCESS_TOKEN, mockToken);
 
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending enable user request to Tech Services for: user-123",
-                            "Enable user request by Tech Services is successful for entra user user-123");
+                    .contains("Sending reactivate user request to Tech Services for: user-123",
+                            "Reactivate user request by Tech Services is successful for entra user user-123");
         }
 
         @Test
@@ -150,13 +150,13 @@ class LiveTechServicesClientTest {
                     .success(false).code("ERR01").message("Invalid user state").build();
             when(objectMapper.readValue(jsonErrorResponse, TechServicesErrorResponse.class)).thenReturn(expectedError);
 
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result = client.enableUser(validUser);
+            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.reactivateUser(validUser);
 
             assertThat(result).isNotNull();
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
 
-            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage).contains("Failed to enable entra user: user-123");
+            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage).contains("Failed to reactivate entra user: user-123");
         }
 
         @Test
@@ -169,7 +169,7 @@ class LiveTechServicesClientTest {
             when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
             when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
             when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountEnabledRequest.class))).thenReturn(requestBodySpec);
+            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
             when(requestBodySpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(String.class)).thenThrow(ex);
 
@@ -177,12 +177,12 @@ class LiveTechServicesClientTest {
                     .success(false).code("TOO_EARLY").message("Request too early").build();
             when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenReturn(expectedError);
 
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result = client.enableUser(validUser);
+            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.reactivateUser(validUser);
 
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .anyMatch(msg -> msg.contains("Failed to enable entra user user-123, the root cause is Request too early (TOO_EARLY)"));
+                    .anyMatch(msg -> msg.contains("Failed to reactivate entra user user-123, the root cause is Request too early (TOO_EARLY)"));
         }
 
         @Test
@@ -196,7 +196,7 @@ class LiveTechServicesClientTest {
             when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
             when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
             when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountEnabledRequest.class))).thenReturn(requestBodySpec);
+            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
             when(requestBodySpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(String.class)).thenThrow(ex);
 
@@ -204,13 +204,13 @@ class LiveTechServicesClientTest {
                     .success(false).code("ERROR").message("Error").build();
             when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenReturn(expectedError);
 
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result = client.enableUser(validUser);
+            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.reactivateUser(validUser);
 
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending enable user request to Tech Services for: user-123",
-                            "Failed to enable user John Doe, the root cause is Error (ERROR)");
+                    .contains("Sending reactivate user request to Tech Services for: user-123",
+                            "Failed to reactivate user John Doe, the root cause is Error (ERROR)");
         }
 
         @Test
@@ -224,43 +224,43 @@ class LiveTechServicesClientTest {
             when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
             when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
             when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountEnabledRequest.class))).thenReturn(requestBodySpec);
+            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
             when(requestBodySpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(String.class)).thenThrow(ex);
 
             when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenThrow(new RuntimeException("Error Parsing"));
 
-            assertThatThrownBy(() -> client.enableUser(validUser)).isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Error while sending enable user request to Tech Services.");
+            assertThatThrownBy(() -> client.reactivateUser(validUser)).isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Error while sending reactivate user request to Tech Services.");
         }
 
         @Test
         void shouldThrowRuntimeExceptionWhenUserIsNull() {
-            assertThatThrownBy(() -> client.enableUser(null)).isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Error while sending enable user request to Tech Services.");
+            assertThatThrownBy(() -> client.reactivateUser(null)).isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Error while sending reactivate user request to Tech Services.");
         }
 
         @Test
         void shouldThrowRuntimeExceptionWhenUserOidIsNull() {
             EntraUserDto userNoOid = new EntraUserDto();
-            assertThatThrownBy(() -> client.enableUser(userNoOid)).isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Error while sending enable user request to Tech Services.");
+            assertThatThrownBy(() -> client.reactivateUser(userNoOid)).isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Error while sending reactivate user request to Tech Services.");
         }
     }
 
     @Nested
-    class DisableUserTests {
+    class DeactivateUserTests {
 
         @Test
         void shouldReturnSuccessWhenApiReturns2xx() throws Exception {
             mockTokenGeneration();
-            String jsonResponse = "{\"status\":\"disabled\"}";
+            String jsonResponse = "{\"status\":\"deactivated\"}";
             mockFluentRestClient(new ResponseEntity<>(jsonResponse, HttpStatus.OK));
 
-            ChangeAccountEnabledResponse expectedDto = new ChangeAccountEnabledResponse();
-            when(objectMapper.readValue(jsonResponse, ChangeAccountEnabledResponse.class)).thenReturn(expectedDto);
+            ChangeAccountReactivationResponse expectedDto = new ChangeAccountReactivationResponse();
+            when(objectMapper.readValue(jsonResponse, ChangeAccountReactivationResponse.class)).thenReturn(expectedDto);
 
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result = client.disableUser(validUser, "Leaver");
+            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.deactivateUser(validUser, "Leaver");
 
             assertThat(result).isNotNull();
             assertThat(result.isSuccess()).isTrue();
@@ -277,7 +277,7 @@ class LiveTechServicesClientTest {
             when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
             when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
             when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountEnabledRequest.class))).thenReturn(requestBodySpec);
+            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
             when(requestBodySpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(String.class)).thenThrow(ex);
 
@@ -285,14 +285,14 @@ class LiveTechServicesClientTest {
                     .success(false).code("404").message("Not Found").build();
             when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenReturn(expectedError);
 
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result = client.disableUser(validUser, "Leaver");
+            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.deactivateUser(validUser, "Leaver");
 
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
 
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending disable user request to Tech Services for: user-123",
-                            "User user-123 not found in Tech Services during disable request, the root cause is Not Found (404)");
+                    .contains("Sending deactivate user request to Tech Services for: user-123",
+                            "User user-123 not found in Tech Services during deactivate request, the root cause is Not Found (404)");
         }
 
         @Test
@@ -305,15 +305,15 @@ class LiveTechServicesClientTest {
                     .success(false).code("ERR01").message("Invalid user state").build();
             when(objectMapper.readValue(jsonErrorResponse, TechServicesErrorResponse.class)).thenReturn(expectedError);
 
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result = client.disableUser(validUser, "test");
+            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.deactivateUser(validUser, "test");
 
             assertThat(result).isNotNull();
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
 
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending disable user request to Tech Services for: user-123",
-                            "Failed to disable entra user: user-123");
+                    .contains("Sending deactivate user request to Tech Services for: user-123",
+                            "Failed to deactivate entra user: user-123");
         }
 
         @Test
@@ -326,7 +326,7 @@ class LiveTechServicesClientTest {
             when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
             when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
             when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountEnabledRequest.class))).thenReturn(requestBodySpec);
+            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
             when(requestBodySpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(String.class)).thenThrow(ex);
 
@@ -334,13 +334,13 @@ class LiveTechServicesClientTest {
                     .success(false).code("TOO_EARLY").message("Request too early").build();
             when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenReturn(expectedError);
 
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result = client.disableUser(validUser, "test");
+            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.deactivateUser(validUser, "test");
 
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending disable user request to Tech Services for: user-123",
-                            "Failed to disable entra user: user-123, the root cause is Request too early (TOO_EARLY)");
+                    .contains("Sending deactivate user request to Tech Services for: user-123",
+                            "Failed to deactivate entra user: user-123, the root cause is Request too early (TOO_EARLY)");
         }
 
         @Test
@@ -354,7 +354,7 @@ class LiveTechServicesClientTest {
             when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
             when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
             when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountEnabledRequest.class))).thenReturn(requestBodySpec);
+            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
             when(requestBodySpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(String.class)).thenThrow(ex);
 
@@ -362,13 +362,13 @@ class LiveTechServicesClientTest {
                     .success(false).code("BAD_REQUEST").message("Bad Request").build();
             when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenReturn(expectedError);
 
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result = client.disableUser(validUser, "test");
+            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.deactivateUser(validUser, "test");
 
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending disable user request to Tech Services for: user-123",
-                            "Failed to disable user user-123, the root cause is Bad Request (BAD_REQUEST)");
+                    .contains("Sending deactivate user request to Tech Services for: user-123",
+                            "Failed to deactivate user user-123, the root cause is Bad Request (BAD_REQUEST)");
         }
 
         @Test
@@ -382,19 +382,19 @@ class LiveTechServicesClientTest {
             when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
             when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
             when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountEnabledRequest.class))).thenReturn(requestBodySpec);
+            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
             when(requestBodySpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(String.class)).thenThrow(ex);
             when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenThrow(new RuntimeException("Error Parsing"));
 
-            assertThatThrownBy(() -> client.disableUser(validUser, "test")).isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Error while sending disable user request to Tech Services.");
+            assertThatThrownBy(() -> client.deactivateUser(validUser, "test")).isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Error while sending deactivate user request to Tech Services.");
         }
 
         @Test
         void shouldThrowRuntimeExceptionWhenUserIsNull() {
-            assertThatThrownBy(() -> client.disableUser(null, "Reason"))
-                    .isInstanceOf(RuntimeException.class).hasMessageContaining("Error while sending disable user request to Tech Services.");
+            assertThatThrownBy(() -> client.deactivateUser(null, "Reason"))
+                    .isInstanceOf(RuntimeException.class).hasMessageContaining("Error while sending deactivate user request to Tech Services.");
         }
     }
 
@@ -416,11 +416,11 @@ class LiveTechServicesClientTest {
             when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
             when(requestBodySpec.header(eq(HttpHeaders.AUTHORIZATION), eq("Bearer cached-token"))).thenReturn(requestBodySpec);
             when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountEnabledRequest.class))).thenReturn(requestBodySpec);
+            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
             when(requestBodySpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(String.class)).thenReturn(responseEntity);
 
-            client.enableUser(validUser);
+            client.reactivateUser(validUser);
 
             verifyNoInteractions(clientSecretCredential);
         }
@@ -441,7 +441,7 @@ class LiveTechServicesClientTest {
             ResponseEntity<String> responseEntity = new ResponseEntity<>("{}", HttpStatus.OK);
             mockFluentRestClient(responseEntity);
 
-            client.enableUser(validUser);
+            client.reactivateUser(validUser);
 
             verify(clientSecretCredential, times(1)).getToken(any(TokenRequestContext.class));
             verify(cache).put(LiveTechServicesClient.ACCESS_TOKEN, mockToken);
@@ -459,7 +459,7 @@ class LiveTechServicesClientTest {
             ResponseEntity<String> responseEntity = new ResponseEntity<>("{}", HttpStatus.OK);
             mockFluentRestClient(responseEntity);
 
-            client.enableUser(validUser);
+            client.reactivateUser(validUser);
 
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage).contains("Error while getting access token from cache");
         }

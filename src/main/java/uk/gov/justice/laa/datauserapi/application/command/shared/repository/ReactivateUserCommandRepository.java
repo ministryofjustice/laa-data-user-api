@@ -8,6 +8,6 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-public interface EntraUserCommandRepository extends JpaRepository<EntraUser, UUID> {
+public interface ReactivateUserCommandRepository extends JpaRepository<EntraUser, UUID> {
     List<EntraUser> findByFirmId(String firmId);
 }

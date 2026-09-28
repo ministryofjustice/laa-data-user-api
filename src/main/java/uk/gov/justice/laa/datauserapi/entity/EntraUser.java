@@ -23,9 +23,8 @@ import lombok.Setter;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.ColumnDefault;
-import uk.gov.justice.laa.datauserapi.contracts.domain.DisableUserReason;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
-import uk.gov.justice.laa.datauserapi.model.DisableType;
+import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 import uk.gov.justice.laa.datauserapi.model.InvitationStatus;
 
 import java.time.LocalDateTime;
@@ -89,11 +88,11 @@ public class EntraUser extends AuditableEntity {
     @Column(name = "enabled", nullable = false)
     @ColumnDefault("true")
     @Builder.Default
-    private boolean enabled = true;
+    private boolean active = true;
 
     @Column(name = "disabled_by", nullable = true, length = 255, comment = "The EntraUser id of the admin who disabled the user")
     @Nullable
-    private UUID disabledBy;
+    private UUID deactivatedBy;
 
     @Column(name = "ccms_ebs_user", nullable = false)
     @ColumnDefault("false")
@@ -102,10 +101,10 @@ public class EntraUser extends AuditableEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "disable_type", nullable = true, length = 20,
-            comment = "The delegation level of the user who disabled this account. NULL means unknown/legacy"
-                    + " (any role may re-enable). Set at disable-time from the disabling user's highest-delegation role.")
+            comment = "The delegation level of the user who deactivated this account. NULL means unknown/legacy"
+                    + " (any role may re-activate). Set at deactivation-time from the deactivating user's highest-delegation role.")
     @Nullable
-    private DisableType disableType;
+    private DeactivationType deactivationType;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "invitation_status", length = 255)
@@ -116,19 +115,19 @@ public class EntraUser extends AuditableEntity {
     @JsonIgnore
     private Set<UserProfile> userProfiles;
 
-    public void enable(String actorId) {
+    public void reactivate(String actorId) {
         this.userAccountStatus = UserAccountStatus.ACTIVE;
         setLastModified(LocalDateTime.now());
         setLastModifiedBy(actorId);
-        setDisabledBy(null);
-        setDisableType(null);
+        setDeactivatedBy(null);
+        setDeactivationType(null);
     }
 
-    public void disable(String actorId, DisableUserReason disableReason, DisableType disableType) {
+    public void deactivate(String actorId, DeactivationType deactivationType) {
         this.userAccountStatus = UserAccountStatus.DEACTIVATED;
         setLastModified(LocalDateTime.now());
-        setDisabledBy(UUID.fromString(actorId));
-        setDisableType(disableType);
+        setDeactivatedBy(UUID.fromString(actorId));
+        setDeactivationType(deactivationType);
     }
 
 }

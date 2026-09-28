@@ -10,55 +10,55 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import uk.gov.justice.laa.datauserapi.application.command.handler.DisableUserHandler;
-import uk.gov.justice.laa.datauserapi.application.command.handler.EnableUserHandler;
-import uk.gov.justice.laa.datauserapi.application.command.mapper.DisableUserMapper;
-import uk.gov.justice.laa.datauserapi.application.command.mapper.EnableUserMapper;
-import uk.gov.justice.laa.datauserapi.application.command.useraccount.DisableUserCommand;
-import uk.gov.justice.laa.datauserapi.application.command.useraccount.EnableUserCommand;
+import uk.gov.justice.laa.datauserapi.application.command.handler.DeactivateUserHandler;
+import uk.gov.justice.laa.datauserapi.application.command.handler.ReactivateUserHandler;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
-import uk.gov.justice.laa.datauserapi.contracts.request.DisableUserRequest;
-import uk.gov.justice.laa.datauserapi.contracts.request.EnableUserRequest;
+import uk.gov.justice.laa.datauserapi.contracts.request.DeactivateUserRequest;
+import uk.gov.justice.laa.datauserapi.contracts.request.ReactivateUserRequest;
 
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/commands")
 public class UserAccountCommandController {
 
-    private final EnableUserHandler enableUserHandler;
-    private final EnableUserMapper enableUserMapper;
-    private final DisableUserHandler disableUserHandler;
-    private final DisableUserMapper disableUserMapper;
+    private final ReactivateUserHandler reactivateUserHandler;
+    private final ReactivateUserMapper reactivateUserMapper;
+    private final DeactivateUserHandler deactivateUserHandler;
+    private final DeactivateUserMapper deactivateUserMapper;
 
-    public UserAccountCommandController(EnableUserHandler enableUserHandler, EnableUserMapper enableUserMapper, DisableUserHandler disableUserHandler, DisableUserMapper disableUserMapper) {
-        this.enableUserHandler = enableUserHandler;
-        this.enableUserMapper = enableUserMapper;
-        this.disableUserHandler = disableUserHandler;
-        this.disableUserMapper = disableUserMapper;
+    public UserAccountCommandController(ReactivateUserHandler reactivateUserHandler, ReactivateUserMapper reactivateUserMapper, DeactivateUserHandler deactivateUserHandler, DeactivateUserMapper deactivateUserMapper) {
+        this.reactivateUserHandler = reactivateUserHandler;
+        this.reactivateUserMapper = reactivateUserMapper;
+        this.deactivateUserHandler = deactivateUserHandler;
+        this.deactivateUserMapper = deactivateUserMapper;
     }
 
-    @PostMapping("/users/enable")
-    public ResponseEntity<CommandResult> enableUser(
-            @Valid @RequestBody EnableUserRequest enableUserRequest,
+    @PostMapping("/users/reactivate")
+    public ResponseEntity<CommandResult> reactivateUser(
+            @Valid @RequestBody ReactivateUserRequest reactivateUserRequest,
             @AuthenticationPrincipal Jwt jwt) {
-        log.info("Processing enable user command for user: {}", enableUserRequest.userEntraObjectId());
+        log.info("Processing reactivate user command for user: {}", reactivateUserRequest.userEntraObjectId());
         String actorId = resolveActor(jwt);
-        EnableUserCommand enableUserCommand = enableUserMapper.toEnableUserCommand(enableUserRequest);
-        CommandResult result = enableUserHandler.handle(enableUserCommand, actorId);
-        log.info("User account enabled with ID: {} by {}", enableUserRequest.userEntraObjectId(), actorId);
+        ReactivateUserCommand reactivateUserCommand = reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest);
+        CommandResult result = reactivateUserHandler.handle(reactivateUserCommand, actorId);
+        log.info("User account reactivated with ID: {} by {}", reactivateUserRequest.userEntraObjectId(), actorId);
         return ResponseEntity.ok(result);
     }
 
-    @PostMapping("/users/disable")
-    public ResponseEntity<CommandResult> disableUser(
-            @Valid @RequestBody DisableUserRequest disableUserRequest,
+    @PostMapping("/users/deactivate")
+    public ResponseEntity<CommandResult> deactivateUser(
+            @Valid @RequestBody DeactivateUserRequest deactivateUserRequest,
             @AuthenticationPrincipal Jwt jwt) {
-        log.info("Processing disable user command for user: {}", disableUserRequest.userEntraObjectId());
+        log.info("Processing deactivate user command for user: {}", deactivateUserRequest.userEntraObjectId());
         String actorId = resolveActor(jwt);
-        DisableUserCommand disableUserCommand = disableUserMapper.toDisableUserCommand(disableUserRequest);
-        CommandResult result = disableUserHandler.handle(disableUserCommand, actorId);
-        log.info("User account disabled with ID: {} by {} with reason: {}", disableUserRequest.userEntraObjectId(),
-                actorId, disableUserRequest.disableReason());
+        DeactivateUserCommand deactivateUserCommand = deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest);
+        CommandResult result = deactivateUserHandler.handle(deactivateUserCommand, actorId);
+        log.info("User account deactivated with ID: {} by {} with reason: {}", deactivateUserRequest.userEntraObjectId(),
+                actorId, deactivateUserRequest.deactivateReason());
         return ResponseEntity.ok(result);
     }
 

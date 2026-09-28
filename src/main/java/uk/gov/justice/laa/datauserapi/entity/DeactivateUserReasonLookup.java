@@ -20,7 +20,7 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "disable_user_reason")
 @ToString(doNotUseGetters = true)
 @NoArgsConstructor(access = AccessLevel.PROTECTED, force = true)
-public class DisableUserReasonLookup extends BaseEntity {
+public class DeactivateUserReasonLookup extends BaseEntity {
 
     @Column(name = "name", nullable = false, length = 255)
     @NotBlank(message = "Reason name must be provided")

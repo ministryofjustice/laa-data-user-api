@@ -162,10 +162,10 @@ This repo publishes a lightweight JAR containing shared request/response POJOs u
 contracts/
 ├── build.gradle
 └── src/main/java/uk/gov/justice/laa/datauserapi/contracts/
-    ├── DisableUserReason.java           ← enum
+    ├── DeactivateUserReason.java           ← enum
     ├── request/
-    │   ├── DisableUserRequest.java
-    │   └── EnableUserRequest.java
+    │   ├── DeactivateUserRequest.java
+    │   └── ActivateUserRequest.java
     └── response/
         └── UserProfileDetailResponse.java
 ```

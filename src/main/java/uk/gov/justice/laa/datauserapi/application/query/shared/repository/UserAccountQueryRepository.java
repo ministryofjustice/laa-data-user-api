@@ -19,7 +19,7 @@ public interface UserAccountQueryRepository extends JpaRepository<UserAccountSta
             a.userAccountStatus,
             a.statusChangedDate,
             a.statusChangedBy,
-            a.disableUserReasonLookup.name
+            a.deactivateUserReasonLookup.name
         )
         FROM UserAccountStatusAudit a
         WHERE a.entraUser.entraOid = :userEntraObjectId

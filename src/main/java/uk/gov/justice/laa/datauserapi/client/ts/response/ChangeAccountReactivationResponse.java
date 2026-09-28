@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ChangeAccountEnabledResponse {
+public class ChangeAccountReactivationResponse {
     private boolean success;
     private String message;
 }

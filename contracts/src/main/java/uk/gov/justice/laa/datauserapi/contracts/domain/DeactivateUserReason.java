@@ -1,6 +1,6 @@
 package uk.gov.justice.laa.datauserapi.contracts.domain;
 
-public enum DisableUserReason {
+public enum DeactivateUserReason {
     Absence,
     ComplianceBreach,
     ContractEnded,

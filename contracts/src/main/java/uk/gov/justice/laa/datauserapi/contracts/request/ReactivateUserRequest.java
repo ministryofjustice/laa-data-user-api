@@ -4,4 +4,4 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.UUID;
 
-public record EnableUserRequest(@NotNull UUID userEntraObjectId, String comments) {}
+public record ReactivateUserRequest(@NotNull UUID userEntraObjectId, String comments) {}

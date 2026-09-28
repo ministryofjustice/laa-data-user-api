@@ -9,5 +9,5 @@ public record AccountStatusHistoryView(
         UserAccountStatus userAccountStatus,
         LocalDateTime statusChangedDate,
         String statusChangedBy,
-        String disableReason
+        String deactivateReason
 ) {}

@@ -35,7 +35,7 @@ import java.util.UUID;
 @SuperBuilder
 @NoArgsConstructor
 @ToString(doNotUseGetters = true)
-public class UserActivationRequest extends BaseEntity {
+public class UserReactivationRequest extends BaseEntity {
 
     @Column(name = "request_id", nullable = false)
     @NotNull(message = "User reactivation request id must be provided")
