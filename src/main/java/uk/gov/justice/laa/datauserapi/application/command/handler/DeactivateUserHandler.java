@@ -5,6 +5,7 @@ import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.ReactivateUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserAccountStatusAuditRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
@@ -14,6 +15,7 @@ import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
+import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
@@ -31,6 +33,7 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
     private final DeactivationTypeResolver deactivationTypeResolver;
     private final ModelMapper modelMapper;
     private final TechServicesClient techServicesClient;
+    private final UserCommandService userCommandService;
 
     public DeactivateUserHandler(
             ReactivateUserCommandRepository reactivateUserCommandRepository,
@@ -38,13 +41,15 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
             DeactivateUserMapper deactivateUserMapper,
             DeactivationTypeResolver deactivationTypeResolver,
             ModelMapper modelMapper,
-            TechServicesClient techServicesClient) {
+            TechServicesClient techServicesClient,
+            UserCommandService userCommandService) {
         this.reactivateUserCommandRepository = reactivateUserCommandRepository;
         this.auditRepository = auditRepository;
         this.deactivateUserMapper = deactivateUserMapper;
         this.deactivationTypeResolver = deactivationTypeResolver;
         this.modelMapper = modelMapper;
         this.techServicesClient = techServicesClient;
+        this.userCommandService = userCommandService;
     }
 
     @Override
@@ -60,6 +65,35 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
         EntraUser actor = reactivateUserCommandRepository.findById(actorId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Actor user account not found with ID: " + actorId));
+
+        if (UUID.fromString(actorIdStr) == command.userEntraObjectId()) {
+            log.warn("User can not reactive self: {}", actorIdStr);
+            return  CommandResult.failure("User can not reactive self");
+        }
+
+        boolean isInternalUser = userCommandService.isInternalUser(command.userEntraObjectId());
+        if (isInternalUser) {
+            log.warn("Internal user can not be deactivated: {}, by: {}", command.userEntraObjectId(), actorIdStr);
+            return  CommandResult.failure("User can not deactivate internal user");
+        }
+
+        boolean isActorExternalUser = userCommandService.isExternalUser(UUID.fromString(actorIdStr));
+        if (isActorExternalUser) {
+            UserProfile actorProfile = userCommandService.getActiveUserProfile(UUID.fromString(actorIdStr));
+            UserProfile targetUserProfile = userCommandService.getActiveUserProfile(command.userEntraObjectId());
+
+            if(targetUserProfile.getEntraUser().isMultiFirmUser()) {
+                log.warn("User {} can not deactivate multi-firm user: {}", command.userEntraObjectId(), actorIdStr);
+                return  CommandResult.failure("User can not deactivate multi-firm user");
+            }
+
+            UUID actorFirmId = actorProfile.getFirm().getId();
+            UUID targetUserFirmId = targetUserProfile.getFirm().getId();
+            if (!targetUserFirmId.equals(actorFirmId)) {
+                log.warn("User {} can not deactivate user {} from different firm", actorIdStr, command.userEntraObjectId());
+                return  CommandResult.failure("User can not deactivate user from different firm");
+            }
+        }
 
         EntraUserDto userDto = modelMapper.map(user, EntraUserDto.class);
         techServicesClient.deactivateUser(userDto, command.deactivateReason().name());
