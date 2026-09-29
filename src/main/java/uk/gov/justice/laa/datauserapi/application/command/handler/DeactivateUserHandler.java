@@ -56,25 +56,16 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
     @Transactional(rollbackFor = TechServicesClientException.class)
     public CommandResult handle(DeactivateUserCommand command, String actorIdStr) {
         log.info("Handling deactivate user command for user: {}", command.userEntraObjectId());
-        EntraUser user = reactivateUserCommandRepository.findById(command.userEntraObjectId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "User account not found with ID: " + command.userEntraObjectId()));
-        DeactivateUserReason deactivateUserReason = command.deactivateReason();
-
-        UUID actorId = UUID.fromString(actorIdStr);
-        EntraUser actor = reactivateUserCommandRepository.findById(actorId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Actor user account not found with ID: " + actorId));
 
         if (UUID.fromString(actorIdStr) == command.userEntraObjectId()) {
             log.warn("User can not reactive self: {}", actorIdStr);
-            return  CommandResult.failure("User can not reactive self");
+            return CommandResult.failure("User can not reactive self");
         }
 
         boolean isInternalUser = userCommandService.isInternalUser(command.userEntraObjectId());
         if (isInternalUser) {
             log.warn("Internal user can not be deactivated: {}, by: {}", command.userEntraObjectId(), actorIdStr);
-            return  CommandResult.failure("User can not deactivate internal user");
+            return CommandResult.failure("User can not deactivate internal user");
         }
 
         boolean isActorExternalUser = userCommandService.isExternalUser(UUID.fromString(actorIdStr));
@@ -82,26 +73,35 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
             UserProfile actorProfile = userCommandService.getActiveUserProfile(UUID.fromString(actorIdStr));
             UserProfile targetUserProfile = userCommandService.getActiveUserProfile(command.userEntraObjectId());
 
-            if(targetUserProfile.getEntraUser().isMultiFirmUser()) {
+            if (targetUserProfile.getEntraUser().isMultiFirmUser()) {
                 log.warn("User {} can not deactivate multi-firm user: {}", command.userEntraObjectId(), actorIdStr);
-                return  CommandResult.failure("User can not deactivate multi-firm user");
+                return CommandResult.failure("User can not deactivate multi-firm user");
             }
 
             UUID actorFirmId = actorProfile.getFirm().getId();
             UUID targetUserFirmId = targetUserProfile.getFirm().getId();
             if (!targetUserFirmId.equals(actorFirmId)) {
                 log.warn("User {} can not deactivate user {} from different firm", actorIdStr, command.userEntraObjectId());
-                return  CommandResult.failure("User can not deactivate user from different firm");
+                return CommandResult.failure("User can not deactivate user from different firm");
             }
         }
+
+        EntraUser user = reactivateUserCommandRepository.findById(command.userEntraObjectId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User account not found with ID: " + command.userEntraObjectId()));
 
         EntraUserDto userDto = modelMapper.map(user, EntraUserDto.class);
         techServicesClient.deactivateUser(userDto, command.deactivateReason().name());
 
+        UUID actorId = UUID.fromString(actorIdStr);
+        EntraUser actor = reactivateUserCommandRepository.findById(actorId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Actor user account not found with ID: " + actorId));
         DeactivationType deactivationType = deactivationTypeResolver.resolve(actor);
         user.deactivate(actorIdStr, deactivationType);
         reactivateUserCommandRepository.save(user);
 
+        DeactivateUserReason deactivateUserReason = command.deactivateReason();
         UserAccountStatusAudit audit = deactivateUserMapper.toAuditEntity(user, command, actorIdStr);
         auditRepository.save(audit);
         log.info("User account deactivated with ID: {} by: {} with reason: {}", user.getId(), actorIdStr, deactivateUserReason);

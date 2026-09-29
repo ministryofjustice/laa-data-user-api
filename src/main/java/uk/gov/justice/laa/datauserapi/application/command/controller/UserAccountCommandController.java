@@ -30,7 +30,8 @@ public class UserAccountCommandController {
     private final DeactivateUserHandler deactivateUserHandler;
     private final DeactivateUserMapper deactivateUserMapper;
 
-    public UserAccountCommandController(ReactivateUserHandler reactivateUserHandler, ReactivateUserMapper reactivateUserMapper, DeactivateUserHandler deactivateUserHandler, DeactivateUserMapper deactivateUserMapper) {
+    public UserAccountCommandController(ReactivateUserHandler reactivateUserHandler, ReactivateUserMapper reactivateUserMapper,
+                                        DeactivateUserHandler deactivateUserHandler, DeactivateUserMapper deactivateUserMapper) {
         this.reactivateUserHandler = reactivateUserHandler;
         this.reactivateUserMapper = reactivateUserMapper;
         this.deactivateUserHandler = deactivateUserHandler;

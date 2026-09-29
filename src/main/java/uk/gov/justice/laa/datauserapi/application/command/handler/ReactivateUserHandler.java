@@ -46,21 +46,17 @@ public class ReactivateUserHandler implements CommandHandler<ReactivateUserComma
     @Override
     @Transactional(rollbackFor = TechServicesClientException.class)
     public CommandResult handle(ReactivateUserCommand command, String actorIdStr) {
-        EntraUser user = reactivateUserCommandRepository.findById(command.userEntraObjectId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "User account not found with ID: " + command.userEntraObjectId()));
-
         log.info("Enabling user account with ID: {}", command.userEntraObjectId());
 
         if (UUID.fromString(actorIdStr) == command.userEntraObjectId()) {
             log.warn("User can not reactive self: {}", actorIdStr);
-            return  CommandResult.failure("User can not reactive self");
+            return CommandResult.failure("User can not reactive self");
         }
 
         boolean isInternalUser = userCommandService.isInternalUser(command.userEntraObjectId());
         if (isInternalUser) {
             log.warn("Internal user can not be activated: {}, by: {}", command.userEntraObjectId(), actorIdStr);
-            return  CommandResult.failure("User can not reactive internal user");
+            return CommandResult.failure("User can not reactive internal user");
         }
 
         boolean isActorExternalUser = userCommandService.isExternalUser(UUID.fromString(actorIdStr));
@@ -68,19 +64,22 @@ public class ReactivateUserHandler implements CommandHandler<ReactivateUserComma
             UserProfile actorProfile = userCommandService.getActiveUserProfile(UUID.fromString(actorIdStr));
             UserProfile targetUserProfile = userCommandService.getActiveUserProfile(command.userEntraObjectId());
 
-            if(targetUserProfile.getEntraUser().isMultiFirmUser()) {
+            if (targetUserProfile.getEntraUser().isMultiFirmUser()) {
                 log.warn("User {} can not reactive multi-firm user: {}", command.userEntraObjectId(), actorIdStr);
-                return  CommandResult.failure("User can not reactive multi-firm user");
+                return CommandResult.failure("User can not reactive multi-firm user");
             }
 
             UUID actorFirmId = actorProfile.getFirm().getId();
             UUID targetUserFirmId = targetUserProfile.getFirm().getId();
             if (!targetUserFirmId.equals(actorFirmId)) {
                 log.warn("User {} can not reactivate user {} from different firm", actorIdStr, command.userEntraObjectId());
-                return  CommandResult.failure("User can not reactive user from different firm");
+                return CommandResult.failure("User can not reactive user from different firm");
             }
         }
 
+        EntraUser user = reactivateUserCommandRepository.findById(command.userEntraObjectId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User account not found with ID: " + command.userEntraObjectId()));
         EntraUserDto userDto = modelMapper.map(user, EntraUserDto.class);
         techServicesClient.reactivateUser(userDto);
 

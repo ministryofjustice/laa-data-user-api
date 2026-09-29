@@ -17,26 +17,26 @@ public class UserCommandService {
         this.entraUserCommandRepository = entraUserCommandRepository;
     }
 
-    public boolean isExternalUser(UUID entraUserId){
+    public boolean isExternalUser(UUID entraUserId) {
         UserType userType = getUserType(entraUserId);
         return UserType.EXTERNAL.equals(userType);
     }
 
-    public boolean isInternalUser(UUID entraUserId){
+    public boolean isInternalUser(UUID entraUserId) {
         UserType userType = getUserType(entraUserId);
         return UserType.INTERNAL.equals(userType);
     }
 
     private UserType getUserType(UUID entraUserId) {
         EntraUser entraUser = entraUserCommandRepository.findById(entraUserId)
-                .orElseThrow(()-> new RuntimeException("Entra user not found for id: " + entraUserId));
+                .orElseThrow(() -> new RuntimeException("Entra user not found for id: " + entraUserId));
         return entraUser.getUserProfiles().stream().map(UserProfile::getUserType).findFirst().orElse(null);
     }
 
     public UserProfile getActiveUserProfile(UUID entraUserId) {
         EntraUser entraUser = entraUserCommandRepository.findById(entraUserId)
-                .orElseThrow(()-> new RuntimeException("Entra user not found for id: " + entraUserId));
+                .orElseThrow(() -> new RuntimeException("Entra user not found for id: " + entraUserId));
         return entraUser.getUserProfiles().stream().filter(UserProfile::isActiveProfile).findFirst()
-                .orElseThrow(()-> new RuntimeException("Active profile not found for user id: " + entraUserId));
+                .orElseThrow(() -> new RuntimeException("Active profile not found for user id: " + entraUserId));
     }
 }
