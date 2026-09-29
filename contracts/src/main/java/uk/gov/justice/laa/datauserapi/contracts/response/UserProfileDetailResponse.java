@@ -16,7 +16,7 @@ import java.util.UUID;
  * @param fullName                first and last names
  * @param firmId                  firm ID (null for internal users)
  * @param firmName                firm name (null for internal users)
- * @param accountStatus           ACTIVE, DISABLED, etc.
+ * @param accountStatus           ACTIVE, DEACTIVATED, etc.
  * @param profileStatus           ACTIVE, INACTIVE, etc.
  * @param activeProfile           whether this is the user's currently active profile (multi firm)
  * @param hasAppRoles             whether this profile has any app roles assigned

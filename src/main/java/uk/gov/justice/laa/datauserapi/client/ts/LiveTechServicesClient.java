@@ -17,8 +17,8 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
-import uk.gov.justice.laa.datauserapi.client.ts.request.ChangeAccountEnabledRequest;
-import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
+import uk.gov.justice.laa.datauserapi.client.ts.request.ChangeAccountReactivationRequest;
+import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorResponse;
 import uk.gov.justice.laa.datauserapi.config.CachingConfig;
@@ -56,18 +56,18 @@ public class LiveTechServicesClient implements TechServicesClient {
     }
 
     @Override
-    public TechServicesApiResponse<ChangeAccountEnabledResponse> enableUser(EntraUserDto user) {
+    public TechServicesApiResponse<ChangeAccountReactivationResponse> reactivateUser(EntraUserDto user) {
         try {
             if (user == null || user.getEntraOid() == null) {
-                log.error("Invalid user details provided for enable user request to Tech Services.");
-                throw new TechServicesClientException("Invalid user details provided for enable user request to Tech Services.");
+                log.error("Invalid user details provided for reactivate user request to Tech Services.");
+                throw new TechServicesClientException("Invalid user details provided for reactivate user request to Tech Services.");
             }
 
             String accessToken = getAccessToken();
 
-            ChangeAccountEnabledRequest request = new ChangeAccountEnabledRequest(true);
+            ChangeAccountReactivationRequest request = new ChangeAccountReactivationRequest(true);
 
-            log.info("Sending enable user request to Tech Services for: {}", user.getEntraOid());
+            log.info("Sending reactivate user request to Tech Services for: {}", user.getEntraOid());
 
             String uri = String.format(TECH_SERVICES_UPDATE_USER_GRP_ENDPOINT, laaBusinessUnit, user.getEntraOid());
 
@@ -81,13 +81,13 @@ public class LiveTechServicesClient implements TechServicesClient {
                     .toEntity(String.class);
 
             if (response.getStatusCode().is2xxSuccessful()) {
-                log.info("Enable user request by Tech Services is successful for entra user {}",
+                log.info("Reactivate user request by Tech Services is successful for entra user {}",
                         user.getEntraOid());
-                ChangeAccountEnabledResponse successResponse = objectMapper.readValue(response.getBody(), ChangeAccountEnabledResponse.class);
+                ChangeAccountReactivationResponse successResponse = objectMapper.readValue(response.getBody(), ChangeAccountReactivationResponse.class);
                 return TechServicesApiResponse.success(successResponse);
             } else {
                 TechServicesErrorResponse errorResponse = objectMapper.readValue(response.getBody(), TechServicesErrorResponse.class);
-                log.error("Failed to enable entra user: {}", user.getEntraOid());
+                log.error("Failed to reactivate entra user: {}", user.getEntraOid());
                 return TechServicesApiResponse.error(errorResponse);
             }
 
@@ -96,36 +96,36 @@ public class LiveTechServicesClient implements TechServicesClient {
             try {
                 TechServicesErrorResponse errorResponse = objectMapper.readValue(errorJson, TechServicesErrorResponse.class);
                 if (HttpStatus.TOO_EARLY.equals(httpEx.getStatusCode())) {
-                    log.info("Failed to enable entra user {}, the root cause is {} ({})",
+                    log.info("Failed to reactivate entra user {}, the root cause is {} ({})",
                             user.getEntraOid(), errorResponse.getMessage(), errorResponse.getCode(), httpEx);
                     return TechServicesApiResponse.error(errorResponse);
                 }
-                log.error("Failed to enable user {}, the root cause is {} ({})",
+                log.error("Failed to reactivate user {}, the root cause is {} ({})",
                         user.getFirstName() + " " + user.getLastName(), errorResponse.getMessage(), errorResponse.getCode(), httpEx);
                 return TechServicesApiResponse.error(errorResponse);
             } catch (Exception ex) {
-                log.error("Error while sending enable user request to Tech Services.", ex);
-                throw new TechServicesClientException("Error while sending enable user request to Tech Services.", ex);
+                log.error("Error while sending reactivate user request to Tech Services.", ex);
+                throw new TechServicesClientException("Error while sending reactivate user request to Tech Services.", ex);
             }
         } catch (Exception ex) {
-            log.error("Error while sending enable user request to Tech Services.", ex);
-            throw new TechServicesClientException("Error while sending enable user request to Tech Services.", ex);
+            log.error("Error while sending reactivate user request to Tech Services.", ex);
+            throw new TechServicesClientException("Error while sending reactivate user request to Tech Services.", ex);
         }
     }
 
     @Override
-    public TechServicesApiResponse<ChangeAccountEnabledResponse> disableUser(EntraUserDto user, String reason) {
+    public TechServicesApiResponse<ChangeAccountReactivationResponse> deactivateUser(EntraUserDto user, String reason) {
         try {
             if (user == null || user.getEntraOid() == null) {
-                log.error("Invalid user details provided for disable user request to Tech Services.");
-                throw new TechServicesClientException("Invalid user details provided for disable user request to Tech Services.");
+                log.error("Invalid user details provided for deactivate user request to Tech Services.");
+                throw new TechServicesClientException("Invalid user details provided for deactivate user request to Tech Services.");
             }
 
             String accessToken = getAccessToken();
 
-            ChangeAccountEnabledRequest request = new ChangeAccountEnabledRequest(false, reason);
+            ChangeAccountReactivationRequest request = new ChangeAccountReactivationRequest(false, reason);
 
-            log.info("Sending disable user request to Tech Services for: {}", user.getEntraOid());
+            log.info("Sending deactivate user request to Tech Services for: {}", user.getEntraOid());
 
             String uri = String.format(TECH_SERVICES_UPDATE_USER_GRP_ENDPOINT, laaBusinessUnit, user.getEntraOid());
 
@@ -139,13 +139,13 @@ public class LiveTechServicesClient implements TechServicesClient {
                     .toEntity(String.class);
 
             if (response.getStatusCode().is2xxSuccessful()) {
-                log.info("Disable user request by Tech Services is successful for entra user{}",
+                log.info("Deactivate user request by Tech Services is successful for entra user{}",
                         user.getEntraOid());
-                ChangeAccountEnabledResponse successResponse = objectMapper.readValue(response.getBody(), ChangeAccountEnabledResponse.class);
+                ChangeAccountReactivationResponse successResponse = objectMapper.readValue(response.getBody(), ChangeAccountReactivationResponse.class);
                 return TechServicesApiResponse.success(successResponse);
             } else {
                 TechServicesErrorResponse errorResponse = objectMapper.readValue(response.getBody(), TechServicesErrorResponse.class);
-                log.error("Failed to disable entra user: {}", user.getEntraOid());
+                log.error("Failed to deactivate entra user: {}", user.getEntraOid());
                 return TechServicesApiResponse.error(errorResponse);
             }
 
@@ -154,25 +154,25 @@ public class LiveTechServicesClient implements TechServicesClient {
             try {
                 TechServicesErrorResponse errorResponse = objectMapper.readValue(errorJson, TechServicesErrorResponse.class);
                 if (HttpStatus.TOO_EARLY.equals(httpEx.getStatusCode())) {
-                    log.info("Failed to disable entra user: {}, the root cause is {} ({})",
+                    log.info("Failed to deactivate entra user: {}, the root cause is {} ({})",
                             user.getEntraOid(), errorResponse.getMessage(), errorResponse.getCode(), httpEx);
                     return TechServicesApiResponse.error(errorResponse);
                 }
                 if (HttpStatus.NOT_FOUND.equals(httpEx.getStatusCode())) {
-                    log.warn("User {} not found in Tech Services during disable request, the root cause is {} ({})",
+                    log.warn("User {} not found in Tech Services during deactivate request, the root cause is {} ({})",
                             user.getEntraOid(), errorResponse.getMessage(), errorResponse.getCode());
                     return TechServicesApiResponse.error(errorResponse);
                 }
-                log.error("Failed to disable user {}, the root cause is {} ({})",
+                log.error("Failed to deactivate user {}, the root cause is {} ({})",
                         user.getEntraOid(), errorResponse.getMessage(), errorResponse.getCode(), httpEx);
                 return TechServicesApiResponse.error(errorResponse);
             } catch (Exception ex) {
-                log.error("Error while sending disable user request to Tech Services.", ex);
-                throw new TechServicesClientException("Error while sending disable user request to Tech Services.", ex);
+                log.error("Error while sending deactivate user request to Tech Services.", ex);
+                throw new TechServicesClientException("Error while sending deactivate user request to Tech Services.", ex);
             }
         } catch (Exception ex) {
-            log.error("Error while sending disable user request to Tech Services.", ex);
-            throw new TechServicesClientException("Error while sending disable user request to Tech Services.", ex);
+            log.error("Error while sending deactivate user request to Tech Services.", ex);
+            throw new TechServicesClientException("Error while sending deactivate user request to Tech Services.", ex);
         }
     }
 

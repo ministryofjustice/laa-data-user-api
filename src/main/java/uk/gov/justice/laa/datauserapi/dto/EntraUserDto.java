@@ -27,8 +27,8 @@ public class EntraUserDto implements Serializable {
     private boolean multiFirmUser;
     private UserStatus userStatus;
     @Builder.Default
-    private boolean enabled = true;
-    private String disabledBy;
+    private boolean active = true;
+    private String deactivatedBy;
     private boolean mailOnly;
     private InvitationStatus invitationStatus;
     private boolean ccmsEbsUser;
