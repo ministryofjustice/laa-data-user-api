@@ -1,12 +1,9 @@
 package uk.gov.justice.laa.datauserapi.misc;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
+import uk.gov.justice.laa.datauserapi.integration.BaseIntegrationTest;
 
-@SpringBootTest
-@ActiveProfiles("test")
-class MiscTests {
+class MiscTests extends BaseIntegrationTest {
 
     @Test
     void testTestingWorks() {
