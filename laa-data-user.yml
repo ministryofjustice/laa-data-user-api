@@ -33,7 +33,7 @@ tags:
   - name: Application & Role Management
     description: Administration endpoints for the creation and management of SiLAS apps and roles, including defining which roles can assign which other roles (`app`, `app_role`, `role_assignment`)
   - name: User Account Security Audit & Management
-    description: Endpoints to allow security users to view audit data and bulk deactivate users as required (`user_account_status_audit`, reason tables)
+    description: Endpoints to allow security users to view audit data and bulk disable users as required (`user_account_status_audit`, reason tables)
   - name: Admin Triggers
     description: Operational commands triggered by system administrators. Used by SiLAS team only.
 
@@ -629,11 +629,11 @@ paths:
         '504':
           $ref: '#/components/responses/GatewayTimeout'
 
-  /api/v1/commands/users/deactivate:
+  /api/v1/commands/users/disable:
     post:
-      operationId: commandUserAccountDeactivate
+      operationId: commandUserAccountDisable
       tags: [User Account]
-      summary: Deactivate SiLAS User Account
+      summary: Disable SiLAS User Account
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
@@ -641,10 +641,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeactivateUserCommand'
+              $ref: '#/components/schemas/DisableUserCommand'
       responses:
         '200':
-          description: User account deactivated
+          description: User account disabled
           content:
             application/json:
               schema:
@@ -664,7 +664,7 @@ paths:
         '504':
           $ref: '#/components/responses/GatewayTimeout'
 
-  /api/v1/commands/users/reactivate:
+  /api/v1/commands/users/enable:
     post:
       operationId: commandUserAccountEnable
       tags: [User Account]
@@ -676,7 +676,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ReactivateUserCommand'
+              $ref: '#/components/schemas/EnableUserCommand'
       responses:
         '200':
           description: User account enabled
@@ -1035,11 +1035,11 @@ paths:
           $ref: '#/components/responses/GatewayTimeout'
 
 
-  /api/v1/commands/firms/bulk-deactivate-users:
+  /api/v1/commands/firms/bulk-disable-users:
     post:
-      operationId: commandFirmBulkDeactivateUsers
+      operationId: commandFirmBulkDisableUsers
       tags: [User Account Security Audit & Management]
-      summary: Bulk deactivate users for firm
+      summary: Bulk disable users for firm
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
@@ -1047,10 +1047,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BulkDeactivateFirmUsersCommand'
+              $ref: '#/components/schemas/BulkDisableFirmUsersCommand'
       responses:
         '200':
-          description: All users in firm deactivated
+          description: All users in firm disabled
           content:
             application/json:
               schema:
@@ -1610,7 +1610,7 @@ components:
       type: string
       enum: ["CyberRisk", "LeftFirm", "ProviderDiscretion", "ContractEnded", "RoleChangeorNoLongerRequired", "FirmClosureorMerger", "ComplianceBreach", "DuplicateAccount", "UserRequest", "SystemIssue", "ExpiredInvitation", "NotActiveAfterMaxLifetime", "NoGroupsDelete"]
 
-    DeactivateUserReason:
+    DisableUserReason:
       type: string
       enum: [ "Absence", "ComplianceBreach", "ContractEnded", "CyberRisk", "DuplicateAccount", "FirmClosureorMerger", "InvestigationPending", "RoleChangeorNoLongerRequired", "UserRequest", "Inactivity", "ProviderDiscretion", "NotActive", "PendingAcceptance" ]
 
@@ -1976,9 +1976,9 @@ components:
           format: date-time
         statusChangedBy:
           type: string
-        deactivateReason:
-          $ref: '#/components/schemas/DeactivateUserReason'
-        deactivateReasonLabel:
+        disableReason:
+          $ref: '#/components/schemas/DisableUserReason'
+        disableReasonLabel:
           type: string
 
     DeletedUserAuditView:
@@ -2080,17 +2080,17 @@ components:
           type: string
           format: email
 
-    DeactivateUserCommand:
+    DisableUserCommand:
       type: object
-      required: [userEntraObjectId, deactivateReason]
+      required: [userEntraObjectId, disableReason]
       properties:
         userEntraObjectId:
           type: string
           format: uuid
-        deactivateReason:
-          $ref: "#/components/schemas/DeactivateUserReason"
+        disableReason:
+          $ref: "#/components/schemas/DisableUserReason"
 
-    ReactivateUserCommand:
+    EnableUserCommand:
       type: object
       required: [userEntraObjectId]
       properties:
@@ -2317,14 +2317,14 @@ components:
               type: string
               format: uuid
 
-    BulkDeactivateFirmUsersCommand:
+    BulkDisableFirmUsersCommand:
       type: object
-      required: [firmId, deactivateReason]
+      required: [firmId, disableReason]
       properties:
         firmId:
           type: string
-        deactivateReason:
-          $ref: '#/components/schemas/DeactivateUserReason'
+        disableReason:
+          $ref: '#/components/schemas/DisableUserReason'
 
     UpdateAppCommand:
       type: object
