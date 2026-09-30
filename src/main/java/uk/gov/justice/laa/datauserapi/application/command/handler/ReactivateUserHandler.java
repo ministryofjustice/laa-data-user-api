@@ -18,6 +18,7 @@ import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 
+import java.util.Objects;
 import java.util.UUID;
 
 @Slf4j
@@ -48,7 +49,7 @@ public class ReactivateUserHandler implements CommandHandler<ReactivateUserComma
     public CommandResult handle(ReactivateUserCommand command, String actorIdStr) {
         log.info("Enabling user account with ID: {}", command.userEntraObjectId());
 
-        if (UUID.fromString(actorIdStr) == command.userEntraObjectId()) {
+        if (Objects.equals(UUID.fromString(actorIdStr), command.userEntraObjectId())) {
             log.warn("User can not reactive self: {}", actorIdStr);
             return CommandResult.failure("User can not reactive self");
         }
