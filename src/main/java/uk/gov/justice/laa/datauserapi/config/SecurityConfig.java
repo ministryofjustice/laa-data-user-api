@@ -38,6 +38,7 @@ public class SecurityConfig {
                             || new IpAddressMatcher("192.168.0.0/16").matches(context.getRequest());
                     return new AuthorizationDecision(allowed);
                 })
+                .requestMatchers("/api/v1/queries/firms/**").hasAuthority("SCOPE_user_data.admin")
                 .requestMatchers("/api/v1/**").hasAuthority("SCOPE_user_data.read")
                 .anyRequest().authenticated()
             )

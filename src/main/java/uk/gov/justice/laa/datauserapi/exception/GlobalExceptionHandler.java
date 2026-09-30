@@ -1,6 +1,8 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -56,6 +58,34 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ProblemDetail> handleConstraintViolation(
+            ConstraintViolationException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+        List<FieldErrorDetail> fieldErrors = ex.getConstraintViolations()
+                .stream()
+                .map(this::toFieldErrorDetail)
+                .toList();
+
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/validation-error"),
+                "Validation Error",
+                HttpStatus.BAD_REQUEST.value(),
+                "One or more request parameters failed validation.",
+                URI.create(request.getRequestURI()),
+                fieldErrors
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+    }
+
+    private FieldErrorDetail toFieldErrorDetail(ConstraintViolation<?> violation) {
+        String path = violation.getPropertyPath().toString();
+        String field = path.contains(".") ? path.substring(path.lastIndexOf('.') + 1) : path;
+        return new FieldErrorDetail(field, violation.getMessage());
     }
 
     @ExceptionHandler(AccessDeniedException.class)
