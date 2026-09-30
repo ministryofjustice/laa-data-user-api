@@ -6,7 +6,6 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.AccountStatusHistory
 import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountStatusView;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.EntraUserQueryRepository;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserAccountQueryRepository;
-import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 
 import java.util.List;
@@ -30,13 +29,7 @@ public class UserAccountQueryService {
     }
 
     public UserAccountStatusView getUserStatus(UUID userEntraObjectId) {
-        EntraUser user = userRepository.findById(userEntraObjectId)
+        return userRepository.findStatusByUserEntraObjectId(userEntraObjectId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userEntraObjectId));
-        return new UserAccountStatusView(
-                user.getEntraOid(),
-                user.getEmail(),
-                user.getUserAccountStatus(),
-                user.getLastModified()
-        );
     }
 }
