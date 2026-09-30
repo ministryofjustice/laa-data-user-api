@@ -21,6 +21,7 @@ import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 import uk.gov.justice.laa.datauserapi.service.DeactivationTypeResolver;
 
+import java.util.Objects;
 import java.util.UUID;
 
 @Slf4j
@@ -57,7 +58,7 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
     public CommandResult handle(DeactivateUserCommand command, String actorIdStr) {
         log.info("Handling deactivate user command for user: {}", command.userEntraObjectId());
 
-        if (UUID.fromString(actorIdStr) == command.userEntraObjectId()) {
+        if (Objects.equals(UUID.fromString(actorIdStr), command.userEntraObjectId())) {
             log.warn("User can not reactive self: {}", actorIdStr);
             return CommandResult.failure("User can not reactive self");
         }

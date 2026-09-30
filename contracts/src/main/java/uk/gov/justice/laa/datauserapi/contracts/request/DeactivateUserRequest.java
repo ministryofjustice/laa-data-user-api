@@ -1,6 +1,7 @@
 package uk.gov.justice.laa.datauserapi.contracts.request;
 
 import jakarta.validation.constraints.NotNull;
+import lombok.Builder;
 
 import java.util.UUID;
 
@@ -9,6 +10,7 @@ import java.util.UUID;
  *
  * @param deactivateReason the reason for deactivating the account (required)
  */
+@Builder
 public record DeactivateUserRequest(
         @NotNull UUID userEntraObjectId,
         @NotNull String deactivateReason

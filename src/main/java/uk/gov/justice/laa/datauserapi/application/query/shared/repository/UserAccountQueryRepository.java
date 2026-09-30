@@ -1,17 +1,16 @@
 package uk.gov.justice.laa.datauserapi.application.query.shared.repository;
 
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 import uk.gov.justice.laa.datauserapi.application.query.dto.AccountStatusHistoryView;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 
 import java.util.List;
 import java.util.UUID;
 
-@Repository
-public interface UserAccountQueryRepository extends JpaRepository<UserAccountStatusAudit, Long> {
+@org.springframework.stereotype.Repository
+public interface UserAccountQueryRepository extends Repository<UserAccountStatusAudit, Long> {
 
     @Query("""
         SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.AccountStatusHistoryView(
