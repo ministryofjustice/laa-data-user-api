@@ -46,7 +46,7 @@ jobs:
           java-version: '25'
 
       - name: Build JAR
-        run: ./gradlew build -x test
+        run: ./gradlew build -x test -x sentryUploadSourceBundleJava
         env:
           GITHUB_ACTOR: ${{ secrets.GITHUB_ACTOR }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
