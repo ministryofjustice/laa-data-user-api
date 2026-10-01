@@ -11,12 +11,14 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.FirmView;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmViewPage;
 import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
 import uk.gov.justice.laa.datauserapi.application.query.service.FirmQueryService;
+import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.FirmType;
 
 import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -75,6 +77,37 @@ class FirmQueryControllerTest {
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isSameAs(list);
+    }
+
+    @Test
+    void queryFirmsSearch_rejectsMissingActorId() {
+        controller = new FirmQueryController(firmQueryService);
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("test-sub")
+                .issuedAt(Instant.now().minusSeconds(60))
+                .expiresAt(Instant.now().plusSeconds(600))
+                .build();
+
+        assertThatThrownBy(() -> controller.queryFirmsSearch("Test", 10, jwt))
+                .isInstanceOf(InvalidActorContextException.class)
+                .hasMessage("Authentication token is missing the actor identity");
+    }
+
+    @Test
+    void queryFirmsSearch_rejectsMalformedActorId() {
+        controller = new FirmQueryController(firmQueryService);
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .claim("oid", "not-a-uuid")
+                .subject("test-sub")
+                .issuedAt(Instant.now().minusSeconds(60))
+                .expiresAt(Instant.now().plusSeconds(600))
+                .build();
+
+        assertThatThrownBy(() -> controller.queryFirmsSearch("Test", 10, jwt))
+                .isInstanceOf(InvalidActorContextException.class)
+                .hasMessage("Authentication token contains an invalid actor identity");
     }
 
     @Test

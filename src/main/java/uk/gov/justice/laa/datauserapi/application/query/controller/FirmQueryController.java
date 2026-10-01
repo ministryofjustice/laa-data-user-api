@@ -1,9 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.query.controller;
 
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
+import java.util.UUID;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -13,13 +11,17 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchViewList;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmView;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmViewPage;
 import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
 import uk.gov.justice.laa.datauserapi.application.query.service.FirmQueryService;
-
-import java.util.UUID;
+import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 
 @Validated
 @RestController
@@ -68,6 +70,19 @@ public class FirmQueryController {
     }
 
     private UUID resolveActor(Jwt jwt) {
-        return UUID.fromString(jwt.getClaimAsString("oid"));
+        if (jwt == null) {
+            throw new InvalidActorContextException("Authentication token is missing the actor identity");
+        }
+
+        String oid = jwt.getClaimAsString("oid");
+        if (oid == null || oid.isBlank()) {
+            throw new InvalidActorContextException("Authentication token is missing the actor identity");
+        }
+
+        try {
+            return UUID.fromString(oid);
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidActorContextException("Authentication token contains an invalid actor identity", ex);
+        }
     }
 }

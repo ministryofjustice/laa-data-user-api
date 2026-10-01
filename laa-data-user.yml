@@ -348,6 +348,7 @@ paths:
       tags: [Provider Data]
       summary: Type-ahead search for firms, returns a list of firms to be used for identifying firms in search boxes.
       security: 
+        - entraIdOAuth: ["api://user-data/user_data.read"]
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
         - name: query

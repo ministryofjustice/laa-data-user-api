@@ -1,8 +1,7 @@
 package uk.gov.justice.laa.datauserapi.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.RequestDispatcher;
-import jakarta.servlet.http.HttpServletResponse;
+import java.net.URI;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -15,9 +14,12 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
-import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 
-import java.net.URI;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.http.HttpServletResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 
 /**
  * Security configuration for laa-data-user-api.
@@ -48,6 +50,8 @@ public class SecurityConfig {
                             || new IpAddressMatcher("192.168.0.0/16").matches(context.getRequest());
                     return new AuthorizationDecision(allowed);
                 })
+                .requestMatchers("/api/v1/queries/firms/search")
+                    .hasAnyAuthority("SCOPE_user_data.read", "SCOPE_user_data.admin")
                 .requestMatchers("/api/v1/queries/firms/**").hasAuthority("SCOPE_user_data.admin")
                 .requestMatchers("/api/v1/**").hasAnyAuthority("SCOPE_user_data.read", "SCOPE_user_data.admin")
                 .anyRequest().authenticated()
