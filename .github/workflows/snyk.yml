@@ -70,6 +70,8 @@ jobs:
       - name: Run Snyk to Check for Vulnerabilities
         uses: snyk/actions/gradle@9adf32b1121593767fc3c057af55b55db032dc04 # master
         continue-on-error: true
+        env:
+          JAVA_HOME: '' # runner JDK path is invalid inside the Snyk container
         with:
           command: test --sarif
           args: --org=${{ secrets.SNYK_ORG_ID }} --sarif-file-output=snyk_test.sarif
