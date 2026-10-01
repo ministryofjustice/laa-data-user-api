@@ -10,12 +10,15 @@ import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.repository.CrudRepository;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Controller;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandler;
+import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
+import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
@@ -198,4 +201,31 @@ class ArchitectureTest {
             noClasses().that().resideInAPackage("..entity..")
                     .should().dependOnClassesThat()
                     .resideInAPackage("..application..");
+
+    // =========================================================================
+    // 7. Security Scope Rules
+    // =========================================================================
+
+    @ArchTest
+    static final ArchRule rest_controllers_must_declare_a_required_scope = classes()
+            .that().areAnnotatedWith(RestController.class)
+            .should().beAnnotatedWith(PreAuthorize.class)
+            .orShould().beMetaAnnotatedWith(PreAuthorize.class)
+            .because("Every REST controller must declare its required scope via @RequiresReadScope or @RequiresAdminScope");
+
+    @ArchTest
+    static final ArchRule command_controllers_must_require_admin_scope = classes()
+            .that().resideInAPackage("..application.command.controller..")
+            .and().areAnnotatedWith(RestController.class)
+            .should().beAnnotatedWith(RequiresAdminScope.class)
+            .orShould().beMetaAnnotatedWith(RequiresAdminScope.class)
+            .because("Command endpoints mutate state and must be restricted to the user_data.admin scope");
+
+    @ArchTest
+    static final ArchRule query_controllers_must_require_read_scope = classes()
+            .that().resideInAPackage("..application.query.controller..")
+            .and().areAnnotatedWith(RestController.class)
+            .should().beAnnotatedWith(RequiresReadScope.class)
+            .orShould().beMetaAnnotatedWith(RequiresReadScope.class)
+            .because("Query endpoints must declare the user_data.read scope requirement");
 }
