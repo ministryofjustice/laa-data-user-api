@@ -137,9 +137,10 @@ class ArchitectureTest {
             .layer("QueryController").definedBy("..application.query.controller..")
             .layer("QueryService").definedBy("..application.query.service..")
             .layer("QueryRepository").definedBy("..application.query.shared.repository..")
+            .layer("QueryHandler").definedBy("..application.query.handler..")
 
             .whereLayer("QueryController").mayNotBeAccessedByAnyLayer()
-            .whereLayer("QueryService").mayOnlyBeAccessedByLayers("QueryController")
+            .whereLayer("QueryService").mayOnlyBeAccessedByLayers("QueryController", "QueryHandler")
             .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService");
 
     // =========================================================================

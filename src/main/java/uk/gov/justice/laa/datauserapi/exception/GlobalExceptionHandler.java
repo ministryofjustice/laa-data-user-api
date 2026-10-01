@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -58,6 +59,24 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
     }
 
+    @ExceptionHandler(InvalidUuidFormatException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidUuidFormat(
+            InvalidUuidFormatException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/validation-error"),
+                "Validation Error",
+                HttpStatus.BAD_REQUEST.value(),
+                ex.getMessage(),
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ProblemDetail> handleForbidden(
             AccessDeniedException ex,
@@ -69,6 +88,60 @@ public class GlobalExceptionHandler {
                 "Forbidden",
                 HttpStatus.FORBIDDEN.value(),
                 "You do not possess the required scopes or permissions to perform this operation.",
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+    }
+
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity<ProblemDetail> handleJwtException(
+            JwtException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/unauthorized"),
+                "Unauthorized",
+                HttpStatus.UNAUTHORIZED.value(),
+                "Invalid or malformed authentication token",
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
+    }
+
+    @ExceptionHandler(ScopeMissingException.class)
+    public ResponseEntity<ProblemDetail> handleScopeMissing(
+            ScopeMissingException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/forbidden"),
+                "Forbidden",
+                HttpStatus.FORBIDDEN.value(),
+                ex.getMessage(),
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+    }
+
+    @ExceptionHandler(InvalidActorContextException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidActorContext(
+            InvalidActorContextException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/forbidden"),
+                "Forbidden",
+                HttpStatus.FORBIDDEN.value(),
+                ex.getMessage(),
                 URI.create(request.getRequestURI()),
                 null
         );
