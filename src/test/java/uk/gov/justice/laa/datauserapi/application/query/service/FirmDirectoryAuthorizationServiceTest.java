@@ -34,7 +34,7 @@ class FirmDirectoryAuthorizationServiceTest {
     @Test
     void requireFirmDirectoryAccess_throws_whenUserIsExternal() {
         UUID entraUserId = UUID.randomUUID();
-        when(actorQueryRepository.findActiveUserType(entraUserId)).thenReturn(java.util.Optional.of(UserType.EXTERNAL));
+        when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.EXTERNAL));
 
         assertThatThrownBy(() -> authorizationService.requireFirmDirectoryAccess(entraUserId))
                 .isInstanceOf(AccessDeniedException.class);
@@ -43,8 +43,8 @@ class FirmDirectoryAuthorizationServiceTest {
     @Test
     void requireFirmDirectoryAccess_throws_whenInternalUserLacksPermission() {
         UUID entraUserId = UUID.randomUUID();
-        when(actorQueryRepository.findActiveUserType(entraUserId)).thenReturn(java.util.Optional.of(UserType.INTERNAL));
-        when(actorQueryRepository.findActivePermissions(entraUserId)).thenReturn(Set.of());
+        when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.INTERNAL));
+        when(actorQueryRepository.findActivePermissions(entraUserId.toString())).thenReturn(Set.of());
 
         assertThatThrownBy(() -> authorizationService.requireFirmDirectoryAccess(entraUserId))
                 .isInstanceOf(AccessDeniedException.class);
@@ -53,8 +53,8 @@ class FirmDirectoryAuthorizationServiceTest {
     @Test
     void requireFirmDirectoryAccess_succeeds_whenInternalUserHasPermission() {
         UUID entraUserId = UUID.randomUUID();
-        when(actorQueryRepository.findActiveUserType(entraUserId)).thenReturn(java.util.Optional.of(UserType.INTERNAL));
-        when(actorQueryRepository.findActivePermissions(entraUserId)).thenReturn(Set.of(Permission.VIEW_FIRM_DIRECTORY));
+        when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.INTERNAL));
+        when(actorQueryRepository.findActivePermissions(entraUserId.toString())).thenReturn(Set.of(Permission.VIEW_FIRM_DIRECTORY));
 
         authorizationService.requireFirmDirectoryAccess(entraUserId);
     }
@@ -62,7 +62,7 @@ class FirmDirectoryAuthorizationServiceTest {
     @Test
     void resolveSearchAccess_allowsAllFirms_forInternalUser() {
         UUID entraUserId = UUID.randomUUID();
-        when(actorQueryRepository.findActiveUserType(entraUserId)).thenReturn(java.util.Optional.of(UserType.INTERNAL));
+        when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.INTERNAL));
 
         FirmSearchAccess access = authorizationService.resolveSearchAccess(entraUserId);
 
@@ -72,8 +72,8 @@ class FirmDirectoryAuthorizationServiceTest {
     @Test
     void resolveSearchAccess_restrictsToActiveFirm_forExternalUser() {
         UUID entraUserId = UUID.randomUUID();
-        when(actorQueryRepository.findActiveUserType(entraUserId)).thenReturn(java.util.Optional.of(UserType.EXTERNAL));
-        when(actorQueryRepository.findActiveFirmCode(entraUserId)).thenReturn(java.util.Optional.of("123456"));
+        when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.EXTERNAL));
+        when(actorQueryRepository.findActiveFirmCode(entraUserId.toString())).thenReturn(java.util.Optional.of("123456"));
 
         FirmSearchAccess access = authorizationService.resolveSearchAccess(entraUserId);
 
@@ -83,8 +83,8 @@ class FirmDirectoryAuthorizationServiceTest {
     @Test
     void resolveSearchAccess_returnsRestrictedAccess_whenExternalUserHasNoFirm() {
         UUID entraUserId = UUID.randomUUID();
-        when(actorQueryRepository.findActiveUserType(entraUserId)).thenReturn(java.util.Optional.of(UserType.EXTERNAL));
-        when(actorQueryRepository.findActiveFirmCode(entraUserId)).thenReturn(java.util.Optional.empty());
+        when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.EXTERNAL));
+        when(actorQueryRepository.findActiveFirmCode(entraUserId.toString())).thenReturn(java.util.Optional.empty());
 
         FirmSearchAccess access = authorizationService.resolveSearchAccess(entraUserId);
 

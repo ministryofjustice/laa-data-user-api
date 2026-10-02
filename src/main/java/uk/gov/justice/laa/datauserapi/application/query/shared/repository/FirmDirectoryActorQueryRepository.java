@@ -19,10 +19,10 @@ public interface FirmDirectoryActorQueryRepository extends Repository<EntraUser,
         SELECT profile.userType
         FROM EntraUser actor
         JOIN actor.userProfiles profile
-        WHERE actor.id = :actorId
+        WHERE actor.entraOid = :entraOid
             AND profile.activeProfile = true
         """)
-    Optional<UserType> findActiveUserType(@Param("actorId") UUID actorId);
+    Optional<UserType> findActiveUserType(@Param("entraOid") String entraOid);
 
     @Query("""
         SELECT DISTINCT permission
@@ -30,17 +30,17 @@ public interface FirmDirectoryActorQueryRepository extends Repository<EntraUser,
         JOIN actor.userProfiles profile
         JOIN profile.appRoles appRole
         JOIN appRole.permissions permission
-        WHERE actor.id = :actorId
+        WHERE actor.entraOid = :entraOid
             AND profile.activeProfile = true
         """)
-    Set<Permission> findActivePermissions(@Param("actorId") UUID actorId);
+    Set<Permission> findActivePermissions(@Param("entraOid") String entraOid);
 
     @Query("""
         SELECT profile.firm.code
         FROM EntraUser actor
         JOIN actor.userProfiles profile
-        WHERE actor.id = :actorId
+        WHERE actor.entraOid = :entraOid
             AND profile.activeProfile = true
         """)
-    Optional<String> findActiveFirmCode(@Param("actorId") UUID actorId);
+    Optional<String> findActiveFirmCode(@Param("entraOid") String entraOid);
 }

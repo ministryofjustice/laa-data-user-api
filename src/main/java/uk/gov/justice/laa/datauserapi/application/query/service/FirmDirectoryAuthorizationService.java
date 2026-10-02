@@ -32,7 +32,7 @@ public class FirmDirectoryAuthorizationService {
         if (userType != UserType.INTERNAL) {
             throw new AccessDeniedException("External users cannot access the firm directory");
         }
-        if (!actorQueryRepository.findActivePermissions(entraUserId).contains(Permission.VIEW_FIRM_DIRECTORY)) {
+        if (!actorQueryRepository.findActivePermissions(entraUserId.toString()).contains(Permission.VIEW_FIRM_DIRECTORY)) {
             throw new AccessDeniedException("Missing VIEW_FIRM_DIRECTORY permission");
         }
     }
@@ -45,11 +45,11 @@ public class FirmDirectoryAuthorizationService {
         if (userType == UserType.INTERNAL) {
             return new FirmSearchAccess(true, null);
         }
-        return new FirmSearchAccess(false, actorQueryRepository.findActiveFirmCode(entraUserId).orElse(null));
+        return new FirmSearchAccess(false, actorQueryRepository.findActiveFirmCode(entraUserId.toString()).orElse(null));
     }
 
     private UserType getActiveUserType(UUID entraUserId) {
-        return actorQueryRepository.findActiveUserType(entraUserId)
+        return actorQueryRepository.findActiveUserType(entraUserId.toString())
                 .orElseThrow(() -> new AccessDeniedException("No active user profile found"));
     }
 }
