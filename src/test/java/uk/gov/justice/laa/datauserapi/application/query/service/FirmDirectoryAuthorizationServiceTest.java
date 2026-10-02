@@ -81,13 +81,13 @@ class FirmDirectoryAuthorizationServiceTest {
     }
 
     @Test
-    void resolveSearchAccess_returnsRestrictedAccess_whenExternalUserHasNoFirm() {
+    void resolveSearchAccess_deniesExternalUser_whenNoActiveFirm() {
         UUID entraUserId = UUID.randomUUID();
         when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.EXTERNAL));
         when(actorQueryRepository.findActiveFirmCode(entraUserId.toString())).thenReturn(java.util.Optional.empty());
 
-        FirmSearchAccess access = authorizationService.resolveSearchAccess(entraUserId);
-
-        assertThat(access).isEqualTo(new FirmSearchAccess(false, null));
+        assertThatThrownBy(() -> authorizationService.resolveSearchAccess(entraUserId))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("External user has no active firm");
     }
 }

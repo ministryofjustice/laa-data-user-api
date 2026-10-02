@@ -131,6 +131,18 @@ class FirmQueryServiceTest {
     }
 
     @Test
+    void searchFirms_usesEmptyTerm_whenQueryIsNull() {
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
+        when(authorizationService.resolveSearchAccess(actorId)).thenReturn(new FirmSearchAccess(true, null));
+        when(firmQueryRepository.searchTypeAhead(eq(""), eq(true), org.mockito.ArgumentMatchers.isNull(), any(Pageable.class)))
+                .thenReturn(List.of());
+
+        firmQueryService.searchFirms(actorId, null, 10);
+
+        verify(firmQueryRepository).searchTypeAhead(eq(""), eq(true), org.mockito.ArgumentMatchers.isNull(), any(Pageable.class));
+    }
+
+    @Test
     void getFirmOffices_returnsEmptyList_whenFirmHasNoOffices() {
         firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
         when(firmQueryRepository.existsByCode("123456")).thenReturn(true);

@@ -107,7 +107,7 @@ public class SecurityConfig {
                     URI.create("https://silas.laa.gov.uk/errors/forbidden"),
                     "Forbidden",
                     HttpStatus.FORBIDDEN.value(),
-                    "Missing required scope: user_data.read or user_data.admin",
+                    "You do not possess the required scopes or permissions to perform this operation.",
                     URI.create(requestUri),
                     null
             );

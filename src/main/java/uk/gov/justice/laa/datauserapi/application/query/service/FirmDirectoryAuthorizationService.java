@@ -38,14 +38,17 @@ public class FirmDirectoryAuthorizationService {
     }
 
     /**
-     * Internal users may search across all firms; external users are restricted to their active firm.
+     * Search requires an active profile but not VIEW_FIRM_DIRECTORY. Internal users may search all
+     * firms; external users are restricted to their active firm and must have one.
      */
     public FirmSearchAccess resolveSearchAccess(UUID entraUserId) {
         UserType userType = getActiveUserType(entraUserId);
         if (userType == UserType.INTERNAL) {
             return new FirmSearchAccess(true, null);
         }
-        return new FirmSearchAccess(false, actorQueryRepository.findActiveFirmCode(entraUserId.toString()).orElse(null));
+        String firmCode = actorQueryRepository.findActiveFirmCode(entraUserId.toString())
+                .orElseThrow(() -> new AccessDeniedException("External user has no active firm"));
+        return new FirmSearchAccess(false, firmCode);
     }
 
     private UserType getActiveUserType(UUID entraUserId) {

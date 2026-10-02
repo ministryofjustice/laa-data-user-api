@@ -39,6 +39,7 @@ public interface FirmQueryRepository extends Repository<Firm, UUID> {
         WHERE :term = ''
             OR LOWER(f.name) LIKE LOWER(CONCAT('%', :term, '%'))
             OR LOWER(f.code) LIKE LOWER(CONCAT('%', :term, '%'))
+        ORDER BY LOWER(f.name), f.code
         """,
         countQuery = """
         SELECT COUNT(f)
@@ -54,11 +55,11 @@ public interface FirmQueryRepository extends Repository<Firm, UUID> {
             f.code, f.name
         )
         FROM Firm f
-        WHERE (:term IS NULL
+        WHERE (:term = ''
             OR LOWER(f.name) LIKE LOWER(CONCAT('%', :term, '%'))
             OR LOWER(f.code) LIKE LOWER(CONCAT('%', :term, '%')))
             AND (:allFirms = true OR f.code = :firmCode)
-        ORDER BY f.name
+        ORDER BY LOWER(f.name), f.code
         """)
     List<FirmSearchView> searchTypeAhead(
             @Param("term") String term,

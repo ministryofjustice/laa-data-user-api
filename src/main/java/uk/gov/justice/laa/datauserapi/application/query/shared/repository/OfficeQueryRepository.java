@@ -20,6 +20,7 @@ public interface OfficeQueryRepository extends Repository<Office, UUID> {
         FROM Office o
         JOIN o.firm f
         WHERE f.code = :firmCode
+        ORDER BY o.code
         """)
     List<OfficeView> findByFirmCode(@Param("firmCode") String firmCode);
 }

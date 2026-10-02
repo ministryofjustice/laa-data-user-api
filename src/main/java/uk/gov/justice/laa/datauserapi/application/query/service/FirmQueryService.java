@@ -55,9 +55,10 @@ public class FirmQueryService {
 
     public FirmSearchViewList searchFirms(UUID actorEntraUserId, String query, int limit) {
         FirmSearchAccess searchAccess = authorizationService.resolveSearchAccess(actorEntraUserId);
+        String term = query == null ? "" : query;
         List<FirmSearchView> results =
             firmQueryRepository.searchTypeAhead(
-                query, searchAccess.allFirms(), searchAccess.firmCode(), PageRequest.of(0, limit));
+                term, searchAccess.allFirms(), searchAccess.firmCode(), PageRequest.of(0, limit));
         return new FirmSearchViewList(results);
     }
 
