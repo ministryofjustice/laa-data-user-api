@@ -19,16 +19,16 @@ import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.model.UserType;
 
 @ExtendWith(MockitoExtension.class)
-class FirmDirectoryAuthorizationServiceTest {
+class FirmAuthorisationServiceTest {
 
     @Mock
     private FirmDirectoryActorQueryRepository actorQueryRepository;
 
-    private FirmDirectoryAuthorizationService authorizationService;
+    private FirmAuthorisationService authorisationService;
 
     @BeforeEach
     void setUp() {
-        authorizationService = new FirmDirectoryAuthorizationService(actorQueryRepository);
+        authorisationService = new FirmAuthorisationService(actorQueryRepository);
     }
 
     @Test
@@ -36,7 +36,7 @@ class FirmDirectoryAuthorizationServiceTest {
         UUID entraUserId = UUID.randomUUID();
         when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.EXTERNAL));
 
-        assertThatThrownBy(() -> authorizationService.requireFirmDirectoryAccess(entraUserId))
+        assertThatThrownBy(() -> authorisationService.requireFirmDirectoryAccess(entraUserId))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
@@ -46,7 +46,7 @@ class FirmDirectoryAuthorizationServiceTest {
         when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.INTERNAL));
         when(actorQueryRepository.findActivePermissions(entraUserId.toString())).thenReturn(Set.of());
 
-        assertThatThrownBy(() -> authorizationService.requireFirmDirectoryAccess(entraUserId))
+        assertThatThrownBy(() -> authorisationService.requireFirmDirectoryAccess(entraUserId))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
@@ -56,7 +56,7 @@ class FirmDirectoryAuthorizationServiceTest {
         when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.INTERNAL));
         when(actorQueryRepository.findActivePermissions(entraUserId.toString())).thenReturn(Set.of(Permission.VIEW_FIRM_DIRECTORY));
 
-        authorizationService.requireFirmDirectoryAccess(entraUserId);
+        authorisationService.requireFirmDirectoryAccess(entraUserId);
     }
 
     @Test
@@ -64,7 +64,7 @@ class FirmDirectoryAuthorizationServiceTest {
         UUID entraUserId = UUID.randomUUID();
         when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.INTERNAL));
 
-        FirmSearchAccess access = authorizationService.resolveSearchAccess(entraUserId);
+        FirmSearchAccess access = authorisationService.resolveSearchAccess(entraUserId);
 
         assertThat(access).isEqualTo(new FirmSearchAccess(true, null));
     }
@@ -75,7 +75,7 @@ class FirmDirectoryAuthorizationServiceTest {
         when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.EXTERNAL));
         when(actorQueryRepository.findActiveFirmCode(entraUserId.toString())).thenReturn(java.util.Optional.of("123456"));
 
-        FirmSearchAccess access = authorizationService.resolveSearchAccess(entraUserId);
+        FirmSearchAccess access = authorisationService.resolveSearchAccess(entraUserId);
 
         assertThat(access).isEqualTo(new FirmSearchAccess(false, "123456"));
     }
@@ -86,7 +86,7 @@ class FirmDirectoryAuthorizationServiceTest {
         when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.EXTERNAL));
         when(actorQueryRepository.findActiveFirmCode(entraUserId.toString())).thenReturn(java.util.Optional.empty());
 
-        assertThatThrownBy(() -> authorizationService.resolveSearchAccess(entraUserId))
+        assertThatThrownBy(() -> authorisationService.resolveSearchAccess(entraUserId))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessage("External user has no active firm");
     }

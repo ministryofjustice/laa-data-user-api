@@ -27,18 +27,18 @@ public class FirmQueryService {
 
     private final FirmQueryRepository firmQueryRepository;
     private final OfficeQueryRepository officeQueryRepository;
-    private final FirmDirectoryAuthorizationService authorizationService;
+    private final FirmAuthorisationService authorisationService;
 
     public FirmQueryService(FirmQueryRepository firmQueryRepository,
                              OfficeQueryRepository officeQueryRepository,
-                             FirmDirectoryAuthorizationService authorizationService) {
+                             FirmAuthorisationService authorisationService) {
         this.firmQueryRepository = firmQueryRepository;
         this.officeQueryRepository = officeQueryRepository;
-        this.authorizationService = authorizationService;
+        this.authorisationService = authorisationService;
     }
 
     public FirmViewPage listFirms(UUID actorEntraUserId, String firmQuery, int pageNumber, int pageSize) {
-        authorizationService.requireFirmDirectoryAccess(actorEntraUserId);
+        authorisationService.requireFirmDirectoryAccess(actorEntraUserId);
         Pageable pageable = PageRequest.of(pageNumber, pageSize);
         String term = firmQuery == null ? "" : firmQuery;
         Page<FirmView> page = firmQueryRepository.search(term, pageable);
@@ -48,13 +48,13 @@ public class FirmQueryService {
     }
 
     public FirmView getFirmById(UUID actorEntraUserId, String firmId) {
-        authorizationService.requireFirmDirectoryAccess(actorEntraUserId);
+        authorisationService.requireFirmDirectoryAccess(actorEntraUserId);
         return firmQueryRepository.findViewByCode(firmId)
                 .orElseThrow(() -> new ResourceNotFoundException("Firm not found: " + firmId));
     }
 
     public FirmSearchViewList searchFirms(UUID actorEntraUserId, String query, int limit) {
-        FirmSearchAccess searchAccess = authorizationService.resolveSearchAccess(actorEntraUserId);
+        FirmSearchAccess searchAccess = authorisationService.resolveSearchAccess(actorEntraUserId);
         String term = query == null ? "" : query;
         List<FirmSearchView> results =
             firmQueryRepository.searchTypeAhead(
@@ -63,7 +63,7 @@ public class FirmQueryService {
     }
 
     public OfficeViewList getFirmOffices(UUID actorEntraUserId, String firmId) {
-        authorizationService.requireFirmDirectoryAccess(actorEntraUserId);
+        authorisationService.requireFirmDirectoryAccess(actorEntraUserId);
         if (!firmQueryRepository.existsByCode(firmId)) {
             throw new ResourceNotFoundException("Firm not found: " + firmId);
         }

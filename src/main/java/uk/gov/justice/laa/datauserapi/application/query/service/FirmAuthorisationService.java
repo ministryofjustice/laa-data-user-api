@@ -12,15 +12,15 @@ import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.model.UserType;
 
 /**
- * Authorization rules for the temporary Provider Data (firm/office) query endpoints.
+ * Authorisation rules for the temporary Provider Data (firm/office) query endpoints.
  */
 @Service
 @Transactional(readOnly = true)
-public class FirmDirectoryAuthorizationService {
+public class FirmAuthorisationService {
 
     private final FirmDirectoryActorQueryRepository actorQueryRepository;
 
-    public FirmDirectoryAuthorizationService(FirmDirectoryActorQueryRepository actorQueryRepository) {
+    public FirmAuthorisationService(FirmDirectoryActorQueryRepository actorQueryRepository) {
         this.actorQueryRepository = actorQueryRepository;
     }
 

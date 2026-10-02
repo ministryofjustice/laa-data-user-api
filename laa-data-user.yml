@@ -347,6 +347,7 @@ paths:
       operationId: queryFirmsSearch
       tags: [Provider Data]
       summary: Type-ahead search for firms, returns a list of firms to be used for identifying firms in search boxes.
+      description: Internal users can search all firms. External users can search only their active firm's records and must have an active firm. Requires the user_data.read or user_data.admin scope.
       security: 
         - entraIdOAuth: ["api://user-data/user_data.read"]
         - entraIdOAuth: ["api://user-data/user_data.admin"]

@@ -42,7 +42,7 @@ class FirmQueryServiceTest {
     private OfficeQueryRepository officeQueryRepository;
 
     @Mock
-    private FirmDirectoryAuthorizationService authorizationService;
+    private FirmAuthorisationService authorisationService;
 
     private FirmQueryService firmQueryService;
 
@@ -50,21 +50,21 @@ class FirmQueryServiceTest {
 
     @Test
     void listFirms_returnsMappedPage() {
-        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
         FirmView view = new FirmView("123456", "Test Firm", FirmType.LEGAL_SERVICES_PROVIDER, null, true);
         Page<FirmView> page = new PageImpl<>(List.of(view), PageRequest.of(0, 20), 1);
         when(firmQueryRepository.search(eq("Test"), any(Pageable.class))).thenReturn(page);
 
         FirmViewPage result = firmQueryService.listFirms(actorId, "Test", 0, 20);
 
-        verify(authorizationService).requireFirmDirectoryAccess(actorId);
+        verify(authorisationService).requireFirmDirectoryAccess(actorId);
         assertThat(result.items()).containsExactly(view);
         assertThat(result.page().totalElements()).isEqualTo(1);
     }
 
     @Test
     void listFirms_usesEmptySearchTerm_whenFirmFilterIsMissing() {
-        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
         when(firmQueryRepository.search(eq(""), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
@@ -74,10 +74,10 @@ class FirmQueryServiceTest {
     }
 
     @Test
-    void listFirms_throws_whenAuthorizationDenies() {
-        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
+    void listFirms_throws_whenAuthorisationDenies() {
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
         doThrow(new org.springframework.security.access.AccessDeniedException("denied"))
-                .when(authorizationService).requireFirmDirectoryAccess(actorId);
+                .when(authorisationService).requireFirmDirectoryAccess(actorId);
 
         assertThatThrownBy(() -> firmQueryService.listFirms(actorId, null, 0, 20))
                 .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
@@ -85,7 +85,7 @@ class FirmQueryServiceTest {
 
     @Test
     void getFirmById_returnsFirmView_whenFound() {
-        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
         FirmView view = new FirmView("123456", "Test Firm", FirmType.LEGAL_SERVICES_PROVIDER, null, true);
         when(firmQueryRepository.findViewByCode("123456")).thenReturn(Optional.of(view));
 
@@ -98,7 +98,7 @@ class FirmQueryServiceTest {
 
     @Test
     void getFirmById_throwsNotFound_whenMissing() {
-        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
         when(firmQueryRepository.findViewByCode("999999")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> firmQueryService.getFirmById(actorId, "999999"))
@@ -107,8 +107,8 @@ class FirmQueryServiceTest {
 
     @Test
     void searchFirms_appliesFirmCodeRestriction_forExternalUser() {
-        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
-        when(authorizationService.resolveSearchAccess(actorId)).thenReturn(new FirmSearchAccess(false, "123456"));
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
+        when(authorisationService.resolveSearchAccess(actorId)).thenReturn(new FirmSearchAccess(false, "123456"));
         FirmSearchView searchView = new FirmSearchView("123456", "Test Firm");
         when(firmQueryRepository.searchTypeAhead(anyString(), eq(false), eq("123456"), any(Pageable.class)))
                 .thenReturn(List.of(searchView));
@@ -120,8 +120,8 @@ class FirmQueryServiceTest {
 
     @Test
     void searchFirms_noRestriction_forInternalUser() {
-        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
-        when(authorizationService.resolveSearchAccess(actorId)).thenReturn(new FirmSearchAccess(true, null));
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
+        when(authorisationService.resolveSearchAccess(actorId)).thenReturn(new FirmSearchAccess(true, null));
         when(firmQueryRepository.searchTypeAhead(anyString(), eq(true), org.mockito.ArgumentMatchers.isNull(), any(Pageable.class)))
                 .thenReturn(List.of());
 
@@ -132,8 +132,8 @@ class FirmQueryServiceTest {
 
     @Test
     void searchFirms_usesEmptyTerm_whenQueryIsNull() {
-        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
-        when(authorizationService.resolveSearchAccess(actorId)).thenReturn(new FirmSearchAccess(true, null));
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
+        when(authorisationService.resolveSearchAccess(actorId)).thenReturn(new FirmSearchAccess(true, null));
         when(firmQueryRepository.searchTypeAhead(eq(""), eq(true), org.mockito.ArgumentMatchers.isNull(), any(Pageable.class)))
                 .thenReturn(List.of());
 
@@ -144,7 +144,7 @@ class FirmQueryServiceTest {
 
     @Test
     void getFirmOffices_returnsEmptyList_whenFirmHasNoOffices() {
-        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
         when(firmQueryRepository.existsByCode("123456")).thenReturn(true);
         when(officeQueryRepository.findByFirmCode("123456")).thenReturn(List.of());
 
@@ -155,7 +155,7 @@ class FirmQueryServiceTest {
 
     @Test
     void getFirmOffices_returnsOffices_whenPresent() {
-        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
         OfficeView officeView = new OfficeView("00001", "123456", "AB1 2CD", "Line 1", null, null, "City");
         when(firmQueryRepository.existsByCode("123456")).thenReturn(true);
         when(officeQueryRepository.findByFirmCode("123456")).thenReturn(List.of(officeView));
@@ -167,7 +167,7 @@ class FirmQueryServiceTest {
 
     @Test
     void getFirmOffices_throwsNotFound_whenFirmMissing() {
-        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
         when(firmQueryRepository.existsByCode("999999")).thenReturn(false);
 
         assertThatThrownBy(() -> firmQueryService.getFirmOffices(actorId, "999999"))
