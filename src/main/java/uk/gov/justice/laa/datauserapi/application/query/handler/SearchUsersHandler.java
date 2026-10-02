@@ -1,7 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.query.handler;
 
 import lombok.extern.slf4j.Slf4j;
-import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;

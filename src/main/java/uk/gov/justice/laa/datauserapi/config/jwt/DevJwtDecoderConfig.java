@@ -7,7 +7,6 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
-import uk.gov.justice.laa.datauserapi.model.AppRoleUserType;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -40,7 +39,7 @@ public class DevJwtDecoderConfig {
                 String oid = matcher.group("oid");
                 String scope = Optional.ofNullable(matcher.group("scope"))
                         .filter(s -> !s.isBlank())
-                        .orElse("user_data.read");
+                        .orElse("");
 
                 return Jwt.withTokenValue(token)
                     .header("alg", "none")
