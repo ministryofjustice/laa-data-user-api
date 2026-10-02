@@ -1,20 +1,23 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.ConstraintViolationException;
-import lombok.extern.slf4j.Slf4j;
+import java.net.URI;
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 import uk.gov.justice.laa.datauserapi.contracts.response.FieldErrorDetail;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
-import java.net.URI;
-import java.util.List;
 
 @Slf4j
 @RestControllerAdvice
@@ -77,6 +80,23 @@ public class GlobalExceptionHandler {
                 "One or more request parameters failed validation.",
                 URI.create(request.getRequestURI()),
                 fieldErrors
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ProblemDetail> handleMissingRequestParameter(
+            MissingServletRequestParameterException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/validation-error"),
+                "Validation Error",
+                HttpStatus.BAD_REQUEST.value(),
+                "One or more request parameters failed validation.",
+                URI.create(request.getRequestURI()),
+                List.of(new FieldErrorDetail(ex.getParameterName(), "is required"))
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);

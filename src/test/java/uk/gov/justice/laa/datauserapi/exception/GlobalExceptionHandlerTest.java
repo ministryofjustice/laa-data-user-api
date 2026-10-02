@@ -1,10 +1,15 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
-import jakarta.servlet.http.HttpServletRequest;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,14 +17,10 @@ import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+
+import jakarta.servlet.http.HttpServletRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
-
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class GlobalExceptionHandlerTest {
@@ -103,6 +104,22 @@ class GlobalExceptionHandlerTest {
         assertNotNull(response.getBody());
         assertEquals(400, response.getBody().status());
         assertEquals("Validation Error", response.getBody().title());
+    }
+
+    @Test
+    void handleMissingRequestParameter_shouldReturn400WithFieldError() {
+        MissingServletRequestParameterException ex =
+                new MissingServletRequestParameterException("query", "String");
+
+        ResponseEntity<ProblemDetail> response = handler.handleMissingRequestParameter(ex, request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(400, response.getBody().status());
+        assertEquals("Validation Error", response.getBody().title());
+        assertEquals("One or more request parameters failed validation.", response.getBody().detail());
+        assertEquals("query", response.getBody().errors().getFirst().field());
+        assertEquals("is required", response.getBody().errors().getFirst().detail());
     }
 
     @Test
