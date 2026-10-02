@@ -1,17 +1,5 @@
 package uk.gov.justice.laa.datauserapi.application.command.service;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
-import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
-import uk.gov.justice.laa.datauserapi.model.UserType;
-
 import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
@@ -19,8 +7,20 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
+import uk.gov.justice.laa.datauserapi.entity.EntraUser;
+import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.model.UserType;
 
 @ExtendWith(MockitoExtension.class)
 class UserCommandServiceTest {
@@ -277,4 +277,5 @@ class UserCommandServiceTest {
             verify(entraUserCommandRepository).findById(entraUserId);
         }
     }
+
 }

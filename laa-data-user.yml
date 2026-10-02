@@ -333,6 +333,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FirmView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -345,7 +347,9 @@ paths:
       operationId: queryFirmsSearch
       tags: [Provider Data]
       summary: Type-ahead search for firms, returns a list of firms to be used for identifying firms in search boxes.
+      description: Internal users can search all firms. External users can search only their active firm's records and must have an active firm. Requires the user_data.read or user_data.admin scope.
       security: 
+        - entraIdOAuth: ["api://user-data/user_data.read"]
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
         - name: query
@@ -390,6 +394,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OfficeViewList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1804,7 +1810,7 @@ components:
           $ref: '#/components/schemas/FirmType'
         parentFirmId:
           type: string
-        active:
+        enabled:
           type: boolean
 
     FirmViewPage:
