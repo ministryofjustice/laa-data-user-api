@@ -4,6 +4,7 @@ import java.net.URI;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.oauth2.jwt.JwtException;
@@ -37,7 +38,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+        return problemResponse(HttpStatus.NOT_FOUND, problem);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -60,7 +61,7 @@ public class GlobalExceptionHandler {
                 fieldErrors
         );
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+        return problemResponse(HttpStatus.BAD_REQUEST, problem);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -82,7 +83,7 @@ public class GlobalExceptionHandler {
                 fieldErrors
         );
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+        return problemResponse(HttpStatus.BAD_REQUEST, problem);
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
@@ -99,7 +100,7 @@ public class GlobalExceptionHandler {
                 List.of(new FieldErrorDetail(ex.getParameterName(), "is required"))
         );
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+        return problemResponse(HttpStatus.BAD_REQUEST, problem);
     }
 
     @ExceptionHandler(InvalidUuidFormatException.class)
@@ -117,7 +118,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+        return problemResponse(HttpStatus.BAD_REQUEST, problem);
     }
 
     private FieldErrorDetail toFieldErrorDetail(ConstraintViolation<?> violation) {
@@ -141,7 +142,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+        return problemResponse(HttpStatus.FORBIDDEN, problem);
     }
 
     @ExceptionHandler(JwtException.class)
@@ -159,7 +160,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
+        return problemResponse(HttpStatus.UNAUTHORIZED, problem);
     }
 
     @ExceptionHandler(ScopeMissingException.class)
@@ -177,7 +178,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+        return problemResponse(HttpStatus.FORBIDDEN, problem);
     }
 
     @ExceptionHandler(InvalidActorContextException.class)
@@ -195,7 +196,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+        return problemResponse(HttpStatus.FORBIDDEN, problem);
     }
 
     @ExceptionHandler(Exception.class)
@@ -213,6 +214,12 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(problem);
+        return problemResponse(HttpStatus.INTERNAL_SERVER_ERROR, problem);
+    }
+
+    private ResponseEntity<ProblemDetail> problemResponse(HttpStatus status, ProblemDetail problem) {
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(problem);
     }
 }

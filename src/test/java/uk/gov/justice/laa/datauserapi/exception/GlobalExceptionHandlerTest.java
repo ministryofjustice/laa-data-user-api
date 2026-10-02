@@ -12,6 +12,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.validation.BindingResult;
@@ -43,6 +44,7 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ProblemDetail> response = handler.handleNotFound(ex, request);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertProblemContentType(response);
         assertNotNull(response.getBody());
         assertEquals(404, response.getBody().status());
         assertEquals("Resource Not Found", response.getBody().title());
@@ -55,6 +57,7 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ProblemDetail> response = handler.handleScopeMissing(ex, request);
 
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertProblemContentType(response);
         assertNotNull(response.getBody());
         assertEquals(403, response.getBody().status());
         assertEquals("Forbidden", response.getBody().title());
@@ -69,6 +72,7 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ProblemDetail> response = handler.handleInvalidActorContext(ex, request);
 
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertProblemContentType(response);
         assertNotNull(response.getBody());
         assertEquals(403, response.getBody().status());
         assertEquals("Forbidden", response.getBody().title());
@@ -83,6 +87,7 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ProblemDetail> response = handler.handleInvalidUuidFormat(ex, request);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertProblemContentType(response);
         assertNotNull(response.getBody());
         assertEquals(400, response.getBody().status());
         assertEquals("Validation Error", response.getBody().title());
@@ -101,6 +106,7 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ProblemDetail> response = handler.handleValidationErrors(ex, request);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertProblemContentType(response);
         assertNotNull(response.getBody());
         assertEquals(400, response.getBody().status());
         assertEquals("Validation Error", response.getBody().title());
@@ -114,6 +120,7 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ProblemDetail> response = handler.handleMissingRequestParameter(ex, request);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertProblemContentType(response);
         assertNotNull(response.getBody());
         assertEquals(400, response.getBody().status());
         assertEquals("Validation Error", response.getBody().title());
@@ -129,9 +136,14 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ProblemDetail> response = handler.handleJwtException(ex, request);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertProblemContentType(response);
         assertNotNull(response.getBody());
         assertEquals(401, response.getBody().status());
         assertEquals("Unauthorized", response.getBody().title());
         assertEquals("Invalid or malformed authentication token", response.getBody().detail());
+    }
+
+    private void assertProblemContentType(ResponseEntity<ProblemDetail> response) {
+        assertEquals(MediaType.APPLICATION_PROBLEM_JSON, response.getHeaders().getContentType());
     }
 }
