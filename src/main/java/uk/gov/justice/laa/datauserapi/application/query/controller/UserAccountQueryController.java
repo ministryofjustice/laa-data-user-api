@@ -19,12 +19,14 @@ import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAcc
 import uk.gov.justice.laa.datauserapi.application.query.handler.SearchUsersHandler;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
+import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 
 import java.util.List;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/queries")
+@RequiresReadScope
 public class UserAccountQueryController {
 
     private final UserAccountQueryService queryService;
