@@ -19,10 +19,12 @@ import uk.gov.justice.laa.datauserapi.application.command.useraccount.Reactivate
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.contracts.request.DeactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.ReactivateUserRequest;
+import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
 
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/commands")
+@RequiresAdminScope
 public class UserAccountCommandController {
 
     private final ReactivateUserHandler reactivateUserHandler;

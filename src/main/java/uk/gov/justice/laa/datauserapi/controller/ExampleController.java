@@ -10,11 +10,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailResponse;
+import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1")
+@RequiresReadScope
 public class ExampleController {
 
     private static final Logger log = LoggerFactory.getLogger(ExampleController.class);
