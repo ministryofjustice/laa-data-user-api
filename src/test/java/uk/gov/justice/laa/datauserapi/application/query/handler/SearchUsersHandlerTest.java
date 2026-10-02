@@ -61,25 +61,17 @@ class SearchUsersHandlerTest {
 
         UserAccountSummaryView summary = mock(UserAccountSummaryView.class);
 
-        SearchUsersQuery query =
-                new SearchUsersQuery( criteria(), "actorOid");
+        SearchUsersQuery query = new SearchUsersQuery(criteria(), "actorOid");
 
-        Page<EntraUserDto> page =
-                new PageImpl<>(List.of(user));
+        Page<EntraUserDto> page = new PageImpl<>(List.of(user));
 
-        when(queryService.findByEntraOid("actorOid"))
-                .thenReturn(actor);
-
-        when(queryService.searchUsers(any(), any()))
-                .thenReturn(page);
-
-        when(userViewMapper.mapToUserAccountSummaryView(user))
-                .thenReturn(summary);
+        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
+        when(queryService.searchUsers(any(), any())).thenReturn(page);
+        when(userViewMapper.mapToUserAccountSummaryView(user)).thenReturn(summary);
 
         UserAccountSummaryPage result = handler.handle(query);
 
         assertThat(result.items()).containsExactly(summary);
-
         verify(queryService).searchUsers(any(), any());
     }
 
@@ -91,15 +83,11 @@ class SearchUsersHandlerTest {
 
         EntraUserDto actor = mock(EntraUserDto.class);
         when(actor.getUserProfiles()).thenReturn(Set.of(profile));
+        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
 
-        when(queryService.findByEntraOid("actorOid"))
-                .thenReturn(actor);
+        SearchUsersQuery query = new SearchUsersQuery(criteria(), "actorOid");
 
-        SearchUsersQuery query =
-                new SearchUsersQuery( criteria(), "actorOid");
-
-        assertThatThrownBy(() -> handler.handle(query))
-                .isInstanceOf(InvalidActorContextException.class);
+        assertThatThrownBy(() -> handler.handle(query)).isInstanceOf(InvalidActorContextException.class);
     }
 
     @Test
@@ -111,12 +99,9 @@ class SearchUsersHandlerTest {
 
         EntraUserDto actor = mock(EntraUserDto.class);
         when(actor.getUserProfiles()).thenReturn(Set.of(profile));
+        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
 
-        when(queryService.findByEntraOid("actorOid"))
-                .thenReturn(actor);
-
-        SearchUsersQuery query =
-                new SearchUsersQuery(mock(UserSearchCriteria.class), "actorOid");
+        SearchUsersQuery query = new SearchUsersQuery(mock(UserSearchCriteria.class), "actorOid");
 
         assertThatThrownBy(() -> handler.handle(query))
                 .isInstanceOf(InvalidActorContextException.class)
@@ -139,23 +124,17 @@ class SearchUsersHandlerTest {
         EntraUserDto actor = mock(EntraUserDto.class);
         when(actor.getUserProfiles()).thenReturn(Set.of(profile));
 
-        when(queryService.findByEntraOid("actorOid"))
-                .thenReturn(actor);
+        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
+        when(queryService.searchUsers(any(), any())).thenReturn(Page.empty());
 
-        when(queryService.searchUsers(any(), any()))
-                .thenReturn(Page.empty());
-
-        SearchUsersQuery query = new SearchUsersQuery( criteria(), "actorOid");
+        SearchUsersQuery query = new SearchUsersQuery(criteria(), "actorOid");
 
         handler.handle(query);
 
-        ArgumentCaptor<UserSearchCriteria> captor =
-                ArgumentCaptor.forClass(UserSearchCriteria.class);
+        ArgumentCaptor<UserSearchCriteria> captor = ArgumentCaptor.forClass(UserSearchCriteria.class);
 
         verify(queryService).searchUsers(captor.capture(), any());
-
-        assertThat(captor.getValue().actorFirmId())
-                .isEqualTo(firmId);
+        assertThat(captor.getValue().actorFirmId()).isEqualTo(firmId);
     }
 
     @Test
@@ -174,21 +153,15 @@ class SearchUsersHandlerTest {
         EntraUserDto actor = mock(EntraUserDto.class);
         when(actor.getUserProfiles()).thenReturn(Set.of(profile));
 
-        when(queryService.findByEntraOid("actorOid"))
-                .thenReturn(actor);
-
-        when(queryService.searchUsers(any(), any()))
-                .thenReturn(Page.empty());
+        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
+        when(queryService.searchUsers(any(), any())).thenReturn(Page.empty());
 
         handler.handle(new SearchUsersQuery(criteria(), "actorOid"));
 
-        ArgumentCaptor<UserSearchCriteria> captor =
-                ArgumentCaptor.forClass(UserSearchCriteria.class);
+        ArgumentCaptor<UserSearchCriteria> captor = ArgumentCaptor.forClass(UserSearchCriteria.class);
 
         verify(queryService).searchUsers(captor.capture(), any());
-
-        assertThat(captor.getValue().canViewExternalUsers())
-                .isTrue();
+        assertThat(captor.getValue().canViewExternalUsers()).isTrue();
     }
 
     @Test
@@ -198,20 +171,14 @@ class SearchUsersHandlerTest {
         EntraUserDto actor = mock(EntraUserDto.class);
         when(actor.getUserProfiles()).thenReturn(Set.of(profile));
 
-        when(queryService.findByEntraOid("actorOid"))
-                .thenReturn(actor);
+        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
+        when(queryService.searchUsers(any(), any())).thenReturn(Page.empty());
 
-        when(queryService.searchUsers(any(), any()))
-                .thenReturn(Page.empty());
+        handler.handle(new SearchUsersQuery(criteria(), "actorOid"));
 
-        handler.handle(new SearchUsersQuery( criteria(), "actorOid"));
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
 
-        ArgumentCaptor<Pageable> pageableCaptor =
-                ArgumentCaptor.forClass(Pageable.class);
-
-        verify(queryService)
-                .searchUsers(any(), pageableCaptor.capture());
-
+        verify(queryService).searchUsers(any(), pageableCaptor.capture());
         assertThat(pageableCaptor.getValue().getPageNumber()).isEqualTo(0);
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(20);
     }
@@ -223,11 +190,8 @@ class SearchUsersHandlerTest {
         EntraUserDto actor = mock(EntraUserDto.class);
         when(actor.getUserProfiles()).thenReturn(Set.of(profile));
 
-        when(queryService.findByEntraOid("actorOid"))
-                .thenReturn(actor);
-
-        when(queryService.searchUsers(any(), any()))
-                .thenReturn(Page.empty());
+        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
+        when(queryService.searchUsers(any(), any())).thenReturn(Page.empty());
 
         UserSearchCriteria criteria = new UserSearchCriteria(
                 0, 500, null,
@@ -237,16 +201,12 @@ class SearchUsersHandlerTest {
                 false, false, null, false
         );
 
-        handler.handle(new SearchUsersQuery( criteria, "actorOid"));
+        handler.handle(new SearchUsersQuery(criteria, "actorOid"));
 
-        ArgumentCaptor<Pageable> pageableCaptor =
-                ArgumentCaptor.forClass(Pageable.class);
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
 
-        verify(queryService)
-                .searchUsers(any(), pageableCaptor.capture());
-
-        assertThat(pageableCaptor.getValue().getPageSize())
-                .isEqualTo(100);
+        verify(queryService).searchUsers(any(), pageableCaptor.capture());
+        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(100);
     }
 
     private UserProfile internalProfile() {
