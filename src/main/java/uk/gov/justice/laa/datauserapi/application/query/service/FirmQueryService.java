@@ -40,7 +40,8 @@ public class FirmQueryService {
     public FirmViewPage listFirms(UUID actorEntraUserId, String firmQuery, int pageNumber, int pageSize) {
         authorizationService.requireFirmDirectoryAccess(actorEntraUserId);
         Pageable pageable = PageRequest.of(pageNumber, pageSize);
-        Page<FirmView> page = firmQueryRepository.search(firmQuery, pageable);
+        String term = firmQuery == null ? "" : firmQuery;
+        Page<FirmView> page = firmQueryRepository.search(term, pageable);
         PageMetadata pageMetadata = new PageMetadata(
                 page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages());
         return new FirmViewPage(page.getContent(), pageMetadata);

@@ -36,14 +36,14 @@ public interface FirmQueryRepository extends Repository<Firm, UUID> {
         )
         FROM Firm f
         LEFT JOIN f.parentFirm pf
-        WHERE :term IS NULL
+        WHERE :term = ''
             OR LOWER(f.name) LIKE LOWER(CONCAT('%', :term, '%'))
             OR LOWER(f.code) LIKE LOWER(CONCAT('%', :term, '%'))
         """,
         countQuery = """
         SELECT COUNT(f)
         FROM Firm f
-        WHERE :term IS NULL
+        WHERE :term = ''
             OR LOWER(f.name) LIKE LOWER(CONCAT('%', :term, '%'))
             OR LOWER(f.code) LIKE LOWER(CONCAT('%', :term, '%'))
         """)

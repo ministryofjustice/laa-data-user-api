@@ -63,6 +63,17 @@ class FirmQueryServiceTest {
     }
 
     @Test
+    void listFirms_usesEmptySearchTerm_whenFirmFilterIsMissing() {
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
+        when(firmQueryRepository.search(eq(""), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        firmQueryService.listFirms(actorId, null, 0, 20);
+
+        verify(firmQueryRepository).search(eq(""), any(Pageable.class));
+    }
+
+    @Test
     void listFirms_throws_whenAuthorizationDenies() {
         firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorizationService);
         doThrow(new org.springframework.security.access.AccessDeniedException("denied"))
