@@ -1,5 +1,10 @@
 package uk.gov.justice.laa.datauserapi.config.jwt;
 
+import java.time.Instant;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -7,11 +12,6 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
-
-import java.time.Instant;
-import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * JWT decoder for development, local, and test environments.
@@ -53,7 +53,7 @@ public class DevJwtDecoderConfig {
                     .expiresAt(Instant.now().plusSeconds(3600))
                     .build();
             } catch (Exception e) {
-                throw new JwtException("Malformed or missing token", e);
+                throw new JwtException("Dev JWT decoder failed - Malformed or missing token", e);
             }
         };
     }

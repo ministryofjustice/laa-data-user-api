@@ -22,7 +22,9 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.FirmViewPage;
 import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
 import uk.gov.justice.laa.datauserapi.application.query.service.FirmQueryService;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
+import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 
+@RequiresReadScope
 @Validated
 @RestController
 @RequestMapping("/api/v1/queries/firms")
