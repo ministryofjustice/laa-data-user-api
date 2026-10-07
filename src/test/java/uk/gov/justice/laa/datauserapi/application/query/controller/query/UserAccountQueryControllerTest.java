@@ -65,28 +65,33 @@ class UserAccountQueryControllerTest {
 
         String actorOid = "actor-oid-123";
 
+        UserSearchCriteria criteria = new UserSearchCriteria(
+                0, 20, null, null, null, null, null, null,
+                null, null, null, true, false, null, false);
+
         when(jwt.getClaimAsString("oid")).thenReturn(actorOid);
         when(searchUsersHandler.handle(any(SearchUsersQuery.class)))
                 .thenReturn(page);
 
-        ArgumentCaptor<SearchUsersQuery> captor = ArgumentCaptor.forClass(SearchUsersQuery.class);
+        ResponseEntity<UserAccountSummaryResponse> result =
+                controller.searchUsers(criteria, jwt);
+
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        assertNotNull(result.getBody());
+
+        ArgumentCaptor<SearchUsersQuery> captor =
+                ArgumentCaptor.forClass(SearchUsersQuery.class);
 
         verify(searchUsersHandler).handle(captor.capture());
 
-        UserSearchCriteria criteria = new UserSearchCriteria(
-                0, 20, null, null, null, null, null, null,
-                null, null, null, true, false, null, false);
         assertEquals(criteria, captor.getValue().criteria());
         assertEquals(actorOid, captor.getValue().actorOid());
-
-        ResponseEntity<UserAccountSummaryResponse> result = controller.searchUsers(criteria, jwt);
-        assertEquals(HttpStatus.OK, result.getStatusCode());
-        assertNotNull(result.getBody());
 
         UserAccountSummaryResponse expected =
                 new UserAccountSummaryResponse(page.items(), page.page());
 
         assertEquals(expected, result.getBody());
+
     }
 
     @Test
