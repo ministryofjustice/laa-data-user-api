@@ -2,16 +2,19 @@ package uk.gov.justice.laa.datauserapi.application.query.handler;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserView;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
+import uk.gov.justice.laa.datauserapi.exception.InvalidUuidFormatException;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.model.UserType;
+
+import java.util.UUID;
 
 @Component
 @Transactional(readOnly = true)
@@ -41,6 +44,7 @@ public class GetUserAccountHandler {
                     "Actor user type cannot be determined");
         }
 
+        validateUuidFormat(query.userEntraObjectId(), "userEntraObjectId");
         EntraUserDto target = queryService.findUserAccountSummaryByUserEntraObjectId(
                         query.userEntraObjectId());
 
@@ -75,5 +79,14 @@ public class GetUserAccountHandler {
                 && canViewExternalUsers
                 && target.getUserProfiles().stream()
                 .anyMatch(profile -> profile.getUserType() == UserType.EXTERNAL);
+    }
+
+    private void validateUuidFormat(String value, String fieldName) {
+        try {
+            UUID.fromString(value);
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidUuidFormatException(
+                    String.format("%s must match UUID format", fieldName));
+        }
     }
 }

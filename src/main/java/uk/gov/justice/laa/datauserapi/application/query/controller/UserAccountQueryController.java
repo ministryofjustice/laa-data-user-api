@@ -11,14 +11,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.query.dto.AccountStatusHistoryView;
 import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountStatusView;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountSummaryPage;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserSearchCriteria;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryPage;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserView;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserAccountHandler;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.handler.SearchUsersHandler;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserViewResponse;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 
 import java.util.List;
@@ -51,20 +53,18 @@ public class UserAccountQueryController {
     }
 
     @GetMapping("/users")
-    public ResponseEntity<UserAccountSummaryPage> searchUsers(
-            @Valid @ModelAttribute UserSearchCriteria criteria,
-            @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<UserAccountSummaryResponse> searchUsers(
+            @Valid @ModelAttribute UserSearchCriteria criteria, @AuthenticationPrincipal Jwt jwt) {
         String actorOid = jwt.getClaimAsString("oid");
         UserAccountSummaryPage readModel = searchUsersHandler.handle(new SearchUsersQuery(criteria, actorOid));
-        return ResponseEntity.ok(readModel);
+        return ResponseEntity.ok(new UserAccountSummaryResponse(readModel.items(), readModel.page()));
     }
 
     @GetMapping("/users/{userEntraObjectId}")
-    public ResponseEntity<UserView> getUserAccount(
-            @PathVariable String userEntraObjectId,
-            @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<UserViewResponse> getUserAccount(
+            @PathVariable String userEntraObjectId, @AuthenticationPrincipal Jwt jwt) {
         String actorOid = jwt.getClaimAsString("oid");
         UserView readModel = getUserAccountHandler.handle(new GetUserAccountQuery(userEntraObjectId, actorOid));
-        return ResponseEntity.ok(readModel);
+        return ResponseEntity.ok(new UserViewResponse(readModel.userAccount(), readModel.activeProfile()));
     }
 }

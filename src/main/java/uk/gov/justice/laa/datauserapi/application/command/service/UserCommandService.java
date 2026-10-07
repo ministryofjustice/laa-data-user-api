@@ -6,6 +6,7 @@ import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.model.UserType;
 
+
 import java.util.UUID;
 
 @Service

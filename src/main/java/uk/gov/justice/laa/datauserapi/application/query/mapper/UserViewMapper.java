@@ -1,11 +1,12 @@
 package uk.gov.justice.laa.datauserapi.application.query.mapper;
 
 import org.springframework.stereotype.Component;
-import uk.gov.justice.laa.datauserapi.application.query.dto.AppRoleView;
-import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeView;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountSummaryView;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserProfileDetailView;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileDetailView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserView;
+
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
@@ -14,6 +15,7 @@ import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.AppRoleUserType;
 import uk.gov.justice.laa.datauserapi.model.UserType;
+
 
 import java.util.Arrays;
 import java.util.List;
@@ -65,14 +67,14 @@ public class UserViewMapper {
         return new UserProfileDetailView(
                 profile.getId(),
                 profile.isActiveProfile(),
-                profile.getUserType(),
+                profile.getUserType().toString(),
                 user.getEmail(),
                 user.getFirstName() + " " + user.getLastName(),
                 profile.getFirm().getName(),
                 profile.getFirm().getId().toString(),
                 user.isMultiFirmUser(),
-                user.getUserAccountStatus(),
-                profile.getUserProfileStatus(),
+                user.getUserAccountStatus().toString(),
+                profile.getUserProfileStatus().toString(),
                 !roles.isEmpty(),
 
                 UUID.fromString(user.getEntraOid()),
@@ -95,10 +97,10 @@ public class UserViewMapper {
                 role.getCcmsCode(),
                 role.isLegacySync(),
                 role.getOrdinal(),
-                mapUserTypeRestriction(role.getUserTypeRestriction()),
+                String.valueOf(mapUserTypeRestriction(role.getUserTypeRestriction())),
                 role.getFirmTypeRestriction() == null
                         ? List.of()
-                        : Arrays.asList(role.getFirmTypeRestriction())
+                        : List.of(Arrays.toString(role.getFirmTypeRestriction()))
         );
     }
 
