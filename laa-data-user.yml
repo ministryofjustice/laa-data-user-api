@@ -268,6 +268,30 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/queries/user-profiles/{userProfileId}/assignable-roles:
+    get:
+      operationId: queryUserProfileAssignableRoles
+      tags: [User Profiles]
+      summary: Get app roles the actor can assign to a user profile
+      description: Returns the app roles that the authenticated actor has permission to assign to the specified user profile, including each role's app.
+      parameters:
+        - $ref: '#/components/parameters/UserProfileId'
+      responses:
+        '200':
+          description: App roles the actor can assign to the user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppRoleViewList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/v1/queries/user-profiles/{userProfileId}/offices:
     get:
       operationId: queryUserProfileOffices
@@ -663,6 +687,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: A different user account already exists with the supplied email address
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '502':
           $ref: '#/components/responses/BadGateway'
         '503':
@@ -759,7 +789,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeleteUserResult'
+                $ref: '#/components/schemas/DeleteUserAccountResult'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1375,6 +1405,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
 components:
   securitySchemes:
@@ -2345,6 +2381,15 @@ components:
         userProfileId:
           type: string
           format: uuid
+
+    DeleteUserAccountResult:
+      allOf:
+        - $ref: '#/components/schemas/CommandResult'
+        - type: object
+          properties:
+            userEntraObjectId:
+              type: string
+              format: uuid
 
     DeleteUserResult:
       allOf:
