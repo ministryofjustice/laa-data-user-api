@@ -1,9 +1,9 @@
-package uk.gov.justice.laa.datauserapi.application.query.dto;
+package uk.gov.justice.laa.datauserapi.contracts.dto;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
-import uk.gov.justice.laa.datauserapi.model.UserType;
+
 
 import java.util.List;
 import java.util.UUID;
@@ -22,7 +22,7 @@ public record UserSearchCriteria(
         UUID firmId,
         UUID appId,
         UUID appRoleId,
-        UserType userType,
+        String userType,
         UserAccountStatus userAccountStatus,
         Boolean neverActivatedFilter,
         Boolean actorInternal,

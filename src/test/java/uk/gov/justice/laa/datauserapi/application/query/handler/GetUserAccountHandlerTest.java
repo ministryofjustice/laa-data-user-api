@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserView;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
@@ -16,6 +16,7 @@ import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.model.UserType;
+
 
 import java.util.Set;
 import java.util.UUID;

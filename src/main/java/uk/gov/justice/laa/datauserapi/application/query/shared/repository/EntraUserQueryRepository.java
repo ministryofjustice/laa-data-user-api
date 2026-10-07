@@ -6,9 +6,8 @@ import org.springframework.data.repository.Repository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Component;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserSearchCriteria;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountStatusView;
-import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 
 import java.util.Optional;

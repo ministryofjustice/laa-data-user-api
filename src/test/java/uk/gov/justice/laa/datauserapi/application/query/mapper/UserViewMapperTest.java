@@ -2,8 +2,9 @@ package uk.gov.justice.laa.datauserapi.application.query.mapper;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountSummaryView;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserView;
+
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserView;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.App;
@@ -118,7 +119,7 @@ class UserViewMapperTest {
         assertEquals(1, result.activeProfile().offices().size());
 
         assertEquals(
-                AppRoleUserType.INTERNAL,
+                String.valueOf(AppRoleUserType.INTERNAL),
                 result.activeProfile()
                         .roles()
                         .get(0)
@@ -183,7 +184,7 @@ class UserViewMapperTest {
         UserView result = mapper.mapToUserView(buildDto(profile));
 
         assertEquals(
-                AppRoleUserType.BOTH,
+                String.valueOf(AppRoleUserType.BOTH),
                 result.activeProfile()
                         .roles()
                         .get(0)
@@ -208,7 +209,7 @@ class UserViewMapperTest {
         UserView result = mapper.mapToUserView(buildDto(profile));
 
         assertEquals(
-                AppRoleUserType.EXTERNAL,
+                String.valueOf(AppRoleUserType.EXTERNAL),
                 result.activeProfile()
                         .roles()
                         .get(0)

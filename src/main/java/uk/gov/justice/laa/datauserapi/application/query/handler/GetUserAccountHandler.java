@@ -2,7 +2,7 @@ package uk.gov.justice.laa.datauserapi.application.query.handler;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserView;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;

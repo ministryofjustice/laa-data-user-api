@@ -22,6 +22,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
+
 import uk.gov.justice.laa.datauserapi.model.UserProfileSilasStatus;
 import uk.gov.justice.laa.datauserapi.model.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.model.UserType;

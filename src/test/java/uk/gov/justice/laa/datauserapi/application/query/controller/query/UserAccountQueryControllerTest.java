@@ -3,23 +3,28 @@ package uk.gov.justice.laa.datauserapi.application.query.controller.query;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 import uk.gov.justice.laa.datauserapi.application.query.controller.UserAccountQueryController;
-import uk.gov.justice.laa.datauserapi.application.query.dto.PageMetadata;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountSummaryPage;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserSearchCriteria;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
+import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryPage;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserView;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserAccountHandler;
 import uk.gov.justice.laa.datauserapi.application.query.handler.SearchUsersHandler;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserViewResponse;
 
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -54,10 +59,6 @@ class UserAccountQueryControllerTest {
 
     @Test
     void searchUsers_whenValidRequest_shouldCallHandler() {
-        UserSearchCriteria criteria = new UserSearchCriteria(
-                0, 20, null, null, null, null, null, null,
-                null, null, null, true, false, null, false);
-
         var page = new UserAccountSummaryPage(
                 null,
                 new PageMetadata(0, 20, 0, 0));
@@ -68,18 +69,29 @@ class UserAccountQueryControllerTest {
         when(searchUsersHandler.handle(any(SearchUsersQuery.class)))
                 .thenReturn(page);
 
-        ResponseEntity<UserAccountSummaryPage> result =
-                controller.searchUsers(criteria, jwt);
+        ArgumentCaptor<SearchUsersQuery> captor = ArgumentCaptor.forClass(SearchUsersQuery.class);
 
-        verify(searchUsersHandler).handle(any(SearchUsersQuery.class));
+        verify(searchUsersHandler).handle(captor.capture());
 
-        assertEquals(page, result.getBody());
+        UserSearchCriteria criteria = new UserSearchCriteria(
+                0, 20, null, null, null, null, null, null,
+                null, null, null, true, false, null, false);
+        assertEquals(criteria, captor.getValue().criteria());
+        assertEquals(actorOid, captor.getValue().actorOid());
+
+        ResponseEntity<UserAccountSummaryResponse> result = controller.searchUsers(criteria, jwt);
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        assertNotNull(result.getBody());
+
+        UserAccountSummaryResponse expected =
+                new UserAccountSummaryResponse(page.items(), page.page());
+
+        assertEquals(expected, result.getBody());
     }
 
     @Test
     void getUserAccount_whenValidRequest_shouldCallHandler() {
         String userEntraObjectId = "123e4567-e89b-12d3-a456-426614174000";
-
         String actorOid = "actor-oid-123";
 
         UserView userView = new UserView(null, null);
@@ -88,12 +100,15 @@ class UserAccountQueryControllerTest {
         when(getUserAccountHandler.handle(any(GetUserAccountQuery.class)))
                 .thenReturn(userView);
 
-        ResponseEntity<UserView> result =
-                controller.getUserAccount(userEntraObjectId, jwt);
+        ResponseEntity<UserViewResponse> result = controller.getUserAccount(userEntraObjectId, jwt);
 
-        verify(getUserAccountHandler)
-                .handle(any(GetUserAccountQuery.class));
+        verify(getUserAccountHandler).handle(any(GetUserAccountQuery.class));
 
-        assertEquals(userView, result.getBody());
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        assertNotNull(result.getBody());
+
+        UserViewResponse expected = new UserViewResponse(null, null);
+
+        assertEquals(expected, result.getBody());
     }
 }
