@@ -66,7 +66,7 @@ jobs:
       - name: Get RDS DB identifier
         id: rds-id
         run: |
-          RDS_DB_IDENTIFIER=$(kubectl get secret laa-postgresql-instance-app-output -n "${KUBE_NAMESPACE}" -o jsonpath='{.data.rds_instance_endpoint}' | base64 -d | cut -d. -f1)
+          RDS_DB_IDENTIFIER=$(kubectl get secret rds-postgresql-instance-app-output -n "${KUBE_NAMESPACE}" -o jsonpath='{.data.rds_instance_endpoint}' | base64 -d | cut -d. -f1)
           echo "rds_db_identifier=${RDS_DB_IDENTIFIER}" >> "$GITHUB_OUTPUT"
         env:
           KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
