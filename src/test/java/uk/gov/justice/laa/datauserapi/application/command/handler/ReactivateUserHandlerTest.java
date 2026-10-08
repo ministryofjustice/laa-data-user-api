@@ -12,7 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
-import uk.gov.justice.laa.datauserapi.application.command.shared.repository.ReactivateUserCommandRepository;
+import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserAccountStatusAuditRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
@@ -46,7 +46,7 @@ class ReactivateUserHandlerTest {
     private final UUID actorId = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private final String actorIdStr = actorId.toString();
     @Mock
-    private ReactivateUserCommandRepository reactivateUserCommandRepository;
+    private EntraUserCommandRepository entraUserCommandRepository;
     @Mock
     private UserAccountStatusAuditRepository auditRepository;
     @Mock
@@ -61,7 +61,7 @@ class ReactivateUserHandlerTest {
 
     @BeforeEach
     void setUp() {
-        handler = new ReactivateUserHandler(reactivateUserCommandRepository, auditRepository, techServicesClient, mapper, modelMapper, userCommandService);
+        handler = new ReactivateUserHandler(entraUserCommandRepository, auditRepository, techServicesClient, mapper, modelMapper, userCommandService);
     }
 
     @Nested
@@ -83,7 +83,7 @@ class ReactivateUserHandlerTest {
             assertThat(result.success()).isFalse();
             assertThat(result.message()).isEqualTo("User can not reactive self");
 
-            verifyNoInteractions(userCommandService, reactivateUserCommandRepository, techServicesClient, auditRepository);
+            verifyNoInteractions(userCommandService, entraUserCommandRepository, techServicesClient, auditRepository);
         }
 
         @Test
@@ -101,7 +101,7 @@ class ReactivateUserHandlerTest {
 
             verify(userCommandService).isInternalUser(targetUserId);
             verifyNoMoreInteractions(userCommandService);
-            verifyNoInteractions(reactivateUserCommandRepository, techServicesClient, auditRepository);
+            verifyNoInteractions(entraUserCommandRepository, techServicesClient, auditRepository);
         }
 
         @Test
@@ -128,7 +128,11 @@ class ReactivateUserHandlerTest {
             assertThat(result.success()).isFalse();
             assertThat(result.message()).isEqualTo("User can not reactive multi-firm user");
 
-            verifyNoInteractions(reactivateUserCommandRepository, techServicesClient, auditRepository);
+            verify(userCommandService).isInternalUser(targetUserId);
+            verify(userCommandService).isExternalUser(actorId);
+            verify(userCommandService).getActiveUserProfile(actorId);
+            verify(userCommandService).getActiveUserProfile(targetUserId);
+            verifyNoInteractions(entraUserCommandRepository, techServicesClient, auditRepository);
         }
 
         @Test
@@ -158,7 +162,7 @@ class ReactivateUserHandlerTest {
             assertThat(result.success()).isFalse();
             assertThat(result.message()).isEqualTo("User can not reactive user from different firm");
 
-            verifyNoInteractions(reactivateUserCommandRepository, techServicesClient, auditRepository);
+            verifyNoInteractions(entraUserCommandRepository, techServicesClient, auditRepository);
         }
     }
 
@@ -173,10 +177,10 @@ class ReactivateUserHandlerTest {
 
             when(userCommandService.isInternalUser(targetUserId)).thenReturn(false);
             when(userCommandService.isExternalUser(actorId)).thenReturn(false);
-            when(reactivateUserCommandRepository.findById(targetUserId)).thenReturn(Optional.empty());
+            when(entraUserCommandRepository.findByEntraOid(String.valueOf(targetUserId))).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> handler.handle(command, actorIdStr)).isInstanceOf(ResourceNotFoundException.class)
-                    .hasMessage("User account not found with ID: " + targetUserId);
+                    .hasMessage("User account not found for oid: " + targetUserId);
 
             verifyNoInteractions(techServicesClient, auditRepository);
         }
@@ -192,7 +196,7 @@ class ReactivateUserHandlerTest {
 
             when(userCommandService.isInternalUser(targetUserId)).thenReturn(false);
             when(userCommandService.isExternalUser(actorId)).thenReturn(false);
-            when(reactivateUserCommandRepository.findById(targetUserId)).thenReturn(Optional.of(realTargetUser));
+            when(entraUserCommandRepository.findByEntraOid(String.valueOf(targetUserId))).thenReturn(Optional.of(realTargetUser));
             when(modelMapper.map(realTargetUser, EntraUserDto.class)).thenReturn(userDto);
 
             doThrow(new TechServicesClientException("Downstream TS error")).when(techServicesClient).reactivateUser(userDto);
@@ -200,7 +204,7 @@ class ReactivateUserHandlerTest {
             assertThatThrownBy(() -> handler.handle(command, actorIdStr)).isInstanceOf(TechServicesClientException.class)
                     .hasMessage("Downstream TS error");
 
-            verify(reactivateUserCommandRepository, never()).save(any());
+            verify(entraUserCommandRepository, never()).save(any());
             verifyNoInteractions(auditRepository);
         }
     }
@@ -252,7 +256,7 @@ class ReactivateUserHandlerTest {
                 when(userCommandService.isExternalUser(actorId)).thenReturn(false);
             }
 
-            when(reactivateUserCommandRepository.findById(targetUserId)).thenReturn(Optional.of(realTargetUser));
+            when(entraUserCommandRepository.findByEntraOid(String.valueOf(targetUserId))).thenReturn(Optional.of(realTargetUser));
             when(modelMapper.map(realTargetUser, EntraUserDto.class)).thenReturn(userDto);
             when(mapper.toAuditEntity(realTargetUser, actorIdStr, testComments)).thenReturn(realAudit);
             when(mapper.toCommandResult(realTargetUser)).thenReturn(expectedResult);
@@ -267,7 +271,7 @@ class ReactivateUserHandlerTest {
 
             // Verify actual entity persistence
             ArgumentCaptor<EntraUser> userCaptor = ArgumentCaptor.forClass(EntraUser.class);
-            verify(reactivateUserCommandRepository).save(userCaptor.capture());
+            verify(entraUserCommandRepository).save(userCaptor.capture());
             EntraUser persistedUser = userCaptor.getValue();
             assertThat(persistedUser.getId()).isEqualTo(targetUserId);
 
@@ -275,10 +279,10 @@ class ReactivateUserHandlerTest {
             verify(auditRepository).save(realAudit);
 
             // Verify strict ordering of operations
-            InOrder inOrder = inOrder(techServicesClient, reactivateUserCommandRepository, mapper, auditRepository);
+            InOrder inOrder = inOrder(techServicesClient, entraUserCommandRepository, mapper, auditRepository);
 
             inOrder.verify(techServicesClient).reactivateUser(userDto);
-            inOrder.verify(reactivateUserCommandRepository).save(realTargetUser);
+            inOrder.verify(entraUserCommandRepository).save(realTargetUser);
             inOrder.verify(mapper).toAuditEntity(realTargetUser, actorIdStr, testComments);
             inOrder.verify(auditRepository).save(realAudit);
             inOrder.verify(mapper).toCommandResult(realTargetUser);
