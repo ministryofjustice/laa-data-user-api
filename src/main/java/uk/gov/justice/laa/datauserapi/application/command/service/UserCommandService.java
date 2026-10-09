@@ -1,13 +1,13 @@
 package uk.gov.justice.laa.datauserapi.application.command.service;
 
+import java.util.UUID;
+
 import org.springframework.stereotype.Service;
+
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.model.UserType;
-
-
-import java.util.UUID;
 
 @Service
 public class UserCommandService {
@@ -40,4 +40,5 @@ public class UserCommandService {
         return entraUser.getUserProfiles().stream().filter(UserProfile::isActiveProfile).findFirst()
                 .orElseThrow(() -> new RuntimeException("Active profile not found for user id: " + entraUserId));
     }
+
 }
