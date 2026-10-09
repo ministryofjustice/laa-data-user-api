@@ -21,16 +21,16 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
+import uk.gov.justice.laa.datauserapi.contracts.dto.FirmSearchView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.FirmView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchAccess;
-import uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchView;
-import uk.gov.justice.laa.datauserapi.application.query.dto.FirmView;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmViewPage;
 import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.FirmQueryRepository;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.OfficeQueryRepository;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
-import uk.gov.justice.laa.datauserapi.model.FirmType;
+import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
 
 @ExtendWith(MockitoExtension.class)
 class FirmQueryServiceTest {

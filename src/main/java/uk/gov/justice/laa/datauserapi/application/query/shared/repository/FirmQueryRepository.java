@@ -10,15 +10,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
-import uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchView;
-import uk.gov.justice.laa.datauserapi.application.query.dto.FirmView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.FirmSearchView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.FirmView;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
 
 @org.springframework.stereotype.Repository
 public interface FirmQueryRepository extends Repository<Firm, UUID> {
 
     @Query("""
-        SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.FirmView(
+        SELECT new uk.gov.justice.laa.datauserapi.contracts.dto.FirmView(
             f.code, f.name, f.type, pf.code, f.enabled
         )
         FROM Firm f
@@ -31,7 +31,7 @@ public interface FirmQueryRepository extends Repository<Firm, UUID> {
     boolean existsByCode(@Param("code") String code);
 
     @Query(value = """
-        SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.FirmView(
+        SELECT new uk.gov.justice.laa.datauserapi.contracts.dto.FirmView(
             f.code, f.name, f.type, pf.code, f.enabled
         )
         FROM Firm f
@@ -51,7 +51,7 @@ public interface FirmQueryRepository extends Repository<Firm, UUID> {
     Page<FirmView> search(@Param("term") String term, Pageable pageable);
 
     @Query("""
-        SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchView(
+        SELECT new uk.gov.justice.laa.datauserapi.contracts.dto.FirmSearchView(
             f.code, f.name
         )
         FROM Firm f

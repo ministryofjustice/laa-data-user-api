@@ -1,6 +1,6 @@
-package uk.gov.justice.laa.datauserapi.application.query.dto;
+package uk.gov.justice.laa.datauserapi.contracts.dto;
 
-import uk.gov.justice.laa.datauserapi.model.FirmType;
+import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
 
 public record FirmView(
         String firmId,

@@ -1,9 +1,9 @@
-package uk.gov.justice.laa.datauserapi.application.query.dto;
+package uk.gov.justice.laa.datauserapi.contracts.response;
 
 import java.util.List;
 
 import uk.gov.justice.laa.datauserapi.contracts.dto.FirmSearchView;
 
-public record FirmSearchViewList(
+public record FirmSearchResponse(
         List<FirmSearchView> items
 ) {}
