@@ -34,7 +34,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import uk.gov.justice.laa.datauserapi.model.FirmType;
 import uk.gov.justice.laa.datauserapi.model.Permission;
-import uk.gov.justice.laa.datauserapi.model.UserType;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
 import java.util.HashSet;
 import java.util.Set;

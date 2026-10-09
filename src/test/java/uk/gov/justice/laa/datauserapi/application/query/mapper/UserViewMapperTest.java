@@ -15,8 +15,8 @@ import uk.gov.justice.laa.datauserapi.entity.Office;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.AppRoleUserType;
-import uk.gov.justice.laa.datauserapi.model.UserProfileStatus;
-import uk.gov.justice.laa.datauserapi.model.UserType;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
 import java.util.Set;
 import java.util.UUID;

@@ -5,7 +5,7 @@ import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryView;
 
 import java.util.List;
 
-public record UserAccountSummaryResponse(
+public record UserAccountSummaryViewResponse(
         List<UserAccountSummaryView> items,
         PageMetadata page
 ) {}

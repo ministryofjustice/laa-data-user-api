@@ -1,20 +1,24 @@
 package uk.gov.justice.laa.datauserapi.contracts.dto;
 
 
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+
 import java.util.List;
 import java.util.UUID;
 
 public record UserProfileDetailView(
         UUID userProfileId,
         boolean activeProfile,
-        String userType,
+        UserType userType,
         String email,
         String fullName,
         String firmName,
         String firmId,
         boolean multiFirmUser,
-        String accountStatus,
-        String profileStatus,
+        UserAccountStatus accountStatus,
+        UserProfileStatus profileStatus,
         boolean hasAppRoles,
         UUID userEntraObjectId,
         boolean unrestrictedOfficeAccess,
