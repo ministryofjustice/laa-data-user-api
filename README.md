@@ -85,10 +85,10 @@ The application relies on several environment variables for configuration. Below
 
 | Variable Name                       | Description                                           | Default Value | Source |
 |-------------------------------------|-------------------------------------------------------|---------------|--------|
-| `POSTGRES_DB_ADDRESS`               | The host address for the Postgres database.           | `localhost`   | K8s Secret `rds-postgresql-instance-output` |
-| `POSTGRES_DB_NAME`                  | The name of the Postgres database.                    |               | K8s Secret `rds-postgresql-instance-output` |
-| `POSTGRES_USERNAME`                 | The username to authenticate with Postgres.           | `postgres`    | K8s Secret `rds-postgresql-instance-output` |
-| `POSTGRES_PASSWORD`                 | The password to authenticate with Postgres.           | `postgres`    | K8s Secret `rds-postgresql-instance-output` |
+| `POSTGRES_DB_ADDRESS`               | The host address for the Postgres database.           | `localhost`   | K8s Secret `rds-postgresql-instance-app-output` |
+| `POSTGRES_DB_NAME`                  | The name of the Postgres database.                    |               | K8s Secret `rds-postgresql-instance-app-output` |
+| `POSTGRES_USERNAME`                 | The username to authenticate with Postgres.           | `postgres`    | K8s Secret `rds-postgresql-instance-app-output` |
+| `POSTGRES_PASSWORD`                 | The password to authenticate with Postgres.           | `postgres`    | K8s Secret `rds-postgresql-instance-app-output` |
 | `AZURE_TENANT_ID`                   | The Azure AD tenant ID, used to validate inbound JWTs. | None          | K8s Secret `laa-data-user-api-azure-tenant-secret-k8s` |
 | `AZURE_CLIENT_ID`                   | The Azure AD client (app) ID (UUID). Used for outbound auth only; not used for audience validation. | None | K8s Secret `laa-data-user-api-azure-client-id-k8s` |
 | `AZURE_APP_URI`                     | The App URI configured in the Entra app registration. Must match the `aud` claim in inbound OBO tokens. | `api://laa-user-data-api` | Helm value |
@@ -140,7 +140,7 @@ Some values never pass through Helm or GitHub Actions at all — they're read st
       key: AZURE_TENANT_ID
 ```
 
-These Secrets are created by Terraform in the [`cloud-platform-environments`](https://github.com/ministryofjustice/cloud-platform-environments) repo. The Secret's *value* is populated separately — for the RDS credentials (`rds-postgresql-instance-output`) this happens automatically when the RDS instance is provisioned; for the Azure app-registration values (`laa-data-user-api-azure-tenant-secret-k8s`, `laa-data-user-api-azure-client-id-k8s`) the value is set/updated manually via the AWS console (Secrets Manager), and the External Secrets Operator (ESO) in the Kubernetes cluster manages the synchronisation to the Kubernetes Secret, which Kubernetes then mounts into the pod as an env var on the next rollout.
+These Secrets are created by Terraform in the [`cloud-platform-environments`](https://github.com/ministryofjustice/cloud-platform-environments) repo. The Secret's *value* is populated separately — for the RDS credentials (`rds-postgresql-instance-app-output`) this happens automatically when the RDS instance is provisioned; for the Azure app-registration values (`laa-data-user-api-azure-tenant-secret-k8s`, `laa-data-user-api-azure-client-id-k8s`) the value is set/updated manually via the AWS console (Secrets Manager), and the External Secrets Operator (ESO) in the Kubernetes cluster manages the synchronisation to the Kubernetes Secret, which Kubernetes then mounts into the pod as an env var on the next rollout.
 
 Use this pattern only for values that are already being provisioned this way at the infrastructure level — it's not something you can opt into for an arbitrary new variable from within this repo alone; it requires a corresponding change in `cloud-platform-environments` first. To add one:
 

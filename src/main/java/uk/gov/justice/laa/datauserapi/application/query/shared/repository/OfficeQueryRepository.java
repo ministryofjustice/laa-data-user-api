@@ -7,14 +7,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
-import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.entity.Office;
 
 @org.springframework.stereotype.Repository
 public interface OfficeQueryRepository extends Repository<Office, UUID> {
 
     @Query("""
-        SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.OfficeView(
+        SELECT new uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView(
             o.code, f.code, o.address.postcode, o.address.addressLine1, o.address.addressLine2, o.address.addressLine3, o.address.city
         )
         FROM Office o

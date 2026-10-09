@@ -6,6 +6,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
+import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchViewList;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmView;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmViewPage;
@@ -44,7 +45,7 @@ class FirmQueryControllerTest {
     void queryFirms_delegatesToService() {
         controller = new FirmQueryController(firmQueryService);
         UUID oid = UUID.randomUUID();
-        FirmViewPage page = new FirmViewPage(java.util.List.of(), new uk.gov.justice.laa.datauserapi.application.query.dto.PageMetadata(0, 20, 0, 0));
+        FirmViewPage page = new FirmViewPage(java.util.List.of(), new PageMetadata(0, 20, 0, 0));
         when(firmQueryService.listFirms(eq(oid), eq("Test"), eq(0), eq(20))).thenReturn(page);
 
         ResponseEntity<FirmViewPage> response = controller.queryFirms("Test", 0, 20, jwtWithOid(oid));

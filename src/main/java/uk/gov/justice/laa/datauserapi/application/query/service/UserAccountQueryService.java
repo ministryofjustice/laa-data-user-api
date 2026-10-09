@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.query.dto.AccountStatusHistoryView;
 import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountStatusView;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserSearchCriteria;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.EntraUserQueryRepository;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserAccountQueryRepository;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;

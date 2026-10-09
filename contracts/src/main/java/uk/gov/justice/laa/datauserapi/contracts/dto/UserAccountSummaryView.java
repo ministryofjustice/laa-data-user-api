@@ -1,4 +1,4 @@
-package uk.gov.justice.laa.datauserapi.application.query.dto;
+package uk.gov.justice.laa.datauserapi.contracts.dto;
 
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 

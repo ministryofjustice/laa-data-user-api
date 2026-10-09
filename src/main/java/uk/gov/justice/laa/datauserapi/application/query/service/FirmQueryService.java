@@ -9,14 +9,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchAccess;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchView;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchViewList;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmView;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmViewPage;
-import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
-import uk.gov.justice.laa.datauserapi.application.query.dto.PageMetadata;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.FirmQueryRepository;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.OfficeQueryRepository;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;

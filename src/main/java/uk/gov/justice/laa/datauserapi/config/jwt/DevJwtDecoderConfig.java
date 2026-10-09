@@ -40,7 +40,7 @@ public class DevJwtDecoderConfig {
                 String oid = matcher.group("oid");
                 String scope = Optional.ofNullable(matcher.group("scope"))
                         .filter(s -> !s.isBlank())
-                        .orElse("user_data.read");
+                        .orElse("");
 
                 return Jwt.withTokenValue(token)
                     .header("alg", "none")

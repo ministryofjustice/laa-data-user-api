@@ -1,17 +1,16 @@
 package uk.gov.justice.laa.datauserapi.application.query.handler;
 
 import lombok.extern.slf4j.Slf4j;
-import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import uk.gov.justice.laa.datauserapi.application.query.dto.PageMetadata;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountSummaryPage;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountSummaryView;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserSearchCriteria;
+import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryPage;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
@@ -20,6 +19,7 @@ import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.model.UserType;
+
 
 import java.util.List;
 import java.util.UUID;
