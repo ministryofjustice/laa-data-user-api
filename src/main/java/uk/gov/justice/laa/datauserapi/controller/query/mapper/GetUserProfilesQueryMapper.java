@@ -4,10 +4,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.application.query.getuserprofiles.GetUserProfilesQuery;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.request.GetUserProfilesRequest;
 import uk.gov.justice.laa.datauserapi.exception.BadRequestException;
-import uk.gov.justice.laa.datauserapi.model.UserProfileStatus;
-import uk.gov.justice.laa.datauserapi.model.UserType;
 import uk.gov.justice.laa.datauserapi.shared.Mapper;
 import uk.gov.justice.laa.datauserapi.shared.MapperUtil;
 

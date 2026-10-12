@@ -1,6 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.query.shared;
 
-import uk.gov.justice.laa.datauserapi.application.query.dto.PageMetadata;
+
+import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
 
 import java.util.Collection;
 

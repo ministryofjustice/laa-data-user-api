@@ -1,8 +1,8 @@
 package uk.gov.justice.laa.datauserapi.application.query.getuserprofiles;
 
 import org.springframework.data.domain.PageRequest;
-import uk.gov.justice.laa.datauserapi.model.UserProfileStatus;
-import uk.gov.justice.laa.datauserapi.model.UserType;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
 import java.util.UUID;
 

@@ -7,6 +7,7 @@ import uk.gov.justice.laa.datauserapi.application.query.getuserprofilebyid.readm
 import uk.gov.justice.laa.datauserapi.application.query.getuserprofilebyid.readmodel.GetUserProfileByIdReadModel;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileReadRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.entity.App;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
@@ -14,7 +15,6 @@ import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.Office;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
-import uk.gov.justice.laa.datauserapi.model.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.shared.MapperUtil;
 import uk.gov.justice.laa.datauserapi.shared.QueryHandler;
 

@@ -3,14 +3,14 @@ package uk.gov.justice.laa.datauserapi.application.query.getuserprofiles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
-import uk.gov.justice.laa.datauserapi.application.query.dto.PageMetadata;
 import uk.gov.justice.laa.datauserapi.application.query.getuserprofiles.readmodel.GetUserProfilesReadModel;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.application.query.shared.PagedReadModel;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
+import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
-import uk.gov.justice.laa.datauserapi.model.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.shared.Mapper;
 import uk.gov.justice.laa.datauserapi.shared.MapperUtil;
 
