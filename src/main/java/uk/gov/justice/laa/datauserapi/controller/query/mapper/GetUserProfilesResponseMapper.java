@@ -2,9 +2,9 @@ package uk.gov.justice.laa.datauserapi.controller.query.mapper;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import uk.gov.justice.laa.datauserapi.application.query.dto.PageMetadata;
 import uk.gov.justice.laa.datauserapi.application.query.shared.PagedReadModel;
 import uk.gov.justice.laa.datauserapi.application.query.getuserprofiles.readmodel.GetUserProfilesReadModel;
+import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
 import uk.gov.justice.laa.datauserapi.contracts.response.PagedView;
 import uk.gov.justice.laa.datauserapi.contracts.response.PagedViewMetadata;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
