@@ -8,8 +8,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchAccess;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.FirmDirectoryActorQueryRepository;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.model.Permission;
-import uk.gov.justice.laa.datauserapi.model.UserType;
 
 /**
  * Authorisation rules for the temporary Provider Data (firm/office) query endpoints.
