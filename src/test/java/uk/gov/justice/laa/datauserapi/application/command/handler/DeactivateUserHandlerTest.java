@@ -359,7 +359,7 @@ class DeactivateUserHandlerTest {
 
             final UserAccountStatusAudit realAudit = UserAccountStatusAudit.builder()
                     .id(UUID.randomUUID())
-                    .entraUser(realTargetUser)
+                    .entraUserId(realTargetUser.getId())
                     .statusChangedBy(actorIdStr)
                     .build();
 

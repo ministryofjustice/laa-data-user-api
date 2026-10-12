@@ -24,10 +24,10 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
             u.lastModified
         )
         FROM EntraUser u
-        WHERE u.id = :userEntraObjectId
+        WHERE u.entraOid = :userEntraObjectId
         """)
     Optional<UserAccountStatusView> findStatusByUserEntraObjectId(
-            @Param("userEntraObjectId") UUID userEntraObjectId);
+            @Param("userEntraObjectId") String userEntraObjectId);
 
     @Query("""
     SELECT DISTINCT u
@@ -37,7 +37,7 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
         LEFT JOIN FETCH up.offices o
     WHERE u.entraOid = :userEntraObjectId
       AND up.activeProfile = true
-        """)
+    """)
     Optional<EntraUser> findUserAccountSummaryByUserEntraObjectId(
             @Param("userEntraObjectId") String userEntraObjectId);
 

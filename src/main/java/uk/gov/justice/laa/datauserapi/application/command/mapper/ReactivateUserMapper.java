@@ -16,7 +16,7 @@ public class ReactivateUserMapper {
 
     public UserAccountStatusAudit toAuditEntity(EntraUser user, String actorId, String comments) {
         return UserAccountStatusAudit.builder()
-                .entraUser(user)
+                .entraUserId(user.getId())
                 .userEmail(user.getEmail())
                 .userName(user.getFirstName() + " " + user.getLastName())
                 .userAccountStatus(UserAccountStatus.ACTIVE)

@@ -80,7 +80,7 @@ class DeactivateUserMapperTest {
 
             // Assert
             assertThat(audit).isNotNull();
-            assertThat(audit.getEntraUser()).isSameAs(entraUser);
+            assertThat(audit.getEntraUserId()).isSameAs(entraUser.getId());
             assertThat(audit.getUserAccountStatus()).isEqualTo(UserAccountStatus.DEACTIVATED);
             assertThat(audit.getStatusChangedBy()).isEqualTo(actorId);
             assertThat(audit.getDeactivateUserReasonLookup()).isSameAs(lookupEntity);

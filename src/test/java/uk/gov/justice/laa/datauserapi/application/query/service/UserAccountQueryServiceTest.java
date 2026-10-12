@@ -48,10 +48,11 @@ class UserAccountQueryServiceTest {
     @Test
     void shouldReturnAuditHistory() {
         UUID oid = UUID.randomUUID();
+        String oidStr = String.valueOf(oid);
 
         AccountStatusHistoryView history = mock(AccountStatusHistoryView.class);
 
-        when(queryRepository.findAuditHistoryByUserEntraObjectId(oid))
+        when(queryRepository.findAuditHistoryByUserEntraObjectId(oidStr))
                 .thenReturn(List.of(history));
 
         List<AccountStatusHistoryView> result =
@@ -60,16 +61,17 @@ class UserAccountQueryServiceTest {
         assertThat(result).containsExactly(history);
 
         verify(queryRepository)
-                .findAuditHistoryByUserEntraObjectId(oid);
+                .findAuditHistoryByUserEntraObjectId(oidStr);
     }
 
     @Test
     void shouldReturnUserStatus() {
         UUID oid = UUID.randomUUID();
+        String oidStr = String.valueOf(oid);
 
         UserAccountStatusView status = mock(UserAccountStatusView.class);
 
-        when(userRepository.findStatusByUserEntraObjectId(oid))
+        when(userRepository.findStatusByUserEntraObjectId(oidStr))
                 .thenReturn(Optional.of(status));
 
         UserAccountStatusView result =
@@ -81,8 +83,9 @@ class UserAccountQueryServiceTest {
     @Test
     void shouldThrowWhenUserStatusNotFound() {
         UUID oid = UUID.randomUUID();
+        String oidStr = String.valueOf(oid);
 
-        when(userRepository.findStatusByUserEntraObjectId(oid))
+        when(userRepository.findStatusByUserEntraObjectId(oidStr))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getUserStatus(oid))

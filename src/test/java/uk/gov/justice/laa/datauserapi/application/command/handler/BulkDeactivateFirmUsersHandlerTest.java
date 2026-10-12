@@ -49,15 +49,15 @@ class BulkDeactivateFirmUsersHandlerTest {
 
     @Test
     void handle_deactivatesEachActiveSingleFirmUser() {
-        UUID firmId = UUID.randomUUID();
+        String firmId = "123456";
         UUID firstUserId = UUID.randomUUID();
         UUID secondUserId = UUID.randomUUID();
         String actorId = UUID.randomUUID().toString();
         BulkDeactivateFirmUsersCommand command =
                 new BulkDeactivateFirmUsersCommand(firmId, DeactivateUserReason.FirmClosureorMerger);
 
-        when(firmCommandRepository.existsById(firmId)).thenReturn(true);
-        when(entraUserCommandRepository.findActiveSingleFirmUserIdsByFirmId(firmId, UserAccountStatus.ACTIVE))
+        when(firmCommandRepository.existsByCode(firmId)).thenReturn(true);
+        when(entraUserCommandRepository.findActiveSingleFirmUserIdsByFirmCode(firmId, UserAccountStatus.ACTIVE))
                 .thenReturn(List.of(firstUserId, secondUserId));
         when(deactivateUserHandler.handle(any(DeactivateUserCommand.class), eq(actorId)))
                 .thenReturn(CommandResult.success("done"), CommandResult.success("done"));
@@ -66,7 +66,7 @@ class BulkDeactivateFirmUsersHandlerTest {
 
         assertThat(result.success()).isTrue();
         assertThat(result.message()).contains("Deactivated 2 users");
-        verify(entraUserCommandRepository).findActiveSingleFirmUserIdsByFirmId(firmId, UserAccountStatus.ACTIVE);
+        verify(entraUserCommandRepository).findActiveSingleFirmUserIdsByFirmCode(firmId, UserAccountStatus.ACTIVE);
         ArgumentCaptor<DeactivateUserCommand> commandCaptor = ArgumentCaptor.forClass(DeactivateUserCommand.class);
         verify(deactivateUserHandler, times(2)).handle(commandCaptor.capture(), eq(actorId));
         assertThat(commandCaptor.getAllValues())
@@ -78,12 +78,12 @@ class BulkDeactivateFirmUsersHandlerTest {
 
     @Test
     void handle_returnsFailureWhenAnyUserCannotBeDeactivated() {
-        UUID firmId = UUID.randomUUID();
+        String firmId = "123456";
         UUID userId = UUID.randomUUID();
         BulkDeactivateFirmUsersCommand command =
                 new BulkDeactivateFirmUsersCommand(firmId, DeactivateUserReason.FirmClosureorMerger);
-        when(firmCommandRepository.existsById(firmId)).thenReturn(true);
-        when(entraUserCommandRepository.findActiveSingleFirmUserIdsByFirmId(firmId, UserAccountStatus.ACTIVE))
+        when(firmCommandRepository.existsByCode(firmId)).thenReturn(true);
+        when(entraUserCommandRepository.findActiveSingleFirmUserIdsByFirmCode(firmId, UserAccountStatus.ACTIVE))
                 .thenReturn(List.of(userId));
         when(deactivateUserHandler.handle(any(DeactivateUserCommand.class), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(CommandResult.failure("not allowed"));
@@ -96,13 +96,13 @@ class BulkDeactivateFirmUsersHandlerTest {
 
     @Test
     void handle_throwsNotFoundWhenFirmDoesNotExist() {
-        UUID firmId = UUID.randomUUID();
-        when(firmCommandRepository.existsById(firmId)).thenReturn(false);
+        String firmId = "123456";
+        when(firmCommandRepository.existsByCode(firmId)).thenReturn(false);
 
         assertThatThrownBy(() -> handler.handle(
                 new BulkDeactivateFirmUsersCommand(firmId, DeactivateUserReason.FirmClosureorMerger), "actor"))
                 .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining(firmId.toString());
+                .hasMessageContaining(firmId);
         verifyNoInteractions(entraUserCommandRepository, deactivateUserHandler);
     }
 }

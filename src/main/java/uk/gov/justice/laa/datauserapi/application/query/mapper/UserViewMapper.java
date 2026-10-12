@@ -64,14 +64,17 @@ public class UserViewMapper {
                 .map(this::mapOffice)
                 .toList();
 
+        String firmId = profile.getFirm() != null ? profile.getFirm().getId().toString() : null;
+        String firmName = profile.getFirm() != null ? profile.getFirm().getName() : null;
+
         return new UserProfileDetailView(
                 profile.getId(),
                 profile.isActiveProfile(),
                 profile.getUserType(),
                 user.getEmail(),
                 user.getFirstName() + " " + user.getLastName(),
-                profile.getFirm().getName(),
-                profile.getFirm().getId().toString(),
+                firmName,
+                firmId,
                 user.isMultiFirmUser(),
                 user.getUserAccountStatus(),
                 profile.getUserProfileStatus(),

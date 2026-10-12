@@ -3,7 +3,6 @@ package uk.gov.justice.laa.datauserapi.application.command.controller;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,13 +15,11 @@ import uk.gov.justice.laa.datauserapi.contracts.request.BulkDeactivateFirmUsersR
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
 
-import java.util.UUID;
-
 @Slf4j
 @RestController
 @RequiresAdminScope
 @RequestMapping("/api/v1/commands/firms")
-public class FirmCommandController {
+public class FirmCommandController implements CommandControllerSupport {
 
     private final BulkDeactivateFirmUsersHandler bulkDeactivateFirmUsersHandler;
     private final BulkDeactivateFirmUsersMapper bulkDeactivateFirmUsersMapper;
@@ -38,21 +35,11 @@ public class FirmCommandController {
     public ResponseEntity<CommandResult> bulkDeactivateUsers(
             @Valid @RequestBody BulkDeactivateFirmUsersRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        String actorId = resolveActorId(jwt);
-        log.info("Processing bulk user deactivation for firm {} by {}", request.firmId(), actorId);
+        String actorOid = resolveActor(jwt);
+        log.info("Processing bulk user deactivation for firm {} by {}", request.firmId(), actorOid);
         CommandResult result = bulkDeactivateFirmUsersHandler.handle(
-                bulkDeactivateFirmUsersMapper.toCommand(request), actorId);
+                bulkDeactivateFirmUsersMapper.toCommand(request), actorOid);
         return ResponseEntity.ok(result);
     }
 
-    private String resolveActorId(Jwt jwt) {
-        if (jwt == null || jwt.getClaimAsString("oid") == null) {
-            throw new AccessDeniedException("Authenticated user object ID is required");
-        }
-        try {
-            return UUID.fromString(jwt.getClaimAsString("oid")).toString();
-        } catch (IllegalArgumentException e) {
-            throw new AccessDeniedException("Authenticated user object ID must be a UUID", e);
-        }
-    }
 }

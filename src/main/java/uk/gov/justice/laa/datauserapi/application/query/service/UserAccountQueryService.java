@@ -34,11 +34,11 @@ public class UserAccountQueryService {
     }
 
     public List<AccountStatusHistoryView> getAuditHistory(UUID userEntraObjectId) {
-        return queryRepository.findAuditHistoryByUserEntraObjectId(userEntraObjectId);
+        return queryRepository.findAuditHistoryByUserEntraObjectId(String.valueOf(userEntraObjectId));
     }
 
     public UserAccountStatusView getUserStatus(UUID userEntraObjectId) {
-        return userRepository.findStatusByUserEntraObjectId(userEntraObjectId)
+        return userRepository.findStatusByUserEntraObjectId(String.valueOf(userEntraObjectId))
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userEntraObjectId));
     }
 
