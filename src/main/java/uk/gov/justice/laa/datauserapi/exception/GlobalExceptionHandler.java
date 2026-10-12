@@ -1,19 +1,24 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
-import jakarta.servlet.http.HttpServletRequest;
-import lombok.extern.slf4j.Slf4j;
+import java.net.URI;
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 import uk.gov.justice.laa.datauserapi.contracts.response.FieldErrorDetail;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
-
-import java.net.URI;
-import java.util.List;
 
 @Slf4j
 @RestControllerAdvice
@@ -33,7 +38,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+        return problemResponse(HttpStatus.NOT_FOUND, problem);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -56,7 +61,46 @@ public class GlobalExceptionHandler {
                 fieldErrors
         );
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+        return problemResponse(HttpStatus.BAD_REQUEST, problem);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ProblemDetail> handleConstraintViolation(
+            ConstraintViolationException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+        List<FieldErrorDetail> fieldErrors = ex.getConstraintViolations()
+                .stream()
+                .map(this::toFieldErrorDetail)
+                .toList();
+
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/validation-error"),
+                "Validation Error",
+                HttpStatus.BAD_REQUEST.value(),
+                "One or more request parameters failed validation.",
+                URI.create(request.getRequestURI()),
+                fieldErrors
+        );
+
+        return problemResponse(HttpStatus.BAD_REQUEST, problem);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ProblemDetail> handleMissingRequestParameter(
+            MissingServletRequestParameterException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/validation-error"),
+                "Validation Error",
+                HttpStatus.BAD_REQUEST.value(),
+                "One or more request parameters failed validation.",
+                URI.create(request.getRequestURI()),
+                List.of(new FieldErrorDetail(ex.getParameterName(), "is required"))
+        );
+
+        return problemResponse(HttpStatus.BAD_REQUEST, problem);
     }
 
     @ExceptionHandler(InvalidUuidFormatException.class)
@@ -74,7 +118,13 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+        return problemResponse(HttpStatus.BAD_REQUEST, problem);
+    }
+
+    private FieldErrorDetail toFieldErrorDetail(ConstraintViolation<?> violation) {
+        String path = violation.getPropertyPath().toString();
+        String field = path.contains(".") ? path.substring(path.lastIndexOf('.') + 1) : path;
+        return new FieldErrorDetail(field, violation.getMessage());
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -92,7 +142,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+        return problemResponse(HttpStatus.FORBIDDEN, problem);
     }
 
     @ExceptionHandler(JwtException.class)
@@ -110,7 +160,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
+        return problemResponse(HttpStatus.UNAUTHORIZED, problem);
     }
 
     @ExceptionHandler(ScopeMissingException.class)
@@ -128,7 +178,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+        return problemResponse(HttpStatus.FORBIDDEN, problem);
     }
 
     @ExceptionHandler(InvalidActorContextException.class)
@@ -146,7 +196,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+        return problemResponse(HttpStatus.FORBIDDEN, problem);
     }
 
     @ExceptionHandler(Exception.class)
@@ -164,6 +214,12 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(problem);
+        return problemResponse(HttpStatus.INTERNAL_SERVER_ERROR, problem);
+    }
+
+    private ResponseEntity<ProblemDetail> problemResponse(HttpStatus status, ProblemDetail problem) {
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(problem);
     }
 }

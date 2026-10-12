@@ -287,4 +287,5 @@ class UserCommandServiceTest {
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }
     }
+
 }

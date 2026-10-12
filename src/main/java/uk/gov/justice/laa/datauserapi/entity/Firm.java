@@ -24,7 +24,7 @@ import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-import uk.gov.justice.laa.datauserapi.model.FirmType;
+import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
 
 import java.util.Set;
 

@@ -14,11 +14,13 @@ import uk.gov.justice.laa.datauserapi.application.command.handler.BulkDeactivate
 import uk.gov.justice.laa.datauserapi.application.command.mapper.BulkDeactivateFirmUsersMapper;
 import uk.gov.justice.laa.datauserapi.contracts.request.BulkDeactivateFirmUsersRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
 
 import java.util.UUID;
 
 @Slf4j
 @RestController
+@RequiresAdminScope
 @RequestMapping("/api/v1/commands/firms")
 public class FirmCommandController {
 
