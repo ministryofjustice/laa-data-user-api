@@ -6,9 +6,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import uk.gov.justice.laa.datauserapi.application.query.getuserprofilebyid.GetUserProfileByIdQuery;
 import uk.gov.justice.laa.datauserapi.application.query.getuserprofiles.GetUserProfilesQuery;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 
+import java.util.Optional;
 import java.util.UUID;
 
 public interface UserProfileReadRepository extends JpaRepository<UserProfile, UUID> {
@@ -41,6 +43,16 @@ public interface UserProfileReadRepository extends JpaRepository<UserProfile, UU
         AND (:#{#query.multiFirmUser} IS NULL OR entraUser.multiFirmUser = :#{#query.multiFirmUser})
     """)
     Page<UserProfile> findAll(@Param("query") GetUserProfilesQuery query, Pageable pageable);
+
+    @Query("""
+        SELECT userProfile FROM UserProfile userProfile
+        JOIN FETCH userProfile.entraUser
+        LEFT JOIN FETCH userProfile.appRoles
+        LEFT JOIN FETCH userProfile.offices
+        LEFT JOIN FETCH userProfile.firm
+        WHERE userProfile.id = :#{#query.id}
+    """)
+    Optional<UserProfile> findById(@Param("query") GetUserProfileByIdQuery query);
 
 }
 
