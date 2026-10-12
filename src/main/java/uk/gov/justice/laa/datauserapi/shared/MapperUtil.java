@@ -63,4 +63,16 @@ public class MapperUtil {
         return uuid;
     }
 
+    public static String buildFullName(String firstName, String lastName) {
+        if(firstName == null) {
+            return null;
+        }
+        else if(lastName == null) {
+            return firstName;
+        }
+        else {
+            return firstName + " " + lastName;
+        }
+    }
+
 }

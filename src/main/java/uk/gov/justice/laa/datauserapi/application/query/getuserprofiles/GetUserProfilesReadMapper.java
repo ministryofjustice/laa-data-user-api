@@ -12,6 +12,7 @@ import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.model.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.shared.Mapper;
+import uk.gov.justice.laa.datauserapi.shared.MapperUtil;
 
 import java.util.List;
 import java.util.Optional;
@@ -36,7 +37,7 @@ public class GetUserProfilesReadMapper implements Mapper<Page<UserProfile>, Page
         String email = entraUser.map(EntraUser::getEmail).orElse(null);
         String firstName = entraUser.map(EntraUser::getFirstName).orElse(null);
         String lastName = entraUser.map(EntraUser::getLastName).orElse(null);
-        String fullName = buildFullName(firstName, lastName);
+        String fullName = MapperUtil.buildFullName(firstName, lastName);
         Optional<Firm> firm = Optional.ofNullable(userProfile.getFirm());
         String firmName = firm.map(Firm::getName).orElse(null);
         String firmId = firm.map(Firm::getId).map(UUID::toString).orElse(null);
@@ -57,17 +58,5 @@ public class GetUserProfilesReadMapper implements Mapper<Page<UserProfile>, Page
                 profileStatus,
                 hasAppRoles
         );
-    }
-
-    private static String buildFullName(String firstName, String lastName) {
-        if(firstName == null) {
-            return null;
-        }
-        else if(lastName == null) {
-            return firstName;
-        }
-        else {
-            return firstName + " " + lastName;
-        }
     }
 }
