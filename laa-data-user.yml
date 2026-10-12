@@ -2364,6 +2364,7 @@ components:
       properties:
         firmId:
           type: string
+          format: uuid
         deactivateReason:
           $ref: '#/components/schemas/DeactivateUserReason'
 

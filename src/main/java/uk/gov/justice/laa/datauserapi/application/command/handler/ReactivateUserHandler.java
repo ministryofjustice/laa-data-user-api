@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
-import uk.gov.justice.laa.datauserapi.application.command.shared.repository.ReactivateUserCommandRepository;
+import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserAccountStatusAuditRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
@@ -25,7 +25,7 @@ import java.util.UUID;
 @Component
 public class ReactivateUserHandler implements CommandHandler<ReactivateUserCommand> {
 
-    private final ReactivateUserCommandRepository reactivateUserCommandRepository;
+    private final EntraUserCommandRepository entraUserCommandRepository;
     private final UserAccountStatusAuditRepository auditRepository;
     private final TechServicesClient techServicesClient;
     private final ReactivateUserMapper mapper;
@@ -33,10 +33,10 @@ public class ReactivateUserHandler implements CommandHandler<ReactivateUserComma
     private final UserCommandService userCommandService;
 
     public ReactivateUserHandler(
-            ReactivateUserCommandRepository reactivateUserCommandRepository,
+            EntraUserCommandRepository entraUserCommandRepository,
             UserAccountStatusAuditRepository auditRepository, TechServicesClient techServicesClient,
             ReactivateUserMapper mapper, ModelMapper modelMapper, UserCommandService userCommandService) {
-        this.reactivateUserCommandRepository = reactivateUserCommandRepository;
+        this.entraUserCommandRepository = entraUserCommandRepository;
         this.auditRepository = auditRepository;
         this.techServicesClient = techServicesClient;
         this.mapper = mapper;
@@ -78,19 +78,19 @@ public class ReactivateUserHandler implements CommandHandler<ReactivateUserComma
             }
         }
 
-        EntraUser user = reactivateUserCommandRepository.findById(command.userEntraObjectId())
+        EntraUser user = entraUserCommandRepository.findByEntraOid(String.valueOf(command.userEntraObjectId()))
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "User account not found with ID: " + command.userEntraObjectId()));
+                        "User account not found for oid: " + command.userEntraObjectId()));
         EntraUserDto userDto = modelMapper.map(user, EntraUserDto.class);
         techServicesClient.reactivateUser(userDto);
 
         user.reactivate(actorIdStr);
-        reactivateUserCommandRepository.save(user);
+        entraUserCommandRepository.save(user);
 
         UserAccountStatusAudit audit = mapper.toAuditEntity(user, actorIdStr, command.comments());
         auditRepository.save(audit);
 
-        log.info("User account enabled with ID: {}", command.userEntraObjectId());
+        log.info("User account not found for oid: {}", command.userEntraObjectId());
 
         return mapper.toCommandResult(user);
     }

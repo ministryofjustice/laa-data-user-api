@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.UserType;
 
 
@@ -18,26 +19,27 @@ public class UserCommandService {
         this.entraUserCommandRepository = entraUserCommandRepository;
     }
 
-    public boolean isExternalUser(UUID entraUserId) {
-        UserType userType = getUserType(entraUserId);
+    public boolean isExternalUser(UUID userEntraObjectId) {
+        UserType userType = getUserType(userEntraObjectId);
         return UserType.EXTERNAL.equals(userType);
     }
 
-    public boolean isInternalUser(UUID entraUserId) {
-        UserType userType = getUserType(entraUserId);
+    public boolean isInternalUser(UUID userEntraObjectId) {
+        UserType userType = getUserType(userEntraObjectId);
         return UserType.INTERNAL.equals(userType);
     }
 
-    private UserType getUserType(UUID entraUserId) {
-        EntraUser entraUser = entraUserCommandRepository.findById(entraUserId)
-                .orElseThrow(() -> new RuntimeException("Entra user not found for id: " + entraUserId));
+    private UserType getUserType(UUID userEntraObjectId) {
+        EntraUser entraUser = entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
+                .orElseThrow(() -> new RuntimeException("Entra user not found for oid: " + userEntraObjectId));
         return entraUser.getUserProfiles().stream().map(UserProfile::getUserType).findFirst().orElse(null);
     }
 
-    public UserProfile getActiveUserProfile(UUID entraUserId) {
-        EntraUser entraUser = entraUserCommandRepository.findById(entraUserId)
-                .orElseThrow(() -> new RuntimeException("Entra user not found for id: " + entraUserId));
+    public UserProfile getActiveUserProfile(UUID userEntraObjectId) {
+        EntraUser entraUser = entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
+                .orElseThrow(() -> new ResourceNotFoundException("User account not found for oid: " + userEntraObjectId));
         return entraUser.getUserProfiles().stream().filter(UserProfile::isActiveProfile).findFirst()
-                .orElseThrow(() -> new RuntimeException("Active profile not found for user id: " + entraUserId));
+                .orElseThrow(() -> new ResourceNotFoundException("Active profile not found for user oid: " + userEntraObjectId));
     }
+
 }
