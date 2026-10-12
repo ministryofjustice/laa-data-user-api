@@ -127,6 +127,24 @@ public class GlobalExceptionHandler {
         return new FieldErrorDetail(field, violation.getMessage());
     }
 
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ProblemDetail> handleBadRequest(
+            BadRequestException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/validation-error"),
+                "Validation Error",
+                HttpStatus.BAD_REQUEST.value(),
+                ex.getMessage(),
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ProblemDetail> handleForbidden(
             AccessDeniedException ex,
