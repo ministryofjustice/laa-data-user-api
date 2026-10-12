@@ -19,7 +19,7 @@ import uk.gov.justice.laa.datauserapi.application.query.handler.SearchUsersHandl
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
-import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryViewResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserViewResponse;
 
 
@@ -73,7 +73,7 @@ class UserAccountQueryControllerTest {
         when(searchUsersHandler.handle(any(SearchUsersQuery.class)))
                 .thenReturn(page);
 
-        ResponseEntity<UserAccountSummaryResponse> result =
+        ResponseEntity<UserAccountSummaryViewResponse> result =
                 controller.searchUsers(criteria, jwt);
 
         assertEquals(HttpStatus.OK, result.getStatusCode());
@@ -87,8 +87,8 @@ class UserAccountQueryControllerTest {
         assertEquals(criteria, captor.getValue().criteria());
         assertEquals(actorOid, captor.getValue().actorOid());
 
-        UserAccountSummaryResponse expected =
-                new UserAccountSummaryResponse(page.items(), page.page());
+        UserAccountSummaryViewResponse expected =
+                new UserAccountSummaryViewResponse(page.items(), page.page());
 
         assertEquals(expected, result.getBody());
 

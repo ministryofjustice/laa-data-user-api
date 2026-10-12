@@ -15,8 +15,8 @@ import org.springframework.security.access.AccessDeniedException;
 
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchAccess;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.FirmDirectoryActorQueryRepository;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.model.Permission;
-import uk.gov.justice.laa.datauserapi.model.UserType;
 
 @ExtendWith(MockitoExtension.class)
 class FirmAuthorisationServiceTest {

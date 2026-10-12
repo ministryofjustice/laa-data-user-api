@@ -8,7 +8,7 @@ import uk.gov.justice.laa.datauserapi.application.command.shared.repository.Entr
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
-import uk.gov.justice.laa.datauserapi.model.UserType;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
 @Service
 public class UserCommandService {

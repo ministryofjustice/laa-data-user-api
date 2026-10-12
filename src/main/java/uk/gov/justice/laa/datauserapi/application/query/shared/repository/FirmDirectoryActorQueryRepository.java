@@ -8,9 +8,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.model.Permission;
-import uk.gov.justice.laa.datauserapi.model.UserType;
+
 
 @org.springframework.stereotype.Repository
 public interface FirmDirectoryActorQueryRepository extends Repository<EntraUser, UUID> {

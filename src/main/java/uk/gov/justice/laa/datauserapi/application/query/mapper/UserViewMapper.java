@@ -14,7 +14,7 @@ import uk.gov.justice.laa.datauserapi.entity.Office;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.AppRoleUserType;
-import uk.gov.justice.laa.datauserapi.model.UserType;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
 
 import java.util.Arrays;
@@ -67,14 +67,14 @@ public class UserViewMapper {
         return new UserProfileDetailView(
                 profile.getId(),
                 profile.isActiveProfile(),
-                profile.getUserType().toString(),
+                profile.getUserType(),
                 user.getEmail(),
                 user.getFirstName() + " " + user.getLastName(),
                 profile.getFirm().getName(),
                 profile.getFirm().getId().toString(),
                 user.isMultiFirmUser(),
-                user.getUserAccountStatus().toString(),
-                profile.getUserProfileStatus().toString(),
+                user.getUserAccountStatus(),
+                profile.getUserProfileStatus(),
                 !roles.isEmpty(),
 
                 UUID.fromString(user.getEntraOid()),

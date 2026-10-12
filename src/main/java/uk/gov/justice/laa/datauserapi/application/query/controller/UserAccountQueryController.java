@@ -19,7 +19,7 @@ import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAcc
 import uk.gov.justice.laa.datauserapi.application.query.handler.SearchUsersHandler;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
-import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryViewResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserViewResponse;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 
@@ -53,11 +53,11 @@ public class UserAccountQueryController {
     }
 
     @GetMapping("/users")
-    public ResponseEntity<UserAccountSummaryResponse> searchUsers(
+    public ResponseEntity<UserAccountSummaryViewResponse> searchUsers(
             @Valid @ModelAttribute UserSearchCriteria criteria, @AuthenticationPrincipal Jwt jwt) {
         String actorOid = jwt.getClaimAsString("oid");
         UserAccountSummaryPage readModel = searchUsersHandler.handle(new SearchUsersQuery(criteria, actorOid));
-        return ResponseEntity.ok(new UserAccountSummaryResponse(readModel.items(), readModel.page()));
+        return ResponseEntity.ok(new UserAccountSummaryViewResponse(readModel.items(), readModel.page()));
     }
 
     @GetMapping("/users/{userEntraObjectId}")
