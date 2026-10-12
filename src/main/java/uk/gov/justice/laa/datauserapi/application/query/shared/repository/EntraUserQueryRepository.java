@@ -37,7 +37,7 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
         LEFT JOIN FETCH up.offices o
     WHERE u.entraOid = :userEntraObjectId
       AND up.activeProfile = true
-    """)
+        """)
     Optional<EntraUser> findUserAccountSummaryByUserEntraObjectId(
             @Param("userEntraObjectId") String userEntraObjectId);
 
