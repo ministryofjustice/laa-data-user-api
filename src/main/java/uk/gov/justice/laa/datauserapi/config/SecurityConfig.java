@@ -52,10 +52,12 @@ public class SecurityConfig {
                             || new IpAddressMatcher("192.168.0.0/16").matches(context.getRequest());
                     return new AuthorizationDecision(allowed);
                 })
-                .requestMatchers("/api/v1/queries/firms/search")
+                .requestMatchers("/api/v1/commands/**")
+                    .hasAuthority("SCOPE_user_data.admin")
+                .requestMatchers("/api/v1/queries/**")
                     .hasAnyAuthority("SCOPE_user_data.read", "SCOPE_user_data.admin")
-                .requestMatchers("/api/v1/queries/firms/**").hasAuthority("SCOPE_user_data.admin")
-                .requestMatchers("/api/v1/**").hasAnyAuthority("SCOPE_user_data.read", "SCOPE_user_data.admin")
+                .requestMatchers("/api/v1/**")
+                    .hasAnyAuthority("SCOPE_user_data.read", "SCOPE_user_data.admin")
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
