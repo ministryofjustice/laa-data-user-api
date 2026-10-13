@@ -57,7 +57,8 @@ class DevJwtDecoderConfigTest {
 
         assertThat(jwt).isNotNull();
         assertThat(jwt.getClaimAsString("oid")).isEqualTo(oid);
-        assertThat(jwt.getClaimAsString("scp")).contains("user_data.read");
+        assertThat(jwt.getClaimAsString("scp")).isEqualTo("user_data.read");
+        assertThat(jwt.getClaimAsString("scp")).doesNotContain("user_data.admin");
     }
 
     @Test
@@ -79,11 +80,12 @@ class DevJwtDecoderConfigTest {
 
         assertThat(jwt).isNotNull();
         assertThat(jwt.getClaimAsString("oid")).isEqualTo(oid);
-        assertThat(jwt.getClaimAsString("scp")).contains("Directory.Read.All", "User.Read", "user_data.read", "user_data.admin");
+        assertThat(jwt.getClaimAsString("scp")).contains("Directory.Read.All", "User.Read", "user_data.read");
+        assertThat(jwt.getClaimAsString("scp")).doesNotContain("user_data.admin");
     }
 
     @Test
-    void shouldDefaultScopeWhenJwtLacksScpOrScopeClaim() throws Exception {
+    void shouldDefaultToReadScopeWhenJwtLacksScpOrScopeClaim() throws Exception {
         String oid = UUID.randomUUID().toString();
         JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
                 .subject("test-user")
@@ -100,6 +102,25 @@ class DevJwtDecoderConfigTest {
 
         assertThat(jwt).isNotNull();
         assertThat(jwt.getClaimAsString("oid")).isEqualTo(oid);
+        assertThat(jwt.getClaimAsString("scp")).isEqualTo("user_data.read");
+    }
+
+    @Test
+    void shouldPreserveAdminScopeWhenPresentInSourceToken() throws Exception {
+        String oid = UUID.randomUUID().toString();
+        JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
+                .subject("test-user")
+                .claim("oid", oid)
+                .claim("scp", "user_data.read user_data.admin")
+                .issueTime(new Date())
+                .expirationTime(new Date(System.currentTimeMillis() + 3600_000))
+                .build();
+
+        SignedJWT signedJWT = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claimsSet);
+        signedJWT.sign(new MACSigner("01234567890123456789012345678901"));
+
+        Jwt jwt = jwtDecoder.decode(signedJWT.serialize());
+
         assertThat(jwt.getClaimAsString("scp")).contains("user_data.read", "user_data.admin");
     }
 

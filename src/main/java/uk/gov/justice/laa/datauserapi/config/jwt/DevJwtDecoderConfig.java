@@ -88,8 +88,7 @@ public class DevJwtDecoderConfig {
             Map<String, Object> headers = new LinkedHashMap<>(signedJWT.getHeader().toJSONObject());
             Map<String, Object> claims = new LinkedHashMap<>(claimsSet.getClaims());
 
-            // In local dev, ensure the user has the required API scopes (user_data.read, user_data.admin)
-            // even if the upstream token only carries Microsoft Graph scopes (e.g. Directory.Read.All)
+            // In local dev, add the read scope for upstream tokens that only carry Microsoft Graph scopes.
             Object scpClaim = claims.get("scp");
             Object scopeClaim = claims.get("scope");
             String existingScopes = "";
@@ -102,7 +101,6 @@ public class DevJwtDecoderConfig {
             Set<String> scopes = new LinkedHashSet<>(Arrays.asList(existingScopes.split("\\s+")));
             scopes.removeIf(String::isBlank);
             scopes.add("user_data.read");
-            scopes.add("user_data.admin");
 
             claims.put("scp", String.join(" ", scopes));
 
