@@ -24,10 +24,10 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
             u.lastModified
         )
         FROM EntraUser u
-        WHERE u.id = :userEntraObjectId
+        WHERE u.entraOid = :userEntraObjectId
         """)
     Optional<UserAccountStatusView> findStatusByUserEntraObjectId(
-            @Param("userEntraObjectId") UUID userEntraObjectId);
+            @Param("userEntraObjectId") String userEntraObjectId);
 
     @Query("""
     SELECT DISTINCT u

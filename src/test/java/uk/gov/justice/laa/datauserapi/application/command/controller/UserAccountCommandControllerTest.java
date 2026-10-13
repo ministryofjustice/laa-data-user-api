@@ -19,6 +19,9 @@ import uk.gov.justice.laa.datauserapi.application.command.useraccount.Reactivate
 import uk.gov.justice.laa.datauserapi.contracts.request.DeactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.ReactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
+
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -79,10 +82,10 @@ class UserAccountCommandControllerTest {
         @DisplayName("Should successfully reactivate user when JWT with subject is present")
         void reactivateUser_WithValidJwtSubject_ReturnsOk() {
             // Arrange
-            String actorId = "user-entra-sub-123";
-            when(jwt.getSubject()).thenReturn(actorId);
+            String actorOid = UUID.randomUUID().toString();
+            when(jwt.getClaimAsString("oid")).thenReturn(actorOid);
             when(reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest)).thenReturn(reactivateUserCommand);
-            when(reactivateUserHandler.handle(reactivateUserCommand, actorId)).thenReturn(commandResult);
+            when(reactivateUserHandler.handle(reactivateUserCommand, actorOid)).thenReturn(commandResult);
 
             // Act
             ResponseEntity<CommandResult> response = controller.reactivateUser(reactivateUserRequest, jwt);
@@ -93,52 +96,39 @@ class UserAccountCommandControllerTest {
             assertThat(response.getBody()).isSameAs(commandResult);
 
             verify(reactivateUserMapper).toReactivateUserCommand(reactivateUserRequest);
-            verify(reactivateUserHandler).handle(reactivateUserCommand, actorId);
+            verify(reactivateUserHandler).handle(reactivateUserCommand, actorOid);
             verifyNoInteractions(deactivateUserHandler, deactivateUserMapper);
         }
 
         @Test
-        @DisplayName("Should fallback actor to 'system' when JWT is null")
-        void reactivateUser_WithNullJwt_ResolvesActorAsSystem() {
-            // Arrange
-            when(reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest)).thenReturn(reactivateUserCommand);
-            when(reactivateUserHandler.handle(reactivateUserCommand, "system")).thenReturn(commandResult);
-
+        @DisplayName("Should fail when JWT is null")
+        void reactivateUser_WithNullJwt_ReturnsException() {
             // Act
-            ResponseEntity<CommandResult> response = controller.reactivateUser(reactivateUserRequest, null);
-
-            // Assert
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody()).isSameAs(commandResult);
-
-            verify(reactivateUserHandler).handle(reactivateUserCommand, "system");
+            assertThatThrownBy(() -> controller.reactivateUser(reactivateUserRequest, null))
+                    .isInstanceOf(InvalidActorContextException.class)
+                    .hasMessage("Authentication token is missing the actor identity");
         }
 
         @Test
-        @DisplayName("Should fallback actor to 'system' when JWT has null subject")
-        void reactivateUser_WithNullJwtSubject_ResolvesActorAsSystem() {
+        @DisplayName("Should fail with exception when JWT has null subject")
+        void reactivateUser_WithNullJwtSubject_ReturnsException() {
             // Arrange
-            when(jwt.getSubject()).thenReturn(null);
-            when(reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest)).thenReturn(reactivateUserCommand);
-            when(reactivateUserHandler.handle(reactivateUserCommand, "system")).thenReturn(commandResult);
+            when(jwt.getClaimAsString("oid")).thenReturn(null);
 
             // Act
-            ResponseEntity<CommandResult> response = controller.reactivateUser(reactivateUserRequest, jwt);
-
-            // Assert
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody()).isSameAs(commandResult);
-
-            verify(reactivateUserHandler).handle(reactivateUserCommand, "system");
+            assertThatThrownBy(() -> controller.reactivateUser(reactivateUserRequest, jwt))
+                    .isInstanceOf(InvalidActorContextException.class)
+                    .hasMessage("Authentication token is missing the actor identity");
         }
 
         @Test
         @DisplayName("Should propagate exception when handler throws exception")
         void reactivateUser_WhenHandlerFails_PropagatesException() {
             // Arrange
-            when(jwt.getSubject()).thenReturn("actor-1");
+            String actorOid = UUID.randomUUID().toString();
+            when(jwt.getClaimAsString("oid")).thenReturn(actorOid);
             when(reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest)).thenReturn(reactivateUserCommand);
-            when(reactivateUserHandler.handle(reactivateUserCommand, "actor-1"))
+            when(reactivateUserHandler.handle(reactivateUserCommand, actorOid))
                     .thenThrow(new IllegalStateException("Reactivation failed"));
 
             // Act & Assert
@@ -156,10 +146,10 @@ class UserAccountCommandControllerTest {
         @DisplayName("Should successfully deactivate user when JWT with subject is present")
         void deactivateUser_WithValidJwtSubject_ReturnsOk() {
             // Arrange
-            String actorId = "admin-sub-456";
-            when(jwt.getSubject()).thenReturn(actorId);
+            String actorOid = UUID.randomUUID().toString();
+            when(jwt.getClaimAsString("oid")).thenReturn(actorOid);
             when(deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest)).thenReturn(deactivateUserCommand);
-            when(deactivateUserHandler.handle(deactivateUserCommand, actorId)).thenReturn(commandResult);
+            when(deactivateUserHandler.handle(deactivateUserCommand, actorOid)).thenReturn(commandResult);
 
             // Act
             ResponseEntity<CommandResult> response = controller.deactivateUser(deactivateUserRequest, jwt);
@@ -170,52 +160,39 @@ class UserAccountCommandControllerTest {
             assertThat(response.getBody()).isSameAs(commandResult);
 
             verify(deactivateUserMapper).toDeactivateUserCommand(deactivateUserRequest);
-            verify(deactivateUserHandler).handle(deactivateUserCommand, actorId);
+            verify(deactivateUserHandler).handle(deactivateUserCommand, actorOid);
             verifyNoInteractions(reactivateUserHandler, reactivateUserMapper);
         }
 
         @Test
-        @DisplayName("Should fallback actor to 'system' when JWT is null")
-        void deactivateUser_WithNullJwt_ResolvesActorAsSystem() {
-            // Arrange
-            when(deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest)).thenReturn(deactivateUserCommand);
-            when(deactivateUserHandler.handle(deactivateUserCommand, "system")).thenReturn(commandResult);
+        @DisplayName("Should fail when when JWT is null")
+        void deactivateUser_WithNullJwt_returnsException() {
+            // Act & Assert
+            assertThatThrownBy(() -> controller.deactivateUser(deactivateUserRequest, null))
+                    .isInstanceOf(InvalidActorContextException.class)
+                    .hasMessage("Authentication token is missing the actor identity");
 
-            // Act
-            ResponseEntity<CommandResult> response = controller.deactivateUser(deactivateUserRequest, null);
-
-            // Assert
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody()).isSameAs(commandResult);
-
-            verify(deactivateUserHandler).handle(deactivateUserCommand, "system");
         }
 
         @Test
-        @DisplayName("Should fallback actor to 'system' when JWT has null subject")
-        void deactivateUser_WithNullJwtSubject_ResolvesActorAsSystem() {
+        @DisplayName("Should fail when JWT has null subject")
+        void deactivateUser_WithNullJwtSubject_returnsException() {
             // Arrange
-            when(jwt.getSubject()).thenReturn(null);
-            when(deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest)).thenReturn(deactivateUserCommand);
-            when(deactivateUserHandler.handle(deactivateUserCommand, "system")).thenReturn(commandResult);
-
+            when(jwt.getClaimAsString("oid")).thenReturn(null);
             // Act
-            ResponseEntity<CommandResult> response = controller.deactivateUser(deactivateUserRequest, jwt);
-
-            // Assert
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody()).isSameAs(commandResult);
-
-            verify(deactivateUserHandler).handle(deactivateUserCommand, "system");
+            assertThatThrownBy(() -> controller.deactivateUser(deactivateUserRequest, jwt))
+                    .isInstanceOf(InvalidActorContextException.class)
+                    .hasMessage("Authentication token is missing the actor identity");
         }
 
         @Test
         @DisplayName("Should propagate exception when handler throws exception")
         void deactivateUser_WhenHandlerFails_PropagatesException() {
             // Arrange
-            when(jwt.getSubject()).thenReturn("actor-2");
+            String actorOid = UUID.randomUUID().toString();
+            when(jwt.getClaimAsString("oid")).thenReturn(actorOid);
             when(deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest)).thenReturn(deactivateUserCommand);
-            when(deactivateUserHandler.handle(deactivateUserCommand, "actor-2"))
+            when(deactivateUserHandler.handle(deactivateUserCommand, actorOid))
                     .thenThrow(new IllegalArgumentException("Deactivation reason required"));
 
             // Act & Assert

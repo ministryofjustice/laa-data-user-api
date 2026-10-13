@@ -25,7 +25,7 @@ import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
 @RestController
 @RequestMapping("/api/v1/commands")
 @RequiresAdminScope
-public class UserAccountCommandController {
+public class UserAccountCommandController implements CommandControllerSupport {
 
     private final ReactivateUserHandler reactivateUserHandler;
     private final ReactivateUserMapper reactivateUserMapper;
@@ -45,10 +45,10 @@ public class UserAccountCommandController {
             @Valid @RequestBody ReactivateUserRequest reactivateUserRequest,
             @AuthenticationPrincipal Jwt jwt) {
         log.info("Processing reactivate user command for user: {}", reactivateUserRequest.userEntraObjectId());
-        String actorId = resolveActor(jwt);
+        String actorOid = resolveActor(jwt);
         ReactivateUserCommand reactivateUserCommand = reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest);
-        CommandResult result = reactivateUserHandler.handle(reactivateUserCommand, actorId);
-        log.info("User account reactivated with ID: {} by {}", reactivateUserRequest.userEntraObjectId(), actorId);
+        CommandResult result = reactivateUserHandler.handle(reactivateUserCommand, actorOid);
+        log.info("User account reactivated with ID: {} by {}", reactivateUserRequest.userEntraObjectId(), actorOid);
         return ResponseEntity.ok(result);
     }
 
@@ -57,15 +57,12 @@ public class UserAccountCommandController {
             @Valid @RequestBody DeactivateUserRequest deactivateUserRequest,
             @AuthenticationPrincipal Jwt jwt) {
         log.info("Processing deactivate user command for user: {}", deactivateUserRequest.userEntraObjectId());
-        String actorId = resolveActor(jwt);
+        String actorOid = resolveActor(jwt);
         DeactivateUserCommand deactivateUserCommand = deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest);
-        CommandResult result = deactivateUserHandler.handle(deactivateUserCommand, actorId);
+        CommandResult result = deactivateUserHandler.handle(deactivateUserCommand, actorOid);
         log.info("User account deactivated with ID: {} by {} with reason: {}", deactivateUserRequest.userEntraObjectId(),
-                actorId, deactivateUserRequest.deactivateReason());
+                actorOid, deactivateUserRequest.deactivateReason());
         return ResponseEntity.ok(result);
     }
 
-    private String resolveActor(Jwt jwt) {
-        return (jwt != null && jwt.getSubject() != null) ? jwt.getSubject() : "system";
-    }
 }

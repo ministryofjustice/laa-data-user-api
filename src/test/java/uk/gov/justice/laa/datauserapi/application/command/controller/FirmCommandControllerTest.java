@@ -42,7 +42,7 @@ class FirmCommandControllerTest {
 
     @Test
     void bulkDeactivateUsers_usesAuthenticatedActorAndReturnsResult() {
-        UUID firmId = UUID.randomUUID();
+        String firmId = "123456";
         String actorId = UUID.randomUUID().toString();
         BulkDeactivateFirmUsersRequest request =
                 new BulkDeactivateFirmUsersRequest(firmId, DeactivateUserReason.FirmClosureorMerger);

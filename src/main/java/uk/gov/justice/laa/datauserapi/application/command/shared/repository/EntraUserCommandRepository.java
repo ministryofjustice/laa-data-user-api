@@ -19,14 +19,14 @@ public interface EntraUserCommandRepository extends JpaRepository<EntraUser, UUI
         FROM EntraUser u
         JOIN u.userProfiles p
         WHERE p.firm is not null
-          AND p.firm.id = :firmId
+          AND p.firm.code = :firmCode
           AND p.activeProfile = true
           AND u.userAccountStatus = :status
           AND u.multiFirmUser = false
         ORDER BY u.id
         """)
-    List<UUID> findActiveSingleFirmUserIdsByFirmId(
-            @Param("firmId") UUID firmId,
+    List<UUID> findActiveSingleFirmUserIdsByFirmCode(
+            @Param("firmCode") String firmCode,
             @Param("status") UserAccountStatus status);
 
     Optional<EntraUser> findByEntraOid(String entraOid);
