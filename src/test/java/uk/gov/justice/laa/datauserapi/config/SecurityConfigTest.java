@@ -28,17 +28,22 @@ class SecurityConfigTest {
     private MockMvc mockMvc;
 
     @Test
-    void readScopeCanAccessFirmSearch() throws Exception {
+    void readScopeCanAccessFirmQueryEndpoints() throws Exception {
         mockMvc.perform(get("/api/v1/queries/firms/search")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_user_data.read"))))
                 .andExpect(status().isOk());
-    }
 
-    @Test
-    void readScopeCannotAccessOtherFirmQueryEndpoints() throws Exception {
         mockMvc.perform(get("/api/v1/queries/firms")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_user_data.read"))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/queries/firms/123")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_user_data.read"))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/queries/firms/123/offices")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_user_data.read"))))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -80,6 +85,8 @@ class SecurityConfigTest {
         @GetMapping({
                 "/queries/firms/search",
                 "/queries/firms",
+                "/queries/firms/{firmId}",
+                "/queries/firms/{firmId}/offices",
                 "/queries/users",
                 "/me",
                 "/commands/users"
