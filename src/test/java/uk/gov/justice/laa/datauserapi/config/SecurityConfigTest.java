@@ -19,8 +19,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(useDefaultFilters = false)
 @Import({
-        SecurityConfig.class,
-        SecurityConfigTest.JwtDecoderConfiguration.class
+    SecurityConfig.class,
+    SecurityConfigTest.JwtDecoderConfiguration.class
 })
 class SecurityConfigTest {
 
@@ -83,13 +83,13 @@ class SecurityConfigTest {
     public static class TestController {
 
         @GetMapping({
-                "/queries/firms/search",
-                "/queries/firms",
-                "/queries/firms/{firmId}",
-                "/queries/firms/{firmId}/offices",
-                "/queries/users",
-                "/me",
-                "/commands/users"
+            "/queries/firms/search",
+            "/queries/firms",
+            "/queries/firms/{firmId}",
+            "/queries/firms/{firmId}/offices",
+            "/queries/users",
+            "/me",
+            "/commands/users"
         })
         String endpoint() {
             return "ok";

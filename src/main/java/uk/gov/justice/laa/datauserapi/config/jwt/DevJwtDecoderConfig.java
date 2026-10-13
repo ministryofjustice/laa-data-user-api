@@ -82,10 +82,10 @@ public class DevJwtDecoderConfig {
 
     private Jwt decodeJwtClaimsWithoutValidation(String token) {
         try {
-            SignedJWT signedJWT = SignedJWT.parse(token);
-            JWTClaimsSet claimsSet = signedJWT.getJWTClaimsSet();
+            SignedJWT signedJwt = SignedJWT.parse(token);
+            JWTClaimsSet claimsSet = signedJwt.getJWTClaimsSet();
 
-            Map<String, Object> headers = new LinkedHashMap<>(signedJWT.getHeader().toJSONObject());
+            final Map<String, Object> headers = new LinkedHashMap<>(signedJwt.getHeader().toJSONObject());
             Map<String, Object> claims = new LinkedHashMap<>(claimsSet.getClaims());
 
             // In local dev, add the read scope for upstream tokens that only carry Microsoft Graph scopes.

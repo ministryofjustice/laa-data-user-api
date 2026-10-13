@@ -49,9 +49,9 @@ class DevJwtDecoderConfigTest {
                 .expirationTime(new Date(System.currentTimeMillis() + 3600_000))
                 .build();
 
-        SignedJWT signedJWT = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claimsSet);
-        signedJWT.sign(new MACSigner("01234567890123456789012345678901"));
-        String jwtString = signedJWT.serialize();
+        SignedJWT signedJwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claimsSet);
+        signedJwt.sign(new MACSigner("01234567890123456789012345678901"));
+        String jwtString = signedJwt.serialize();
 
         Jwt jwt = jwtDecoder.decode(jwtString);
 
@@ -72,9 +72,9 @@ class DevJwtDecoderConfigTest {
                 .expirationTime(new Date(System.currentTimeMillis() + 3600_000))
                 .build();
 
-        SignedJWT signedJWT = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claimsSet);
-        signedJWT.sign(new MACSigner("01234567890123456789012345678901"));
-        String jwtString = signedJWT.serialize();
+        SignedJWT signedJwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claimsSet);
+        signedJwt.sign(new MACSigner("01234567890123456789012345678901"));
+        String jwtString = signedJwt.serialize();
 
         Jwt jwt = jwtDecoder.decode(jwtString);
 
@@ -94,9 +94,9 @@ class DevJwtDecoderConfigTest {
                 .expirationTime(new Date(System.currentTimeMillis() + 3600_000))
                 .build();
 
-        SignedJWT signedJWT = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claimsSet);
-        signedJWT.sign(new MACSigner("01234567890123456789012345678901"));
-        String jwtString = signedJWT.serialize();
+        SignedJWT signedJwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claimsSet);
+        signedJwt.sign(new MACSigner("01234567890123456789012345678901"));
+        String jwtString = signedJwt.serialize();
 
         Jwt jwt = jwtDecoder.decode(jwtString);
 
@@ -116,10 +116,10 @@ class DevJwtDecoderConfigTest {
                 .expirationTime(new Date(System.currentTimeMillis() + 3600_000))
                 .build();
 
-        SignedJWT signedJWT = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claimsSet);
-        signedJWT.sign(new MACSigner("01234567890123456789012345678901"));
+        SignedJWT signedJwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claimsSet);
+        signedJwt.sign(new MACSigner("01234567890123456789012345678901"));
 
-        Jwt jwt = jwtDecoder.decode(signedJWT.serialize());
+        Jwt jwt = jwtDecoder.decode(signedJwt.serialize());
 
         assertThat(jwt.getClaimAsString("scp")).contains("user_data.read", "user_data.admin");
     }
