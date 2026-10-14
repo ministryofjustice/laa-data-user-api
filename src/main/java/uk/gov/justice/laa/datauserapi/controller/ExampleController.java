@@ -9,9 +9,12 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailResponse;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -38,20 +41,26 @@ public class ExampleController {
         log.info("[/me] request",
                 kv("oid", oid),
                 kv("email", email));
-        UserProfileDetailResponse response = new UserProfileDetailResponse(
+
+        UserProfileDetailView view = new UserProfileDetailView(
                 UUID.randomUUID(),
-                oid,
-                "EXTERNAL",
+                false,
+                UserType.EXTERNAL,
                 email != null ? email : "",
-                name != null ? name : "",
+                name != null ? name : "fullName",
+                "firmName",
+                "firmId",
+                false,
                 null,
                 null,
-                "ACTIVE",
-                "ACTIVE",
                 false,
+                UUID.fromString(oid),
                 false,
-                false
+                true,
+                List.of(),
+                List.of()
         );
+        UserProfileDetailResponse response = new UserProfileDetailResponse(view);
         return ResponseEntity.ok(response);
     }
 }

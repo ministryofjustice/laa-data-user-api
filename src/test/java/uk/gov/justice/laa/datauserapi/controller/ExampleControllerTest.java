@@ -6,6 +6,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailResponse;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,11 +31,11 @@ class ExampleControllerTest {
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().userEntraObjectId()).isEqualTo(oid);
-        assertThat(response.getBody().email()).isEqualTo(email);
-        assertThat(response.getBody().activeProfile()).isFalse();
-        assertThat(response.getBody().hasAppRoles()).isFalse();
-        assertThat(response.getBody().unrestrictedOfficeAccess()).isFalse();
+        assertThat(response.getBody().userProfileDetailView().userEntraObjectId()).isEqualTo(UUID.fromString(oid));
+        assertThat(response.getBody().userProfileDetailView().email()).isEqualTo(email);
+        assertThat(response.getBody().userProfileDetailView().activeProfile()).isFalse();
+        assertThat(response.getBody().userProfileDetailView().hasAppRoles()).isFalse();
+        assertThat(response.getBody().userProfileDetailView().unrestrictedOfficeAccess()).isFalse();
     }
 
     @Test

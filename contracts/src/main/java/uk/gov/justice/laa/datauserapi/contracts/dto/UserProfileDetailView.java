@@ -1,6 +1,5 @@
 package uk.gov.justice.laa.datauserapi.contracts.dto;
 
-
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;

@@ -11,7 +11,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.query.dto.AccountStatusHistoryView;
 import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountStatusView;
+import uk.gov.justice.laa.datauserapi.application.query.handler.GetActiveProfileHandler;
+import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfilesHandler;
+import uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyentrauser.GetActiveProfileQuery;
+import uk.gov.justice.laa.datauserapi.application.query.queryuserprofilesbyentrauser.GetUserProfilesQuery;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryPage;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileDetailView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileSummaryView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserView;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserAccountHandler;
@@ -20,6 +26,8 @@ import uk.gov.justice.laa.datauserapi.application.query.handler.SearchUsersHandl
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryViewResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryViewResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserViewResponse;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 
@@ -34,12 +42,18 @@ public class UserAccountQueryController {
     private final UserAccountQueryService queryService;
     private final SearchUsersHandler searchUsersHandler;
     private final GetUserAccountHandler getUserAccountHandler;
+    private final GetUserProfilesHandler getUserProfilesHandler;
+    private final GetActiveProfileHandler getActiveProfileHandler;
 
     public UserAccountQueryController(UserAccountQueryService queryService, SearchUsersHandler searchUsersHandler,
-                                      GetUserAccountHandler getUserAccountHandler) {
+                                      GetUserAccountHandler getUserAccountHandler,
+                                      GetUserProfilesHandler getUserProfilesHandler,
+                                      GetActiveProfileHandler getActiveProfileHandler) {
         this.queryService = queryService;
         this.searchUsersHandler = searchUsersHandler;
         this.getUserAccountHandler = getUserAccountHandler;
+        this.getUserProfilesHandler = getUserProfilesHandler;
+        this.getActiveProfileHandler = getActiveProfileHandler;
     }
 
     @GetMapping("/users/{userEntraObjectId}/status")
@@ -66,5 +80,21 @@ public class UserAccountQueryController {
         String actorOid = jwt.getClaimAsString("oid");
         UserView readModel = getUserAccountHandler.handle(new GetUserAccountQuery(userEntraObjectId, actorOid));
         return ResponseEntity.ok(new UserViewResponse(readModel.userAccount(), readModel.activeProfile()));
+    }
+
+    @GetMapping("/users/{userEntraObjectId}/profiles")
+    public ResponseEntity<UserProfileSummaryViewResponse> getUserProfiles(@PathVariable String userEntraObjectId, @AuthenticationPrincipal Jwt jwt) {
+        String actorOid = jwt.getClaimAsString("oid");
+        List<UserProfileSummaryView> readModel = getUserProfilesHandler.handle(new GetUserProfilesQuery(userEntraObjectId,
+                actorOid));
+        return ResponseEntity.ok(new UserProfileSummaryViewResponse(readModel));
+    }
+
+    @GetMapping("/users/{userEntraObjectId}/active-profile")
+    public ResponseEntity<UserProfileDetailResponse> getActiveProfile(@PathVariable String userEntraObjectId,
+                                                                   @AuthenticationPrincipal Jwt jwt) {
+        String actorOid = jwt.getClaimAsString("oid");
+        UserProfileDetailView readModel = getActiveProfileHandler.handle(new GetActiveProfileQuery(userEntraObjectId, actorOid));
+        return ResponseEntity.ok(new UserProfileDetailResponse(readModel));
     }
 }

@@ -1,4 +1,4 @@
-package uk.gov.justice.laa.datauserapi.application.query.controller.query;
+package uk.gov.justice.laa.datauserapi.application.query.controller;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -9,7 +9,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
-import uk.gov.justice.laa.datauserapi.application.query.controller.UserAccountQueryController;
+import uk.gov.justice.laa.datauserapi.application.query.handler.GetActiveProfileHandler;
+import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfilesHandler;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryPage;
@@ -44,15 +45,25 @@ class UserAccountQueryControllerTest {
     @Mock
     private GetUserAccountHandler getUserAccountHandler;
 
+    @Mock
+    private GetUserProfilesHandler getUserProfilesHandler;
+
+    @Mock
+    private GetActiveProfileHandler getActiveProfileHandler;
 
     private Jwt jwt;
 
+    private static final String ACTOR_OID = "actor-oid-123";
+    private static final String USER_ENTRA_OBJECT_ID = "123e4567-e89b-12d3-a456-426614174000";
+
     @BeforeEach
     void setUp() {
-        controller = new UserAccountQueryController(
+        controller =  new UserAccountQueryController(
                 queryService,
                 searchUsersHandler,
-                getUserAccountHandler);
+                getUserAccountHandler,
+                getUserProfilesHandler,
+                getActiveProfileHandler);
 
         jwt = mock(Jwt.class);
     }
@@ -63,13 +74,11 @@ class UserAccountQueryControllerTest {
                 null,
                 new PageMetadata(0, 20, 0, 0));
 
-        String actorOid = "actor-oid-123";
-
         UserSearchCriteria criteria = new UserSearchCriteria(
                 0, 20, null, null, null, null, null, null,
                 null, null, null, true, false, null, false);
 
-        when(jwt.getClaimAsString("oid")).thenReturn(actorOid);
+        when(jwt.getClaimAsString("oid")).thenReturn(ACTOR_OID);
         when(searchUsersHandler.handle(any(SearchUsersQuery.class)))
                 .thenReturn(page);
 
@@ -83,37 +92,49 @@ class UserAccountQueryControllerTest {
                 ArgumentCaptor.forClass(SearchUsersQuery.class);
 
         verify(searchUsersHandler).handle(captor.capture());
-
         assertEquals(criteria, captor.getValue().criteria());
-        assertEquals(actorOid, captor.getValue().actorOid());
-
+        assertEquals(ACTOR_OID, captor.getValue().actorOid());
         UserAccountSummaryViewResponse expected =
                 new UserAccountSummaryViewResponse(page.items(), page.page());
-
         assertEquals(expected, result.getBody());
 
     }
 
     @Test
     void getUserAccount_whenValidRequest_shouldCallHandler() {
-        String userEntraObjectId = "123e4567-e89b-12d3-a456-426614174000";
-        String actorOid = "actor-oid-123";
-
         UserView userView = new UserView(null, null);
 
-        when(jwt.getClaimAsString("oid")).thenReturn(actorOid);
+        when(jwt.getClaimAsString("oid")).thenReturn(ACTOR_OID);
         when(getUserAccountHandler.handle(any(GetUserAccountQuery.class)))
                 .thenReturn(userView);
 
-        ResponseEntity<UserViewResponse> result = controller.getUserAccount(userEntraObjectId, jwt);
-
+        ResponseEntity<UserViewResponse> result = controller.getUserAccount(USER_ENTRA_OBJECT_ID, jwt);
         verify(getUserAccountHandler).handle(any(GetUserAccountQuery.class));
-
         assertEquals(HttpStatus.OK, result.getStatusCode());
         assertNotNull(result.getBody());
-
         UserViewResponse expected = new UserViewResponse(null, null);
-
         assertEquals(expected, result.getBody());
+    }
+
+    @Test
+    void getUserProfiles_whenValidRequest_shouldCallHandler() {
+        when(jwt.getClaimAsString("oid")).thenReturn(ACTOR_OID);
+        when(getUserProfilesHandler.handle(any()))
+                .thenReturn(null);
+
+        ResponseEntity<?> result = controller.getUserProfiles(USER_ENTRA_OBJECT_ID, jwt);
+        verify(getUserProfilesHandler).handle(any());
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+    }
+
+    @Test
+    void getActiveProfile_whenValidRequest_shouldCallHandler() {
+        when(jwt.getClaimAsString("oid")).thenReturn(ACTOR_OID);
+        when(getActiveProfileHandler.handle(any()))
+                .thenReturn(null);
+
+        ResponseEntity<?> result = controller.getActiveProfile(USER_ENTRA_OBJECT_ID, jwt);
+        verify(getActiveProfileHandler).handle(any());
+        assertEquals(HttpStatus.OK, result.getStatusCode());
     }
 }
