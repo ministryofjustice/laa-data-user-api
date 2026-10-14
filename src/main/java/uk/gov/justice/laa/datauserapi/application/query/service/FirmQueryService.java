@@ -1,11 +1,13 @@
 package uk.gov.justice.laa.datauserapi.application.query.service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,11 @@ import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 @Transactional(readOnly = true)
 public class FirmQueryService {
 
+    private static final Map<String, String> FIRM_SORT_PROPERTIES = Map.of(
+            "code", "code",
+            "name", "name",
+            "type", "type");
+
     private final FirmQueryRepository firmQueryRepository;
     private final OfficeQueryRepository officeQueryRepository;
     private final FirmAuthorisationService authorisationService;
@@ -37,14 +44,38 @@ public class FirmQueryService {
         this.authorisationService = authorisationService;
     }
 
-    public FirmViewPage listFirms(UUID actorEntraUserId, String firmQuery, int pageNumber, int pageSize) {
+    public FirmViewPage listFirms(
+            UUID actorEntraUserId,
+            String firmQuery,
+            int pageNumber,
+            int pageSize,
+            String sortBy) {
         authorisationService.requireFirmDirectoryAccess(actorEntraUserId);
-        Pageable pageable = PageRequest.of(pageNumber, pageSize);
+        Pageable pageable = PageRequest.of(pageNumber, pageSize, toSort(sortBy));
         String term = firmQuery == null ? "" : firmQuery;
         Page<FirmView> page = firmQueryRepository.search(term, pageable);
         PageMetadata pageMetadata = new PageMetadata(
                 page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages());
         return new FirmViewPage(page.getContent(), pageMetadata);
+    }
+
+    private Sort toSort(String sortValue) {
+        String value = sortValue == null || sortValue.isBlank() ? "name,asc" : sortValue;
+        String[] parts = value.split(",", -1);
+        String property = parts.length > 0 ? FIRM_SORT_PROPERTIES.get(parts[0]) : null;
+        if (property == null || parts.length > 2 || (parts.length == 2 && parts[1].isBlank())) {
+            throw new IllegalArgumentException("Unsupported firm sort value: " + value);
+        }
+
+        Sort.Direction direction = parts.length == 2
+                ? Sort.Direction.fromString(parts[1])
+                : Sort.Direction.ASC;
+        Sort.Order order = new Sort.Order(direction, property);
+        if (property.equals("name")) {
+            order = order.ignoreCase();
+        }
+        Sort sort = Sort.by(order);
+        return property.equals("code") ? sort : sort.and(Sort.by(Sort.Order.asc("code")));
     }
 
     public FirmView getFirmById(UUID actorEntraUserId, String firmId) {

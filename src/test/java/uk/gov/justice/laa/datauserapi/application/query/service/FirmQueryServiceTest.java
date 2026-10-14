@@ -8,11 +8,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.Mock;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -20,6 +22,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import uk.gov.justice.laa.datauserapi.contracts.dto.FirmSearchView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.FirmView;
@@ -55,11 +58,16 @@ class FirmQueryServiceTest {
         Page<FirmView> page = new PageImpl<>(List.of(view), PageRequest.of(0, 20), 1);
         when(firmQueryRepository.search(eq("Test"), any(Pageable.class))).thenReturn(page);
 
-        FirmViewPage result = firmQueryService.listFirms(actorId, "Test", 0, 20);
+        FirmViewPage result = firmQueryService.listFirms(actorId, "Test", 0, 20, "name,asc");
 
         verify(authorisationService).requireFirmDirectoryAccess(actorId);
         assertThat(result.items()).containsExactly(view);
         assertThat(result.page().totalElements()).isEqualTo(1);
+
+        var pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(firmQueryRepository).search(eq("Test"), pageable.capture());
+        assertThat(pageable.getValue().getSort().getOrderFor("name").isIgnoreCase()).isTrue();
+        assertThat(pageable.getValue().getSort().getOrderFor("code").getDirection()).isEqualTo(Sort.Direction.ASC);
     }
 
     @Test
@@ -68,9 +76,43 @@ class FirmQueryServiceTest {
         when(firmQueryRepository.search(eq(""), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
-        firmQueryService.listFirms(actorId, null, 0, 20);
+        firmQueryService.listFirms(actorId, null, 0, 20, null);
 
-        verify(firmQueryRepository).search(eq(""), any(Pageable.class));
+        var pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(firmQueryRepository).search(eq(""), pageable.capture());
+        assertThat(pageable.getValue().getSort().getOrderFor("name").isIgnoreCase()).isTrue();
+        assertThat(pageable.getValue().getSort().getOrderFor("code").getDirection()).isEqualTo(Sort.Direction.ASC);
+    }
+
+    @Test
+    void listFirms_mapsSupportedSortFieldsToEntityProperties() {
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
+        when(firmQueryRepository.search(eq(""), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        List.of("code,desc", "name,asc", "type,desc")
+                .forEach(sortBy -> firmQueryService.listFirms(actorId, null, 0, 20, sortBy));
+
+        var pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(firmQueryRepository, times(3)).search(eq(""), pageable.capture());
+        assertThat(pageable.getAllValues().stream()
+                .map(value -> value.getSort().iterator().next().getProperty()))
+                .containsExactly("code", "name", "type");
+        assertThat(pageable.getAllValues().stream()
+                .map(value -> value.getSort().iterator().next().getDirection()))
+                .containsExactly(
+                        Sort.Direction.DESC,
+                        Sort.Direction.ASC,
+                        Sort.Direction.DESC);
+    }
+
+    @Test
+    void listFirms_rejectsUnsupportedSortProperty() {
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
+
+        assertThatThrownBy(() -> firmQueryService.listFirms(actorId, null, 0, 20, "unknown,asc"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported firm sort value");
     }
 
     @Test
@@ -79,7 +121,7 @@ class FirmQueryServiceTest {
         doThrow(new org.springframework.security.access.AccessDeniedException("denied"))
                 .when(authorisationService).requireFirmDirectoryAccess(actorId);
 
-        assertThatThrownBy(() -> firmQueryService.listFirms(actorId, null, 0, 20))
+        assertThatThrownBy(() -> firmQueryService.listFirms(actorId, null, 0, 20, null))
                 .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
     }
 

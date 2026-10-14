@@ -22,6 +22,7 @@ import uk.gov.justice.laa.datauserapi.contracts.response.FirmSearchResponse;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -53,9 +54,11 @@ class FirmQueryControllerTest {
         UUID oid = UUID.randomUUID();
         FirmView view = new FirmView("123456", "Test Firm", FirmType.LEGAL_SERVICES_PROVIDER, null, true);
         FirmViewPage page = new FirmViewPage(java.util.List.of(view), new PageMetadata(0, 20, 1, 1));
-        when(firmQueryService.listFirms(eq(oid), eq("Test"), eq(0), eq(20))).thenReturn(page);
+        when(firmQueryService.listFirms(eq(oid), eq("Test"), eq(0), eq(20), eq("name,asc")))
+                .thenReturn(page);
 
-        ResponseEntity<FirmPageResponse> response = controller.queryFirms("Test", 0, 20, jwtWithOid(oid));
+        ResponseEntity<FirmPageResponse> response =
+                controller.queryFirms("Test", 0, 20, "name,asc", jwtWithOid(oid));
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isEqualTo(new FirmPageResponse(page.items(), page.page()));

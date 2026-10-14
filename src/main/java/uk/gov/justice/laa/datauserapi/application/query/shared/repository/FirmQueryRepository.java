@@ -39,7 +39,6 @@ public interface FirmQueryRepository extends Repository<Firm, UUID> {
         WHERE :term = ''
             OR LOWER(f.name) LIKE LOWER(CONCAT('%', :term, '%'))
             OR LOWER(f.code) LIKE LOWER(CONCAT('%', :term, '%'))
-        ORDER BY LOWER(f.name), f.code
         """,
         countQuery = """
         SELECT COUNT(f)
