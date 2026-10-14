@@ -1,7 +1,7 @@
 plugins {
-    id 'uk.gov.justice.service.laa.laa-java-gradle-plugin' version '3.0.0'
-    id 'uk.gov.justice.service.laa.laa-spring-boot-gradle-plugin' version '3.0.0'
-    id "io.sentry.jvm.gradle" version "6.15.0"
+    id 'uk.gov.justice.service.laa.laa-java-gradle-plugin' version '3.1.3'
+    id 'uk.gov.justice.service.laa.laa-spring-boot-gradle-plugin' version '3.1.3'
+    id "io.sentry.jvm.gradle" version "6.23.0"
 }
 
 sentry {
@@ -35,6 +35,18 @@ repositories {
     mavenCentral()
 }
 
+// Fix vulns - remove when upgrades resolve these
+dependencyManagement {
+    dependencies {
+        // CVE-2026-76183
+        dependencySet(group: 'org.apache.tomcat.embed', version: '11.0.26') {
+            entry 'tomcat-embed-core'
+            entry 'tomcat-embed-el'
+            entry 'tomcat-embed-websocket'
+        }
+    }
+}
+
 dependencies {
     implementation project(':contracts')
     implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -47,7 +59,7 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-annotations:2.22'
     implementation 'tools.jackson.dataformat:jackson-dataformat-csv:3.0.3'
     implementation 'io.sentry:sentry-spring-boot-4:8.43.2'
-    implementation('com.azure.spring:spring-cloud-azure-starter-active-directory:7.3.0') {
+    implementation('com.azure.spring:spring-cloud-azure-starter-active-directory:7.4.0') {
         exclude group: 'org.springframework.boot', module: 'spring-boot-jackson2'
         exclude group: 'com.fasterxml.jackson.core'
     }
