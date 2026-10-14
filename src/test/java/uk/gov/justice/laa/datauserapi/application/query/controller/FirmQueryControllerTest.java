@@ -19,6 +19,7 @@ import uk.gov.justice.laa.datauserapi.contracts.response.FirmOfficesResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.FirmPageResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.FirmResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.FirmSearchResponse;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 
 import java.time.Instant;
@@ -38,16 +39,6 @@ class FirmQueryControllerTest {
 
     private FirmQueryController controller;
 
-    private Jwt jwtWithOid(UUID oid) {
-        return Jwt.withTokenValue("token")
-                .header("alg", "none")
-                .claim("oid", oid.toString())
-                .subject("test-sub")
-                .issuedAt(Instant.now().minusSeconds(60))
-                .expiresAt(Instant.now().plusSeconds(600))
-                .build();
-    }
-
     @Test
     void queryFirms_delegatesToService() {
         controller = new FirmQueryController(firmQueryService);
@@ -56,9 +47,11 @@ class FirmQueryControllerTest {
         FirmViewPage page = new FirmViewPage(java.util.List.of(view), new PageMetadata(0, 20, 1, 1));
         when(firmQueryService.listFirms(eq(oid), eq("Test"), eq(0), eq(20), eq("name,asc")))
                 .thenReturn(page);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(oid.toString())
+                .build();
 
-        ResponseEntity<FirmPageResponse> response =
-                controller.queryFirms("Test", 0, 20, "name,asc", jwtWithOid(oid));
+        ResponseEntity<FirmPageResponse> response = controller.queryFirms("Test", 0, 20, "name,asc", user);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isEqualTo(new FirmPageResponse(page.items(), page.page()));
@@ -70,8 +63,11 @@ class FirmQueryControllerTest {
         UUID oid = UUID.randomUUID();
         FirmView view = new FirmView("123456", "Test Firm", FirmType.LEGAL_SERVICES_PROVIDER, null, true);
         when(firmQueryService.getFirmById(eq(oid), eq("123456"))).thenReturn(view);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(oid.toString())
+                .build();
 
-        ResponseEntity<FirmResponse> response = controller.queryFirmById("123456", jwtWithOid(oid));
+        ResponseEntity<FirmResponse> response = controller.queryFirmById("123456", user);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isEqualTo(new FirmResponse(view));
@@ -84,42 +80,26 @@ class FirmQueryControllerTest {
         FirmSearchView searchView = new FirmSearchView("123456", "Test Firm");
         FirmSearchViewList list = new FirmSearchViewList(java.util.List.of(searchView));
         when(firmQueryService.searchFirms(eq(oid), eq("Test"), eq(10))).thenReturn(list);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(oid.toString())
+                .build();
 
-        ResponseEntity<FirmSearchResponse> response = controller.queryFirmsSearch("Test", 10, jwtWithOid(oid));
+        ResponseEntity<FirmSearchResponse> response = controller.queryFirmsSearch("Test", 10, user);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isEqualTo(new FirmSearchResponse(list.items()));
     }
 
     @Test
-    void queryFirmsSearch_rejectsMissingActorId() {
-        controller = new FirmQueryController(firmQueryService);
-        Jwt jwt = Jwt.withTokenValue("token")
-                .header("alg", "none")
-                .subject("test-sub")
-                .issuedAt(Instant.now().minusSeconds(60))
-                .expiresAt(Instant.now().plusSeconds(600))
-                .build();
-
-        assertThatThrownBy(() -> controller.queryFirmsSearch("Test", 10, jwt))
-                .isInstanceOf(InvalidActorContextException.class)
-                .hasMessage("Authentication token is missing the actor identity");
-    }
-
-    @Test
     void queryFirmsSearch_rejectsMalformedActorId() {
         controller = new FirmQueryController(firmQueryService);
-        Jwt jwt = Jwt.withTokenValue("token")
-                .header("alg", "none")
-                .claim("oid", "not-a-uuid")
-                .subject("test-sub")
-                .issuedAt(Instant.now().minusSeconds(60))
-                .expiresAt(Instant.now().plusSeconds(600))
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid("not-a-uuid")
                 .build();
 
-        assertThatThrownBy(() -> controller.queryFirmsSearch("Test", 10, jwt))
-                .isInstanceOf(InvalidActorContextException.class)
-                .hasMessage("Authentication token contains an invalid actor identity");
+        assertThatThrownBy(() -> controller.queryFirmsSearch("Test", 10, user))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid UUID string: not-a-uuid");
     }
 
     @Test
@@ -129,8 +109,11 @@ class FirmQueryControllerTest {
         OfficeView office = new OfficeView("00001", "123456", "AB1 2CD", "Line 1", null, null, "City");
         OfficeViewList list = new OfficeViewList(java.util.List.of(office));
         when(firmQueryService.getFirmOffices(eq(oid), eq("123456"))).thenReturn(list);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(oid.toString())
+                .build();
 
-        ResponseEntity<FirmOfficesResponse> response = controller.queryFirmOffices("123456", jwtWithOid(oid));
+        ResponseEntity<FirmOfficesResponse> response = controller.queryFirmOffices("123456", user);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isEqualTo(new FirmOfficesResponse(list.items()));

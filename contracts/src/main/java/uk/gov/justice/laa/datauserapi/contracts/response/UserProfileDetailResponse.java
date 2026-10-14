@@ -22,7 +22,7 @@ import java.util.UUID;
  * @param hasAppRoles             whether this profile has any app roles assigned
  * @param unrestrictedOfficeAccess whether the user has unrestricted office access
  */
-public record UserProfileDetailResponse (
+public record UserProfileDetailResponse(
         @NotNull
         UUID userProfileId,
 

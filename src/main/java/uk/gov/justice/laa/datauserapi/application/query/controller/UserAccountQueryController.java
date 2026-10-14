@@ -3,7 +3,6 @@ package uk.gov.justice.laa.datauserapi.application.query.controller;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,6 +20,7 @@ import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUs
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryViewResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserViewResponse;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 
 import java.util.List;
@@ -54,17 +54,15 @@ public class UserAccountQueryController {
 
     @GetMapping("/users")
     public ResponseEntity<UserAccountSummaryViewResponse> searchUsers(
-            @Valid @ModelAttribute UserSearchCriteria criteria, @AuthenticationPrincipal Jwt jwt) {
-        String actorOid = jwt.getClaimAsString("oid");
-        UserAccountSummaryPage readModel = searchUsersHandler.handle(new SearchUsersQuery(criteria, actorOid));
+            @Valid @ModelAttribute UserSearchCriteria criteria, @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
+        UserAccountSummaryPage readModel = searchUsersHandler.handle(new SearchUsersQuery(criteria, authenticatedUser.entraOid()));
         return ResponseEntity.ok(new UserAccountSummaryViewResponse(readModel.items(), readModel.page()));
     }
 
     @GetMapping("/users/{userEntraObjectId}")
     public ResponseEntity<UserViewResponse> getUserAccount(
-            @PathVariable String userEntraObjectId, @AuthenticationPrincipal Jwt jwt) {
-        String actorOid = jwt.getClaimAsString("oid");
-        UserView readModel = getUserAccountHandler.handle(new GetUserAccountQuery(userEntraObjectId, actorOid));
+            @PathVariable String userEntraObjectId, @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
+        UserView readModel = getUserAccountHandler.handle(new GetUserAccountQuery(userEntraObjectId, authenticatedUser.entraOid()));
         return ResponseEntity.ok(new UserViewResponse(readModel.userAccount(), readModel.activeProfile()));
     }
 }

@@ -19,6 +19,7 @@ import uk.gov.justice.laa.datauserapi.application.command.useraccount.Reactivate
 import uk.gov.justice.laa.datauserapi.contracts.request.DeactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.ReactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 
 import java.util.UUID;
@@ -43,9 +44,6 @@ class UserAccountCommandControllerTest {
 
     @Mock
     private DeactivateUserMapper deactivateUserMapper;
-
-    @Mock
-    private Jwt jwt;
 
     @Mock
     private ReactivateUserRequest reactivateUserRequest;
@@ -83,12 +81,14 @@ class UserAccountCommandControllerTest {
         void reactivateUser_WithValidJwtSubject_ReturnsOk() {
             // Arrange
             String actorOid = UUID.randomUUID().toString();
-            when(jwt.getClaimAsString("oid")).thenReturn(actorOid);
+            AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                    .entraOid(actorOid)
+                    .build();
             when(reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest)).thenReturn(reactivateUserCommand);
             when(reactivateUserHandler.handle(reactivateUserCommand, actorOid)).thenReturn(commandResult);
 
             // Act
-            ResponseEntity<CommandResult> response = controller.reactivateUser(reactivateUserRequest, jwt);
+            ResponseEntity<CommandResult> response = controller.reactivateUser(reactivateUserRequest, user);
 
             // Assert
             assertThat(response).isNotNull();
@@ -101,38 +101,19 @@ class UserAccountCommandControllerTest {
         }
 
         @Test
-        @DisplayName("Should fail when JWT is null")
-        void reactivateUser_WithNullJwt_ReturnsException() {
-            // Act
-            assertThatThrownBy(() -> controller.reactivateUser(reactivateUserRequest, null))
-                    .isInstanceOf(InvalidActorContextException.class)
-                    .hasMessage("Authentication token is missing the actor identity");
-        }
-
-        @Test
-        @DisplayName("Should fail with exception when JWT has null subject")
-        void reactivateUser_WithNullJwtSubject_ReturnsException() {
-            // Arrange
-            when(jwt.getClaimAsString("oid")).thenReturn(null);
-
-            // Act
-            assertThatThrownBy(() -> controller.reactivateUser(reactivateUserRequest, jwt))
-                    .isInstanceOf(InvalidActorContextException.class)
-                    .hasMessage("Authentication token is missing the actor identity");
-        }
-
-        @Test
         @DisplayName("Should propagate exception when handler throws exception")
         void reactivateUser_WhenHandlerFails_PropagatesException() {
             // Arrange
             String actorOid = UUID.randomUUID().toString();
-            when(jwt.getClaimAsString("oid")).thenReturn(actorOid);
+            AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                    .entraOid(actorOid)
+                    .build();
             when(reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest)).thenReturn(reactivateUserCommand);
             when(reactivateUserHandler.handle(reactivateUserCommand, actorOid))
                     .thenThrow(new IllegalStateException("Reactivation failed"));
 
             // Act & Assert
-            assertThatThrownBy(() -> controller.reactivateUser(reactivateUserRequest, jwt))
+            assertThatThrownBy(() -> controller.reactivateUser(reactivateUserRequest, user))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Reactivation failed");
         }
@@ -147,12 +128,14 @@ class UserAccountCommandControllerTest {
         void deactivateUser_WithValidJwtSubject_ReturnsOk() {
             // Arrange
             String actorOid = UUID.randomUUID().toString();
-            when(jwt.getClaimAsString("oid")).thenReturn(actorOid);
+            AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                    .entraOid(actorOid)
+                    .build();
             when(deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest)).thenReturn(deactivateUserCommand);
             when(deactivateUserHandler.handle(deactivateUserCommand, actorOid)).thenReturn(commandResult);
 
             // Act
-            ResponseEntity<CommandResult> response = controller.deactivateUser(deactivateUserRequest, jwt);
+            ResponseEntity<CommandResult> response = controller.deactivateUser(deactivateUserRequest, user);
 
             // Assert
             assertThat(response).isNotNull();
@@ -165,38 +148,19 @@ class UserAccountCommandControllerTest {
         }
 
         @Test
-        @DisplayName("Should fail when when JWT is null")
-        void deactivateUser_WithNullJwt_returnsException() {
-            // Act & Assert
-            assertThatThrownBy(() -> controller.deactivateUser(deactivateUserRequest, null))
-                    .isInstanceOf(InvalidActorContextException.class)
-                    .hasMessage("Authentication token is missing the actor identity");
-
-        }
-
-        @Test
-        @DisplayName("Should fail when JWT has null subject")
-        void deactivateUser_WithNullJwtSubject_returnsException() {
-            // Arrange
-            when(jwt.getClaimAsString("oid")).thenReturn(null);
-            // Act
-            assertThatThrownBy(() -> controller.deactivateUser(deactivateUserRequest, jwt))
-                    .isInstanceOf(InvalidActorContextException.class)
-                    .hasMessage("Authentication token is missing the actor identity");
-        }
-
-        @Test
         @DisplayName("Should propagate exception when handler throws exception")
         void deactivateUser_WhenHandlerFails_PropagatesException() {
             // Arrange
             String actorOid = UUID.randomUUID().toString();
-            when(jwt.getClaimAsString("oid")).thenReturn(actorOid);
+            AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                    .entraOid(actorOid)
+                    .build();
             when(deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest)).thenReturn(deactivateUserCommand);
             when(deactivateUserHandler.handle(deactivateUserCommand, actorOid))
                     .thenThrow(new IllegalArgumentException("Deactivation reason required"));
 
             // Act & Assert
-            assertThatThrownBy(() -> controller.deactivateUser(deactivateUserRequest, jwt))
+            assertThatThrownBy(() -> controller.deactivateUser(deactivateUserRequest, user))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("Deactivation reason required");
         }

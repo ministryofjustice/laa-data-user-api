@@ -1,6 +1,5 @@
 package uk.gov.justice.laa.datauserapi.application.query.controller;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,8 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.validation.beanvalidation.MethodValidationInterceptor;
@@ -20,6 +18,7 @@ import org.springframework.validation.beanvalidation.MethodValidationInterceptor
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmViewPage;
 import uk.gov.justice.laa.datauserapi.application.query.service.FirmQueryService;
 import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.exception.GlobalExceptionHandler;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -83,14 +82,11 @@ class FirmQueryControllerValidationTest {
             when(firmQueryService.listFirms(eq(actorId), isNull(), eq(0), eq(20), eq(sortBy)))
                     .thenReturn(page);
 
-            Jwt jwt = Jwt.withTokenValue("token")
-                    .header("alg", "none")
-                    .claim("oid", actorId.toString())
-                    .subject("test-sub")
-                    .issuedAt(Instant.now().minusSeconds(60))
-                    .expiresAt(Instant.now().plusSeconds(600))
+            AuthenticatedEntraUser authenticatedEntraUser = AuthenticatedEntraUser.builder()
+                    .entraOid(actorId.toString())
                     .build();
-            SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+            SecurityContextHolder.getContext().setAuthentication(
+                    new UsernamePasswordAuthenticationToken(authenticatedEntraUser, "token"));
             try {
                 int responseStatus = mockMvc.perform(get("/api/v1/queries/firms").param("sort_by", sortBy))
                         .andReturn()
