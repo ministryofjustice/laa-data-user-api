@@ -31,14 +31,14 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
     }
 
     @Override
-    public CommandResult handle(BulkDeactivateFirmUsersCommand command, String actorId) {
-        UUID firmId = command.firmId();
-        if (!firmCommandRepository.existsById(firmId)) {
-            throw new ResourceNotFoundException("Firm not found with ID: " + firmId);
+    public CommandResult handle(BulkDeactivateFirmUsersCommand command, String actorOid) {
+        String firmCode = command.firmId();
+        if (!firmCommandRepository.existsByCode(firmCode)) {
+            throw new ResourceNotFoundException("Firm not found with ID: " + firmCode);
         }
 
-        List<UUID> userIds = entraUserCommandRepository.findActiveSingleFirmUserIdsByFirmId(
-                firmId, UserAccountStatus.ACTIVE);
+        List<UUID> userIds = entraUserCommandRepository.findActiveSingleFirmUserIdsByFirmCode(
+                firmCode, UserAccountStatus.ACTIVE);
         int deactivated = 0;
         int failed = 0;
 
@@ -47,21 +47,21 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
                     .userEntraObjectId(userId)
                     .deactivateReason(command.deactivateReason())
                     .build();
-            CommandResult result = deactivateUserHandler.handle(deactivateCommand, actorId);
+            CommandResult result = deactivateUserHandler.handle(deactivateCommand, actorOid);
             if (result.success()) {
                 deactivated++;
             } else {
                 failed++;
-                log.warn("Could not bulk-deactivate user {} for firm {}", userId, firmId);
+                log.warn("Could not bulk-deactivate user {} for firm {}", userId, firmCode);
             }
         }
 
         if (failed > 0) {
             return CommandResult.failure(String.format(
                     "Deactivated %d users; failed to deactivate %d users for firm '%s'",
-                    deactivated, failed, firmId));
+                    deactivated, failed, firmCode));
         }
         return CommandResult.success(String.format(
-                "Deactivated %d users for firm '%s'", deactivated, firmId));
+                "Deactivated %d users for firm '%s'", deactivated, firmCode));
     }
 }

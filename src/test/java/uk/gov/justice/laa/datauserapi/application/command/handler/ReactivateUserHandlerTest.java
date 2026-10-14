@@ -245,7 +245,7 @@ class ReactivateUserHandlerTest {
 
             final EntraUserDto userDto = EntraUserDto.builder().id(String.valueOf(targetUserId)).email("user@example.com").build();
 
-            final UserAccountStatusAudit realAudit = UserAccountStatusAudit.builder().id(UUID.randomUUID()).entraUser(realTargetUser)
+            final UserAccountStatusAudit realAudit = UserAccountStatusAudit.builder().id(UUID.randomUUID()).entraUserId(realTargetUser.getId())
                     .statusChangedBy(actorIdStr).comments(testComments).build();
 
             final CommandResult expectedResult = CommandResult.success("User reactivated successfully");

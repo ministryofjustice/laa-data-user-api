@@ -7,22 +7,23 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.AccountStatusHistory
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 
 import java.util.List;
-import java.util.UUID;
 
 @org.springframework.stereotype.Repository
 public interface UserAccountQueryRepository extends Repository<UserAccountStatusAudit, Long> {
 
     @Query("""
         SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.AccountStatusHistoryView(
-            a.entraUser.entraOid,
+            eu.id,
+            eu.entraOid,
             a.userAccountStatus,
             a.statusChangedDate,
             a.statusChangedBy,
             a.deactivateUserReasonLookup.name
         )
         FROM UserAccountStatusAudit a
-        WHERE a.entraUser.entraOid = :userEntraObjectId
+        JOIN EntraUser eu ON a.entraUserId = eu.id
+        WHERE eu.entraOid = :userEntraObjectId
         ORDER BY a.statusChangedDate DESC
         """)
-    List<AccountStatusHistoryView> findAuditHistoryByUserEntraObjectId(@Param("userEntraObjectId") UUID userEntraObjectId);
+    List<AccountStatusHistoryView> findAuditHistoryByUserEntraObjectId(@Param("userEntraObjectId") String userEntraObjectId);
 }

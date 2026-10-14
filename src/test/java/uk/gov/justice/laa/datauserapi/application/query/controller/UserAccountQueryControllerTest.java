@@ -22,6 +22,7 @@ import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUs
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryViewResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserViewResponse;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 
 import static org.junit.Assert.assertEquals;
@@ -74,16 +75,20 @@ class UserAccountQueryControllerTest {
                 null,
                 new PageMetadata(0, 20, 0, 0));
 
+        String actorOid = "actor-oid-123";
+
         UserSearchCriteria criteria = new UserSearchCriteria(
                 0, 20, null, null, null, null, null, null,
                 null, null, null, true, false, null, false);
 
-        when(jwt.getClaimAsString("oid")).thenReturn(ACTOR_OID);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(actorOid)
+                .build();
         when(searchUsersHandler.handle(any(SearchUsersQuery.class)))
                 .thenReturn(page);
 
         ResponseEntity<UserAccountSummaryViewResponse> result =
-                controller.searchUsers(criteria, jwt);
+                controller.searchUsers(criteria, user);
 
         assertEquals(HttpStatus.OK, result.getStatusCode());
         assertNotNull(result.getBody());
@@ -93,7 +98,8 @@ class UserAccountQueryControllerTest {
 
         verify(searchUsersHandler).handle(captor.capture());
         assertEquals(criteria, captor.getValue().criteria());
-        assertEquals(ACTOR_OID, captor.getValue().actorOid());
+        assertEquals(actorOid, captor.getValue().actorOid());
+
         UserAccountSummaryViewResponse expected =
                 new UserAccountSummaryViewResponse(page.items(), page.page());
         assertEquals(expected, result.getBody());
@@ -104,6 +110,9 @@ class UserAccountQueryControllerTest {
     void getUserAccount_whenValidRequest_shouldCallHandler() {
         UserView userView = new UserView(null, null);
 
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(actorOid)
+                .build();
         when(jwt.getClaimAsString("oid")).thenReturn(ACTOR_OID);
         when(getUserAccountHandler.handle(any(GetUserAccountQuery.class)))
                 .thenReturn(userView);

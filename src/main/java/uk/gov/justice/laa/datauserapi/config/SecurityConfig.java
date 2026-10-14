@@ -2,6 +2,7 @@ package uk.gov.justice.laa.datauserapi.config;
 
 import java.net.URI;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
+import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
 
 /**
  * Security configuration for laa-data-user-api.
@@ -31,7 +33,10 @@ import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final JwtToAuthenticatedEntraUserConverter jwtToAuthenticatedEntraUserConverter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -52,14 +57,18 @@ public class SecurityConfig {
                             || new IpAddressMatcher("192.168.0.0/16").matches(context.getRequest());
                     return new AuthorizationDecision(allowed);
                 })
-                .requestMatchers("/api/v1/queries/firms/search")
+                .requestMatchers("/api/v1/commands/**")
+                    .hasAuthority("SCOPE_user_data.admin")
+                .requestMatchers("/api/v1/queries/firms/**")
                     .hasAnyAuthority("SCOPE_user_data.read", "SCOPE_user_data.admin")
-                .requestMatchers("/api/v1/queries/firms/**").hasAuthority("SCOPE_user_data.admin")
-                .requestMatchers("/api/v1/**").hasAnyAuthority("SCOPE_user_data.read", "SCOPE_user_data.admin")
+                .requestMatchers("/api/v1/queries/**")
+                    .hasAnyAuthority("SCOPE_user_data.read", "SCOPE_user_data.admin")
+                .requestMatchers("/api/v1/**")
+                    .hasAnyAuthority("SCOPE_user_data.read", "SCOPE_user_data.admin")
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> {})
+                .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtToAuthenticatedEntraUserConverter))
                 .authenticationEntryPoint(authenticationEntryPoint())
                 .accessDeniedHandler(accessDeniedHandler())
             );

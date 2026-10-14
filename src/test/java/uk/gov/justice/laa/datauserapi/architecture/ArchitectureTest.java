@@ -104,7 +104,8 @@ class ArchitectureTest {
                     "..application.command.mapper..",
                     "..application.query.service..",
                     "..application.query.handler..",
-                    "..repository.."
+                    "..repository..",
+                    "..authorisation.."
             )
             .because("Repositories should only be accessed by application services, handlers, or mappers");
 
@@ -142,10 +143,11 @@ class ArchitectureTest {
             .layer("QueryService").definedBy("..application.query.service..")
             .layer("QueryRepository").definedBy("..application.query.shared.repository..")
             .layer("QueryHandler").definedBy("..application.query.handler..")
+            .layer("Authorisation").definedBy("..authorisation..")
 
             .whereLayer("QueryController").mayNotBeAccessedByAnyLayer()
             .whereLayer("QueryService").mayOnlyBeAccessedByLayers("QueryController", "QueryHandler")
-            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "QueryHandler");
+            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation", "QueryHandler");
 
     // =========================================================================
     // 5. Naming Conventions & Stereotype Annotations

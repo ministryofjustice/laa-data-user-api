@@ -53,7 +53,7 @@ class ReactivateUserMapperTest {
 
             // Assert
             assertThat(audit).isNotNull();
-            assertThat(audit.getEntraUser()).isSameAs(user);
+            assertThat(audit.getEntraUserId()).isSameAs(user.getId());
             assertThat(audit.getUserEmail()).isEqualTo("john.doe@justice.gov.uk");
             assertThat(audit.getUserName()).isEqualTo("John Doe");
             assertThat(audit.getUserAccountStatus()).isEqualTo(UserAccountStatus.ACTIVE);
