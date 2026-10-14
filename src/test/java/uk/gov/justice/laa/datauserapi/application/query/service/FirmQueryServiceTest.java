@@ -104,6 +104,12 @@ class FirmQueryServiceTest {
                         Sort.Direction.DESC,
                         Sort.Direction.ASC,
                         Sort.Direction.DESC);
+        assertThat(pageable.getAllValues().stream()
+                .map(value -> value.getSort().getOrderFor("code").getDirection()))
+                .containsExactly(
+                        Sort.Direction.DESC,
+                        Sort.Direction.ASC,
+                        Sort.Direction.DESC);
     }
 
     @Test

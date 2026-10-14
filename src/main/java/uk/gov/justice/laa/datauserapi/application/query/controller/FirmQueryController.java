@@ -44,7 +44,7 @@ public class FirmQueryController {
             @RequestParam(name = "firm", required = false) String firm,
             @RequestParam(name = "page_number", defaultValue = "0") @Min(0) int pageNumber,
             @RequestParam(name = "page_size", defaultValue = "20") @Min(1) @Max(100) int pageSize,
-            @RequestParam(name = "sort_by", defaultValue = "name,asc")
+            @RequestParam(name = "sort_by", required = false)
             @Pattern(regexp = "^(name|code|type)(,(asc|desc))?$") String sortBy,
             @AuthenticationPrincipal Jwt jwt) {
         FirmViewPage result = firmQueryService.listFirms(resolveActor(jwt), firm, pageNumber, pageSize, sortBy);

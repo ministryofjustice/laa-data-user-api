@@ -75,7 +75,7 @@ public class FirmQueryService {
             order = order.ignoreCase();
         }
         Sort sort = Sort.by(order);
-        return property.equals("code") ? sort : sort.and(Sort.by(Sort.Order.asc("code")));
+        return property.equals("code") ? sort : sort.and(Sort.by(new Sort.Order(direction, "code")));
     }
 
     public FirmView getFirmById(UUID actorEntraUserId, String firmId) {
