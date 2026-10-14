@@ -30,6 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 
@@ -57,6 +58,15 @@ class FirmQueryControllerValidationTest {
 
     @Test
     void queryFirms_rejectsMalformedSortByValuesWithBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/queries/firms").param("sort_by", "foo,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://silas.laa.gov.uk/errors/validation-error"))
+                .andExpect(jsonPath("$.title").value("Validation Error"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.detail").value("One or more request parameters failed validation."))
+                .andExpect(jsonPath("$.instance").value("/api/v1/queries/firms"))
+                .andExpect(jsonPath("$.errors").isArray());
+
         for (String sortBy : List.of("foo", "name,", "name,desc,extra", "name,ascending", "")) {
             mockMvc.perform(get("/api/v1/queries/firms").param("sort_by", sortBy))
                     .andExpect(status().isBadRequest());

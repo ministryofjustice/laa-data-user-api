@@ -93,18 +93,19 @@ class FirmQueryServiceTest {
         when(firmQueryRepository.search(eq(""), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
-        List.of("code,desc", "name,asc", "type,desc")
+        List.of("code,desc", "code,asc", "name,asc", "type,desc")
                 .forEach(sortBy -> firmQueryService.listFirms(actorId, null, 0, 20, sortBy));
 
         var pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(firmQueryRepository, times(3)).search(eq(""), pageable.capture());
+        verify(firmQueryRepository, times(4)).search(eq(""), pageable.capture());
         assertThat(pageable.getAllValues().stream()
                 .map(value -> value.getSort().iterator().next().getProperty()))
-                .containsExactly("code", "name", "type");
+                .containsExactly("code", "code", "name", "type");
         assertThat(pageable.getAllValues().stream()
                 .map(value -> value.getSort().iterator().next().getDirection()))
                 .containsExactly(
                         Sort.Direction.DESC,
+                        Sort.Direction.ASC,
                         Sort.Direction.ASC,
                         Sort.Direction.DESC);
         assertThat(pageable.getAllValues().stream()
@@ -112,10 +113,11 @@ class FirmQueryServiceTest {
                 .containsExactly(
                         Sort.Direction.DESC,
                         Sort.Direction.ASC,
+                        Sort.Direction.ASC,
                         Sort.Direction.DESC);
         assertThat(pageable.getAllValues().stream()
                 .map(value -> value.getSort().stream().count()))
-                .containsExactly(1L, 2L, 2L);
+                .containsExactly(1L, 1L, 2L, 2L);
     }
 
     @Test
