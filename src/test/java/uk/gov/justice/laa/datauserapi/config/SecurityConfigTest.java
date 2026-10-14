@@ -8,10 +8,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AuthenticatedEntraUserQueryRepository;
+import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -20,12 +23,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(useDefaultFilters = false)
 @Import({
     SecurityConfig.class,
-    SecurityConfigTest.JwtDecoderConfiguration.class
+    SecurityConfigTest.JwtDecoderConfiguration.class,
+    JwtToAuthenticatedEntraUserConverter.class,
+    AuthenticatedEntraUserQueryRepository.class
 })
 class SecurityConfigTest {
 
     @Autowired
     private MockMvc mockMvc;
+    @MockitoBean
+    private AuthenticatedEntraUserQueryRepository authenticatedEntraUserQueryRepository;
 
     @Test
     void readScopeCanAccessFirmQueryEndpoints() throws Exception {

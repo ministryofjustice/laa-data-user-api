@@ -4,7 +4,6 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,6 +12,7 @@ import uk.gov.justice.laa.datauserapi.application.command.handler.BulkDeactivate
 import uk.gov.justice.laa.datauserapi.application.command.mapper.BulkDeactivateFirmUsersMapper;
 import uk.gov.justice.laa.datauserapi.contracts.request.BulkDeactivateFirmUsersRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
 
 @Slf4j
@@ -34,11 +34,10 @@ public class FirmCommandController implements CommandControllerSupport {
     @PostMapping("/bulk-deactivate-users")
     public ResponseEntity<CommandResult> bulkDeactivateUsers(
             @Valid @RequestBody BulkDeactivateFirmUsersRequest request,
-            @AuthenticationPrincipal Jwt jwt) {
-        String actorOid = resolveActor(jwt);
-        log.info("Processing bulk user deactivation for firm {} by {}", request.firmId(), actorOid);
+            @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
+        log.info("Processing bulk user deactivation for firm {} by {}", request.firmId(), authenticatedUser.entraOid());
         CommandResult result = bulkDeactivateFirmUsersHandler.handle(
-                bulkDeactivateFirmUsersMapper.toCommand(request), actorOid);
+                bulkDeactivateFirmUsersMapper.toCommand(request), authenticatedUser.entraOid());
         return ResponseEntity.ok(result);
     }
 

@@ -21,6 +21,7 @@ import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUs
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryViewResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserViewResponse;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 
 import static org.junit.Assert.assertEquals;
@@ -44,17 +45,12 @@ class UserAccountQueryControllerTest {
     @Mock
     private GetUserAccountHandler getUserAccountHandler;
 
-
-    private Jwt jwt;
-
     @BeforeEach
     void setUp() {
         controller = new UserAccountQueryController(
                 queryService,
                 searchUsersHandler,
                 getUserAccountHandler);
-
-        jwt = mock(Jwt.class);
     }
 
     @Test
@@ -69,12 +65,14 @@ class UserAccountQueryControllerTest {
                 0, 20, null, null, null, null, null, null,
                 null, null, null, true, false, null, false);
 
-        when(jwt.getClaimAsString("oid")).thenReturn(actorOid);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(actorOid)
+                .build();
         when(searchUsersHandler.handle(any(SearchUsersQuery.class)))
                 .thenReturn(page);
 
         ResponseEntity<UserAccountSummaryViewResponse> result =
-                controller.searchUsers(criteria, jwt);
+                controller.searchUsers(criteria, user);
 
         assertEquals(HttpStatus.OK, result.getStatusCode());
         assertNotNull(result.getBody());
@@ -101,11 +99,13 @@ class UserAccountQueryControllerTest {
 
         UserView userView = new UserView(null, null);
 
-        when(jwt.getClaimAsString("oid")).thenReturn(actorOid);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(actorOid)
+                .build();
         when(getUserAccountHandler.handle(any(GetUserAccountQuery.class)))
                 .thenReturn(userView);
 
-        ResponseEntity<UserViewResponse> result = controller.getUserAccount(userEntraObjectId, jwt);
+        ResponseEntity<UserViewResponse> result = controller.getUserAccount(userEntraObjectId, user);
 
         verify(getUserAccountHandler).handle(any(GetUserAccountQuery.class));
 

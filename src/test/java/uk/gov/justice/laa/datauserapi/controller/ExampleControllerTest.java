@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailResponse;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 import java.time.Instant;
 
@@ -17,16 +18,12 @@ class ExampleControllerTest {
     void me_returnsOidFromJwtClaim() {
         String oid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
         String email = "test@example.com";
-        Jwt jwt = Jwt.withTokenValue("token")
-            .header("alg", "none")
-            .claim("oid", oid)
-            .claim("email", email)
-            .subject("test-sub")
-            .issuedAt(Instant.now().minusSeconds(60))
-            .expiresAt(Instant.now().plusSeconds(600))
-            .build();
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(oid)
+                .email(email)
+                .build();
 
-        ResponseEntity<UserProfileDetailResponse> response = controller.me(jwt);
+        ResponseEntity<UserProfileDetailResponse> response = controller.me(user);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isNotNull();
@@ -39,14 +36,10 @@ class ExampleControllerTest {
 
     @Test
     void me_returns422_whenOidClaimMissing() {
-        Jwt jwt = Jwt.withTokenValue("token")
-            .header("alg", "none")
-            .subject("no-oid-user")
-            .issuedAt(Instant.now().minusSeconds(60))
-            .expiresAt(Instant.now().plusSeconds(600))
-            .build();
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .build();
 
-        ResponseEntity<UserProfileDetailResponse> response = controller.me(jwt);
+        ResponseEntity<UserProfileDetailResponse> response = controller.me(user);
 
         assertThat(response.getStatusCode().value()).isEqualTo(422);
         assertThat(response.getBody()).isNull();

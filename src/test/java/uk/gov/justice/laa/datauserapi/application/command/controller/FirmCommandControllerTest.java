@@ -14,6 +14,7 @@ import uk.gov.justice.laa.datauserapi.application.command.useraccount.BulkDeacti
 import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
 import uk.gov.justice.laa.datauserapi.contracts.request.BulkDeactivateFirmUsersRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 import java.util.UUID;
 
@@ -29,9 +30,6 @@ class FirmCommandControllerTest {
 
     @Mock
     private BulkDeactivateFirmUsersMapper mapper;
-
-    @Mock
-    private Jwt jwt;
 
     private FirmCommandController controller;
 
@@ -49,11 +47,13 @@ class FirmCommandControllerTest {
         BulkDeactivateFirmUsersCommand command =
                 new BulkDeactivateFirmUsersCommand(firmId, DeactivateUserReason.FirmClosureorMerger);
         CommandResult expected = CommandResult.success("Deactivated 1 users");
-        when(jwt.getClaimAsString("oid")).thenReturn(actorId);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(actorId)
+                .build();
         when(mapper.toCommand(request)).thenReturn(command);
         when(handler.handle(command, actorId)).thenReturn(expected);
 
-        ResponseEntity<CommandResult> response = controller.bulkDeactivateUsers(request, jwt);
+        ResponseEntity<CommandResult> response = controller.bulkDeactivateUsers(request, user);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isSameAs(expected);
