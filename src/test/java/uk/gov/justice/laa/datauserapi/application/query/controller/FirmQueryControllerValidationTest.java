@@ -57,7 +57,7 @@ class FirmQueryControllerValidationTest {
 
     @Test
     void queryFirms_rejectsMalformedSortByValuesWithBadRequest() throws Exception {
-        for (String sortBy : List.of("foo", "name,", "name,desc,extra", "name,ASC", "")) {
+        for (String sortBy : List.of("foo", "name,", "name,desc,extra", "name,ascending", "")) {
             mockMvc.perform(get("/api/v1/queries/firms").param("sort_by", sortBy))
                     .andExpect(status().isBadRequest());
         }
@@ -69,27 +69,29 @@ class FirmQueryControllerValidationTest {
     void queryFirms_acceptsSupportedSortValue() throws Exception {
         UUID actorId = UUID.randomUUID();
         FirmViewPage page = new FirmViewPage(List.of(), new PageMetadata(0, 20, 0, 0));
-        when(firmQueryService.listFirms(eq(actorId), isNull(), eq(0), eq(20), eq("type,desc")))
-                .thenReturn(page);
+        for (String sortBy : List.of("type,desc", "name,ASC", "type,DESC")) {
+            when(firmQueryService.listFirms(eq(actorId), isNull(), eq(0), eq(20), eq(sortBy)))
+                    .thenReturn(page);
 
-        Jwt jwt = Jwt.withTokenValue("token")
-                .header("alg", "none")
-                .claim("oid", actorId.toString())
-                .subject("test-sub")
-                .issuedAt(Instant.now().minusSeconds(60))
-                .expiresAt(Instant.now().plusSeconds(600))
-                .build();
-        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
-        try {
-            int responseStatus = mockMvc.perform(get("/api/v1/queries/firms").param("sort_by", "type,desc"))
-                    .andReturn()
-                    .getResponse()
-                    .getStatus();
+            Jwt jwt = Jwt.withTokenValue("token")
+                    .header("alg", "none")
+                    .claim("oid", actorId.toString())
+                    .subject("test-sub")
+                    .issuedAt(Instant.now().minusSeconds(60))
+                    .expiresAt(Instant.now().plusSeconds(600))
+                    .build();
+            SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+            try {
+                int responseStatus = mockMvc.perform(get("/api/v1/queries/firms").param("sort_by", sortBy))
+                        .andReturn()
+                        .getResponse()
+                        .getStatus();
 
-            assertThat(responseStatus).isEqualTo(200);
-            verify(firmQueryService).listFirms(actorId, null, 0, 20, "type,desc");
-        } finally {
-            SecurityContextHolder.clearContext();
+                assertThat(responseStatus).isEqualTo(200);
+                verify(firmQueryService).listFirms(actorId, null, 0, 20, sortBy);
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
         }
     }
 }

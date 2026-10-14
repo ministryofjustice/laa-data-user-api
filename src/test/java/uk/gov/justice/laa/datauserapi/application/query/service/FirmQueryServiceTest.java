@@ -77,11 +77,14 @@ class FirmQueryServiceTest {
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         firmQueryService.listFirms(actorId, null, 0, 20, null);
+        firmQueryService.listFirms(actorId, null, 0, 20, "");
 
         var pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(firmQueryRepository).search(eq(""), pageable.capture());
-        assertThat(pageable.getValue().getSort().getOrderFor("name").isIgnoreCase()).isTrue();
-        assertThat(pageable.getValue().getSort().getOrderFor("code").getDirection()).isEqualTo(Sort.Direction.ASC);
+        verify(firmQueryRepository, times(2)).search(eq(""), pageable.capture());
+        assertThat(pageable.getAllValues()).allSatisfy(request -> {
+            assertThat(request.getSort().getOrderFor("name").isIgnoreCase()).isTrue();
+            assertThat(request.getSort().getOrderFor("code").getDirection()).isEqualTo(Sort.Direction.ASC);
+        });
     }
 
     @Test
@@ -110,6 +113,9 @@ class FirmQueryServiceTest {
                         Sort.Direction.DESC,
                         Sort.Direction.ASC,
                         Sort.Direction.DESC);
+        assertThat(pageable.getAllValues().stream()
+                .map(value -> value.getSort().stream().count()))
+                .containsExactly(1L, 2L, 2L);
     }
 
     @Test
