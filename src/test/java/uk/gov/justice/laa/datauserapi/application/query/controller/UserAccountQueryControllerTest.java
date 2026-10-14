@@ -8,7 +8,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.jwt.Jwt;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetActiveProfileHandler;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfilesHandler;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
@@ -28,7 +27,6 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import static org.junit.Assert.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -52,8 +50,6 @@ class UserAccountQueryControllerTest {
     @Mock
     private GetActiveProfileHandler getActiveProfileHandler;
 
-    private Jwt jwt;
-
     private static final String ACTOR_OID = "actor-oid-123";
     private static final String USER_ENTRA_OBJECT_ID = "123e4567-e89b-12d3-a456-426614174000";
 
@@ -66,7 +62,6 @@ class UserAccountQueryControllerTest {
                 getUserProfilesHandler,
                 getActiveProfileHandler);
 
-        jwt = mock(Jwt.class);
     }
 
     @Test
@@ -75,14 +70,13 @@ class UserAccountQueryControllerTest {
                 null,
                 new PageMetadata(0, 20, 0, 0));
 
-        String actorOid = "actor-oid-123";
 
         UserSearchCriteria criteria = new UserSearchCriteria(
                 0, 20, null, null, null, null, null, null,
                 null, null, null, true, false, null, false);
 
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
-                .entraOid(actorOid)
+                .entraOid(ACTOR_OID)
                 .build();
         when(searchUsersHandler.handle(any(SearchUsersQuery.class)))
                 .thenReturn(page);
@@ -98,7 +92,7 @@ class UserAccountQueryControllerTest {
 
         verify(searchUsersHandler).handle(captor.capture());
         assertEquals(criteria, captor.getValue().criteria());
-        assertEquals(actorOid, captor.getValue().actorOid());
+        assertEquals(ACTOR_OID, captor.getValue().actorOid());
 
         UserAccountSummaryViewResponse expected =
                 new UserAccountSummaryViewResponse(page.items(), page.page());
@@ -111,13 +105,12 @@ class UserAccountQueryControllerTest {
         UserView userView = new UserView(null, null);
 
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
-                .entraOid(actorOid)
+                .entraOid(ACTOR_OID)
                 .build();
-        when(jwt.getClaimAsString("oid")).thenReturn(ACTOR_OID);
         when(getUserAccountHandler.handle(any(GetUserAccountQuery.class)))
                 .thenReturn(userView);
 
-        ResponseEntity<UserViewResponse> result = controller.getUserAccount(USER_ENTRA_OBJECT_ID, jwt);
+        ResponseEntity<UserViewResponse> result = controller.getUserAccount(USER_ENTRA_OBJECT_ID, user);
         verify(getUserAccountHandler).handle(any(GetUserAccountQuery.class));
         assertEquals(HttpStatus.OK, result.getStatusCode());
         assertNotNull(result.getBody());
@@ -127,22 +120,26 @@ class UserAccountQueryControllerTest {
 
     @Test
     void getUserProfiles_whenValidRequest_shouldCallHandler() {
-        when(jwt.getClaimAsString("oid")).thenReturn(ACTOR_OID);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(ACTOR_OID)
+                .build();
         when(getUserProfilesHandler.handle(any()))
                 .thenReturn(null);
 
-        ResponseEntity<?> result = controller.getUserProfiles(USER_ENTRA_OBJECT_ID, jwt);
+        ResponseEntity<?> result = controller.getUserProfiles(USER_ENTRA_OBJECT_ID, user);
         verify(getUserProfilesHandler).handle(any());
         assertEquals(HttpStatus.OK, result.getStatusCode());
     }
 
     @Test
     void getActiveProfile_whenValidRequest_shouldCallHandler() {
-        when(jwt.getClaimAsString("oid")).thenReturn(ACTOR_OID);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(ACTOR_OID)
+                .build();
         when(getActiveProfileHandler.handle(any()))
                 .thenReturn(null);
 
-        ResponseEntity<?> result = controller.getActiveProfile(USER_ENTRA_OBJECT_ID, jwt);
+        ResponseEntity<?> result = controller.getActiveProfile(USER_ENTRA_OBJECT_ID, user);
         verify(getActiveProfileHandler).handle(any());
         assertEquals(HttpStatus.OK, result.getStatusCode());
     }

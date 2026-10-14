@@ -81,18 +81,18 @@ public class UserAccountQueryController {
     }
 
     @GetMapping("/users/{userEntraObjectId}/profiles")
-    public ResponseEntity<UserProfileSummaryViewResponse> getUserProfiles(@PathVariable String userEntraObjectId, @AuthenticationPrincipal Jwt jwt) {
-        String actorOid = jwt.getClaimAsString("oid");
+    public ResponseEntity<UserProfileSummaryViewResponse> getUserProfiles(@PathVariable String userEntraObjectId,
+                                                                          @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
         List<UserProfileSummaryView> readModel = getUserProfilesHandler.handle(new GetUserProfilesQuery(userEntraObjectId,
-                actorOid));
+                authenticatedUser.entraOid()));
         return ResponseEntity.ok(new UserProfileSummaryViewResponse(readModel));
     }
 
     @GetMapping("/users/{userEntraObjectId}/active-profile")
     public ResponseEntity<UserProfileDetailResponse> getActiveProfile(@PathVariable String userEntraObjectId,
-                                                                   @AuthenticationPrincipal Jwt jwt) {
-        String actorOid = jwt.getClaimAsString("oid");
-        UserProfileDetailView readModel = getActiveProfileHandler.handle(new GetActiveProfileQuery(userEntraObjectId, actorOid));
+                                                                   @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
+        UserProfileDetailView readModel = getActiveProfileHandler.handle(new GetActiveProfileQuery(userEntraObjectId,
+                authenticatedUser.entraOid()));
         return ResponseEntity.ok(new UserProfileDetailResponse(readModel));
     }
 }
