@@ -4,7 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
-import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
+import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 
@@ -22,27 +22,27 @@ public class DoNothingTestServiceClientTest {
     }
 
     @Test
-    void testEnableUser() {
+    void testReactivateUser() {
         EntraUserDto user = EntraUserDto.builder().build();
 
-        TechServicesApiResponse<ChangeAccountEnabledResponse> response = techServicesClient.enableUser(user);
+        TechServicesApiResponse<ChangeAccountReactivationResponse> response = techServicesClient.reactivateUser(user);
 
         assertThat(response).isNotNull();
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getData()).isNotNull();
-        assertThat(response.getData().getMessage()).isEqualTo("Successfully enabled user.");
+        assertThat(response.getData().getMessage()).isEqualTo("Successfully reactivated user.");
     }
 
     @Test
-    void testDisableUser() {
+    void testDeactivateUser() {
         EntraUserDto user = EntraUserDto.builder().build();
 
-        TechServicesApiResponse<ChangeAccountEnabledResponse> response = techServicesClient.disableUser(user, "reason");
+        TechServicesApiResponse<ChangeAccountReactivationResponse> response = techServicesClient.deactivateUser(user, "reason");
 
         assertThat(response).isNotNull();
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getData()).isNotNull();
-        assertThat(response.getData().getMessage()).isEqualTo("Successfully disabled user.");
+        assertThat(response.getData().getMessage()).isEqualTo("Successfully deactivated user.");
     }
 
 }

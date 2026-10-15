@@ -22,6 +22,9 @@ spring:
           client-secret: EXAMPLE
           tenant-id: EXAMPLE
           base-url: EXAMPLE
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
 
 app:
   enable:
@@ -41,3 +44,4 @@ app:
 
 azure:
   tenant-id: test-tenant
+

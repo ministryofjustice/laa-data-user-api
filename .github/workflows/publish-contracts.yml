@@ -2,8 +2,10 @@ name: Publish Contracts
 
 on:
   push:
-    tags:
-      - 'contracts/v*.*.*'
+    branches:
+      - main
+    paths:
+      - 'contracts/**'
   workflow_dispatch:
 
 permissions:
@@ -17,13 +19,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Java
-        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v4.7.1
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v4.7.1
         with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@94baf225fe0cdf0efa12a6a1c5e48e82dd0c638d # v4.3.0
+          java-version: '25'
+          distribution: 'corretto'
 
       - name: Publish contracts to GitHub Packages
         run: ./gradlew :contracts:publish

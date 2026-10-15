@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'uk.gov.justice.laa'
-version = '1.0.0'
+version = '1.0.0-SNAPSHOT'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_25
@@ -19,6 +19,9 @@ repositories {
 
 dependencies {
     implementation 'jakarta.validation:jakarta.validation-api:3.1.0'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.22'
+    implementation 'org.projectlombok:lombok:1.18.46'
+    annotationProcessor 'org.projectlombok:lombok:1.18.46'
 }
 
 publishing {

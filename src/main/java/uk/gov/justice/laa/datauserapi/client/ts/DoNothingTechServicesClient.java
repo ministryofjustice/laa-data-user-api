@@ -2,7 +2,7 @@ package uk.gov.justice.laa.datauserapi.client.ts;
 
 import lombok.extern.slf4j.Slf4j;
 
-import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
+import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 
@@ -10,16 +10,16 @@ import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 public class DoNothingTechServicesClient implements TechServicesClient {
 
     @Override
-    public TechServicesApiResponse<ChangeAccountEnabledResponse> enableUser(EntraUserDto user) {
-        return TechServicesApiResponse.success(ChangeAccountEnabledResponse.builder().success(true)
-                .message("Successfully enabled user.")
+    public TechServicesApiResponse<ChangeAccountReactivationResponse> reactivateUser(EntraUserDto user) {
+        return TechServicesApiResponse.success(ChangeAccountReactivationResponse.builder().success(true)
+                .message("Successfully reactivated user.")
                 .build());
     }
 
     @Override
-    public TechServicesApiResponse<ChangeAccountEnabledResponse> disableUser(EntraUserDto user, String reason) {
-        return TechServicesApiResponse.success(ChangeAccountEnabledResponse.builder().success(true)
-                .message("Successfully disabled user.")
+    public TechServicesApiResponse<ChangeAccountReactivationResponse> deactivateUser(EntraUserDto user, String reason) {
+        return TechServicesApiResponse.success(ChangeAccountReactivationResponse.builder().success(true)
+                .message("Successfully deactivated user.")
                 .build());
     }
 

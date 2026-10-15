@@ -1,0 +1,119 @@
+package uk.gov.justice.laa.datauserapi.application.query.controller;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.jwt.Jwt;
+import uk.gov.justice.laa.datauserapi.contracts.dto.FirmSearchView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.FirmView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
+import uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchViewList;
+import uk.gov.justice.laa.datauserapi.application.query.dto.FirmViewPage;
+import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
+import uk.gov.justice.laa.datauserapi.application.query.service.FirmQueryService;
+import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
+import uk.gov.justice.laa.datauserapi.contracts.response.FirmOfficesResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.FirmPageResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.FirmResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.FirmSearchResponse;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
+
+import java.time.Instant;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class FirmQueryControllerTest {
+
+    @Mock
+    private FirmQueryService firmQueryService;
+
+    private FirmQueryController controller;
+
+    @Test
+    void queryFirms_delegatesToService() {
+        controller = new FirmQueryController(firmQueryService);
+        UUID oid = UUID.randomUUID();
+        FirmView view = new FirmView("123456", "Test Firm", FirmType.LEGAL_SERVICES_PROVIDER, null, true);
+        FirmViewPage page = new FirmViewPage(java.util.List.of(view), new PageMetadata(0, 20, 1, 1));
+        when(firmQueryService.listFirms(eq(oid), eq("Test"), eq(0), eq(20))).thenReturn(page);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(oid.toString())
+                .build();
+
+        ResponseEntity<FirmPageResponse> response = controller.queryFirms("Test", 0, 20, user);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).isEqualTo(new FirmPageResponse(page.items(), page.page()));
+    }
+
+    @Test
+    void queryFirmById_delegatesToService() {
+        controller = new FirmQueryController(firmQueryService);
+        UUID oid = UUID.randomUUID();
+        FirmView view = new FirmView("123456", "Test Firm", FirmType.LEGAL_SERVICES_PROVIDER, null, true);
+        when(firmQueryService.getFirmById(eq(oid), eq("123456"))).thenReturn(view);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(oid.toString())
+                .build();
+
+        ResponseEntity<FirmResponse> response = controller.queryFirmById("123456", user);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).isEqualTo(new FirmResponse(view));
+    }
+
+    @Test
+    void queryFirmsSearch_delegatesToService() {
+        controller = new FirmQueryController(firmQueryService);
+        UUID oid = UUID.randomUUID();
+        FirmSearchView searchView = new FirmSearchView("123456", "Test Firm");
+        FirmSearchViewList list = new FirmSearchViewList(java.util.List.of(searchView));
+        when(firmQueryService.searchFirms(eq(oid), eq("Test"), eq(10))).thenReturn(list);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(oid.toString())
+                .build();
+
+        ResponseEntity<FirmSearchResponse> response = controller.queryFirmsSearch("Test", 10, user);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).isEqualTo(new FirmSearchResponse(list.items()));
+    }
+
+    @Test
+    void queryFirmsSearch_rejectsMalformedActorId() {
+        controller = new FirmQueryController(firmQueryService);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid("not-a-uuid")
+                .build();
+
+        assertThatThrownBy(() -> controller.queryFirmsSearch("Test", 10, user))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid UUID string: not-a-uuid");
+    }
+
+    @Test
+    void queryFirmOffices_delegatesToService() {
+        controller = new FirmQueryController(firmQueryService);
+        UUID oid = UUID.randomUUID();
+        OfficeView office = new OfficeView("00001", "123456", "AB1 2CD", "Line 1", null, null, "City");
+        OfficeViewList list = new OfficeViewList(java.util.List.of(office));
+        when(firmQueryService.getFirmOffices(eq(oid), eq("123456"))).thenReturn(list);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(oid.toString())
+                .build();
+
+        ResponseEntity<FirmOfficesResponse> response = controller.queryFirmOffices("123456", user);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).isEqualTo(new FirmOfficesResponse(list.items()));
+    }
+}
