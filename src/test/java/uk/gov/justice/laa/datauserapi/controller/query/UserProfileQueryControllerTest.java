@@ -27,7 +27,10 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import java.util.List;
 import java.util.UUID;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.eq;
 
 @ExtendWith(MockitoExtension.class)
 public class UserProfileQueryControllerTest {

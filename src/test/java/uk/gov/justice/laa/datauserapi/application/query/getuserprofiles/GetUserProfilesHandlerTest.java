@@ -16,7 +16,9 @@ import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 
 import java.util.List;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 public class GetUserProfilesHandlerTest {
