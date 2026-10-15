@@ -2,6 +2,7 @@ package uk.gov.justice.laa.datauserapi.application.query.service;
 
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchAccess;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
@@ -14,6 +15,7 @@ import uk.gov.justice.laa.datauserapi.model.Permission;
  * Authorisation rules for the temporary Provider Data (firm/office) query endpoints.
  */
 @Service
+@Transactional(readOnly = true)
 public class FirmAuthorisationService {
 
     /**
