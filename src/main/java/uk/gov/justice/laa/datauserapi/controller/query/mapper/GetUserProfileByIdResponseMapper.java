@@ -1,5 +1,6 @@
 package uk.gov.justice.laa.datauserapi.controller.query.mapper;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.application.query.getuserprofilebyid.readmodel.GetUserProfileByIdAppRoleReadModel;
 import uk.gov.justice.laa.datauserapi.application.query.getuserprofilebyid.readmodel.GetUserProfileByIdOfficeReadModel;
@@ -7,22 +8,22 @@ import uk.gov.justice.laa.datauserapi.application.query.getuserprofilebyid.readm
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailsAppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailsOfficeView;
-import uk.gov.justice.laa.datauserapi.shared.Mapper;
+import uk.gov.justice.laa.datauserapi.shared.ResponseMapper;
 
 import java.util.List;
 
 @Component
-public class GetUserProfileByIdResponseMapper implements Mapper<GetUserProfileByIdReadModel, UserProfileDetailView> {
+public class GetUserProfileByIdResponseMapper implements ResponseMapper<GetUserProfileByIdReadModel, ResponseEntity<UserProfileDetailView>> {
 
     @Override
-    public UserProfileDetailView map(GetUserProfileByIdReadModel readModel) {
+    public ResponseEntity<UserProfileDetailView> map(GetUserProfileByIdReadModel readModel) {
         List<UserProfileDetailsAppRoleView> roles = readModel.roles().stream()
                 .map(GetUserProfileByIdResponseMapper::mapToAppRoleView)
                 .toList();
         List<UserProfileDetailsOfficeView> offices = readModel.offices().stream()
                 .map(GetUserProfileByIdResponseMapper::mapToOfficeView)
                 .toList();
-        return new UserProfileDetailView(
+        UserProfileDetailView view = new UserProfileDetailView(
                 readModel.userProfileId(),
                 readModel.activeProfile(),
                 readModel.userType(),
@@ -40,6 +41,7 @@ public class GetUserProfileByIdResponseMapper implements Mapper<GetUserProfileBy
                 roles,
                 offices
         );
+        return ResponseEntity.ok(view);
     }
 
     private static UserProfileDetailsAppRoleView mapToAppRoleView(GetUserProfileByIdAppRoleReadModel readModel) {

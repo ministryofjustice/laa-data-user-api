@@ -1,8 +1,11 @@
 package uk.gov.justice.laa.datauserapi.application.query.getuserprofilebyid.readmodel;
 
+import lombok.Builder;
+
 import java.util.Collection;
 
-public record GetUserProfileByIdReadModel (
+@Builder
+public record GetUserProfileByIdReadModel(
 
         String userProfileId,
         Boolean activeProfile,

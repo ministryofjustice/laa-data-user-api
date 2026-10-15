@@ -24,11 +24,14 @@ import uk.gov.justice.laa.datauserapi.controller.query.mapper.GetUserProfileById
 import uk.gov.justice.laa.datauserapi.controller.query.mapper.GetUserProfileByIdResponseMapper;
 import uk.gov.justice.laa.datauserapi.controller.query.mapper.GetUserProfilesQueryMapper;
 import uk.gov.justice.laa.datauserapi.controller.query.mapper.GetUserProfilesResponseMapper;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 
 @RestController
+@RequiresReadScope
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/queries")
-public class QueryController {
+public class UserProfileQueryController {
 
     // Get User Profiles
     private final GetUserProfilesHandler getUserProfilesHandler;
@@ -43,19 +46,17 @@ public class QueryController {
     @GetMapping("/user-profiles")
     public ResponseEntity<PagedView<UserProfileSummaryView>> getUserProfiles(
             @ModelAttribute GetUserProfilesRequest request,
-            @AuthenticationPrincipal Jwt jwt
-    ) {
-        GetUserProfilesQuery query = getUserProfilesQueryMapper.map(request);
+            @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
+        GetUserProfilesQuery query = getUserProfilesQueryMapper.map(request, authenticatedUser);
         PagedReadModel<GetUserProfilesReadModel> result = getUserProfilesHandler.handle(query);
-        PagedView<UserProfileSummaryView> response = getUserProfilesResponseMapper.map(result);
-        return ResponseEntity.ok(response);
+        return getUserProfilesResponseMapper.map(result);
     }
 
     @GetMapping("/user-profiles/{userProfileId}")
-    public ResponseEntity<UserProfileDetailView> getUserProfileById(@PathVariable String userProfileId) {
-        GetUserProfileByIdQuery query = getUserProfileByIdQueryMapper.map(userProfileId);
+    public ResponseEntity<UserProfileDetailView> getUserProfileById(@PathVariable String userProfileId,
+                                                                    @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
+        GetUserProfileByIdQuery query = getUserProfileByIdQueryMapper.map(userProfileId, authenticatedUser);
         GetUserProfileByIdReadModel readModel = getUserProfileByIdHandler.handle(query);
-        UserProfileDetailView response = getUserProfileByIdResponseMapper.map(readModel);
-        return ResponseEntity.ok(response);
+        return getUserProfileByIdResponseMapper.map(readModel);
     }
 }

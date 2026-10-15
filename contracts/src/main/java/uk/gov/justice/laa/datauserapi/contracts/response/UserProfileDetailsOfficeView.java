@@ -2,7 +2,7 @@ package uk.gov.justice.laa.datauserapi.contracts.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public record UserProfileDetailsOfficeView (
+public record UserProfileDetailsOfficeView(
 
         @JsonProperty("officeId")
         String officeId,
@@ -25,4 +25,4 @@ public record UserProfileDetailsOfficeView (
         @JsonProperty("city")
         String city
 
-        ){}
+){}

@@ -11,8 +11,8 @@ import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
-import uk.gov.justice.laa.datauserapi.shared.Mapper;
 import uk.gov.justice.laa.datauserapi.shared.MapperUtil;
+import uk.gov.justice.laa.datauserapi.shared.ReadMapper;
 
 import java.util.List;
 import java.util.Optional;
@@ -20,7 +20,7 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
-public class GetUserProfilesReadMapper implements Mapper<Page<UserProfile>, PagedReadModel<GetUserProfilesReadModel>> {
+public class GetUserProfilesReadMapper implements ReadMapper<Page<UserProfile>, PagedReadModel<GetUserProfilesReadModel>> {
 
     @Override
     public PagedReadModel<GetUserProfilesReadModel> map(Page<UserProfile> userProfilesPage) {

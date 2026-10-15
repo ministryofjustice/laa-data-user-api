@@ -1,6 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.query.getuserprofilebyid.readmodel;
 
-public record GetUserProfileByIdAppRoleReadModel (
+public record GetUserProfileByIdAppRoleReadModel(
         
         String appRoleId,
         String appId,

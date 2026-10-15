@@ -1,6 +1,5 @@
 package uk.gov.justice.laa.datauserapi.shared;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import uk.gov.justice.laa.datauserapi.exception.BadRequestException;
@@ -13,7 +12,7 @@ public class MapperUtil {
 
     public static PageRequest pageDataToPageRequest(Integer pageNumber, Integer pageSize, String[] sortBy) {
         List<Sort.Order> sortOrders = new ArrayList<>();
-        if(sortBy != null) {
+        if (sortBy != null) {
             for (String sort : sortBy) {
                 if (sort == null || sort.isBlank()) {
                     continue;
@@ -39,7 +38,7 @@ public class MapperUtil {
     }
 
     public static <E extends Enum<E>> E requestFieldToEnum(String value, Class<E> enumClass, String errorMessage, Object... args) {
-        if(value == null) {
+        if (value == null) {
             return null;
         } else {
             try {
@@ -50,8 +49,8 @@ public class MapperUtil {
         }
     }
 
-    public static UUID requestStringToUUID(String value) {
-        if(value == null) {
+    public static UUID requestStringToUuid(String value) {
+        if (value == null) {
             return null;
         }
         UUID uuid;
@@ -64,13 +63,11 @@ public class MapperUtil {
     }
 
     public static String buildFullName(String firstName, String lastName) {
-        if(firstName == null) {
+        if (firstName == null) {
             return null;
-        }
-        else if(lastName == null) {
+        } else if (lastName == null) {
             return firstName;
-        }
-        else {
+        } else {
             return firstName + " " + lastName;
         }
     }
