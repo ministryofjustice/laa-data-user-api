@@ -23,4 +23,9 @@ public class DoNothingTechServicesClient implements TechServicesClient {
                 .build());
     }
 
+    @Override
+    public void deleteRoleAssignment(EntraUserDto entraUser) {
+
+    }
+
 }

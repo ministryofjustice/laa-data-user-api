@@ -1,5 +1,8 @@
 package uk.gov.justice.laa.datauserapi.contracts.domain;
 
+import lombok.Getter;
+
+@Getter
 public enum UserAccountStatus {
     ACTIVE("Active"),
     DEACTIVATED("Deactivated"),

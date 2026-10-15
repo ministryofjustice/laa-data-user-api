@@ -28,16 +28,20 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import reactor.core.publisher.Mono;
 import uk.gov.justice.laa.datauserapi.client.ts.request.ChangeAccountReactivationRequest;
+import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateSecurityGroupsRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
+import uk.gov.justice.laa.datauserapi.client.ts.response.UpdateSecurityGroupsResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorResponse;
 import uk.gov.justice.laa.datauserapi.config.CachingConfig;
+import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -462,6 +466,93 @@ class LiveTechServicesClientTest {
             client.reactivateUser(validUser);
 
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage).contains("Error while getting access token from cache");
+        }
+    }
+
+    @Nested
+    class DeleteRoleAssignmentTests {
+
+        private void mockPatch() {
+            when(restClient.patch()).thenReturn(requestBodyUriSpec);
+            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
+            when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
+            when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
+            when(requestBodySpec.body(any(UpdateSecurityGroupsRequest.class))).thenReturn(requestBodySpec);
+            when(requestBodySpec.retrieve()).thenReturn(responseSpec);
+        }
+
+        @Test
+        void succeedsOn2xx() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class))
+                    .thenReturn(ResponseEntity.ok(UpdateSecurityGroupsResponse.builder().success(true).build()));
+
+            assertThatCode(() -> client.deleteRoleAssignment(validUser)).doesNotThrowAnyException();
+
+            verify(requestBodySpec).body(any(UpdateSecurityGroupsRequest.class));
+        }
+
+        @Test
+        void ignoresNotFound() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class)).thenThrow(
+                    HttpClientErrorException.create(HttpStatus.NOT_FOUND, "Not Found", HttpHeaders.EMPTY, "{}".getBytes(), null));
+
+            assertThatCode(() -> client.deleteRoleAssignment(validUser)).doesNotThrowAnyException();
+        }
+
+        @Test
+        void throwsOnOtherHttpError() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class)).thenThrow(
+                    HttpClientErrorException.create(HttpStatus.BAD_REQUEST, "Bad", HttpHeaders.EMPTY, "{}".getBytes(), null));
+
+            assertThatThrownBy(() -> client.deleteRoleAssignment(validUser))
+                    .isInstanceOf(TechServicesClientException.class)
+                    .hasMessageContaining("400");
+        }
+
+        @Test
+        void throwsOnNon2xxResponse() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class))
+                    .thenReturn(new ResponseEntity<>(HttpStatus.FOUND));
+
+            assertThatThrownBy(() -> client.deleteRoleAssignment(validUser))
+                    .isInstanceOf(TechServicesClientException.class);
+        }
+
+        @Test
+        void wrapsUnexpectedErrors() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class)).thenThrow(new IllegalStateException("boom"));
+
+            assertThatThrownBy(() -> client.deleteRoleAssignment(validUser))
+                    .isInstanceOf(TechServicesClientException.class)
+                    .hasMessageContaining("security group removal");
+        }
+    }
+
+    @Nested
+    class EdgeCaseTests {
+
+        @Test
+        void deactivateRejectsNullUser() {
+            assertThatThrownBy(() -> client.deactivateUser(null, "r")).isInstanceOf(TechServicesClientException.class);
+            assertThatThrownBy(() -> client.deactivateUser(new EntraUserDto(), "r"))
+                    .isInstanceOf(TechServicesClientException.class);
+        }
+
+        @Test
+        void fetchesNewTokenWhenCacheMissing() {
+            when(cacheManager.getCache(CachingConfig.TECH_SERVICES_DETAILS_CACHE)).thenReturn(null);
+
+            assertThatThrownBy(() -> client.reactivateUser(validUser)).isInstanceOf(RuntimeException.class);
         }
     }
 }

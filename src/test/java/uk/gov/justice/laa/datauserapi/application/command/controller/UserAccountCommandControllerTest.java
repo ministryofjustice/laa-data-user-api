@@ -9,18 +9,20 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.jwt.Jwt;
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeactivateUserHandler;
+import uk.gov.justice.laa.datauserapi.application.command.handler.DeleteUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.ReactivateUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeleteUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.contracts.request.DeactivateUserRequest;
+import uk.gov.justice.laa.datauserapi.contracts.request.DeleteUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.ReactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
-import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 
 import java.util.UUID;
 
@@ -46,6 +48,12 @@ class UserAccountCommandControllerTest {
     private DeactivateUserMapper deactivateUserMapper;
 
     @Mock
+    private DeleteUserHandler deleteUserHandler;
+
+    @Mock
+    private DeleteUserMapper deleteUserMapper;
+
+    @Mock
     private ReactivateUserRequest reactivateUserRequest;
 
     @Mock
@@ -68,7 +76,9 @@ class UserAccountCommandControllerTest {
                 reactivateUserHandler,
                 reactivateUserMapper,
                 deactivateUserHandler,
-                deactivateUserMapper
+                deactivateUserMapper,
+                deleteUserHandler,
+                deleteUserMapper
         );
     }
 
@@ -164,5 +174,25 @@ class UserAccountCommandControllerTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("Deactivation reason required");
         }
+    }
+
+    @Test
+    @DisplayName("deleteUser delegates to the delete handler with the JWT subject as actor")
+    void deleteUser_DelegatesToHandler() {
+        UUID actorOid = UUID.randomUUID();
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(actorOid.toString())
+                .build();
+        DeleteUserRequest request = new DeleteUserRequest(
+                java.util.UUID.randomUUID(), uk.gov.justice.laa.datauserapi.contracts.domain.DeleteUserReason.LeftFirm);
+        DeleteUserCommand command = new DeleteUserCommand(request.userEntraObjectId(), request.deleteReason());
+        CommandResult result = CommandResult.success("deleted");
+        when(deleteUserMapper.toDeleteUserCommand(request)).thenReturn(command);
+        when(deleteUserHandler.handle(command, actorOid.toString())).thenReturn(result);
+
+        ResponseEntity<CommandResult> response = controller.deleteUser(request, user);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isSameAs(result);
     }
 }

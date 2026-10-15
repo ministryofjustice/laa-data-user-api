@@ -101,7 +101,7 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
         entraUserCommandRepository.save(user);
 
         DeactivateUserReason deactivateUserReason = command.deactivateReason();
-        UserAccountStatusAudit audit = deactivateUserMapper.toAuditEntity(user, command, actorOidStr);
+        UserAccountStatusAudit audit = deactivateUserMapper.toAuditEntity(user, deactivateUserReason, actorOidStr);
         auditRepository.save(audit);
         log.info("User account deactivated with ID: {} by: {} with reason: {}", user.getId(), actorOidStr, deactivateUserReason);
 

@@ -380,7 +380,7 @@ class DeactivateUserHandlerTest {
             when(modelMapper.map(realTargetUser, EntraUserDto.class)).thenReturn(userDto);
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(actorId))).thenReturn(Optional.of(realActorUser));
             when(deactivationTypeResolver.resolve(realActorUser)).thenReturn(DeactivationType.LAA);
-            when(deactivateUserMapper.toAuditEntity(realTargetUser, command, actorIdStr)).thenReturn(realAudit);
+            when(deactivateUserMapper.toAuditEntity(realTargetUser, command.deactivateReason(), actorIdStr)).thenReturn(realAudit);
             when(deactivateUserMapper.toCommandResult(realTargetUser)).thenReturn(expectedResult);
 
             // Act
@@ -412,7 +412,7 @@ class DeactivateUserHandlerTest {
             inOrder.verify(techServicesClient).deactivateUser(userDto, DeactivateUserReason.Absence.name());
             inOrder.verify(deactivationTypeResolver).resolve(realActorUser);
             inOrder.verify(entraUserCommandRepository).save(realTargetUser);
-            inOrder.verify(deactivateUserMapper).toAuditEntity(realTargetUser, command, actorIdStr);
+            inOrder.verify(deactivateUserMapper).toAuditEntity(realTargetUser, command.deactivateReason(), actorIdStr);
             inOrder.verify(auditRepository).save(realAudit);
             inOrder.verify(deactivateUserMapper).toCommandResult(realTargetUser);
         }
