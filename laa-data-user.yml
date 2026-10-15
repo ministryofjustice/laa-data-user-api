@@ -111,6 +111,11 @@ paths:
       operationId: queryUserProfilesByEntraUser
       tags: [User Profiles]
       summary: List profiles for a SiLAS user account
+      description: |
+        Returns the profiles for the user that the authenticated caller is authorised to view.
+        If the user exists and is visible to the caller but has no profiles, return 200 with an
+        empty items array. Return 404 if the user does not exist or the caller is not authorised
+        to view the user.
       parameters:
         - $ref: '#/components/parameters/UserEntraObjectId'
       responses:
@@ -134,6 +139,10 @@ paths:
       operationId: queryActiveProfileByEntraUser
       tags: [User Profiles]
       summary: Get active profile for a SiLAS user account
+      description: |
+        Returns the user's active profile, including its roles and offices. Return 404 if the
+        user does not exist, the caller is not authorised to view the user, or the user has no
+        active profile.
       parameters:
         - $ref: '#/components/parameters/UserEntraObjectId'
       responses:
@@ -320,13 +329,14 @@ paths:
     get:
       operationId: queryFirms
       tags: [Provider Data]
-      summary: Get list of firms, with pagination and query field. Used for firm directory.
+      summary: Get list of firms, with pagination, sorting and query field. Used for firm directory.
       security: 
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
         - $ref: '#/components/parameters/FirmQuery'
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
       responses:
         '200':
           description: Firm
