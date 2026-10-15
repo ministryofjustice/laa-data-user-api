@@ -46,7 +46,7 @@ public interface UserProfileQueryRepository extends Repository<EntraUser, UUID> 
                     ))
             )
         """)
-    List<UserProfileSummaryView> findAllProfilesByUserEntraObjectId(
+    Optional<List<UserProfileSummaryView>> findAllProfilesByUserEntraObjectId(
             @Param("userEntraObjectId") String userEntraObjectId,
             @Param("actorOid") String actorOid);
 

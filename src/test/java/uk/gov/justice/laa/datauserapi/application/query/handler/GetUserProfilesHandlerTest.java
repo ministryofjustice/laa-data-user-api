@@ -13,6 +13,7 @@ import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileSummaryView;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,7 +35,7 @@ class GetUserProfilesHandlerTest {
 
         when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(
                 USER_ENTRA_OBJECT_ID, ACTOR_OID))
-                .thenReturn(emptyList);
+                .thenReturn(Optional.of(emptyList));
 
         GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository);
         List<UserProfileSummaryView> result = handler.handle(query);
@@ -80,7 +81,7 @@ class GetUserProfilesHandlerTest {
 
         when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(
                 USER_ENTRA_OBJECT_ID, ACTOR_OID))
-                .thenReturn(profiles);
+                .thenReturn(Optional.of(profiles));
 
         GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository);
         List<UserProfileSummaryView> result = handler.handle(query);
@@ -113,14 +114,14 @@ class GetUserProfilesHandlerTest {
 
         when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(
                 USER_ENTRA_OBJECT_ID, ACTOR_OID))
-                .thenReturn(profiles);
+                .thenReturn(Optional.of(profiles));
 
         GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository);
         List<UserProfileSummaryView> result = handler.handle(query);
 
         assertThat(result).hasSize(1);
-        assertThat(result.getFirst().userProfileId()).isEqualTo(profileId);
-        assertThat(result.getFirst().userType()).isEqualTo(UserType.INTERNAL);
+        assertThat(result.get(0).userProfileId()).isEqualTo(profileId);
+        assertThat(result.get(0).userType()).isEqualTo(UserType.INTERNAL);
     }
 
     @Test
@@ -160,7 +161,7 @@ class GetUserProfilesHandlerTest {
 
         when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(
                 USER_ENTRA_OBJECT_ID, ACTOR_OID))
-                .thenReturn(profiles);
+                .thenReturn(Optional.of(profiles));
 
         GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository);
         List<UserProfileSummaryView> result = handler.handle(query);
@@ -192,7 +193,7 @@ class GetUserProfilesHandlerTest {
 
         when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(
                 USER_ENTRA_OBJECT_ID, ACTOR_OID))
-                .thenReturn(visibleProfiles);
+                .thenReturn(Optional.of(visibleProfiles));
 
         GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository);
         List<UserProfileSummaryView> result = handler.handle(query);
@@ -223,7 +224,7 @@ class GetUserProfilesHandlerTest {
 
         when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(
                 USER_ENTRA_OBJECT_ID, ACTOR_OID))
-                .thenReturn(profiles);
+                .thenReturn(Optional.of(profiles));
 
         GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository);
         List<UserProfileSummaryView> result = handler.handle(query);
@@ -256,7 +257,7 @@ class GetUserProfilesHandlerTest {
 
         when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(
                 USER_ENTRA_OBJECT_ID, ACTOR_OID))
-                .thenReturn(profiles);
+                .thenReturn(Optional.of(profiles));
 
         GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository);
         List<UserProfileSummaryView> result = handler.handle(query);
