@@ -15,7 +15,11 @@ import uk.gov.justice.laa.datauserapi.util.TestObjectUtil;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 
 @ExtendWith(MockitoExtension.class)
 public class GetUserProfileByIdHandlerTest {
