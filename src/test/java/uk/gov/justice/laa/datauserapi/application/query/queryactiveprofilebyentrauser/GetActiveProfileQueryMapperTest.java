@@ -6,7 +6,7 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileDetailView;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.entity.App;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;

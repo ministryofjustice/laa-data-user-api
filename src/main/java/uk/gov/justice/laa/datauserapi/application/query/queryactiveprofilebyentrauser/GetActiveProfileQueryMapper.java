@@ -3,8 +3,8 @@ package uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyent
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileDetailView;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileSummaryView;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Office;

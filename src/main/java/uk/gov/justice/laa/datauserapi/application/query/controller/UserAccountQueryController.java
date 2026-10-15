@@ -14,20 +14,17 @@ import uk.gov.justice.laa.datauserapi.application.query.handler.GetActiveProfile
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfilesHandler;
 import uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyentrauser.GetActiveProfileQuery;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserprofilesbyentrauser.GetUserProfilesQuery;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryPage;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileDetailView;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileSummaryView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserView;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserAccountHandler;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.handler.SearchUsersHandler;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
-import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryViewResponse;
-import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailResponse;
-import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryViewResponse;
-import uk.gov.justice.laa.datauserapi.contracts.response.UserViewResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryList;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 
@@ -67,32 +64,32 @@ public class UserAccountQueryController {
     }
 
     @GetMapping("/users")
-    public ResponseEntity<UserAccountSummaryViewResponse> searchUsers(
+    public ResponseEntity<UserAccountSummaryPage> searchUsers(
             @Valid @ModelAttribute UserSearchCriteria criteria, @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
         UserAccountSummaryPage readModel = searchUsersHandler.handle(new SearchUsersQuery(criteria, authenticatedUser.entraOid()));
-        return ResponseEntity.ok(new UserAccountSummaryViewResponse(readModel.items(), readModel.page()));
+        return ResponseEntity.ok(readModel);
     }
 
     @GetMapping("/users/{userEntraObjectId}")
-    public ResponseEntity<UserViewResponse> getUserAccount(
+    public ResponseEntity<UserView> getUserAccount(
             @PathVariable String userEntraObjectId, @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
         UserView readModel = getUserAccountHandler.handle(new GetUserAccountQuery(userEntraObjectId, authenticatedUser.entraOid()));
-        return ResponseEntity.ok(new UserViewResponse(readModel.userAccount(), readModel.activeProfile()));
+        return ResponseEntity.ok(readModel);
     }
 
     @GetMapping("/users/{userEntraObjectId}/profiles")
-    public ResponseEntity<UserProfileSummaryViewResponse> getUserProfiles(@PathVariable String userEntraObjectId,
+    public ResponseEntity<UserProfileSummaryList> getUserProfiles(@PathVariable String userEntraObjectId,
                                                                           @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
         List<UserProfileSummaryView> readModel = getUserProfilesHandler.handle(new GetUserProfilesQuery(userEntraObjectId,
                 authenticatedUser.entraOid()));
-        return ResponseEntity.ok(new UserProfileSummaryViewResponse(readModel));
+        return ResponseEntity.ok(new UserProfileSummaryList(readModel));
     }
 
     @GetMapping("/users/{userEntraObjectId}/active-profile")
-    public ResponseEntity<UserProfileDetailResponse> getActiveProfile(@PathVariable String userEntraObjectId,
+    public ResponseEntity<UserProfileDetailView> getActiveProfile(@PathVariable String userEntraObjectId,
                                                                    @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
         UserProfileDetailView readModel = getActiveProfileHandler.handle(new GetActiveProfileQuery(userEntraObjectId,
                 authenticatedUser.entraOid()));
-        return ResponseEntity.ok(new UserProfileDetailResponse(readModel));
+        return ResponseEntity.ok(readModel);
     }
 }

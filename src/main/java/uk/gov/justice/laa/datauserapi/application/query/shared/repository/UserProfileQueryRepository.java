@@ -3,7 +3,7 @@ package uk.gov.justice.laa.datauserapi.application.query.shared.repository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileSummaryView;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 
@@ -15,7 +15,7 @@ import java.util.UUID;
 public interface UserProfileQueryRepository extends Repository<EntraUser, UUID> {
 
     @Query("""
-        SELECT new uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileSummaryView(
+        SELECT new uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView(
             up.id,
             up.activeProfile,
             up.userType,

@@ -9,7 +9,7 @@ import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserPr
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileSummaryView;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
 
 import java.util.ArrayList;
 import java.util.List;

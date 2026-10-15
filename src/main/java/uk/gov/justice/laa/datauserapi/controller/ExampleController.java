@@ -9,8 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileDetailView;
-import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 
@@ -31,7 +30,7 @@ public class ExampleController {
      * Returns the caller's profile derived from the validated JWT {@code oid} claim.
      */
     @GetMapping("/me")
-    public ResponseEntity<UserProfileDetailResponse> me(@AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
+    public ResponseEntity<UserProfileDetailView> me(@AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
         String oid = authenticatedUser.entraOid();
         if (oid == null || oid.isBlank()) {
             return ResponseEntity.unprocessableContent().build();
@@ -60,7 +59,6 @@ public class ExampleController {
                 List.of(),
                 List.of()
         );
-        UserProfileDetailResponse response = new UserProfileDetailResponse(view);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(view);
     }
 }

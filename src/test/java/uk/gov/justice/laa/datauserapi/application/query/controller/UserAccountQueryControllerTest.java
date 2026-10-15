@@ -12,15 +12,15 @@ import uk.gov.justice.laa.datauserapi.application.query.handler.GetActiveProfile
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfilesHandler;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryPage;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserView;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserView;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserAccountHandler;
 import uk.gov.justice.laa.datauserapi.application.query.handler.SearchUsersHandler;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
-import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryViewResponse;
-import uk.gov.justice.laa.datauserapi.contracts.response.UserViewResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 
@@ -81,7 +81,7 @@ class UserAccountQueryControllerTest {
         when(searchUsersHandler.handle(any(SearchUsersQuery.class)))
                 .thenReturn(page);
 
-        ResponseEntity<UserAccountSummaryViewResponse> result =
+        ResponseEntity<UserAccountSummaryPage> result =
                 controller.searchUsers(criteria, user);
 
         assertEquals(HttpStatus.OK, result.getStatusCode());
@@ -94,8 +94,8 @@ class UserAccountQueryControllerTest {
         assertEquals(criteria, captor.getValue().criteria());
         assertEquals(ACTOR_OID, captor.getValue().actorOid());
 
-        UserAccountSummaryViewResponse expected =
-                new UserAccountSummaryViewResponse(page.items(), page.page());
+        UserAccountSummaryPage expected =
+                new UserAccountSummaryPage(page.items(), page.page());
         assertEquals(expected, result.getBody());
 
     }
@@ -110,11 +110,11 @@ class UserAccountQueryControllerTest {
         when(getUserAccountHandler.handle(any(GetUserAccountQuery.class)))
                 .thenReturn(userView);
 
-        ResponseEntity<UserViewResponse> result = controller.getUserAccount(USER_ENTRA_OBJECT_ID, user);
+        ResponseEntity<UserView> result = controller.getUserAccount(USER_ENTRA_OBJECT_ID, user);
         verify(getUserAccountHandler).handle(any(GetUserAccountQuery.class));
         assertEquals(HttpStatus.OK, result.getStatusCode());
         assertNotNull(result.getBody());
-        UserViewResponse expected = new UserViewResponse(null, null);
+        UserView expected = new UserView(null, null);
         assertEquals(expected, result.getBody());
     }
 

@@ -5,8 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import uk.gov.justice.laa.datauserapi.application.query.queryuserprofilesbyentrauser.GetUserProfilesQuery;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileSummaryView;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
 
 import java.util.List;
 
@@ -22,6 +21,6 @@ public class GetUserProfilesHandler {
 
     public List<UserProfileSummaryView> handle(GetUserProfilesQuery query) {
         return userProfileQueryRepository.findAllProfilesByUserEntraObjectId(query.userEntraObjectId(), query.actorOid())
-                .orElseThrow(() -> new ResourceNotFoundException("User profiles not found for userEntraObjectId: " + query.userEntraObjectId()));
+                .orElse(List.of());
     }
 }

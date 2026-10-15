@@ -1,13 +1,12 @@
-package uk.gov.justice.laa.datauserapi.contracts.dto;
+package uk.gov.justice.laa.datauserapi.contracts.response;
 
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
-import java.util.List;
 import java.util.UUID;
 
-public record UserProfileDetailView(
+public record UserProfileSummaryView (
         UUID userProfileId,
         boolean activeProfile,
         UserType userType,
@@ -18,10 +17,5 @@ public record UserProfileDetailView(
         boolean multiFirmUser,
         UserAccountStatus accountStatus,
         UserProfileStatus profileStatus,
-        boolean hasAppRoles,
-        UUID userEntraObjectId,
-        boolean unrestrictedOfficeAccess,
-        boolean lastSyncSuccessful,
-        List<AppRoleView> roles,
-        List<OfficeView> offices
+        boolean hasAppRoles
 ) {}

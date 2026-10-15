@@ -3,7 +3,7 @@ package uk.gov.justice.laa.datauserapi.controller;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
-import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 import java.time.Instant;
@@ -24,15 +24,15 @@ class ExampleControllerTest {
                 .email(email)
                 .build();
 
-        ResponseEntity<UserProfileDetailResponse> response = controller.me(user);
+        ResponseEntity<UserProfileDetailView> response = controller.me(user);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().userProfileDetailView().userEntraObjectId()).isEqualTo(UUID.fromString(oid));
-        assertThat(response.getBody().userProfileDetailView().email()).isEqualTo(email);
-        assertThat(response.getBody().userProfileDetailView().activeProfile()).isFalse();
-        assertThat(response.getBody().userProfileDetailView().hasAppRoles()).isFalse();
-        assertThat(response.getBody().userProfileDetailView().unrestrictedOfficeAccess()).isFalse();
+        assertThat(response.getBody().userEntraObjectId()).isEqualTo(UUID.fromString(oid));
+        assertThat(response.getBody().email()).isEqualTo(email);
+        assertThat(response.getBody().activeProfile()).isFalse();
+        assertThat(response.getBody().hasAppRoles()).isFalse();
+        assertThat(response.getBody().unrestrictedOfficeAccess()).isFalse();
     }
 
     @Test
@@ -40,7 +40,7 @@ class ExampleControllerTest {
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .build();
 
-        ResponseEntity<UserProfileDetailResponse> response = controller.me(user);
+        ResponseEntity<UserProfileDetailView> response = controller.me(user);
 
         assertThat(response.getStatusCode().value()).isEqualTo(422);
         assertThat(response.getBody()).isNull();
