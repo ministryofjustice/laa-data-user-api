@@ -1,6 +1,9 @@
 package uk.gov.justice.laa.datauserapi.application.query.getuserprofiles.readmodel;
 
-public record GetUserProfilesReadModel (
+import lombok.Builder;
+
+@Builder
+public record GetUserProfilesReadModel(
 
         String userProfileId,
         Boolean activeProfile,

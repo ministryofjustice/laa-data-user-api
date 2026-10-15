@@ -1,10 +1,9 @@
 package uk.gov.justice.laa.datauserapi.application.query.shared.repository;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 import uk.gov.justice.laa.datauserapi.application.query.getuserprofilebyid.GetUserProfileByIdQuery;
 import uk.gov.justice.laa.datauserapi.application.query.getuserprofiles.GetUserProfilesQuery;
@@ -13,7 +12,7 @@ import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface UserProfileReadRepository extends JpaRepository<UserProfile, UUID> {
+public interface UserProfileReadRepository extends Repository<UserProfile, UUID> {
 
     @Query("""
         SELECT userProfile FROM UserProfile userProfile
@@ -38,10 +37,14 @@ public interface UserProfileReadRepository extends JpaRepository<UserProfile, UU
         /* Firm Name */
         AND (:#{#query.firm} IS NULL OR firm.name = :#{#query.firm})
         /* Firm Admin (is an external user with any permissions) */
-        AND (:#{#query.firmAdmin} IS NULL OR (:#{#query.firmAdmin} = true AND userProfile.userType = 'EXTERNAL' AND appRoles.permissions IS NOT EMPTY) OR (:#{#query.firmAdmin} = false AND userProfile.userType = 'EXTERNAL' AND appRoles.permissions IS EMPTY))
+        AND (:#{#query.firmAdmin} IS NULL OR (:#{#query.firmAdmin} = true
+                AND userProfile.userType = 'EXTERNAL' AND appRoles.permissions IS NOT EMPTY) OR (:#{#query.firmAdmin} = false AND userProfile.userType = 'EXTERNAL' AND appRoles.permissions IS EMPTY))
         /* Multi Firm User */
         AND (:#{#query.multiFirmUser} IS NULL OR entraUser.multiFirmUser = :#{#query.multiFirmUser})
-    """)
+        /* Auth User Filters */
+        AND (:#{#query.authUserFirmId} IS NULL OR userProfile.firm.id = :#{#query.authUserFirmId})
+        AND (:#{#query.authUserType} IS NULL OR userProfile.userType = :#{#query.authUserType})
+        """)
     Page<UserProfile> findAll(@Param("query") GetUserProfilesQuery query, Pageable pageable);
 
     @Query("""
@@ -51,7 +54,9 @@ public interface UserProfileReadRepository extends JpaRepository<UserProfile, UU
         LEFT JOIN FETCH userProfile.offices
         LEFT JOIN FETCH userProfile.firm
         WHERE userProfile.id = :#{#query.id}
-    """)
+        AND (:#{#query.firmId} IS NULL OR userProfile.firm.id = :#{#query.firmId})
+        AND (:#{#query.userType} IS NULL OR userProfile.userType = :#{#query.userType})
+        """)
     Optional<UserProfile> findById(@Param("query") GetUserProfileByIdQuery query);
 
 }

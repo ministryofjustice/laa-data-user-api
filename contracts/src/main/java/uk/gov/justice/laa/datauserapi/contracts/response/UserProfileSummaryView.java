@@ -1,7 +1,9 @@
 package uk.gov.justice.laa.datauserapi.contracts.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Builder;
 
+@Builder
 public record UserProfileSummaryView(
         @JsonProperty("userProfileId")
         String userProfileId,

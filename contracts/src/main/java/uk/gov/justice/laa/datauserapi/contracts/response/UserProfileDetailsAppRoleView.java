@@ -2,7 +2,7 @@ package uk.gov.justice.laa.datauserapi.contracts.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public record UserProfileDetailsAppRoleView (
+public record UserProfileDetailsAppRoleView(
 
         @JsonProperty("appRoleId")
         String appRoleId,

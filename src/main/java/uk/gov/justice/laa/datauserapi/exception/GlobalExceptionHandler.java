@@ -17,6 +17,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import uk.gov.justice.laa.datauserapi.contracts.response.FieldErrorDetail;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 
@@ -24,7 +25,7 @@ import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(ResourceNotFoundException.class)
+    @ExceptionHandler(value = {ResourceNotFoundException.class, NoResourceFoundException.class})
     public ResponseEntity<ProblemDetail> handleNotFound(
             ResourceNotFoundException ex,
             HttpServletRequest request) {
