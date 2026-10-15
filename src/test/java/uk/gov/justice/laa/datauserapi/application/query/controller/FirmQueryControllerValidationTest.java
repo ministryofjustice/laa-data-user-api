@@ -76,15 +76,14 @@ class FirmQueryControllerValidationTest {
 
     @Test
     void queryFirms_acceptsSupportedSortValue() throws Exception {
-        UUID actorId = UUID.randomUUID();
+        AuthenticatedEntraUser authenticatedEntraUser = AuthenticatedEntraUser.builder()
+                .entraOid(UUID.randomUUID().toString())
+                .build();
         FirmViewPage page = new FirmViewPage(List.of(), new PageMetadata(0, 20, 0, 0));
         for (String sortBy : List.of("type,desc", "name,ASC", "type,DESC")) {
-            when(firmQueryService.listFirms(eq(actorId), isNull(), eq(0), eq(20), eq(sortBy)))
+            when(firmQueryService.listFirms(eq(authenticatedEntraUser), isNull(), eq(0), eq(20), eq(sortBy)))
                     .thenReturn(page);
 
-            AuthenticatedEntraUser authenticatedEntraUser = AuthenticatedEntraUser.builder()
-                    .entraOid(actorId.toString())
-                    .build();
             SecurityContextHolder.getContext().setAuthentication(
                     new UsernamePasswordAuthenticationToken(authenticatedEntraUser, "token"));
             try {
@@ -94,7 +93,7 @@ class FirmQueryControllerValidationTest {
                         .getStatus();
 
                 assertThat(responseStatus).isEqualTo(200);
-                verify(firmQueryService).listFirms(actorId, null, 0, 20, sortBy);
+                verify(firmQueryService).listFirms(authenticatedEntraUser, null, 0, 20, sortBy);
             } finally {
                 SecurityContextHolder.clearContext();
             }

@@ -2,7 +2,6 @@ package uk.gov.justice.laa.datauserapi.application.query.service;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -21,6 +20,7 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.FirmViewPage;
 import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.FirmQueryRepository;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.OfficeQueryRepository;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 
 @Service
@@ -45,12 +45,12 @@ public class FirmQueryService {
     }
 
     public FirmViewPage listFirms(
-            UUID actorEntraUserId,
+            AuthenticatedEntraUser authenticatedUser,
             String firmQuery,
             int pageNumber,
             int pageSize,
             String sortBy) {
-        authorisationService.requireFirmDirectoryAccess(actorEntraUserId);
+        authorisationService.requireFirmDirectoryAccess(authenticatedUser);
         Pageable pageable = PageRequest.of(pageNumber, pageSize, toSort(sortBy));
         String term = firmQuery == null ? "" : firmQuery;
         Page<FirmView> page = firmQueryRepository.search(term, pageable);
@@ -78,14 +78,14 @@ public class FirmQueryService {
         return property.equals("code") ? sort : sort.and(Sort.by(new Sort.Order(direction, "code")));
     }
 
-    public FirmView getFirmById(UUID actorEntraUserId, String firmId) {
-        authorisationService.requireFirmDirectoryAccess(actorEntraUserId);
+    public FirmView getFirmById(AuthenticatedEntraUser authenticatedUser, String firmId) {
+        authorisationService.requireFirmDirectoryAccess(authenticatedUser);
         return firmQueryRepository.findViewByCode(firmId)
                 .orElseThrow(() -> new ResourceNotFoundException("Firm not found: " + firmId));
     }
 
-    public FirmSearchViewList searchFirms(UUID actorEntraUserId, String query, int limit) {
-        FirmSearchAccess searchAccess = authorisationService.resolveSearchAccess(actorEntraUserId);
+    public FirmSearchViewList searchFirms(AuthenticatedEntraUser authenticatedUser, String query, int limit) {
+        FirmSearchAccess searchAccess = authorisationService.resolveSearchAccess(authenticatedUser);
         String term = query == null ? "" : query;
         List<FirmSearchView> results =
             firmQueryRepository.searchTypeAhead(
@@ -93,8 +93,8 @@ public class FirmQueryService {
         return new FirmSearchViewList(results);
     }
 
-    public OfficeViewList getFirmOffices(UUID actorEntraUserId, String firmId) {
-        authorisationService.requireFirmDirectoryAccess(actorEntraUserId);
+    public OfficeViewList getFirmOffices(AuthenticatedEntraUser authenticatedUser, String firmId) {
+        authorisationService.requireFirmDirectoryAccess(authenticatedUser);
         if (!firmQueryRepository.existsByCode(firmId)) {
             throw new ResourceNotFoundException("Firm not found: " + firmId);
         }

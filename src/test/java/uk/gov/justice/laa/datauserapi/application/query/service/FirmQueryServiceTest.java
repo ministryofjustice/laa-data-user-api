@@ -2,6 +2,7 @@ package uk.gov.justice.laa.datauserapi.application.query.service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +33,11 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.FirmViewPage;
 import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.FirmQueryRepository;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.OfficeQueryRepository;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
+import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
 
@@ -49,7 +55,8 @@ class FirmQueryServiceTest {
 
     private FirmQueryService firmQueryService;
 
-    private final UUID actorId = UUID.randomUUID();
+    private final AuthenticatedEntraUser authenticatedUser =
+            authenticatedUser(UserType.INTERNAL, null, Permission.VIEW_FIRM_DIRECTORY);
 
     @Test
     void listFirms_returnsMappedPage() {
@@ -58,9 +65,9 @@ class FirmQueryServiceTest {
         Page<FirmView> page = new PageImpl<>(List.of(view), PageRequest.of(0, 20), 1);
         when(firmQueryRepository.search(eq("Test"), any(Pageable.class))).thenReturn(page);
 
-        FirmViewPage result = firmQueryService.listFirms(actorId, "Test", 0, 20, "name,asc");
+        FirmViewPage result = firmQueryService.listFirms(authenticatedUser, "Test", 0, 20, "name,asc");
 
-        verify(authorisationService).requireFirmDirectoryAccess(actorId);
+        verify(authorisationService).requireFirmDirectoryAccess(authenticatedUser);
         assertThat(result.items()).containsExactly(view);
         assertThat(result.page().totalElements()).isEqualTo(1);
 
@@ -76,8 +83,8 @@ class FirmQueryServiceTest {
         when(firmQueryRepository.search(eq(""), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
-        firmQueryService.listFirms(actorId, null, 0, 20, null);
-        firmQueryService.listFirms(actorId, null, 0, 20, "");
+        firmQueryService.listFirms(authenticatedUser, null, 0, 20, null);
+        firmQueryService.listFirms(authenticatedUser, null, 0, 20, "");
 
         var pageable = ArgumentCaptor.forClass(Pageable.class);
         verify(firmQueryRepository, times(2)).search(eq(""), pageable.capture());
@@ -94,7 +101,7 @@ class FirmQueryServiceTest {
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         List.of("code,desc", "code,asc", "name,asc", "type,desc")
-                .forEach(sortBy -> firmQueryService.listFirms(actorId, null, 0, 20, sortBy));
+                .forEach(sortBy -> firmQueryService.listFirms(authenticatedUser, null, 0, 20, sortBy));
 
         var pageable = ArgumentCaptor.forClass(Pageable.class);
         verify(firmQueryRepository, times(4)).search(eq(""), pageable.capture());
@@ -124,7 +131,7 @@ class FirmQueryServiceTest {
     void listFirms_rejectsUnsupportedSortProperty() {
         firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
 
-        assertThatThrownBy(() -> firmQueryService.listFirms(actorId, null, 0, 20, "unknown,asc"))
+        assertThatThrownBy(() -> firmQueryService.listFirms(authenticatedUser, null, 0, 20, "unknown,asc"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Unsupported firm sort value");
     }
@@ -133,9 +140,9 @@ class FirmQueryServiceTest {
     void listFirms_throws_whenAuthorisationDenies() {
         firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
         doThrow(new org.springframework.security.access.AccessDeniedException("denied"))
-                .when(authorisationService).requireFirmDirectoryAccess(actorId);
+                .when(authorisationService).requireFirmDirectoryAccess(authenticatedUser);
 
-        assertThatThrownBy(() -> firmQueryService.listFirms(actorId, null, 0, 20, null))
+        assertThatThrownBy(() -> firmQueryService.listFirms(authenticatedUser, null, 0, 20, null))
                 .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
     }
 
@@ -145,7 +152,7 @@ class FirmQueryServiceTest {
         FirmView view = new FirmView("123456", "Test Firm", FirmType.LEGAL_SERVICES_PROVIDER, null, true);
         when(firmQueryRepository.findViewByCode("123456")).thenReturn(Optional.of(view));
 
-        FirmView result = firmQueryService.getFirmById(actorId, "123456");
+        FirmView result = firmQueryService.getFirmById(authenticatedUser, "123456");
 
         assertThat(result.firmId()).isEqualTo("123456");
         assertThat(result.name()).isEqualTo("Test Firm");
@@ -157,19 +164,19 @@ class FirmQueryServiceTest {
         firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
         when(firmQueryRepository.findViewByCode("999999")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> firmQueryService.getFirmById(actorId, "999999"))
+        assertThatThrownBy(() -> firmQueryService.getFirmById(authenticatedUser, "999999"))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
     void searchFirms_appliesFirmCodeRestriction_forExternalUser() {
         firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
-        when(authorisationService.resolveSearchAccess(actorId)).thenReturn(new FirmSearchAccess(false, "123456"));
+        when(authorisationService.resolveSearchAccess(authenticatedUser)).thenReturn(new FirmSearchAccess(false, "123456"));
         FirmSearchView searchView = new FirmSearchView("123456", "Test Firm");
         when(firmQueryRepository.searchTypeAhead(anyString(), eq(false), eq("123456"), any(Pageable.class)))
                 .thenReturn(List.of(searchView));
 
-        var result = firmQueryService.searchFirms(actorId, "Test", 10);
+        var result = firmQueryService.searchFirms(authenticatedUser, "Test", 10);
 
         assertThat(result.items()).containsExactly(searchView);
     }
@@ -177,11 +184,11 @@ class FirmQueryServiceTest {
     @Test
     void searchFirms_noRestriction_forInternalUser() {
         firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
-        when(authorisationService.resolveSearchAccess(actorId)).thenReturn(new FirmSearchAccess(true, null));
+        when(authorisationService.resolveSearchAccess(authenticatedUser)).thenReturn(new FirmSearchAccess(true, null));
         when(firmQueryRepository.searchTypeAhead(anyString(), eq(true), org.mockito.ArgumentMatchers.isNull(), any(Pageable.class)))
                 .thenReturn(List.of());
 
-        var result = firmQueryService.searchFirms(actorId, "Test", 10);
+        var result = firmQueryService.searchFirms(authenticatedUser, "Test", 10);
 
         assertThat(result.items()).isEmpty();
     }
@@ -189,11 +196,11 @@ class FirmQueryServiceTest {
     @Test
     void searchFirms_usesEmptyTerm_whenQueryIsNull() {
         firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
-        when(authorisationService.resolveSearchAccess(actorId)).thenReturn(new FirmSearchAccess(true, null));
+        when(authorisationService.resolveSearchAccess(authenticatedUser)).thenReturn(new FirmSearchAccess(true, null));
         when(firmQueryRepository.searchTypeAhead(eq(""), eq(true), org.mockito.ArgumentMatchers.isNull(), any(Pageable.class)))
                 .thenReturn(List.of());
 
-        firmQueryService.searchFirms(actorId, null, 10);
+        firmQueryService.searchFirms(authenticatedUser, null, 10);
 
         verify(firmQueryRepository).searchTypeAhead(eq(""), eq(true), org.mockito.ArgumentMatchers.isNull(), any(Pageable.class));
     }
@@ -204,7 +211,7 @@ class FirmQueryServiceTest {
         when(firmQueryRepository.existsByCode("123456")).thenReturn(true);
         when(officeQueryRepository.findByFirmCode("123456")).thenReturn(List.of());
 
-        OfficeViewList result = firmQueryService.getFirmOffices(actorId, "123456");
+        OfficeViewList result = firmQueryService.getFirmOffices(authenticatedUser, "123456");
 
         assertThat(result.items()).isEmpty();
     }
@@ -216,7 +223,7 @@ class FirmQueryServiceTest {
         when(firmQueryRepository.existsByCode("123456")).thenReturn(true);
         when(officeQueryRepository.findByFirmCode("123456")).thenReturn(List.of(officeView));
 
-        OfficeViewList result = firmQueryService.getFirmOffices(actorId, "123456");
+        OfficeViewList result = firmQueryService.getFirmOffices(authenticatedUser, "123456");
 
         assertThat(result.items()).containsExactly(officeView);
     }
@@ -226,7 +233,24 @@ class FirmQueryServiceTest {
         firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
         when(firmQueryRepository.existsByCode("999999")).thenReturn(false);
 
-        assertThatThrownBy(() -> firmQueryService.getFirmOffices(actorId, "999999"))
+        assertThatThrownBy(() -> firmQueryService.getFirmOffices(authenticatedUser, "999999"))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    private static AuthenticatedEntraUser authenticatedUser(
+            UserType userType,
+            String firmCode,
+            Permission... permissions) {
+        Set<Permission> grantedPermissions = Set.of(permissions);
+        Set<AuthenticatedAppRole> roles = grantedPermissions.isEmpty()
+                ? Set.of()
+                : Set.of(new AuthenticatedAppRole(
+                        null, null, 0, null, false, null, null, null, false, null, grantedPermissions));
+        AuthenticatedUserProfile profile = new AuthenticatedUserProfile(
+                null, true, userType, null, null, null, firmCode, null, null, false, false, Set.of(), roles);
+        return AuthenticatedEntraUser.builder()
+                .entraOid(UUID.randomUUID().toString())
+                .activeProfile(profile)
+                .build();
     }
 }
