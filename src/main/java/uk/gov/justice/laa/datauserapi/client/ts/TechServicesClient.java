@@ -10,4 +10,5 @@ public interface TechServicesClient {
 
     TechServicesApiResponse<ChangeAccountReactivationResponse> deactivateUser(EntraUserDto user, String reason);
 
+    void deleteRoleAssignment(EntraUserDto entraUser);
 }

@@ -20,7 +20,7 @@ import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 import java.time.LocalDateTime;
@@ -49,7 +49,7 @@ public class UserAccountStatusAudit extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "status_change", nullable = false, length = 255)
     @NotNull(message = "Status change must be provided")
-    private UserAccountStatus userAccountStatus;
+    private UserAccountAuditStatus userAccountAuditStatus;
 
     @Column(name = "entra_user_id", nullable = true)
     private UUID entraUserId;
@@ -76,10 +76,13 @@ public class UserAccountStatusAudit extends BaseEntity {
     @JoinColumn(name = "delete_user_reason_id", nullable = true, foreignKey = @ForeignKey(name = "fk_user_account_status_audit_delete_user_reason_id"))
     @ToString.Exclude
     @JsonIgnore
-    private DeleteUserReason deleteUserReason;
+    private DeleteUserReasonEntity deleteUserReasonEntity;
 
     @Column(name = "comments", nullable = true, length = 500, columnDefinition = "VARCHAR(500)")
     @Size(max = 500, message = "Comments must not exceed 500 characters")
     private String comments;
+
+    @Column(name = "deleted_user_created_date", nullable = true)
+    private LocalDateTime deletedUserCreatedDate;
 
 }

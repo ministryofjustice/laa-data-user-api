@@ -3,7 +3,7 @@ package uk.gov.justice.laa.datauserapi.application.command.mapper;
 import jakarta.validation.Valid;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.contracts.request.ReactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
@@ -19,7 +19,7 @@ public class ReactivateUserMapper {
                 .entraUserId(user.getId())
                 .userEmail(user.getEmail())
                 .userName(user.getFirstName() + " " + user.getLastName())
-                .userAccountStatus(UserAccountStatus.ACTIVE)
+                .userAccountAuditStatus(UserAccountAuditStatus.ACTIVATED)
                 .statusChangedDate(LocalDateTime.now())
                 .statusChangedBy(actorId)
                 .deactivateUserReasonLookup(null)
