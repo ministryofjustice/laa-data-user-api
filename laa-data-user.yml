@@ -63,6 +63,7 @@ paths:
         - $ref: '#/components/parameters/FirmQuery'
         - $ref: '#/components/parameters/FirmIdFilter'
         - $ref: '#/components/parameters/AppIdFilter'
+        - $ref: '#/components/parameters/AppEntraClientIdFilter'
         - $ref: '#/components/parameters/AppRoleIdFilter'
         - name: never_activated_filter
           in: query
@@ -177,6 +178,7 @@ paths:
         - $ref: '#/components/parameters/UserType'
         - $ref: '#/components/parameters/UserProfileStatus'
         - $ref: '#/components/parameters/AppIdFilter'
+        - $ref: '#/components/parameters/AppEntraClientIdFilter'
         - $ref: '#/components/parameters/AppRoleIdFilter'
         - $ref: '#/components/parameters/OfficeIdFilter'
         - $ref: '#/components/parameters/FirmIdFilter'
@@ -238,6 +240,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/UserProfileId'
         - $ref: '#/components/parameters/AppIdFilter'
+        - $ref: '#/components/parameters/AppEntraClientIdFilter'
       responses:
         '200':
           description: App roles
@@ -459,7 +462,7 @@ paths:
     get:
       operationId: queryAppById
       tags: [Application & Role Management]
-      summary: Get app by ID (Application Client ID in Entra ID)
+      summary: Get app by internal SiLAS app ID
       parameters:
         - $ref: '#/components/parameters/AppId'
       responses:
@@ -978,6 +981,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
         '502':
           $ref: '#/components/responses/BadGateway'
         '503':
@@ -1490,7 +1495,7 @@ components:
         type: string
     AppId:
       name: appId
-      description: Identifier for the application. This uses the Entra client ID.
+      description: Internal SiLAS ID for the application.
       in: path
       required: true
       schema:
@@ -1505,7 +1510,14 @@ components:
         format: uuid
     AppIdFilter:
       name: app_id
-      description: Identifier for the application. This uses the Entra client ID. Used to filter user results to only show users with this app assigned.
+      description: Internal SiLAS ID for the application. Used to filter user results to only show users with this app assigned.
+      in: query
+      schema:
+        type: string
+        format: uuid
+    AppEntraClientIdFilter:
+      name: appEntraClientId
+      description: Entra ID client ID for the application. Used to filter user results to only show users with this app assigned.
       in: query
       schema:
         type: string
@@ -1950,9 +1962,10 @@ components:
     AppView:
       type: object
       description: Read model for app
-      required: [ appId, name, description, url, active, ordinal, appEntraObjectId ]
+      required: [ appId, name, description, url, active, ordinal, appEntraObjectId, appEntraClientId ]
       properties:
         appId:
+          description: Internal SiLAS ID for the application.
           type: string
           format: uuid
         name:
@@ -1966,6 +1979,10 @@ components:
         ordinal:
           type: integer
         appEntraObjectId:
+          type: string
+          format: uuid
+        appEntraClientId:
+          description: Entra ID client ID for the application.
           type: string
           format: uuid
 
@@ -1982,12 +1999,17 @@ components:
     AppRoleView:
       type: object
       description: Read model for app_role
-      required: [ appRoleId, appId, name, description, authzRole, legacySync, ordinal, appRoleUserTypeRestriction ]
+      required: [ appRoleId, appId, appEntraClientId, name, description, authzRole, legacySync, ordinal, appRoleUserTypeRestriction ]
       properties:
         appRoleId:
           type: string
           format: uuid
         appId:
+          description: Internal SiLAS ID for the application.
+          type: string
+          format: uuid
+        appEntraClientId:
+          description: Entra ID client ID for the application.
           type: string
           format: uuid
         appName:
@@ -2025,7 +2047,7 @@ components:
     RoleAssignmentRestrictionView:
       type: object
       description: Read model for role assignment restrictions
-      required: [ appRoleId, appRoleName, appId, appName, assigningAppRoleId, assigningAppRoleName ]
+      required: [ appRoleId, appRoleName, appId, appEntraClientId, appName, assigningAppRoleId, assigningAppRoleName ]
       properties:
         appRoleId:
           type: string
@@ -2033,6 +2055,11 @@ components:
         appRoleName:
           type: string
         appId:
+          description: Internal SiLAS ID for the application.
+          type: string
+          format: uuid
+        appEntraClientId:
+          description: Entra ID client ID for the application.
           type: string
           format: uuid
         appName:
@@ -2269,12 +2296,14 @@ components:
 
     AssignAppRolesCommand:
       type: object
+      description: Assign local SiLAS app-role IDs to a user profile.
       required: [userProfileId, appRoleIds]
       properties:
         userProfileId:
           type: string
           format: uuid
         appRoleIds:
+          description: Local SiLAS app-role IDs to assign.
           type: array
           maxItems: 500
           items:
@@ -2283,6 +2312,7 @@ components:
 
     RemoveAppRolesCommand:
       type: object
+      description: Remove the union of roles selected by appIds and appRoleIds. Both selectors may be supplied; omitting both or providing empty lists is a successful no-op.
       required: [userProfileId ]
       properties:
         userProfileId:
@@ -2291,24 +2321,25 @@ components:
         appIds:
           type: array
           maxItems: 100
-          description: Use to remove all roles for the specified applications.
+          description: SiLAS app IDs whose roles should be removed.
           items:
             type: string
             format: uuid
         appRoleIds:
           type: array
           maxItems: 500
-          description: Use to remove a set of roles across multiple apps
+          description: SiLAS app-role IDs to remove.
           items:
             type: string
             format: uuid
 
     AppRoleAssignment:
       type: object
-      description: A single app and the set of role IDs to apply for it
+      description: A single app, identified by its internal SiLAS app ID, and the complete set of local SiLAS role IDs to assign to it.
       required: [appId, appRoleIds]
       properties:
         appId:
+          description: SiLAS app ID for the application.
           type: string
           format: uuid
         appRoleIds:
@@ -2324,6 +2355,7 @@ components:
       required: [appId, ordinal]
       properties:
         appId:
+          description: SiLAS app ID for the application.
           type: string
           format: uuid
         ordinal:
@@ -2342,6 +2374,7 @@ components:
 
     UpdateAppRolesCommand:
       type: object
+      description: Replace role assignments for each listed app; omitted apps are unchanged. An empty role list clears that app, and an empty appsAndRoles list is a successful no-op.
       required: [userProfileId, appsAndRoles]
       properties:
         userProfileId:
@@ -2460,6 +2493,7 @@ components:
       required: [appId]
       properties:
         appId:
+          description: Internal SiLAS ID for the application.
           type: string
           format: uuid
         description:
@@ -2504,6 +2538,7 @@ components:
       required: [appId, name, description, appRoleUserTypeRestriction]
       properties:
         appId:
+          description: SiLAS app ID for the application.
           type: string
           format: uuid
         name:
@@ -2559,6 +2594,7 @@ components:
       required: [appId, appRoleOrdinals]
       properties:
         appId:
+          description: SiLAS app ID for the application.
           type: string
           format: uuid
         appRoleOrdinals:
