@@ -1271,6 +1271,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
 
@@ -2363,7 +2365,7 @@ components:
 
     AppRoleOrdinal:
       type: object
-      description: An app role and its display position
+      description: An app role and its zero-based display position within an application
       required: [appRoleId, ordinal]
       properties:
         appRoleId:
@@ -2371,6 +2373,7 @@ components:
           format: uuid
         ordinal:
           type: integer
+          minimum: 0
 
     UpdateAppRolesCommand:
       type: object
@@ -2535,13 +2538,15 @@ components:
 
     CreateAppRoleCommand:
       type: object
+      description: Create a role for an existing application, whether active or inactive. Role names must be unique within the application. Roles created through this API have authzRole=false.
       required: [appId, name, description, appRoleUserTypeRestriction]
       properties:
         appId:
-          description: SiLAS app ID for the application.
+          description: Internal SiLAS ID of an existing application. The application may be inactive.
           type: string
           format: uuid
         name:
+          description: Must be unique within the application.
           type: string
         description:
           type: string
@@ -2559,6 +2564,7 @@ components:
             $ref: '#/components/schemas/FirmType'
 
     CreateAppRoleResult:
+      description: Result of creating an app role. The created role has authzRole=false.
       allOf:
         - $ref: '#/components/schemas/CommandResult'
         - type: object
@@ -2569,6 +2575,7 @@ components:
 
     UpdateAppRoleCommand:
       type: object
+      description: Update the supplied name and/or description. Omitted fields remain unchanged; supplying only appRoleId is a successful no-op. Role restrictions are create-only and are not updated here.
       required: [appRoleId]
       properties:
         appRoleId:
@@ -2576,12 +2583,15 @@ components:
           format: uuid
         name:
           type: string
+          minLength: 1
         description:
           type: string
+          minLength: 1
 
     DeleteAppRoleCommand:
       type: object
-      required: [appRoleId]
+      description: Deleting a role removes its profile assignments and role-assignment restriction entries that reference it.
+      required: [appRoleId, reason]
       properties:
         appRoleId:
           type: string
@@ -2591,6 +2601,7 @@ components:
 
     ReorderAppRolesCommand:
       type: object
+      description: Update ordinals for a subset of roles in an application. Omitted roles retain their ordinals; an empty list is a successful no-op. The resulting ordinals must be unique within the application. Invalid role IDs or ordinals reject the entire request without changes.
       required: [appId, appRoleOrdinals]
       properties:
         appId:
