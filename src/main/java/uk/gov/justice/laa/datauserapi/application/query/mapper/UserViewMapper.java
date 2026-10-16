@@ -3,9 +3,9 @@ package uk.gov.justice.laa.datauserapi.application.query.mapper;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryView;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserProfileDetailView;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserView;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryView;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserView;
 
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
@@ -94,6 +94,7 @@ public class UserViewMapper {
                 role.getId(),
                 role.getApp().getId(),
                 role.getApp().getName(),
+                role.getApp().getEntraAppId(),
                 role.getName(),
                 role.getDescription(),
                 role.isAuthzRole(),

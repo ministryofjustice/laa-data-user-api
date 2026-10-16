@@ -9,8 +9,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryPage;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryView;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
@@ -196,9 +196,8 @@ class SearchUsersHandlerTest {
         UserSearchCriteria criteria = new UserSearchCriteria(
                 0, 500, null,
                 null, null, null,
-                null, null, null,
-                null, null,
-                false, false, null, false
+                null, null, null, null,
+                null, false, false, null, null, false
         );
 
         handler.handle(new SearchUsersQuery(criteria, "actorOid"));
@@ -223,9 +222,8 @@ class SearchUsersHandlerTest {
         UserSearchCriteria criteria = new UserSearchCriteria(
                 null, null, null,
                 null, null, null,
-                null, null, null,
-                null, null,
-                false, false, null, false
+                null, null, null, null,
+                null, false, false, null, null, false
         );
         return criteria;
     }
