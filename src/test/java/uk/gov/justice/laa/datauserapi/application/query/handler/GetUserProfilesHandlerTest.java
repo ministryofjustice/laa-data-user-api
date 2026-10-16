@@ -5,18 +5,28 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserprofilesbyentrauser.GetUserProfilesQuery;
+import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
+import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
+import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
+import uk.gov.justice.laa.datauserapi.entity.AppRole;
+import uk.gov.justice.laa.datauserapi.entity.Firm;
+import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
+import uk.gov.justice.laa.datauserapi.model.Permission;
 
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,251 +35,122 @@ class GetUserProfilesHandlerTest {
     @Mock
     private UserProfileQueryRepository userProfileQueryRepository;
 
+    @Mock
+    private UserAccountQueryService userAccountQueryService;
+
     private static final String ACTOR_OID = UUID.randomUUID().toString();
     private static final String USER_ENTRA_OBJECT_ID = UUID.randomUUID().toString();
 
     @Test
-    void returnsEmptyListWhenUserHasNoVisibleProfiles() {
-        GetUserProfilesQuery query = new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID);
-        List<UserProfileSummaryView> emptyList = new ArrayList<>();
+    void returnsEmptyListWhenUserHasNoProfiles() {
+        UserProfile actorProfile = UserProfile.builder()
+                .activeProfile(true)
+                .userType(UserType.INTERNAL)
+                .build();
+        stubActor(actorProfile);
 
-        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(
-                USER_ENTRA_OBJECT_ID, ACTOR_OID))
-                .thenReturn(Optional.of(emptyList));
+        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(USER_ENTRA_OBJECT_ID))
+                .thenReturn(Optional.of(List.of()));
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository);
-        List<UserProfileSummaryView> result = handler.handle(query);
+        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService);
+        List<UserProfileSummaryView> result = handler.handle(new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID));
 
         assertThat(result).isEmpty();
     }
 
     @Test
-    void returnsAllVisibleProfiles() {
-        GetUserProfilesQuery query = new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID);
-        UUID profileId1 = UUID.randomUUID();
-        UUID profileId2 = UUID.randomUUID();
-        UUID firmId = UUID.randomUUID();
-        
-        List<UserProfileSummaryView> profiles = List.of(
-                new UserProfileSummaryView(
-                        profileId1,
-                        true,
-                        UserType.INTERNAL,
-                        "user@example.com",
-                        "John Doe",
-                        "",
-                        "",
-                        false,
-                        UserAccountStatus.ACTIVE,
-                        UserProfileStatus.COMPLETE,
-                        true
-                ),
-                new UserProfileSummaryView(
-                        profileId2,
-                        false,
-                        UserType.EXTERNAL,
-                        "user@example.com",
-                        "John Doe",
-                        "Test Firm",
-                        firmId.toString(),
-                        false,
-                        UserAccountStatus.ACTIVE,
-                        UserProfileStatus.COMPLETE,
-                        false
-                )
-        );
+    void internalActorCanViewInternalProfiles() {
+        UserProfile actorProfile = UserProfile.builder()
+                .activeProfile(true)
+                .userType(UserType.INTERNAL)
+                .build();
+        stubActor(actorProfile);
 
-        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(
-                USER_ENTRA_OBJECT_ID, ACTOR_OID))
-                .thenReturn(Optional.of(profiles));
-
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository);
-        List<UserProfileSummaryView> result = handler.handle(query);
-
-        assertThat(result).hasSize(2);
-        assertThat(result.get(0).userProfileId()).isEqualTo(profileId1);
-        assertThat(result.get(1).userProfileId()).isEqualTo(profileId2);
-    }
-
-    @Test
-    void returnsSingleProfile() {
-        GetUserProfilesQuery query = new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID);
         UUID profileId = UUID.randomUUID();
-        
-        List<UserProfileSummaryView> profiles = List.of(
-                new UserProfileSummaryView(
-                        profileId,
-                        true,
-                        UserType.INTERNAL,
-                        "user@example.com",
-                        "Jane Smith",
-                        "",
-                        "",
-                        false,
-                        UserAccountStatus.ACTIVE,
-                        UserProfileStatus.COMPLETE,
-                        true
-                )
-        );
+        UserProfileSummaryView profile = new UserProfileSummaryView(
+                profileId, true, UserType.INTERNAL, "user@example.com", "John Doe",
+                "", "", false, UserAccountStatus.ACTIVE, UserProfileStatus.COMPLETE, true);
 
-        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(
-                USER_ENTRA_OBJECT_ID, ACTOR_OID))
-                .thenReturn(Optional.of(profiles));
+        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(USER_ENTRA_OBJECT_ID))
+                .thenReturn(Optional.of(List.of(profile)));
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository);
-        List<UserProfileSummaryView> result = handler.handle(query);
+        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService);
+        List<UserProfileSummaryView> result = handler.handle(new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID));
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).userProfileId()).isEqualTo(profileId);
         assertThat(result.get(0).userType()).isEqualTo(UserType.INTERNAL);
     }
 
     @Test
-    void includesHasAppRolesIndicator() {
-        GetUserProfilesQuery query = new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID);
-        UUID profileId1 = UUID.randomUUID();
-        UUID profileId2 = UUID.randomUUID();
-        
-        List<UserProfileSummaryView> profiles = List.of(
-                new UserProfileSummaryView(
-                        profileId1,
-                        true,
-                        UserType.INTERNAL,
-                        "user@example.com",
-                        "Test User",
-                        "",
-                        "",
-                        false,
-                        UserAccountStatus.ACTIVE,
-                        UserProfileStatus.COMPLETE,
-                        true
-                ),
-                new UserProfileSummaryView(
-                        profileId2,
-                        false,
-                        UserType.EXTERNAL,
-                        "user@example.com",
-                        "Test User",
-                        "Firm",
-                        UUID.randomUUID().toString(),
-                        false,
-                        UserAccountStatus.ACTIVE,
-                        UserProfileStatus.COMPLETE,
-                        false
-                )
-        );
+    void externalActorCannotViewOtherFirmProfiles() {
+        Firm actorFirm = Firm.builder()
+                .id(UUID.randomUUID())
+                .type(FirmType.LEGAL_SERVICES_PROVIDER)
+                .name("Actor Firm " + UUID.randomUUID())
+                .build();
+        UserProfile actorProfile = UserProfile.builder()
+                .activeProfile(true)
+                .userType(UserType.EXTERNAL)
+                .firm(actorFirm)
+                .appRoles(new HashSet<>())
+                .build();
+        stubActor(actorProfile);
 
-        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(
-                USER_ENTRA_OBJECT_ID, ACTOR_OID))
-                .thenReturn(Optional.of(profiles));
+        UUID targetFirmId = UUID.randomUUID();
+        UserProfileSummaryView profile = new UserProfileSummaryView(
+                UUID.randomUUID(), true, UserType.EXTERNAL, "user@example.com", "John Doe",
+                "Firm B", targetFirmId.toString(), false, UserAccountStatus.ACTIVE, UserProfileStatus.COMPLETE, true);
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository);
-        List<UserProfileSummaryView> result = handler.handle(query);
+        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(USER_ENTRA_OBJECT_ID))
+                .thenReturn(Optional.of(List.of(profile)));
 
-        assertThat(result.get(0).hasAppRoles()).isTrue();
-        assertThat(result.get(1).hasAppRoles()).isFalse();
+        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService);
+        List<UserProfileSummaryView> result = handler.handle(new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID));
+
+        assertThat(result).isEmpty();
     }
 
     @Test
-    void respectsAuthorizationRulesForFiltering() {
-        GetUserProfilesQuery query = new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID);
+    void internalActorWithViewExternalUserCanViewExternalProfiles() {
+        AppRole viewExternalRole = AppRole.builder()
+                .permissions(Set.of(Permission.VIEW_EXTERNAL_USER))
+                .build();
+        UserProfile actorProfile = UserProfile.builder()
+                .activeProfile(true)
+                .userType(UserType.INTERNAL)
+                .appRoles(Set.of(viewExternalRole))
+                .build();
+        stubActor(actorProfile);
+
         UUID profileId = UUID.randomUUID();
-        
-        List<UserProfileSummaryView> visibleProfiles = List.of(
-                new UserProfileSummaryView(
-                        profileId,
-                        true,
-                        UserType.INTERNAL,
-                        "user@example.com",
-                        "John Doe",
-                        "",
-                        "",
-                        false,
-                        UserAccountStatus.ACTIVE,
-                        UserProfileStatus.COMPLETE,
-                        true
-                )
-        );
+        UserProfileSummaryView profile = new UserProfileSummaryView(
+                profileId, true, UserType.EXTERNAL, "external@example.com", "Jane Doe",
+                "External Firm", UUID.randomUUID().toString(), false, UserAccountStatus.ACTIVE, UserProfileStatus.COMPLETE, false);
 
-        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(
-                USER_ENTRA_OBJECT_ID, ACTOR_OID))
-                .thenReturn(Optional.of(visibleProfiles));
+        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(USER_ENTRA_OBJECT_ID))
+                .thenReturn(Optional.of(List.of(profile)));
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository);
-        List<UserProfileSummaryView> result = handler.handle(query);
+        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService);
+        List<UserProfileSummaryView> result = handler.handle(new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID));
 
         assertThat(result).hasSize(1);
-        assertThat(result.getFirst().userType()).isEqualTo(UserType.INTERNAL);
+        assertThat(result.get(0).userType()).isEqualTo(UserType.EXTERNAL);
     }
 
     @Test
-    void returnsNonPaginatedResultsUpTo100Items() {
-        GetUserProfilesQuery query = new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID);
-        List<UserProfileSummaryView> profiles = new ArrayList<>();
-        for (int i = 0; i < 50; i++) {
-            profiles.add(new UserProfileSummaryView(
-                    UUID.randomUUID(),
-                    i == 0,
-                    UserType.INTERNAL,
-                    "user@example.com",
-                    "User " + i,
-                    "",
-                    "",
-                    false,
-                    UserAccountStatus.ACTIVE,
-                    UserProfileStatus.COMPLETE,
-                    i % 2 == 0
-            ));
-        }
+    void throwsExceptionWhenActorHasNoActiveProfile() {
+        EntraUserDto actor = EntraUserDto.builder().userProfiles(Set.of()).build();
+        when(userAccountQueryService.findByEntraOid(ACTOR_OID)).thenReturn(actor);
 
-        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(
-                USER_ENTRA_OBJECT_ID, ACTOR_OID))
-                .thenReturn(Optional.of(profiles));
+        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService);
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository);
-        List<UserProfileSummaryView> result = handler.handle(query);
-
-        assertThat(result).hasSize(50);
-        assertThat(result.size()).isLessThanOrEqualTo(100);
+        assertThatThrownBy(() -> handler.handle(new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID)))
+                .isInstanceOf(InvalidActorContextException.class)
+                .hasMessageContaining("Actor has no active profile");
     }
 
-    @Test
-    void providesCompleteProfileSummaryInformation() {
-        GetUserProfilesQuery query = new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID);
-        UUID profileId = UUID.randomUUID();
-        UUID firmId = UUID.randomUUID();
-        
-        List<UserProfileSummaryView> profiles = List.of(
-                new UserProfileSummaryView(
-                        profileId,
-                        true,
-                        UserType.EXTERNAL,
-                        "john.doe@example.com",
-                        "John Doe",
-                        "Test Firm Ltd",
-                        firmId.toString(),
-                        true,
-                        UserAccountStatus.ACTIVE,
-                        UserProfileStatus.COMPLETE,
-                        true
-                )
-        );
-
-        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(
-                USER_ENTRA_OBJECT_ID, ACTOR_OID))
-                .thenReturn(Optional.of(profiles));
-
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository);
-        List<UserProfileSummaryView> result = handler.handle(query);
-
-        UserProfileSummaryView profile = result.getFirst();
-        assertThat(profile.userProfileId()).isEqualTo(profileId);
-        assertThat(profile.email()).isEqualTo("john.doe@example.com");
-        assertThat(profile.fullName()).isEqualTo("John Doe");
-        assertThat(profile.accountStatus()).isEqualTo(UserAccountStatus.ACTIVE);
-        assertThat(profile.profileStatus()).isEqualTo(UserProfileStatus.COMPLETE);
-        assertThat(profile.firmName()).isEqualTo("Test Firm Ltd");
-        assertThat(profile.firmId()).isEqualTo(firmId.toString());
-        assertThat(profile.multiFirmUser()).isTrue();
+    private void stubActor(UserProfile actorProfile) {
+        EntraUserDto actor = EntraUserDto.builder().userProfiles(Set.of(actorProfile)).build();
+        when(userAccountQueryService.findByEntraOid(ACTOR_OID)).thenReturn(actor);
     }
 }

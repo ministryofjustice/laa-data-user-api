@@ -29,26 +29,12 @@ public interface UserProfileQueryRepository extends Repository<EntraUser, UUID> 
             CASE WHEN SIZE(up.appRoles) > 0 THEN true ELSE false END
         )
         FROM EntraUser u
-        JOIN u.userProfiles up
+        LEFT JOIN u.userProfiles up
         LEFT JOIN up.firm f
-        JOIN EntraUser actor ON actor.entraOid = :actorOid
-        JOIN actor.userProfiles actorProfile
         WHERE u.entraOid = :userEntraObjectId
-            AND actorProfile.activeProfile = true
-            AND (
-                (actorProfile.userType = UserType.INTERNAL AND up.userType = UserType.INTERNAL)
-                OR (actorProfile.userType = UserType.EXTERNAL AND f.id = actorProfile.firm.id)
-                OR (actorProfile.userType = UserType.INTERNAL 
-                    AND EXISTS (
-                        SELECT 1 FROM actorProfile.appRoles ar
-                        JOIN ar.permissions p
-                        WHERE p = uk.gov.justice.laa.datauserapi.model.Permission.VIEW_EXTERNAL_USER
-                    ))
-            )
         """)
     Optional<List<UserProfileSummaryView>> findAllProfilesByUserEntraObjectId(
-            @Param("userEntraObjectId") String userEntraObjectId,
-            @Param("actorOid") String actorOid);
+            @Param("userEntraObjectId") String userEntraObjectId);
 
     @Query("""
         SELECT DISTINCT up
@@ -57,23 +43,10 @@ public interface UserProfileQueryRepository extends Repository<EntraUser, UUID> 
         LEFT JOIN FETCH up.appRoles ar
         LEFT JOIN FETCH up.offices o
         LEFT JOIN FETCH up.firm f
-        JOIN EntraUser actor ON actor.entraOid = :actorOid
-        JOIN actor.userProfiles actorProfile
         WHERE u.entraOid = :userEntraObjectId
             AND up.activeProfile = true
-            AND actorProfile.activeProfile = true
-            AND (
-                (actorProfile.userType = UserType.INTERNAL AND up.userType = UserType.INTERNAL)
-                OR (actorProfile.userType = UserType.EXTERNAL AND f.id = actorProfile.firm.id)
-                OR (actorProfile.userType = UserType.INTERNAL 
-                    AND EXISTS (
-                        SELECT 1 FROM actorProfile.appRoles ar
-                        JOIN ar.permissions p
-                        WHERE p = uk.gov.justice.laa.datauserapi.model.Permission.VIEW_EXTERNAL_USER                    ))
-            )
         """)
     Optional<UserProfile> findActiveProfileWithDetailsAndRoles(
-            @Param("userEntraObjectId") String userEntraObjectId,
-            @Param("actorOid") String actorOid);
+            @Param("userEntraObjectId") String userEntraObjectId);
 }
 
