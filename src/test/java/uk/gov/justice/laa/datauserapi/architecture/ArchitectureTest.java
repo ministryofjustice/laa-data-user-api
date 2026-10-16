@@ -103,6 +103,8 @@ class ArchitectureTest {
                     "..application.command.service..",
                     "..application.command.mapper..",
                     "..application.query.service..",
+                    "..application.query.getuserprofiles..",
+                    "..application.query.getuserprofilebyid..",
                     "..repository..",
                     "..authorisation.."
             )
@@ -143,10 +145,13 @@ class ArchitectureTest {
             .layer("QueryRepository").definedBy("..application.query.shared.repository..")
             .layer("QueryHandler").definedBy("..application.query.handler..")
             .layer("Authorisation").definedBy("..authorisation..")
+            .layer("GetUserProfileById").definedBy("..application.query.getuserprofilebyid..")
+            .layer("GetUserProfiles").definedBy("..application.query.getuserprofiles..")
+
 
             .whereLayer("QueryController").mayNotBeAccessedByAnyLayer()
             .whereLayer("QueryService").mayOnlyBeAccessedByLayers("QueryController", "QueryHandler")
-            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation");
+            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation", "GetUserProfileById", "GetUserProfiles");
 
     // =========================================================================
     // 5. Naming Conventions & Stereotype Annotations
