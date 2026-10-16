@@ -122,7 +122,7 @@ class UserAccountQueryControllerTest {
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .entraOid(ACTOR_OID)
                 .build();
-        when(getUserProfilesHandler.handle(any(),any()))
+        when(getUserProfilesHandler.handle(any(), any()))
                 .thenReturn(null);
 
         ResponseEntity<?> result = controller.getUserProfiles(USER_ENTRA_OBJECT_ID, user);
