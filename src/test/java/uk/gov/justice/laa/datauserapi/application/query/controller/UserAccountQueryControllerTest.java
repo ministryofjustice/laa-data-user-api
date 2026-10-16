@@ -73,7 +73,7 @@ class UserAccountQueryControllerTest {
 
         UserSearchCriteria criteria = new UserSearchCriteria(
                 0, 20, null, null, null, null, null, null,
-                null, null, null, true, false, null, false);
+                null, null, null, null, true, false, null, false);
 
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .entraOid(ACTOR_OID)

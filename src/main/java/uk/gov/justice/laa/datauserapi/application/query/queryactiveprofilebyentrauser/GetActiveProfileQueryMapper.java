@@ -71,6 +71,7 @@ public class GetActiveProfileQueryMapper {
                 role.getId(),
                 role.getApp().getId(),
                 role.getApp().getName(),
+                role.getApp().getEntraAppId(),
                 role.getName(),
                 role.getDescription(),
                 role.isAuthzRole(),

@@ -196,9 +196,8 @@ class SearchUsersHandlerTest {
         UserSearchCriteria criteria = new UserSearchCriteria(
                 0, 500, null,
                 null, null, null,
-                null, null, null,
-                null, null,
-                false, false, null, false
+                null, null, null, null,
+                null, false, false, null, null, false
         );
 
         handler.handle(new SearchUsersQuery(criteria, "actorOid"));
@@ -223,9 +222,8 @@ class SearchUsersHandlerTest {
         UserSearchCriteria criteria = new UserSearchCriteria(
                 null, null, null,
                 null, null, null,
-                null, null, null,
-                null, null,
-                false, false, null, false
+                null, null, null, null,
+                null, false, false, null, null, false
         );
         return criteria;
     }

@@ -13,6 +13,7 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
+import uk.gov.justice.laa.datauserapi.entity.App;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
@@ -20,7 +21,8 @@ import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
-import uk.gov.justice.laa.datauserapi.model.UserProfileSilasStatus;
+import uk.gov.justice.laa.datauserapi.model.AppType;
+
 
 import java.util.HashSet;
 import java.util.Optional;
@@ -60,6 +62,8 @@ class GetActiveProfileHandlerTest {
 
         assertThat(result).isNotNull();
         assertThat(result.userType()).isEqualTo(UserType.INTERNAL);
+        assertThat(result.roles()).isNotEmpty();
+        assertThat(result.roles().get(0).appEntraClientId()).isEqualTo("test-entra-client-id-123");
     }
 
     @Test
@@ -135,6 +139,8 @@ class GetActiveProfileHandlerTest {
 
         assertThat(result).isNotNull();
         assertThat(result.userType()).isEqualTo(UserType.EXTERNAL);
+        assertThat(result.roles()).isNotEmpty();
+        assertThat(result.roles().get(0).appEntraClientId()).isEqualTo("test-entra-client-id-123");
     }
 
     @Test
@@ -164,11 +170,34 @@ class GetActiveProfileHandlerTest {
                 .entraOid(UUID.randomUUID().toString())
                 .build();
 
+        App app = App.builder()
+                .id(UUID.randomUUID())
+                .name("Test App")
+                .description("Test Application")
+                .appType(AppType.LAA)
+                .ordinal(1)
+                .url("http://test-app.example.com")
+                .enabled(true)
+                .entraAppId("test-entra-client-id-123")
+                .build();
+
+        AppRole role = AppRole.builder()
+                .id(UUID.randomUUID())
+                .name("Test Role")
+                .description("Test Role Description")
+                .ordinal(1)
+                .ccmsCode("TEST")
+                .legacySync(false)
+                .authzRole(false)
+                .app(app)
+                .permissions(Set.of(Permission.VIEW_EXTERNAL_USER))
+                .build();
+
         return UserProfile.builder()
                 .id(UUID.randomUUID())
                 .activeProfile(true)
                 .userType(userType)
-                .appRoles(new HashSet<>())
+                .appRoles(Set.of(role))
                 .offices(new HashSet<>())
                 .firm(null)
                 .unrestrictedOfficeAccess(false)

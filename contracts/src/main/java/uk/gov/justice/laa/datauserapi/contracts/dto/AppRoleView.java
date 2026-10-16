@@ -8,6 +8,7 @@ public record AppRoleView(
         UUID appRoleId,
         UUID appId,
         String appName,
+        String appEntraClientId,
         String name,
         String description,
         boolean authzRole,
