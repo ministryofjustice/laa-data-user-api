@@ -3,12 +3,11 @@ package uk.gov.justice.laa.datauserapi.application.query.handler;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import uk.gov.justice.laa.datauserapi.application.query.service.QueryAuthorisationService;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
-import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
-import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 
 import java.util.List;
@@ -19,27 +18,23 @@ import java.util.stream.Collectors;
 public class GetUserProfilesHandler {
 
     private final UserProfileQueryRepository userProfileQueryRepository;
-    private final UserAccountQueryService queryService;
-    private final QueryProfileAuthorisationHandler authorizationService;
+    private final QueryAuthorisationService authorizationHandler;
 
     public GetUserProfilesHandler(UserProfileQueryRepository userProfileQueryRepository,
-                                   UserAccountQueryService queryService,
-                                   QueryProfileAuthorisationHandler authorizationService) {
+                                   QueryAuthorisationService authorizationHandler) {
         this.userProfileQueryRepository = userProfileQueryRepository;
-        this.queryService = queryService;
-        this.authorizationService = authorizationService;
+        this.authorizationHandler = authorizationHandler;
     }
 
     public List<UserProfileSummaryView> handle(String userEntraObjectId, AuthenticatedEntraUser authenticatedUser) {
-        // Validate actor has active profile
-        EntraUserDto actor = queryService.findByEntraOid(authenticatedUser.entraOid());
-        UserProfile actorProfile = actor.getUserProfiles().stream()
-                .filter(UserProfile::isActiveProfile)
-                .findFirst()
-                .orElseThrow(() -> new InvalidActorContextException(
-                        "Actor has no active profile: " + authenticatedUser.entraOid()));
 
-        if (actorProfile.getUserType() == null) {
+        AuthenticatedUserProfile actorProfile = authenticatedUser.activeProfile();
+        if (actorProfile == null) {
+            throw new InvalidActorContextException(
+                    "Actor has no active profile: " + authenticatedUser.entraOid());
+        }
+
+        if (actorProfile.userType() == null) {
             throw new InvalidActorContextException("Actor user type cannot be determined");
         }
 
@@ -50,7 +45,7 @@ public class GetUserProfilesHandler {
 
         // Filter by authorization rules
         return allProfiles.stream()
-                .filter(profile -> authorizationService.handle(actorProfile, profile))
+                .filter(profile -> authorizationHandler.canViewProfile(actorProfile, profile.userType(), profile.firmId()))
                 .collect(Collectors.toList());
     }
 }
