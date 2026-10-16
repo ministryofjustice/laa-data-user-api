@@ -39,13 +39,16 @@ public class FirmQueryController {
     @GetMapping
     public ResponseEntity<FirmPageResponse> queryFirms(
             @RequestParam(name = "firm", required = false) String firm,
+            @RequestParam(name = "firm_type", required = false)
+            @Pattern(regexp = "^(LEGAL_SERVICES_PROVIDER|CHAMBERS|ADVOCATE)$",
+                    message = "must be one of LEGAL_SERVICES_PROVIDER, CHAMBERS, ADVOCATE") String firmType,
             @RequestParam(name = "page_number", defaultValue = "0") @Min(0) int pageNumber,
             @RequestParam(name = "page_size", defaultValue = "20") @Min(1) @Max(100) int pageSize,
             @RequestParam(name = "sort_by", required = false)
             @Pattern(regexp = "^(name|code|type)(,(?i:asc|desc))?$") String sortBy,
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedEntraUser) {
         FirmViewPage result = firmQueryService.listFirms(
-                authenticatedEntraUser, firm, pageNumber, pageSize, sortBy);
+                authenticatedEntraUser, firm, firmType, pageNumber, pageSize, sortBy);
         return ResponseEntity.ok(new FirmPageResponse(result.items(), result.page()));
     }
 

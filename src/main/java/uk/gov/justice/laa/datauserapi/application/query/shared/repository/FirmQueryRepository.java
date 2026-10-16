@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
+import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.FirmSearchView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.FirmView;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
@@ -48,6 +49,30 @@ public interface FirmQueryRepository extends Repository<Firm, UUID> {
             OR LOWER(f.code) LIKE LOWER(CONCAT('%', :term, '%'))
         """)
     Page<FirmView> search(@Param("term") String term, Pageable pageable);
+
+    @Query(value = """
+        SELECT new uk.gov.justice.laa.datauserapi.contracts.dto.FirmView(
+            f.code, f.name, f.type, pf.code, f.enabled
+        )
+        FROM Firm f
+        LEFT JOIN f.parentFirm pf
+        WHERE (:term = ''
+            OR LOWER(f.name) LIKE LOWER(CONCAT('%', :term, '%'))
+            OR LOWER(f.code) LIKE LOWER(CONCAT('%', :term, '%')))
+            AND f.type = :firmType
+        """,
+        countQuery = """
+        SELECT COUNT(f)
+        FROM Firm f
+        WHERE (:term = ''
+            OR LOWER(f.name) LIKE LOWER(CONCAT('%', :term, '%'))
+            OR LOWER(f.code) LIKE LOWER(CONCAT('%', :term, '%')))
+            AND f.type = :firmType
+        """)
+    Page<FirmView> searchByFirmType(
+            @Param("term") String term,
+            @Param("firmType") FirmType firmType,
+            Pageable pageable);
 
     @Query("""
         SELECT new uk.gov.justice.laa.datauserapi.contracts.dto.FirmSearchView(
