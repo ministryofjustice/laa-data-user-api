@@ -1274,7 +1274,11 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: A role with the same name or role identifier already exists in the application.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 
   /api/v1/commands/app-roles/update:
     post:
@@ -1304,6 +1308,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: A role with the same name or role identifier already exists in the application, or the role identifier cannot be changed because legacySync=true.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 
   /api/v1/commands/app-roles/delete:
     post:
@@ -2001,7 +2011,7 @@ components:
     AppRoleView:
       type: object
       description: Read model for app_role
-      required: [ appRoleId, appId, appEntraClientId, name, description, authzRole, legacySync, ordinal, appRoleUserTypeRestriction ]
+      required: [ appRoleId, appId, appEntraClientId, roleIdentifier, name, description, authzRole, legacySync, ordinal, appRoleUserTypeRestriction ]
       properties:
         appRoleId:
           type: string
@@ -2014,6 +2024,11 @@ components:
           description: Entra ID client ID for the application.
           type: string
           format: uuid
+        roleIdentifier:
+          description: Case-sensitive identifier shared between systems. Unique within the application.
+          type: string
+          minLength: 1
+          maxLength: 255
         appName:
           type: string
         name:
@@ -2538,15 +2553,20 @@ components:
 
     CreateAppRoleCommand:
       type: object
-      description: Create a role for an existing application, whether active or inactive. Role names must be unique within the application. Roles created through this API have authzRole=false.
-      required: [appId, name, description, appRoleUserTypeRestriction]
+      description: Create a role for an existing application, whether active or inactive. Role names and role identifiers must each be unique within the application. Role identifiers are case-sensitive. Roles created through this API have authzRole=false.
+      required: [appId, roleIdentifier, name, description, appRoleUserTypeRestriction]
       properties:
         appId:
           description: Internal SiLAS ID of an existing application. The application may be inactive.
           type: string
           format: uuid
+        roleIdentifier:
+          description: Case-sensitive identifier shared between systems. Must be unique within the application.
+          type: string
+          minLength: 1
+          maxLength: 255
         name:
-          description: Must be unique within the application.
+          description: Human-readable label describing the role. Must be unique within the application.
           type: string
         description:
           type: string
@@ -2575,12 +2595,17 @@ components:
 
     UpdateAppRoleCommand:
       type: object
-      description: Update the supplied name and/or description. Omitted fields remain unchanged; supplying only appRoleId is a successful no-op. Role restrictions are create-only and are not updated here.
+      description: Update the supplied roleIdentifier, name and/or description. Omitted fields remain unchanged; supplying only appRoleId is a successful no-op. Role identifiers may be changed only when legacySync=false. For legacy-synced roles, supplying the unchanged identifier is a successful no-op; changing it is rejected. Role restrictions are create-only and are not updated here.
       required: [appRoleId]
       properties:
         appRoleId:
           type: string
           format: uuid
+        roleIdentifier:
+          description: Case-sensitive identifier shared between systems. Must be unique within the application and may be changed only when legacySync=false.
+          type: string
+          minLength: 1
+          maxLength: 255
         name:
           type: string
           minLength: 1
