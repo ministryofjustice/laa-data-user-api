@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import uk.gov.justice.laa.datauserapi.application.query.queryuserprofilesbyentrauser.GetUserProfilesQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
@@ -12,13 +11,16 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
+import uk.gov.justice.laa.datauserapi.model.InvitationStatus;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -38,8 +40,17 @@ class GetUserProfilesHandlerTest {
     @Mock
     private UserAccountQueryService userAccountQueryService;
 
-    private static final String ACTOR_OID = UUID.randomUUID().toString();
-    private static final String USER_ENTRA_OBJECT_ID = UUID.randomUUID().toString();
+    @Mock
+    private QueryProfileAuthorisationHandler authorizationService;
+
+    private String actorOid;
+    private String userEntraObjectId;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        actorOid = UUID.randomUUID().toString();
+        userEntraObjectId = UUID.randomUUID().toString();
+    }
 
     @Test
     void returnsEmptyListWhenUserHasNoProfiles() {
@@ -49,11 +60,11 @@ class GetUserProfilesHandlerTest {
                 .build();
         stubActor(actorProfile);
 
-        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(USER_ENTRA_OBJECT_ID))
+        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(userEntraObjectId))
                 .thenReturn(Optional.of(List.of()));
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService);
-        List<UserProfileSummaryView> result = handler.handle(new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID));
+        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService, authorizationService);
+        List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser());
 
         assertThat(result).isEmpty();
     }
@@ -71,11 +82,12 @@ class GetUserProfilesHandlerTest {
                 profileId, true, UserType.INTERNAL, "user@example.com", "John Doe",
                 "", "", false, UserAccountStatus.ACTIVE, UserProfileStatus.COMPLETE, true);
 
-        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(USER_ENTRA_OBJECT_ID))
+        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(userEntraObjectId))
                 .thenReturn(Optional.of(List.of(profile)));
+        when(authorizationService.handle(actorProfile, profile)).thenReturn(true);
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService);
-        List<UserProfileSummaryView> result = handler.handle(new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID));
+        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService, authorizationService);
+        List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser());
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).userType()).isEqualTo(UserType.INTERNAL);
@@ -101,11 +113,12 @@ class GetUserProfilesHandlerTest {
                 UUID.randomUUID(), true, UserType.EXTERNAL, "user@example.com", "John Doe",
                 "Firm B", targetFirmId.toString(), false, UserAccountStatus.ACTIVE, UserProfileStatus.COMPLETE, true);
 
-        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(USER_ENTRA_OBJECT_ID))
+        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(userEntraObjectId))
                 .thenReturn(Optional.of(List.of(profile)));
+        when(authorizationService.handle(actorProfile, profile)).thenReturn(false);
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService);
-        List<UserProfileSummaryView> result = handler.handle(new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID));
+        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService, authorizationService);
+        List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser());
 
         assertThat(result).isEmpty();
     }
@@ -127,11 +140,12 @@ class GetUserProfilesHandlerTest {
                 profileId, true, UserType.EXTERNAL, "external@example.com", "Jane Doe",
                 "External Firm", UUID.randomUUID().toString(), false, UserAccountStatus.ACTIVE, UserProfileStatus.COMPLETE, false);
 
-        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(USER_ENTRA_OBJECT_ID))
+        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(userEntraObjectId))
                 .thenReturn(Optional.of(List.of(profile)));
+        when(authorizationService.handle(actorProfile, profile)).thenReturn(true);
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService);
-        List<UserProfileSummaryView> result = handler.handle(new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID));
+        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService, authorizationService);
+        List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser());
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).userType()).isEqualTo(UserType.EXTERNAL);
@@ -140,17 +154,38 @@ class GetUserProfilesHandlerTest {
     @Test
     void throwsExceptionWhenActorHasNoActiveProfile() {
         EntraUserDto actor = EntraUserDto.builder().userProfiles(Set.of()).build();
-        when(userAccountQueryService.findByEntraOid(ACTOR_OID)).thenReturn(actor);
+        when(userAccountQueryService.findByEntraOid(actorOid)).thenReturn(actor);
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService);
+        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, userAccountQueryService, authorizationService);
 
-        assertThatThrownBy(() -> handler.handle(new GetUserProfilesQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID)))
+        assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser()))
                 .isInstanceOf(InvalidActorContextException.class)
                 .hasMessageContaining("Actor has no active profile");
     }
 
     private void stubActor(UserProfile actorProfile) {
         EntraUserDto actor = EntraUserDto.builder().userProfiles(Set.of(actorProfile)).build();
-        when(userAccountQueryService.findByEntraOid(ACTOR_OID)).thenReturn(actor);
+        when(userAccountQueryService.findByEntraOid(actorOid)).thenReturn(actor);
+    }
+
+    private AuthenticatedEntraUser authenticatedTestUser() {
+        return new AuthenticatedEntraUser(
+                UUID.randomUUID(),
+                actorOid,
+                "firstName",
+                "lastName",
+                "email@email.com",
+                UserAccountStatus.ACTIVE,
+                false,
+                LocalDateTime.now(),
+                false,
+                true,
+                null,
+                false,
+                null,
+                InvitationStatus.VERIFICATION_SUCCESS,
+                Set.of(),
+                null
+        );
     }
 }

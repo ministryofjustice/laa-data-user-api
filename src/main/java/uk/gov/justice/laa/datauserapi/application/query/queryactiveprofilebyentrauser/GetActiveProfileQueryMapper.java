@@ -78,8 +78,10 @@ public class GetActiveProfileQueryMapper {
                 role.getCcmsCode(),
                 role.isLegacySync(),
                 role.getOrdinal(),
-                role.getUserTypeRestriction() != null ? role.getUserTypeRestriction().toString() : "BOTH",
-                role.getFirmTypeRestriction() != null ? List.of(Arrays.toString(role.getFirmTypeRestriction())) : List.of()
+                role.getUserTypeRestriction() == null || Arrays.stream(role.getUserTypeRestriction()).distinct().count() != 1
+                        ? "BOTH" : role.getUserTypeRestriction()[0].name(),
+                role.getFirmTypeRestriction() != null
+                        ? Arrays.stream(role.getFirmTypeRestriction()).map(Enum::name).toList() : List.of()
         );
     }
 

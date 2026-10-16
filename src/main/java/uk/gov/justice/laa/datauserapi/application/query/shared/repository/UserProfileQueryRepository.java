@@ -29,7 +29,7 @@ public interface UserProfileQueryRepository extends Repository<EntraUser, UUID> 
             CASE WHEN SIZE(up.appRoles) > 0 THEN true ELSE false END
         )
         FROM EntraUser u
-        LEFT JOIN u.userProfiles up
+        JOIN u.userProfiles up
         LEFT JOIN up.firm f
         WHERE u.entraOid = :userEntraObjectId
         """)

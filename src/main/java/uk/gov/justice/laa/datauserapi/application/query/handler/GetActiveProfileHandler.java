@@ -2,17 +2,15 @@ package uk.gov.justice.laa.datauserapi.application.query.handler;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyentrauser.GetActiveProfileQuery;
 import uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyentrauser.GetActiveProfileQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
-import uk.gov.justice.laa.datauserapi.model.Permission;
 
 
 @Component
@@ -21,21 +19,24 @@ public class GetActiveProfileHandler {
 
     private final UserProfileQueryRepository userProfileQueryRepository;
     private final UserAccountQueryService queryService;
+    private final QueryProfileAuthorisationHandler authorisationService;
 
     public GetActiveProfileHandler(UserProfileQueryRepository userProfileQueryRepository,
-                                    UserAccountQueryService queryService) {
+                                    UserAccountQueryService queryService,
+                                    QueryProfileAuthorisationHandler authorisationService) {
         this.userProfileQueryRepository = userProfileQueryRepository;
         this.queryService = queryService;
+        this.authorisationService = authorisationService;
     }
 
-    public UserProfileDetailView handle(GetActiveProfileQuery query) {
+    public UserProfileDetailView handle(String userEntraObjectId, AuthenticatedEntraUser authenticatedUser) {
         // Validate actor has active profile
-        EntraUserDto actor = queryService.findByEntraOid(query.actorOid());
+        EntraUserDto actor = queryService.findByEntraOid(authenticatedUser.entraOid());
         UserProfile actorProfile = actor.getUserProfiles().stream()
                 .filter(UserProfile::isActiveProfile)
                 .findFirst()
                 .orElseThrow(() -> new InvalidActorContextException(
-                        "Actor has no active profile: " + query.actorOid()));
+                        "Actor has no active profile: " + authenticatedUser.entraOid()));
 
         if (actorProfile.getUserType() == null) {
             throw new InvalidActorContextException("Actor user type cannot be determined");
@@ -43,41 +44,16 @@ public class GetActiveProfileHandler {
 
         // Fetch target user's active profile
         UserProfile activeProfile = userProfileQueryRepository
-                .findActiveProfileWithDetailsAndRoles(query.userEntraObjectId())
+                .findActiveProfileWithDetailsAndRoles(userEntraObjectId)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Active profile not found for user: " + query.userEntraObjectId()));
+                        "Active profile not found for user: " + userEntraObjectId));
 
         // Check authorization
-        if (!canViewProfile(actorProfile, activeProfile)) {
+        if (!authorisationService.handle(actorProfile, activeProfile)) {
             throw new ResourceNotFoundException(
-                    "Active profile not found for user: " + query.userEntraObjectId());
+                    "Active profile not found for user: " + userEntraObjectId);
         }
 
         return new GetActiveProfileQueryMapper().mapProfileToDetailView(activeProfile);
-    }
-
-    private boolean canViewProfile(UserProfile actorProfile, UserProfile targetProfile) {
-        // INTERNAL actor can view INTERNAL profiles
-        if (actorProfile.getUserType() == UserType.INTERNAL 
-                && targetProfile.getUserType() == UserType.INTERNAL) {
-            return true;
-        }
-
-        // EXTERNAL actor can view profiles in their own firm
-        if (actorProfile.getUserType() == UserType.EXTERNAL 
-                && actorProfile.getFirm() != null
-                && targetProfile.getFirm() != null
-                && actorProfile.getFirm().getId().equals(targetProfile.getFirm().getId())) {
-            return true;
-        }
-
-        // INTERNAL actor with VIEW_EXTERNAL_USER can view EXTERNAL profiles
-        boolean canViewExternalUsers = actorProfile.getAppRoles().stream()
-                .flatMap(role -> role.getPermissions().stream())
-                .anyMatch(permission -> permission == Permission.VIEW_EXTERNAL_USER);
-
-        return actorProfile.getUserType() == UserType.INTERNAL 
-                && canViewExternalUsers 
-                && targetProfile.getUserType() == UserType.EXTERNAL;
     }
 }

@@ -19,8 +19,7 @@ import uk.gov.justice.laa.datauserapi.application.query.handler.SearchUsersHandl
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
-import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
-import uk.gov.justice.laa.datauserapi.contracts.response.UserView;
+
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 
@@ -123,11 +122,11 @@ class UserAccountQueryControllerTest {
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .entraOid(ACTOR_OID)
                 .build();
-        when(getUserProfilesHandler.handle(any()))
+        when(getUserProfilesHandler.handle(any(),any()))
                 .thenReturn(null);
 
         ResponseEntity<?> result = controller.getUserProfiles(USER_ENTRA_OBJECT_ID, user);
-        verify(getUserProfilesHandler).handle(any());
+        verify(getUserProfilesHandler).handle(any(), any());
         assertEquals(HttpStatus.OK, result.getStatusCode());
     }
 
@@ -136,11 +135,11 @@ class UserAccountQueryControllerTest {
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .entraOid(ACTOR_OID)
                 .build();
-        when(getActiveProfileHandler.handle(any()))
+        when(getActiveProfileHandler.handle(any(), any()))
                 .thenReturn(null);
 
         ResponseEntity<?> result = controller.getActiveProfile(USER_ENTRA_OBJECT_ID, user);
-        verify(getActiveProfileHandler).handle(any());
+        verify(getActiveProfileHandler).handle(any(), any());
         assertEquals(HttpStatus.OK, result.getStatusCode());
     }
 }

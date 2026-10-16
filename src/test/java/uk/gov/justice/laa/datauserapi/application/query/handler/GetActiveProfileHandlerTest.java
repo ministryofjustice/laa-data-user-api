@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyentrauser.GetActiveProfileQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
@@ -12,6 +11,7 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.App;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
@@ -20,10 +20,11 @@ import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.model.InvitationStatus;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.model.AppType;
 
-
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -42,8 +43,17 @@ class GetActiveProfileHandlerTest {
     @Mock
     private UserAccountQueryService userAccountQueryService;
 
-    private static final String ACTOR_OID = UUID.randomUUID().toString();
-    private static final String USER_ENTRA_OBJECT_ID = UUID.randomUUID().toString();
+    @Mock
+    private QueryProfileAuthorisationHandler authorizationService;
+
+    private String actorOid;
+    private String userEntraObjectId;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        actorOid = UUID.randomUUID().toString();
+        userEntraObjectId = UUID.randomUUID().toString();
+    }
 
     @Test
     void returnsActiveProfileWhenAccessible() {
@@ -54,11 +64,12 @@ class GetActiveProfileHandlerTest {
         stubActor(actorProfile);
 
         UserProfile targetProfile = buildFullTargetProfile(UserType.INTERNAL);
-        when(userProfileQueryRepository.findActiveProfileWithDetailsAndRoles(USER_ENTRA_OBJECT_ID))
+        when(userProfileQueryRepository.findActiveProfileWithDetailsAndRoles(userEntraObjectId))
                 .thenReturn(Optional.of(targetProfile));
+        when(authorizationService.handle(actorProfile, targetProfile)).thenReturn(true);
 
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, userAccountQueryService);
-        UserProfileDetailView result = handler.handle(new GetActiveProfileQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID));
+        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, userAccountQueryService, authorizationService);
+        UserProfileDetailView result = handler.handle(userEntraObjectId, authenticatedTestUser());
 
         assertThat(result).isNotNull();
         assertThat(result.userType()).isEqualTo(UserType.INTERNAL);
@@ -74,12 +85,12 @@ class GetActiveProfileHandlerTest {
                 .build();
         stubActor(actorProfile);
 
-        when(userProfileQueryRepository.findActiveProfileWithDetailsAndRoles(USER_ENTRA_OBJECT_ID))
+        when(userProfileQueryRepository.findActiveProfileWithDetailsAndRoles(userEntraObjectId))
                 .thenReturn(Optional.empty());
 
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, userAccountQueryService);
+        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, userAccountQueryService, authorizationService);
 
-        assertThatThrownBy(() -> handler.handle(new GetActiveProfileQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID)))
+        assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser()))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Active profile not found");
     }
@@ -108,12 +119,13 @@ class GetActiveProfileHandlerTest {
                 .userType(UserType.EXTERNAL)
                 .firm(targetFirm)
                 .build();
-        when(userProfileQueryRepository.findActiveProfileWithDetailsAndRoles(USER_ENTRA_OBJECT_ID))
+        when(userProfileQueryRepository.findActiveProfileWithDetailsAndRoles(userEntraObjectId))
                 .thenReturn(Optional.of(targetProfile));
+        when(authorizationService.handle(actorProfile, targetProfile)).thenReturn(false);
 
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, userAccountQueryService);
+        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, userAccountQueryService, authorizationService);
 
-        assertThatThrownBy(() -> handler.handle(new GetActiveProfileQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID)))
+        assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser()))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Active profile not found");
     }
@@ -131,11 +143,12 @@ class GetActiveProfileHandlerTest {
         stubActor(actorProfile);
 
         UserProfile targetProfile = buildFullTargetProfile(UserType.EXTERNAL);
-        when(userProfileQueryRepository.findActiveProfileWithDetailsAndRoles(USER_ENTRA_OBJECT_ID))
+        when(userProfileQueryRepository.findActiveProfileWithDetailsAndRoles(userEntraObjectId))
                 .thenReturn(Optional.of(targetProfile));
+        when(authorizationService.handle(actorProfile, targetProfile)).thenReturn(true);
 
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, userAccountQueryService);
-        UserProfileDetailView result = handler.handle(new GetActiveProfileQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID));
+        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, userAccountQueryService, authorizationService);
+        UserProfileDetailView result = handler.handle(userEntraObjectId, authenticatedTestUser());
 
         assertThat(result).isNotNull();
         assertThat(result.userType()).isEqualTo(UserType.EXTERNAL);
@@ -146,18 +159,18 @@ class GetActiveProfileHandlerTest {
     @Test
     void throwsExceptionWhenActorHasNoActiveProfile() {
         EntraUserDto actor = EntraUserDto.builder().userProfiles(Set.of()).build();
-        when(userAccountQueryService.findByEntraOid(ACTOR_OID)).thenReturn(actor);
+        when(userAccountQueryService.findByEntraOid(actorOid)).thenReturn(actor);
 
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, userAccountQueryService);
+        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, userAccountQueryService, authorizationService);
 
-        assertThatThrownBy(() -> handler.handle(new GetActiveProfileQuery(USER_ENTRA_OBJECT_ID, ACTOR_OID)))
+        assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser()))
                 .isInstanceOf(InvalidActorContextException.class)
                 .hasMessageContaining("Actor has no active profile");
     }
 
     private void stubActor(UserProfile actorProfile) {
         EntraUserDto actor = EntraUserDto.builder().userProfiles(Set.of(actorProfile)).build();
-        when(userAccountQueryService.findByEntraOid(ACTOR_OID)).thenReturn(actor);
+        when(userAccountQueryService.findByEntraOid(actorOid)).thenReturn(actor);
     }
 
     private UserProfile buildFullTargetProfile(UserType userType) {
@@ -205,5 +218,26 @@ class GetActiveProfileHandlerTest {
                 .entraUser(entraUser)
                 .userProfileStatus(UserProfileStatus.COMPLETE)
                 .build();
+    }
+
+    private AuthenticatedEntraUser authenticatedTestUser() {
+        return new AuthenticatedEntraUser(
+                UUID.randomUUID(),
+                actorOid,
+                "firstName",
+                "lastName",
+                "email@email.com",
+                UserAccountStatus.ACTIVE,
+                false,
+                LocalDateTime.now(),
+                false,
+                true,
+                null,
+                false,
+                null,
+                InvitationStatus.VERIFICATION_SUCCESS,
+                Set.of(),
+                null
+        );
     }
 }
