@@ -10,6 +10,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.FirmSearchView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.FirmView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
@@ -47,16 +48,31 @@ public class FirmQueryService {
     public FirmViewPage listFirms(
             AuthenticatedEntraUser authenticatedUser,
             String firmQuery,
+            String firmType,
             int pageNumber,
             int pageSize,
             String sortBy) {
         authorisationService.requireFirmDirectoryAccess(authenticatedUser);
         Pageable pageable = PageRequest.of(pageNumber, pageSize, toSort(sortBy));
         String term = firmQuery == null ? "" : firmQuery;
-        Page<FirmView> page = firmQueryRepository.search(term, pageable);
+        FirmType type = toFirmType(firmType);
+        Page<FirmView> page = type == null
+                ? firmQueryRepository.search(term, pageable)
+                : firmQueryRepository.searchByFirmType(term, type, pageable);
         PageMetadata pageMetadata = new PageMetadata(
                 page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages());
         return new FirmViewPage(page.getContent(), pageMetadata);
+    }
+
+    private FirmType toFirmType(String firmType) {
+        if (firmType == null || firmType.isBlank()) {
+            return null;
+        }
+        try {
+            return FirmType.valueOf(firmType);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Unsupported firm type value: " + firmType);
+        }
     }
 
     private Sort toSort(String sortValue) {

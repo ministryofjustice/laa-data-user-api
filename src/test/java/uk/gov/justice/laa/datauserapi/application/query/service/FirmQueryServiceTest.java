@@ -65,7 +65,7 @@ class FirmQueryServiceTest {
         Page<FirmView> page = new PageImpl<>(List.of(view), PageRequest.of(0, 20), 1);
         when(firmQueryRepository.search(eq("Test"), any(Pageable.class))).thenReturn(page);
 
-        FirmViewPage result = firmQueryService.listFirms(authenticatedUser, "Test", 0, 20, "name,asc");
+        FirmViewPage result = firmQueryService.listFirms(authenticatedUser, "Test", null, 0, 20, "name,asc");
 
         verify(authorisationService).requireFirmDirectoryAccess(authenticatedUser);
         assertThat(result.items()).containsExactly(view);
@@ -83,8 +83,8 @@ class FirmQueryServiceTest {
         when(firmQueryRepository.search(eq(""), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
-        firmQueryService.listFirms(authenticatedUser, null, 0, 20, null);
-        firmQueryService.listFirms(authenticatedUser, null, 0, 20, "");
+        firmQueryService.listFirms(authenticatedUser, null, null, 0, 20, null);
+        firmQueryService.listFirms(authenticatedUser, null, null, 0, 20, "");
 
         var pageable = ArgumentCaptor.forClass(Pageable.class);
         verify(firmQueryRepository, times(2)).search(eq(""), pageable.capture());
@@ -101,7 +101,7 @@ class FirmQueryServiceTest {
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         List.of("code,desc", "code,asc", "name,asc", "type,desc")
-                .forEach(sortBy -> firmQueryService.listFirms(authenticatedUser, null, 0, 20, sortBy));
+                .forEach(sortBy -> firmQueryService.listFirms(authenticatedUser, null, null, 0, 20, sortBy));
 
         var pageable = ArgumentCaptor.forClass(Pageable.class);
         verify(firmQueryRepository, times(4)).search(eq(""), pageable.capture());
@@ -131,9 +131,32 @@ class FirmQueryServiceTest {
     void listFirms_rejectsUnsupportedSortProperty() {
         firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
 
-        assertThatThrownBy(() -> firmQueryService.listFirms(authenticatedUser, null, 0, 20, "unknown,asc"))
+        assertThatThrownBy(() -> firmQueryService.listFirms(authenticatedUser, null, null, 0, 20, "unknown,asc"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Unsupported firm sort value");
+    }
+
+    @Test
+    void listFirms_filtersByFirmType_whenProvided() {
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
+        when(firmQueryRepository.searchByFirmType(eq("Barristers"), eq(FirmType.CHAMBERS), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        firmQueryService.listFirms(authenticatedUser, "Barristers", "CHAMBERS", 0, 20, "type,desc");
+
+        var pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(firmQueryRepository).searchByFirmType(eq("Barristers"), eq(FirmType.CHAMBERS), pageable.capture());
+        assertThat(pageable.getValue().getSort().getOrderFor("type").getDirection()).isEqualTo(Sort.Direction.DESC);
+        assertThat(pageable.getValue().getSort().getOrderFor("code").getDirection()).isEqualTo(Sort.Direction.DESC);
+    }
+
+    @Test
+    void listFirms_rejectsUnsupportedFirmTypeValue() {
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
+
+        assertThatThrownBy(() -> firmQueryService.listFirms(authenticatedUser, null, "NOT_A_TYPE", 0, 20, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported firm type value");
     }
 
     @Test
@@ -142,7 +165,7 @@ class FirmQueryServiceTest {
         doThrow(new org.springframework.security.access.AccessDeniedException("denied"))
                 .when(authorisationService).requireFirmDirectoryAccess(authenticatedUser);
 
-        assertThatThrownBy(() -> firmQueryService.listFirms(authenticatedUser, null, 0, 20, null))
+        assertThatThrownBy(() -> firmQueryService.listFirms(authenticatedUser, null, null, 0, 20, null))
                 .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
     }
 
