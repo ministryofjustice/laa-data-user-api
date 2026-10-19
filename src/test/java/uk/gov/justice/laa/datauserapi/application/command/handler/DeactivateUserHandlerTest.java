@@ -18,6 +18,7 @@ import uk.gov.justice.laa.datauserapi.application.command.useraccount.Deactivate
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
 import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
@@ -94,14 +95,19 @@ class DeactivateUserHandlerTest {
         void handle_WhenActorIsTargetUser_ReturnsFailure() {
             // Reusing identical UUID instance to trigger handler's '==' identity check
             UUID sameUserId = UUID.fromString("33333333-3333-3333-3333-333333333333");
-            String sameUserIdStr = sameUserId.toString();
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(sameUserId)
+                    .entraOid(sameUserId.toString())
+                    .email("actor@example.com")
+                    .active(true)
+                    .build();
 
             DeactivateUserCommand command = DeactivateUserCommand.builder()
                     .userEntraObjectId(sameUserId)
                     .deactivateReason(DeactivateUserReason.Absence)
                     .build();
 
-            CommandResult result = handler.handle(command, sameUserIdStr);
+            CommandResult result = handler.handle(command, actorUser);
 
             assertThat(result).isNotNull();
             assertThat(result.success()).isFalse();
@@ -117,10 +123,16 @@ class DeactivateUserHandlerTest {
                     .userEntraObjectId(targetUserId)
                     .deactivateReason(DeactivateUserReason.Absence)
                     .build();
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(actorId)
+                    .entraOid(actorId.toString())
+                    .email("actor@example.com")
+                    .active(true)
+                    .build();
 
             when(userCommandService.isInternalUser(targetUserId)).thenReturn(true);
 
-            CommandResult result = handler.handle(command, actorIdStr);
+            CommandResult result = handler.handle(command, actorUser);
 
             assertThat(result).isNotNull();
             assertThat(result.success()).isFalse();
@@ -134,6 +146,13 @@ class DeactivateUserHandlerTest {
         @Test
         @DisplayName("Should fail when external actor attempts to deactivate multi-firm user")
         void handle_WhenActorIsExternalAndTargetIsMultiFirm_ReturnsFailure() {
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(actorId)
+                    .entraOid(actorId.toString())
+                    .email("actor@example.com")
+                    .active(true)
+                    .build();
+
             DeactivateUserCommand command = DeactivateUserCommand.builder()
                     .userEntraObjectId(targetUserId)
                     .deactivateReason(DeactivateUserReason.Absence)
@@ -162,7 +181,7 @@ class DeactivateUserHandlerTest {
             when(userCommandService.getActiveUserProfile(actorId)).thenReturn(actorProfile);
             when(userCommandService.getActiveUserProfile(targetUserId)).thenReturn(targetUserProfile);
 
-            CommandResult result = handler.handle(command, actorIdStr);
+            CommandResult result = handler.handle(command, actorUser);
 
             assertThat(result).isNotNull();
             assertThat(result.success()).isFalse();
@@ -174,6 +193,12 @@ class DeactivateUserHandlerTest {
         @Test
         @DisplayName("Should fail when external actor and target user belong to different firms")
         void handle_WhenActorIsExternalAndFirmsDoNotMatch_ReturnsFailure() {
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(actorId)
+                    .entraOid(actorId.toString())
+                    .email("actor@example.com")
+                    .active(true)
+                    .build();
             DeactivateUserCommand command = DeactivateUserCommand.builder()
                     .userEntraObjectId(targetUserId)
                     .deactivateReason(DeactivateUserReason.Absence)
@@ -199,7 +224,7 @@ class DeactivateUserHandlerTest {
             when(userCommandService.getActiveUserProfile(actorId)).thenReturn(actorProfile);
             when(userCommandService.getActiveUserProfile(targetUserId)).thenReturn(targetUserProfile);
 
-            CommandResult result = handler.handle(command, actorIdStr);
+            CommandResult result = handler.handle(command, actorUser);
 
             assertThat(result).isNotNull();
             assertThat(result.success()).isFalse();
@@ -225,7 +250,14 @@ class DeactivateUserHandlerTest {
             when(userCommandService.isExternalUser(actorId)).thenReturn(false);
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(targetUserId))).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> handler.handle(command, actorIdStr))
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(actorId)
+                    .entraOid(actorId.toString())
+                    .email("actor@example.com")
+                    .active(true)
+                    .build();
+
+            assertThatThrownBy(() -> handler.handle(command, actorUser))
                     .isInstanceOf(ResourceNotFoundException.class)
                     .hasMessage("User account not found for oid: " + targetUserId);
 
@@ -235,6 +267,12 @@ class DeactivateUserHandlerTest {
         @Test
         @DisplayName("Should propagate TechServicesClientException when tech services client fails")
         void handle_WhenTechServicesClientFails_ThrowsException() {
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(actorId)
+                    .entraOid(actorId.toString())
+                    .email("actor@example.com")
+                    .active(true)
+                    .build();
             DeactivateUserCommand command = DeactivateUserCommand.builder()
                     .userEntraObjectId(targetUserId)
                     .deactivateReason(DeactivateUserReason.NotActive)
@@ -259,45 +297,11 @@ class DeactivateUserHandlerTest {
             doThrow(new TechServicesClientException("Downstream API timeout"))
                     .when(techServicesClient).deactivateUser(userDto, DeactivateUserReason.NotActive.name());
 
-            assertThatThrownBy(() -> handler.handle(command, actorIdStr))
+            assertThatThrownBy(() -> handler.handle(command, actorUser))
                     .isInstanceOf(TechServicesClientException.class)
                     .hasMessage("Downstream API timeout");
 
             // Verify target user state was not modified and not persisted
-            verify(entraUserCommandRepository, never()).save(any());
-            verifyNoInteractions(auditRepository);
-        }
-
-        @Test
-        @DisplayName("Should throw ResourceNotFoundException when actor user is not found")
-        void handle_WhenActorUserNotFound_ThrowsException() {
-            DeactivateUserCommand command = DeactivateUserCommand.builder()
-                    .userEntraObjectId(targetUserId)
-                    .deactivateReason(DeactivateUserReason.NotActive)
-                    .build();
-
-            EntraUser realTargetUser = EntraUser.builder()
-                    .id(targetUserId)
-                    .email("target@example.com")
-                    .active(true)
-                    .build();
-
-            EntraUserDto userDto = EntraUserDto.builder()
-                    .id(String.valueOf(targetUserId))
-                    .email("target@example.com")
-                    .build();
-
-            when(userCommandService.isInternalUser(targetUserId)).thenReturn(false);
-            when(userCommandService.isExternalUser(actorId)).thenReturn(false);
-            when(entraUserCommandRepository.findByEntraOid(String.valueOf(targetUserId))).thenReturn(Optional.of(realTargetUser));
-            when(modelMapper.map(realTargetUser, EntraUserDto.class)).thenReturn(userDto);
-            when(entraUserCommandRepository.findByEntraOid(String.valueOf(actorId))).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> handler.handle(command, actorIdStr))
-                    .isInstanceOf(ResourceNotFoundException.class)
-                    .hasMessage("Acting user account not found for oid: " + actorId);
-
-            verify(techServicesClient).deactivateUser(userDto, DeactivateUserReason.NotActive.name());
             verify(entraUserCommandRepository, never()).save(any());
             verifyNoInteractions(auditRepository);
         }
@@ -320,13 +324,13 @@ class DeactivateUserHandlerTest {
 
             UserProfile actorProfile = UserProfile.builder()
                     .id(UUID.randomUUID())
-                    .entraUser(EntraUser.builder().id(actorId).multiFirmUser(false).build())
+                    .entraUser(EntraUser.builder().id(actorId).multiFirmUser(false).entraOid(actorId.toString()).build())
                     .firm(Firm.builder().id(commonFirmId).name("Shared Firm").build())
                     .build();
 
             UserProfile targetUserProfile = UserProfile.builder()
                     .id(UUID.randomUUID())
-                    .entraUser(EntraUser.builder().id(targetUserId).multiFirmUser(false).build())
+                    .entraUser(EntraUser.builder().id(targetUserId).multiFirmUser(false).entraOid(targetUserId.toString()).build())
                     .firm(Firm.builder().id(commonFirmId).name("Shared Firm").build())
                     .build();
 
@@ -341,13 +345,15 @@ class DeactivateUserHandlerTest {
             // Real target user entity
             EntraUser realTargetUser = EntraUser.builder()
                     .id(targetUserId)
+                    .entraOid(targetUserId.toString())
                     .email("target@example.com")
                     .active(true)
                     .build();
 
             // Real actor user entity
-            final EntraUser realActorUser = EntraUser.builder()
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
                     .id(actorId)
+                    .entraOid(actorId.toString())
                     .email("actor@example.com")
                     .active(true)
                     .build();
@@ -378,13 +384,12 @@ class DeactivateUserHandlerTest {
 
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(targetUserId))).thenReturn(Optional.of(realTargetUser));
             when(modelMapper.map(realTargetUser, EntraUserDto.class)).thenReturn(userDto);
-            when(entraUserCommandRepository.findByEntraOid(String.valueOf(actorId))).thenReturn(Optional.of(realActorUser));
-            when(deactivationTypeResolver.resolve(realActorUser)).thenReturn(DeactivationType.LAA);
+            when(deactivationTypeResolver.resolve(actorUser)).thenReturn(DeactivationType.LAA);
             when(deactivateUserMapper.toAuditEntity(realTargetUser, command.deactivateReason(), actorIdStr)).thenReturn(realAudit);
             when(deactivateUserMapper.toCommandResult(realTargetUser)).thenReturn(expectedResult);
 
             // Act
-            CommandResult actualResult = handler.handle(command, actorIdStr);
+            CommandResult actualResult = handler.handle(command, actorUser);
 
             // Assert
             assertThat(actualResult).isNotNull();
@@ -410,7 +415,7 @@ class DeactivateUserHandlerTest {
             );
 
             inOrder.verify(techServicesClient).deactivateUser(userDto, DeactivateUserReason.Absence.name());
-            inOrder.verify(deactivationTypeResolver).resolve(realActorUser);
+            inOrder.verify(deactivationTypeResolver).resolve(actorUser);
             inOrder.verify(entraUserCommandRepository).save(realTargetUser);
             inOrder.verify(deactivateUserMapper).toAuditEntity(realTargetUser, command.deactivateReason(), actorIdStr);
             inOrder.verify(auditRepository).save(realAudit);

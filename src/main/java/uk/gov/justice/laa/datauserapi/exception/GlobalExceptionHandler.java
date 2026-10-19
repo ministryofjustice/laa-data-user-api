@@ -41,6 +41,23 @@ public class GlobalExceptionHandler {
         return problemResponse(HttpStatus.NOT_FOUND, problem);
     }
 
+    @ExceptionHandler(ReferenceDataNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleReferenceDataNotFound(
+            ReferenceDataNotFoundException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/server-error"),
+                "Reference Data Not Found",
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                ex.getMessage(),
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return problemResponse(HttpStatus.NOT_FOUND, problem);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ProblemDetail> handleValidationErrors(
             MethodArgumentNotValidException ex,

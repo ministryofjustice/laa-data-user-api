@@ -17,12 +17,14 @@ import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.entity.DeleteUserReasonEntity;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.exception.ReferenceDataNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 
 import java.util.Collections;
@@ -75,36 +77,36 @@ public class DeleteUserHandler implements CommandHandler<DeleteUserCommand> {
 
     @Override
     @Transactional
-    public CommandResult handle(DeleteUserCommand command, String actorIdStr) {
-        log.info("Handling delete user command for user: {} by actor: {}", command.userEntraObjectId(), actorIdStr);
+    public CommandResult handle(DeleteUserCommand command, AuthenticatedEntraUser actor) {
+        log.info("Handling delete user command for user: {} by actor: {}", command.userEntraObjectId(), actor.entraOid());
         entityManager.clear();
 
-        UUID actorId = UUID.fromString(actorIdStr);
+        UUID actorId = UUID.fromString(actor.entraOid());
         if (Objects.equals(actorId, command.userEntraObjectId())) {
-            log.warn("User can not delete self: {}", actorIdStr);
+            log.warn("User can not delete self: {}", actorId);
             return CommandResult.failure("User can not delete self");
         }
 
         DeleteUserReasonEntity deleteUserReasonEntity = deleteUserReasonRepository.findByCode(command.deleteReason().name())
-                .orElseThrow(() -> new IllegalArgumentException("Unknown delete reason code: " + command.deleteReason()));
+                .orElseThrow(() -> new ReferenceDataNotFoundException("Unknown delete reason code: " + command.deleteReason()));
 
         EntraUser entraUser = entraUserCommandRepository.findByEntraOid(String.valueOf(command.userEntraObjectId()))
                 .orElseThrow(() -> new ResourceNotFoundException("User account not found for oid: " + command.userEntraObjectId()));
 
         if (userCommandService.isInternalUser(command.userEntraObjectId())) {
-            log.warn("Internal user can not be deleted: {}, by: {}", command.userEntraObjectId(), actorIdStr);
+            log.warn("Internal user can not be deleted: {}, by: {}", command.userEntraObjectId(), actorId);
             return CommandResult.failure("User can not delete internal user");
         }
 
-        if (userCommandService.isExternalUser(actorId)) {
+        if (actor.isExternalUser()) {
             if (entraUser.isMultiFirmUser()) {
-                log.warn("User {} can not delete multi-firm user: {}", actorIdStr, command.userEntraObjectId());
+                log.warn("User {} can not delete multi-firm user: {}", actorId, command.userEntraObjectId());
                 return CommandResult.failure("User can not delete multi-firm user");
             }
-            UUID actorFirmId = userCommandService.getActiveUserProfile(actorId).getFirm().getId();
+            UUID actorFirmId = actor.activeProfile().firmId();
             UUID targetFirmId = userCommandService.getActiveUserProfile(command.userEntraObjectId()).getFirm().getId();
             if (!targetFirmId.equals(actorFirmId)) {
-                log.warn("User {} can not delete user {} from different firm", actorIdStr, command.userEntraObjectId());
+                log.warn("User {} can not delete user {} from different firm", actorId, command.userEntraObjectId());
                 return CommandResult.failure("User can not delete user from different firm");
             }
         }
@@ -117,14 +119,14 @@ public class DeleteUserHandler implements CommandHandler<DeleteUserCommand> {
         removeFromTechServices(userDto);
 
         // audit and result are built first, while the user and its profiles still exist
-        UserAccountStatusAudit audit = deleteUserMapper.toAuditEntity(entraUser, command, actorIdStr);
+        UserAccountStatusAudit audit = deleteUserMapper.toAuditEntity(entraUser, command, String.valueOf(actor.id()));
         auditRepository.save(audit);
 
         removeUserProfiles(entraUser);
         removeEntraUser(entraUser);
 
         log.info("User account deleted with oid: {} by: {} with reason: {}",
-                command.userEntraObjectId(), actorIdStr, command.deleteReason());
+                command.userEntraObjectId(), actor.entraOid(), command.deleteReason());
         return deleteUserMapper.toCommandResult(entraUser);
     }
 

@@ -12,5 +12,6 @@ import java.util.UUID;
 @Repository
 public interface DeleteUserReasonRepository extends JpaRepository<DeleteUserReasonEntity, UUID> {
 
-    Optional<DeleteUserReasonEntity> findByCode(@NotBlank(message = "Reason code must be provided") @Size(min = 1, max = 255, message = "Reason code must be between 1 and 255 characters") String code);
+    Optional<DeleteUserReasonEntity> findByCode(@NotBlank(message = "Reason code must be provided") @Size(min = 1, max = 255,
+            message = "Reason code must be between 1 and 255 characters") String code);
 }

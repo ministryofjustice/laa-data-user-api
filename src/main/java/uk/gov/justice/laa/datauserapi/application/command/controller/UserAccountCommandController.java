@@ -55,7 +55,7 @@ public class UserAccountCommandController implements CommandControllerSupport {
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
         log.info("Processing reactivate user command for user: {}", reactivateUserRequest.userEntraObjectId());
         ReactivateUserCommand reactivateUserCommand = reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest);
-        CommandResult result = reactivateUserHandler.handle(reactivateUserCommand, authenticatedUser.entraOid());
+        CommandResult result = reactivateUserHandler.handle(reactivateUserCommand, authenticatedUser);
         log.info("User account reactivated with ID: {} by {}", reactivateUserRequest.userEntraObjectId(), authenticatedUser.entraOid());
         return ResponseEntity.ok(result);
     }
@@ -66,7 +66,7 @@ public class UserAccountCommandController implements CommandControllerSupport {
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
         log.info("Processing deactivate user command for user: {}", deactivateUserRequest.userEntraObjectId());
         DeactivateUserCommand deactivateUserCommand = deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest);
-        CommandResult result = deactivateUserHandler.handle(deactivateUserCommand, authenticatedUser.entraOid());
+        CommandResult result = deactivateUserHandler.handle(deactivateUserCommand, authenticatedUser);
         log.info("User account deactivated with ID: {} by {} with reason: {}", deactivateUserRequest.userEntraObjectId(),
                 authenticatedUser.entraOid(), deactivateUserRequest.deactivateReason());
         return ResponseEntity.ok(result);
@@ -78,7 +78,7 @@ public class UserAccountCommandController implements CommandControllerSupport {
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
         log.info("Processing delete user command for user: {}", deleteUserRequest.userEntraObjectId());
         DeleteUserCommand deleteUserCommand = deleteUserMapper.toDeleteUserCommand(deleteUserRequest);
-        CommandResult result = deleteUserHandler.handle(deleteUserCommand, authenticatedUser.entraOid());
+        CommandResult result = deleteUserHandler.handle(deleteUserCommand, authenticatedUser);
         log.info("Delete user command for ID: {} by {} with reason: {} completed, success: {}",
                 deleteUserRequest.userEntraObjectId(), authenticatedUser.entraOid(), deleteUserRequest.deleteReason(), result.success());
         return ResponseEntity.ok(result);

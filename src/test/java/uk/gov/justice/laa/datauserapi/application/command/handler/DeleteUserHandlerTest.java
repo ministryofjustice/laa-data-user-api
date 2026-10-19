@@ -21,6 +21,8 @@ import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivati
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
 import uk.gov.justice.laa.datauserapi.contracts.domain.DeleteUserReason;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.App;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
@@ -31,6 +33,8 @@ import uk.gov.justice.laa.datauserapi.entity.Office;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.ReferenceDataNotFoundException;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -91,7 +95,13 @@ class DeleteUserHandlerTest {
 
     @Test
     void rejectsSelfDeletion() {
-        CommandResult result = handler.handle(command, targetId.toString());
+        final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                .id(targetId)
+                .entraOid(targetId.toString())
+                .email("actor@example.com")
+                .active(true)
+                .build();
+        CommandResult result = handler.handle(command, actorUser);
 
         assertThat(result.success()).isFalse();
         verifyNoInteractions(entraUserCommandRepository, userProfileCommandRepository, auditRepository);
@@ -99,20 +109,22 @@ class DeleteUserHandlerTest {
 
     @Test
     void throwsWhenUserNotFound() {
+        final AuthenticatedEntraUser actorUser = internalActor();
         when(entraUserCommandRepository.findByEntraOid(targetId.toString())).thenReturn(Optional.empty());
         when(deleteUserReasonRepository.findByCode(DeleteUserReason.LeftFirm.name())).thenReturn(Optional.of(DeleteUserReasonEntity.builder().build()));
 
-        assertThatThrownBy(() -> handler.handle(command, actorId.toString()))
+        assertThatThrownBy(() -> handler.handle(command, actorUser))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
     void rejectsInternalUser() {
+        final AuthenticatedEntraUser actorUser = internalActor();
         when(entraUserCommandRepository.findByEntraOid(targetId.toString())).thenReturn(Optional.of(EntraUser.builder().build()));
         when(userCommandService.isInternalUser(targetId)).thenReturn(true);
         when(deleteUserReasonRepository.findByCode(DeleteUserReason.LeftFirm.name())).thenReturn(Optional.of(DeleteUserReasonEntity.builder().build()));
 
-        CommandResult result = handler.handle(command, actorId.toString());
+        CommandResult result = handler.handle(command, actorUser);
 
         assertThat(result.success()).isFalse();
         verifyNoInteractions(userProfileCommandRepository, auditRepository);
@@ -120,14 +132,14 @@ class DeleteUserHandlerTest {
 
     @Test
     void externalActorCannotDeleteUserFromDifferentFirm() {
+        final AuthenticatedEntraUser actorUser = externalActor(UUID.randomUUID());
         when(entraUserCommandRepository.findByEntraOid(targetId.toString())).thenReturn(Optional.of(EntraUser.builder().build()));
         when(userCommandService.isInternalUser(targetId)).thenReturn(false);
-        when(userCommandService.isExternalUser(actorId)).thenReturn(true);
-        when(userCommandService.getActiveUserProfile(actorId)).thenReturn(profileInFirm(UUID.randomUUID()));
         when(userCommandService.getActiveUserProfile(targetId)).thenReturn(profileInFirm(UUID.randomUUID()));
-        when(deleteUserReasonRepository.findByCode(DeleteUserReason.LeftFirm.name())).thenReturn(Optional.of(DeleteUserReasonEntity.builder().build()));
+        when(deleteUserReasonRepository.findByCode(DeleteUserReason.LeftFirm.name()))
+                .thenReturn(Optional.of(DeleteUserReasonEntity.builder().build()));
 
-        CommandResult result = handler.handle(command, actorId.toString());
+        CommandResult result = handler.handle(command, actorUser);
 
         assertThat(result.success()).isFalse();
         verifyNoInteractions(userProfileCommandRepository, auditRepository);
@@ -135,13 +147,13 @@ class DeleteUserHandlerTest {
 
     @Test
     void externalActorCannotDeleteMultiFirmUser() {
+        final AuthenticatedEntraUser actorUser = externalActor(UUID.randomUUID());
         when(entraUserCommandRepository.findByEntraOid(targetId.toString()))
                 .thenReturn(Optional.of(EntraUser.builder().multiFirmUser(true).build()));
         when(userCommandService.isInternalUser(targetId)).thenReturn(false);
-        when(userCommandService.isExternalUser(actorId)).thenReturn(true);
         when(deleteUserReasonRepository.findByCode(DeleteUserReason.LeftFirm.name())).thenReturn(Optional.of(DeleteUserReasonEntity.builder().build()));
 
-        CommandResult result = handler.handle(command, actorId.toString());
+        CommandResult result = handler.handle(command, actorUser);
 
         assertThat(result.success()).isFalse();
         verifyNoInteractions(userProfileCommandRepository, auditRepository);
@@ -155,7 +167,6 @@ class DeleteUserHandlerTest {
         CommandResult expected = CommandResult.success("deleted");
         when(entraUserCommandRepository.findByEntraOid(targetId.toString())).thenReturn(Optional.of(user));
         when(userCommandService.isInternalUser(targetId)).thenReturn(false);
-        when(userCommandService.isExternalUser(actorId)).thenReturn(false);
         when(userProfileCommandRepository.findAllByEntraUser(user)).thenReturn(List.of(profile));
         when(deleteUserMapper.toAuditEntity(user, command, actorId.toString())).thenReturn(audit);
         when(deleteUserMapper.toCommandResult(user)).thenReturn(expected);
@@ -163,7 +174,9 @@ class DeleteUserHandlerTest {
         when(techServicesClient.deactivateUser(any(EntraUserDto.class), anyString()))
                 .thenReturn(TechServicesApiResponse.success(ChangeAccountReactivationResponse.builder().build()));
 
-        CommandResult result = handler.handle(command, actorId.toString());
+        final AuthenticatedEntraUser actorUser = internalActor();
+
+        CommandResult result = handler.handle(command, actorUser);
 
         assertThat(result).isSameAs(expected);
         InOrder order = inOrder(auditRepository, userProfileCommandRepository, entraUserCommandRepository);
@@ -176,14 +189,17 @@ class DeleteUserHandlerTest {
     void throwsWhenDeleteReasonUnknown() {
         when(deleteUserReasonRepository.findByCode(DeleteUserReason.LeftFirm.name())).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> handler.handle(command, actorId.toString()))
-                .isInstanceOf(IllegalArgumentException.class)
+        final AuthenticatedEntraUser actorUser = internalActor();
+
+        assertThatThrownBy(() -> handler.handle(command, actorUser))
+                .isInstanceOf(ReferenceDataNotFoundException.class)
                 .hasMessageContaining("Unknown delete reason code");
         verifyNoInteractions(entraUserCommandRepository, userProfileCommandRepository, auditRepository);
     }
 
     @Test
     void clearsAssociationsNotifiesPuiRolesAndDeletesWhenTechServicesFails() {
+        final AuthenticatedEntraUser actorUser = internalActor();
         App app = App.builder().entraOid("app-oid").build();
         AppRole puiRole = AppRole.builder().ccmsCode("PUI_1").legacySync(true).app(app).build();
         AppRole otherRole = AppRole.builder().ccmsCode("OTHER").legacySync(false).app(app).build();
@@ -203,7 +219,7 @@ class DeleteUserHandlerTest {
         when(deleteUserMapper.toAuditEntity(user, command, actorId.toString())).thenReturn(audit);
         when(deleteUserMapper.toCommandResult(user)).thenReturn(expected);
 
-        CommandResult result = handler.handle(command, actorId.toString());
+        CommandResult result = handler.handle(command, actorUser);
 
         assertThat(result).isSameAs(expected);
         assertThat(profile.getAppRoles()).isEmpty();
@@ -227,7 +243,9 @@ class DeleteUserHandlerTest {
         when(userProfileCommandRepository.findAllByEntraUser(user)).thenReturn(List.of(profile));
         when(deleteUserMapper.toAuditEntity(any(), any(), anyString())).thenReturn(UserAccountStatusAudit.builder().build());
 
-        handler.handle(command, actorId.toString());
+        final AuthenticatedEntraUser actorUser = internalActor();
+
+        handler.handle(command, actorUser);
 
         verifyNoInteractions(roleChangeNotificationService);
         verify(entraUserCommandRepository).delete(user);
@@ -240,7 +258,9 @@ class DeleteUserHandlerTest {
         when(userProfileCommandRepository.findAllByEntraUser(user)).thenReturn(List.of());
         when(deleteUserMapper.toAuditEntity(any(), any(), anyString())).thenReturn(UserAccountStatusAudit.builder().build());
 
-        handler.handle(command, actorId.toString());
+        final AuthenticatedEntraUser actorUser = internalActor();
+
+        handler.handle(command, actorUser);
 
         verify(userProfileCommandRepository, never()).deleteAll(any());
         verify(auditRepository).save(any());
@@ -252,13 +272,13 @@ class DeleteUserHandlerTest {
         UUID firmId = UUID.randomUUID();
         EntraUser user = EntraUser.builder().entraOid(targetId.toString()).build();
         stubUser(user);
-        when(userCommandService.isExternalUser(actorId)).thenReturn(true);
-        when(userCommandService.getActiveUserProfile(actorId)).thenReturn(profileInFirm(firmId));
         when(userCommandService.getActiveUserProfile(targetId)).thenReturn(profileInFirm(firmId));
         when(userProfileCommandRepository.findAllByEntraUser(user)).thenReturn(List.of());
         when(deleteUserMapper.toAuditEntity(any(), any(), anyString())).thenReturn(UserAccountStatusAudit.builder().build());
 
-        handler.handle(command, actorId.toString());
+        final AuthenticatedEntraUser actorUser = externalActor(firmId);
+
+        handler.handle(command, actorUser);
 
         verify(entraUserCommandRepository).delete(user);
     }
@@ -271,7 +291,9 @@ class DeleteUserHandlerTest {
         when(userProfileCommandRepository.findAllByEntraUser(user)).thenReturn(List.of(profile));
         when(deleteUserMapper.toAuditEntity(any(), any(), anyString())).thenReturn(UserAccountStatusAudit.builder().build());
 
-        handler.handle(command, actorId.toString());
+        final AuthenticatedEntraUser actorUser = internalActor();
+
+        handler.handle(command, actorUser);
 
         verifyNoInteractions(roleChangeNotificationService);
         verify(userProfileCommandRepository).deleteAll(List.of(profile));
@@ -285,8 +307,10 @@ class DeleteUserHandlerTest {
         when(userProfileCommandRepository.findAllByEntraUser(user)).thenReturn(null, List.of(emptyRoles));
         when(deleteUserMapper.toAuditEntity(any(), any(), anyString())).thenReturn(UserAccountStatusAudit.builder().build());
 
-        handler.handle(command, actorId.toString());
-        handler.handle(command, actorId.toString());
+        final AuthenticatedEntraUser actorUser = internalActor();
+
+        handler.handle(command, actorUser);
+        handler.handle(command, actorUser);
 
         verify(userProfileCommandRepository).deleteAll(List.of(emptyRoles));
         verifyNoInteractions(roleChangeNotificationService);
@@ -301,7 +325,9 @@ class DeleteUserHandlerTest {
         when(userProfileCommandRepository.findAllByEntraUser(user)).thenReturn(List.of(profile));
         when(deleteUserMapper.toAuditEntity(any(), any(), anyString())).thenReturn(UserAccountStatusAudit.builder().build());
 
-        handler.handle(command, actorId.toString());
+        final AuthenticatedEntraUser actorUser = internalActor();
+
+        handler.handle(command, actorUser);
 
         verifyNoInteractions(roleChangeNotificationService);
         assertThat(profile.getAppRoles()).isEmpty();
@@ -314,6 +340,24 @@ class DeleteUserHandlerTest {
         when(userCommandService.isInternalUser(targetId)).thenReturn(false);
         lenient().when(techServicesClient.deactivateUser(any(), anyString()))
                 .thenReturn(TechServicesApiResponse.success(ChangeAccountReactivationResponse.builder().build()));
+    }
+
+    private AuthenticatedEntraUser internalActor() {
+        return actor(UserType.INTERNAL, null);
+    }
+
+    private AuthenticatedEntraUser externalActor(UUID firmId) {
+        return actor(UserType.EXTERNAL, firmId);
+    }
+
+    private AuthenticatedEntraUser actor(UserType userType, UUID firmId) {
+        return AuthenticatedEntraUser.builder()
+                .id(actorId)
+                .entraOid(actorId.toString())
+                .email("actor@example.com")
+                .active(true)
+                .activeProfile(AuthenticatedUserProfile.builder().userType(userType).firmId(firmId).build())
+                .build();
     }
 
     private UserProfile profileInFirm(UUID firmId) {
