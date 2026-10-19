@@ -68,9 +68,11 @@ dependencies {
     implementation 'org.modelmapper:modelmapper:3.2.6'
     implementation 'org.postgresql:postgresql'
 
-    implementation 'software.amazon.awssdk:sqs:2.30.0'
-    implementation 'software.amazon.awssdk:ssm:2.30.0'
-    implementation 'software.amazon.awssdk:sts:2.30.0'
+    implementation platform('software.amazon.awssdk:bom:2.56.0')
+
+    implementation 'software.amazon.awssdk:sqs'
+    implementation 'software.amazon.awssdk:ssm'
+    implementation 'software.amazon.awssdk:sts'
 
     implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
 
