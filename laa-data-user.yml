@@ -915,6 +915,14 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
   /api/v1/commands/user-profiles/assign-app-roles:
     post:
@@ -1065,6 +1073,7 @@ paths:
       operationId: commandUserProfileChangeFirm
       tags: [User Profiles]
       summary: Reassign profile to a different firm
+      description: A profile can be reassigned only when it has no app-role assignments. This operation updates local profile data only and does not call Tech Services or enqueue CCMS synchronization.
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
@@ -1089,7 +1098,11 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Conflict because the target firm already has a profile for the user, or the profile has app-role assignments.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 
   /api/v1/commands/user-profiles/delete:
     post:
@@ -2306,6 +2319,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/CommandResult'
         - type: object
+          required: [userProfileId]
           properties:
             userProfileId:
               type: string
@@ -2488,6 +2502,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/CommandResult'
         - type: object
+          required: [userEntraObjectId, userProfileId]
           properties:
             userEntraObjectId:
               type: string
@@ -2533,6 +2548,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/CommandResult'
         - type: object
+          required: [failedCount, failedApps]
           properties:
             syncedCount:
               type: integer
@@ -2541,6 +2557,31 @@ components:
               maxItems: 100
               items:
                 $ref: '#/components/schemas/AppView'
+            failedCount:
+              type: integer
+              description: Number of app records that failed to sync.
+            failedApps:
+              type: array
+              maxItems: 100
+              description: App records that failed to sync, with safe error details.
+              items:
+                $ref: '#/components/schemas/SyncAppFailure'
+
+    SyncAppFailure:
+      type: object
+      required: [appEntraObjectId, errorCode, detail]
+      properties:
+        appEntraObjectId:
+          description: Entra ID Object ID for the app, or null when it could not be determined.
+          type: string
+          format: uuid
+          nullable: true
+        errorCode:
+          description: Safe error code that does not expose internal exception details.
+          type: string
+        detail:
+          description: Safe explanation of why this app record failed to sync.
+          type: string
 
     TriggerCcmsRoleSyncResult:
       allOf:
