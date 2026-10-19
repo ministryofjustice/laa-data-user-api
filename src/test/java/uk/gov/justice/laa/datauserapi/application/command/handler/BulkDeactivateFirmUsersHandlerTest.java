@@ -13,6 +13,7 @@ import uk.gov.justice.laa.datauserapi.application.command.useraccount.Deactivate
 import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 
 import java.util.List;
@@ -52,23 +53,27 @@ class BulkDeactivateFirmUsersHandlerTest {
         String firmId = "123456";
         UUID firstUserId = UUID.randomUUID();
         UUID secondUserId = UUID.randomUUID();
-        String actorId = UUID.randomUUID().toString();
+        final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                .id(UUID.randomUUID())
+                .email("actor@example.com")
+                .active(true)
+                .build();
         BulkDeactivateFirmUsersCommand command =
                 new BulkDeactivateFirmUsersCommand(firmId, DeactivateUserReason.FirmClosureorMerger);
 
         when(firmCommandRepository.existsByCode(firmId)).thenReturn(true);
         when(entraUserCommandRepository.findActiveSingleFirmUserIdsByFirmCode(firmId, UserAccountStatus.ACTIVE))
                 .thenReturn(List.of(firstUserId, secondUserId));
-        when(deactivateUserHandler.handle(any(DeactivateUserCommand.class), eq(actorId)))
+        when(deactivateUserHandler.handle(any(DeactivateUserCommand.class), any(AuthenticatedEntraUser.class)))
                 .thenReturn(CommandResult.success("done"), CommandResult.success("done"));
 
-        CommandResult result = handler.handle(command, actorId);
+        CommandResult result = handler.handle(command, actorUser);
 
         assertThat(result.success()).isTrue();
         assertThat(result.message()).contains("Deactivated 2 users");
         verify(entraUserCommandRepository).findActiveSingleFirmUserIdsByFirmCode(firmId, UserAccountStatus.ACTIVE);
         ArgumentCaptor<DeactivateUserCommand> commandCaptor = ArgumentCaptor.forClass(DeactivateUserCommand.class);
-        verify(deactivateUserHandler, times(2)).handle(commandCaptor.capture(), eq(actorId));
+        verify(deactivateUserHandler, times(2)).handle(commandCaptor.capture(), eq(actorUser));
         assertThat(commandCaptor.getAllValues())
                 .extracting(DeactivateUserCommand::userEntraObjectId)
                 .containsExactly(firstUserId, secondUserId);
@@ -80,15 +85,20 @@ class BulkDeactivateFirmUsersHandlerTest {
     void handle_returnsFailureWhenAnyUserCannotBeDeactivated() {
         String firmId = "123456";
         UUID userId = UUID.randomUUID();
+        final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                .id(UUID.randomUUID())
+                .email("actor@example.com")
+                .active(true)
+                .build();
         BulkDeactivateFirmUsersCommand command =
                 new BulkDeactivateFirmUsersCommand(firmId, DeactivateUserReason.FirmClosureorMerger);
         when(firmCommandRepository.existsByCode(firmId)).thenReturn(true);
         when(entraUserCommandRepository.findActiveSingleFirmUserIdsByFirmCode(firmId, UserAccountStatus.ACTIVE))
                 .thenReturn(List.of(userId));
-        when(deactivateUserHandler.handle(any(DeactivateUserCommand.class), org.mockito.ArgumentMatchers.anyString()))
+        when(deactivateUserHandler.handle(any(DeactivateUserCommand.class), any(AuthenticatedEntraUser.class)))
                 .thenReturn(CommandResult.failure("not allowed"));
 
-        CommandResult result = handler.handle(command, UUID.randomUUID().toString());
+        CommandResult result = handler.handle(command, actorUser);
 
         assertThat(result.success()).isFalse();
         assertThat(result.message()).contains("failed to deactivate 1 users");
@@ -99,8 +109,14 @@ class BulkDeactivateFirmUsersHandlerTest {
         String firmId = "123456";
         when(firmCommandRepository.existsByCode(firmId)).thenReturn(false);
 
+        final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                .id(UUID.randomUUID())
+                .email("actor@example.com")
+                .active(true)
+                .build();
+
         assertThatThrownBy(() -> handler.handle(
-                new BulkDeactivateFirmUsersCommand(firmId, DeactivateUserReason.FirmClosureorMerger), "actor"))
+                new BulkDeactivateFirmUsersCommand(firmId, DeactivateUserReason.FirmClosureorMerger), actorUser))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining(firmId);
         verifyNoInteractions(entraUserCommandRepository, deactivateUserHandler);

@@ -9,18 +9,20 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.jwt.Jwt;
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeactivateUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.ReactivateUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserDetailsHandler;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.UpdateUserDetailsMapper;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.UpdateUserDetailsCommand;
+import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserDetailsRequest;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.contracts.request.DeactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.ReactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
-import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 
 import java.util.UUID;
 
@@ -46,6 +48,12 @@ class UserAccountCommandControllerTest {
     private DeactivateUserMapper deactivateUserMapper;
 
     @Mock
+    private UpdateUserDetailsHandler updateUserDetailsHandler;
+
+    @Mock
+    private UpdateUserDetailsMapper updateUserDetailsMapper;
+
+    @Mock
     private ReactivateUserRequest reactivateUserRequest;
 
     @Mock
@@ -68,7 +76,9 @@ class UserAccountCommandControllerTest {
                 reactivateUserHandler,
                 reactivateUserMapper,
                 deactivateUserHandler,
-                deactivateUserMapper
+                deactivateUserMapper,
+                updateUserDetailsHandler,
+                updateUserDetailsMapper
         );
     }
 
@@ -85,7 +95,7 @@ class UserAccountCommandControllerTest {
                     .entraOid(actorOid)
                     .build();
             when(reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest)).thenReturn(reactivateUserCommand);
-            when(reactivateUserHandler.handle(reactivateUserCommand, actorOid)).thenReturn(commandResult);
+            when(reactivateUserHandler.handle(reactivateUserCommand, user)).thenReturn(commandResult);
 
             // Act
             ResponseEntity<CommandResult> response = controller.reactivateUser(reactivateUserRequest, user);
@@ -96,7 +106,7 @@ class UserAccountCommandControllerTest {
             assertThat(response.getBody()).isSameAs(commandResult);
 
             verify(reactivateUserMapper).toReactivateUserCommand(reactivateUserRequest);
-            verify(reactivateUserHandler).handle(reactivateUserCommand, actorOid);
+            verify(reactivateUserHandler).handle(reactivateUserCommand, user);
             verifyNoInteractions(deactivateUserHandler, deactivateUserMapper);
         }
 
@@ -109,7 +119,7 @@ class UserAccountCommandControllerTest {
                     .entraOid(actorOid)
                     .build();
             when(reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest)).thenReturn(reactivateUserCommand);
-            when(reactivateUserHandler.handle(reactivateUserCommand, actorOid))
+            when(reactivateUserHandler.handle(reactivateUserCommand, user))
                     .thenThrow(new IllegalStateException("Reactivation failed"));
 
             // Act & Assert
@@ -132,7 +142,7 @@ class UserAccountCommandControllerTest {
                     .entraOid(actorOid)
                     .build();
             when(deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest)).thenReturn(deactivateUserCommand);
-            when(deactivateUserHandler.handle(deactivateUserCommand, actorOid)).thenReturn(commandResult);
+            when(deactivateUserHandler.handle(deactivateUserCommand, user)).thenReturn(commandResult);
 
             // Act
             ResponseEntity<CommandResult> response = controller.deactivateUser(deactivateUserRequest, user);
@@ -143,7 +153,7 @@ class UserAccountCommandControllerTest {
             assertThat(response.getBody()).isSameAs(commandResult);
 
             verify(deactivateUserMapper).toDeactivateUserCommand(deactivateUserRequest);
-            verify(deactivateUserHandler).handle(deactivateUserCommand, actorOid);
+            verify(deactivateUserHandler).handle(deactivateUserCommand, user);
             verifyNoInteractions(reactivateUserHandler, reactivateUserMapper);
         }
 
@@ -156,7 +166,7 @@ class UserAccountCommandControllerTest {
                     .entraOid(actorOid)
                     .build();
             when(deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest)).thenReturn(deactivateUserCommand);
-            when(deactivateUserHandler.handle(deactivateUserCommand, actorOid))
+            when(deactivateUserHandler.handle(deactivateUserCommand, user))
                     .thenThrow(new IllegalArgumentException("Deactivation reason required"));
 
             // Act & Assert
@@ -164,5 +174,23 @@ class UserAccountCommandControllerTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("Deactivation reason required");
         }
+    }
+
+    @Test
+    @DisplayName("updateUserDetails delegates to the handler with the authenticated user as actor")
+    void updateUserDetails_DelegatesToHandler() {
+        String actorOid = UUID.randomUUID().toString();
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder().entraOid(actorOid).build();
+        UpdateUserDetailsRequest request = UpdateUserDetailsRequest.builder()
+                .userEntraObjectId(UUID.randomUUID()).firstName("A").build();
+        UpdateUserDetailsCommand command = UpdateUserDetailsCommand.builder()
+                .userEntraObjectId(request.userEntraObjectId()).firstName("A").build();
+        when(updateUserDetailsMapper.toUpdateUserDetailsCommand(request)).thenReturn(command);
+        when(updateUserDetailsHandler.handle(command, user)).thenReturn(commandResult);
+
+        ResponseEntity<CommandResult> response = controller.updateUserDetails(request, user);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isSameAs(commandResult);
     }
 }

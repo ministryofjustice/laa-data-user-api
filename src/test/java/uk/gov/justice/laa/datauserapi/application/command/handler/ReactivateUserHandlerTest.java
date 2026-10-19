@@ -17,6 +17,7 @@ import uk.gov.justice.laa.datauserapi.application.command.shared.repository.User
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
@@ -73,11 +74,16 @@ class ReactivateUserHandlerTest {
         void handle_WhenActorIsSameAsTargetUser_ReturnsFailure() {
             // Distinct instances with same UUID value; verifies Objects.equals
             UUID sameUserId = UUID.fromString("33333333-3333-3333-3333-333333333333");
-            String sameUserIdStr = "33333333-3333-3333-3333-333333333333";
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(sameUserId)
+                    .entraOid(sameUserId.toString())
+                    .email("actor@example.com")
+                    .active(true)
+                    .build();
 
             ReactivateUserCommand command = ReactivateUserCommand.builder().userEntraObjectId(sameUserId).comments("Reactivating account").build();
 
-            CommandResult result = handler.handle(command, sameUserIdStr);
+            CommandResult result = handler.handle(command, actorUser);
 
             assertThat(result).isNotNull();
             assertThat(result.success()).isFalse();
@@ -89,11 +95,17 @@ class ReactivateUserHandlerTest {
         @Test
         @DisplayName("Should return failure when target user is an internal user")
         void handle_WhenTargetUserIsInternal_ReturnsFailure() {
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(actorId)
+                    .entraOid(actorId.toString())
+                    .email("actor@example.com")
+                    .active(true)
+                    .build();
             ReactivateUserCommand command = ReactivateUserCommand.builder().userEntraObjectId(targetUserId).comments("Reactivating internal staff").build();
 
             when(userCommandService.isInternalUser(targetUserId)).thenReturn(true);
 
-            CommandResult result = handler.handle(command, actorIdStr);
+            CommandResult result = handler.handle(command, actorUser);
 
             assertThat(result).isNotNull();
             assertThat(result.success()).isFalse();
@@ -122,7 +134,14 @@ class ReactivateUserHandlerTest {
             when(userCommandService.getActiveUserProfile(actorId)).thenReturn(actorProfile);
             when(userCommandService.getActiveUserProfile(targetUserId)).thenReturn(targetUserProfile);
 
-            CommandResult result = handler.handle(command, actorIdStr);
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(actorId)
+                    .entraOid(actorId.toString())
+                    .email("actor@example.com")
+                    .active(true)
+                    .build();
+
+            CommandResult result = handler.handle(command, actorUser);
 
             assertThat(result).isNotNull();
             assertThat(result.success()).isFalse();
@@ -138,7 +157,14 @@ class ReactivateUserHandlerTest {
         @Test
         @DisplayName("Should return failure when external actor and target user belong to different firms")
         void handle_WhenActorIsExternalAndFirmsDoNotMatch_ReturnsFailure() {
-            ReactivateUserCommand command = ReactivateUserCommand.builder().userEntraObjectId(targetUserId).comments("Reactivating across firms").build();
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(actorId)
+                    .entraOid(actorId.toString())
+                    .email("actor@example.com")
+                    .active(true)
+                    .build();
+            ReactivateUserCommand command = ReactivateUserCommand.builder().userEntraObjectId(targetUserId)
+                    .comments("Reactivating across firms").build();
 
             UUID firmOneId = UUID.randomUUID();
             UUID firmTwoId = UUID.randomUUID();
@@ -156,7 +182,7 @@ class ReactivateUserHandlerTest {
             when(userCommandService.getActiveUserProfile(actorId)).thenReturn(actorProfile);
             when(userCommandService.getActiveUserProfile(targetUserId)).thenReturn(targetUserProfile);
 
-            CommandResult result = handler.handle(command, actorIdStr);
+            CommandResult result = handler.handle(command, actorUser);
 
             assertThat(result).isNotNull();
             assertThat(result.success()).isFalse();
@@ -173,13 +199,20 @@ class ReactivateUserHandlerTest {
         @Test
         @DisplayName("Should throw ResourceNotFoundException when user is not found in database")
         void handle_WhenTargetUserNotFound_ThrowsException() {
-            ReactivateUserCommand command = ReactivateUserCommand.builder().userEntraObjectId(targetUserId).comments("Reactivate missing user").build();
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(actorId)
+                    .entraOid(actorId.toString())
+                    .email("actor@example.com")
+                    .active(true)
+                    .build();
+            ReactivateUserCommand command = ReactivateUserCommand.builder().userEntraObjectId(targetUserId)
+                    .comments("Reactivate missing user").build();
 
             when(userCommandService.isInternalUser(targetUserId)).thenReturn(false);
             when(userCommandService.isExternalUser(actorId)).thenReturn(false);
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(targetUserId))).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> handler.handle(command, actorIdStr)).isInstanceOf(ResourceNotFoundException.class)
+            assertThatThrownBy(() -> handler.handle(command, actorUser)).isInstanceOf(ResourceNotFoundException.class)
                     .hasMessage("User account not found for oid: " + targetUserId);
 
             verifyNoInteractions(techServicesClient, auditRepository);
@@ -188,6 +221,12 @@ class ReactivateUserHandlerTest {
         @Test
         @DisplayName("Should propagate TechServicesClientException when tech services client fails")
         void handle_WhenTechServicesClientFails_ThrowsException() {
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(actorId)
+                    .entraOid(actorId.toString())
+                    .email("actor@example.com")
+                    .active(true)
+                    .build();
             ReactivateUserCommand command = ReactivateUserCommand.builder().userEntraObjectId(targetUserId).comments("Reactivating user").build();
 
             EntraUser realTargetUser = EntraUser.builder().id(targetUserId).email("john.doe@example.com").active(false).build();
@@ -201,7 +240,7 @@ class ReactivateUserHandlerTest {
 
             doThrow(new TechServicesClientException("Downstream TS error")).when(techServicesClient).reactivateUser(userDto);
 
-            assertThatThrownBy(() -> handler.handle(command, actorIdStr)).isInstanceOf(TechServicesClientException.class)
+            assertThatThrownBy(() -> handler.handle(command, actorUser)).isInstanceOf(TechServicesClientException.class)
                     .hasMessage("Downstream TS error");
 
             verify(entraUserCommandRepository, never()).save(any());
@@ -225,10 +264,12 @@ class ReactivateUserHandlerTest {
             UUID commonFirmId = UUID.randomUUID();
 
             UserProfile actorProfile = UserProfile.builder().id(UUID.randomUUID()).entraUser(EntraUser.builder().id(actorId)
-                    .multiFirmUser(false).build()).firm(Firm.builder().id(commonFirmId).name("Shared Firm").build()).build();
+                    .multiFirmUser(false).entraOid(actorId.toString()).build()).firm(Firm.builder().id(commonFirmId)
+                    .name("Shared Firm").build()).build();
 
             UserProfile targetUserProfile = UserProfile.builder().id(UUID.randomUUID()).entraUser(EntraUser.builder().id(targetUserId)
-                    .multiFirmUser(false).build()).firm(Firm.builder().id(commonFirmId).name("Shared Firm").build()).build();
+                    .multiFirmUser(false).entraOid(targetUserId.toString()).build()).firm(Firm.builder()
+                    .id(commonFirmId).name("Shared Firm").build()).build();
 
             when(userCommandService.isExternalUser(actorId)).thenReturn(true);
             when(userCommandService.getActiveUserProfile(actorId)).thenReturn(actorProfile);
@@ -238,10 +279,17 @@ class ReactivateUserHandlerTest {
         }
 
         private void executeSuccessFlow(boolean setupExternalMocksAlreadyDone) {
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(actorId)
+                    .email("actor@example.com")
+                    .active(true)
+                    .entraOid(actorId.toString())
+                    .build();
             String testComments = "Account reactivation verified";
             final ReactivateUserCommand command = ReactivateUserCommand.builder().userEntraObjectId(targetUserId).comments(testComments).build();
 
-            final EntraUser realTargetUser = EntraUser.builder().id(targetUserId).email("user@example.com").active(false).build();
+            final EntraUser realTargetUser = EntraUser.builder().id(targetUserId).email("user@example.com")
+                    .active(false).entraOid(targetUserId.toString()).build();
 
             final EntraUserDto userDto = EntraUserDto.builder().id(String.valueOf(targetUserId)).email("user@example.com").build();
 
@@ -262,7 +310,7 @@ class ReactivateUserHandlerTest {
             when(mapper.toCommandResult(realTargetUser)).thenReturn(expectedResult);
 
             // Act
-            CommandResult actualResult = handler.handle(command, actorIdStr);
+            CommandResult actualResult = handler.handle(command, actorUser);
 
             // Assert
             assertThat(actualResult).isNotNull();

@@ -37,7 +37,7 @@ public class FirmCommandController implements CommandControllerSupport {
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
         log.info("Processing bulk user deactivation for firm {} by {}", request.firmId(), authenticatedUser.entraOid());
         CommandResult result = bulkDeactivateFirmUsersHandler.handle(
-                bulkDeactivateFirmUsersMapper.toCommand(request), authenticatedUser.entraOid());
+                bulkDeactivateFirmUsersMapper.toCommand(request), authenticatedUser);
         return ResponseEntity.ok(result);
     }
 
