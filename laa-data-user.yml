@@ -2060,7 +2060,8 @@ components:
     # --- Commands ---
     CreateUserAccountCommand:
       type: object
-      required: [email, firstName, lastName, userType, multiFirmUser]
+      required: [email, firstName, lastName, userType, multiFirmUser, firmId]
+      description: This command creates EXTERNAL users only. Roles and offices are assigned separately.
       properties:
         email:
           type: string
@@ -2070,24 +2071,14 @@ components:
         lastName:
           type: string
         userType:
-          $ref: '#/components/schemas/UserType'
+          type: string
+          enum: [EXTERNAL]
         firmId:
           type: string
+          format: uuid
+          description: ID of the firm associated with the initial external user profile.
         multiFirmUser:
           type: boolean
-        appRoleIds:
-          type: array
-          maxItems: 500
-          items:
-            type: string
-            format: uuid
-        unrestrictedOfficeAccess:
-          type: boolean
-        officeIds:
-          type: array
-          maxItems: 100
-          items:
-            type: string
 
     CreateUserAccountResult:
       allOf:
