@@ -21,9 +21,7 @@ import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
@@ -142,96 +140,6 @@ class DeactivateUserHandlerTest {
             verifyNoMoreInteractions(userCommandService);
             verifyNoInteractions(entraUserCommandRepository, techServicesClient, auditRepository);
         }
-
-        @Test
-        @DisplayName("Should fail when external actor attempts to deactivate multi-firm user")
-        void handle_WhenActorIsExternalAndTargetIsMultiFirm_ReturnsFailure() {
-            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
-                    .id(actorId)
-                    .entraOid(actorId.toString())
-                    .email("actor@example.com")
-                    .active(true)
-                    .build();
-
-            DeactivateUserCommand command = DeactivateUserCommand.builder()
-                    .userEntraObjectId(targetUserId)
-                    .deactivateReason(DeactivateUserReason.Absence)
-                    .build();
-
-            // Concrete entity graphs built via builders
-            EntraUser multiFirmEntraUser = EntraUser.builder()
-                    .id(targetUserId)
-                    .multiFirmUser(true)
-                    .build();
-
-            UserProfile targetUserProfile = UserProfile.builder()
-                    .id(UUID.randomUUID())
-                    .entraUser(multiFirmEntraUser)
-                    .firm(Firm.builder().id(UUID.randomUUID()).name("Firm A").build())
-                    .build();
-
-            UserProfile actorProfile = UserProfile.builder()
-                    .id(UUID.randomUUID())
-                    .entraUser(EntraUser.builder().id(actorId).multiFirmUser(false).build())
-                    .firm(Firm.builder().id(UUID.randomUUID()).name("Firm B").build())
-                    .build();
-
-            when(userCommandService.isInternalUser(targetUserId)).thenReturn(false);
-            when(userCommandService.isExternalUser(actorId)).thenReturn(true);
-            when(userCommandService.getActiveUserProfile(actorId)).thenReturn(actorProfile);
-            when(userCommandService.getActiveUserProfile(targetUserId)).thenReturn(targetUserProfile);
-
-            CommandResult result = handler.handle(command, actorUser);
-
-            assertThat(result).isNotNull();
-            assertThat(result.success()).isFalse();
-            assertThat(result.message()).isEqualTo("User can not deactivate multi-firm user");
-
-            verifyNoInteractions(entraUserCommandRepository, techServicesClient, auditRepository);
-        }
-
-        @Test
-        @DisplayName("Should fail when external actor and target user belong to different firms")
-        void handle_WhenActorIsExternalAndFirmsDoNotMatch_ReturnsFailure() {
-            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
-                    .id(actorId)
-                    .entraOid(actorId.toString())
-                    .email("actor@example.com")
-                    .active(true)
-                    .build();
-            DeactivateUserCommand command = DeactivateUserCommand.builder()
-                    .userEntraObjectId(targetUserId)
-                    .deactivateReason(DeactivateUserReason.Absence)
-                    .build();
-
-            UUID firmOneId = UUID.randomUUID();
-            UUID firmTwoId = UUID.randomUUID();
-
-            UserProfile actorProfile = UserProfile.builder()
-                    .id(UUID.randomUUID())
-                    .entraUser(EntraUser.builder().id(actorId).multiFirmUser(false).build())
-                    .firm(Firm.builder().id(firmOneId).name("Firm A").build())
-                    .build();
-
-            UserProfile targetUserProfile = UserProfile.builder()
-                    .id(UUID.randomUUID())
-                    .entraUser(EntraUser.builder().id(targetUserId).multiFirmUser(false).build())
-                    .firm(Firm.builder().id(firmTwoId).name("Firm B").build())
-                    .build();
-
-            when(userCommandService.isInternalUser(targetUserId)).thenReturn(false);
-            when(userCommandService.isExternalUser(actorId)).thenReturn(true);
-            when(userCommandService.getActiveUserProfile(actorId)).thenReturn(actorProfile);
-            when(userCommandService.getActiveUserProfile(targetUserId)).thenReturn(targetUserProfile);
-
-            CommandResult result = handler.handle(command, actorUser);
-
-            assertThat(result).isNotNull();
-            assertThat(result.success()).isFalse();
-            assertThat(result.message()).isEqualTo("User can not deactivate user from different firm");
-
-            verifyNoInteractions(entraUserCommandRepository, techServicesClient, auditRepository);
-        }
     }
 
     @Nested
@@ -247,7 +155,6 @@ class DeactivateUserHandlerTest {
                     .build();
 
             when(userCommandService.isInternalUser(targetUserId)).thenReturn(false);
-            when(userCommandService.isExternalUser(actorId)).thenReturn(false);
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(targetUserId))).thenReturn(Optional.empty());
 
             final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
@@ -290,7 +197,6 @@ class DeactivateUserHandlerTest {
                     .build();
 
             when(userCommandService.isInternalUser(targetUserId)).thenReturn(false);
-            when(userCommandService.isExternalUser(actorId)).thenReturn(false);
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(targetUserId))).thenReturn(Optional.of(realTargetUser));
             when(modelMapper.map(realTargetUser, EntraUserDto.class)).thenReturn(userDto);
 
@@ -312,36 +218,12 @@ class DeactivateUserHandlerTest {
     class SuccessfulExecution {
 
         @Test
-        @DisplayName("Should deactivate user successfully when actor is internal/system")
+        @DisplayName("Should deactivate user successfully (firm scoping is enforced by ProviderAdminFirmScopePolicy)")
         void handle_WhenActorIsNonExternal_ProcessesSuccessfully() {
-            executeSuccessfulFlow(false);
+            executeSuccessfulFlow();
         }
 
-        @Test
-        @DisplayName("Should deactivate user successfully when actor is external and shares firm")
-        void handle_WhenActorIsExternalAndSameFirm_ProcessesSuccessfully() {
-            UUID commonFirmId = UUID.randomUUID();
-
-            UserProfile actorProfile = UserProfile.builder()
-                    .id(UUID.randomUUID())
-                    .entraUser(EntraUser.builder().id(actorId).multiFirmUser(false).entraOid(actorId.toString()).build())
-                    .firm(Firm.builder().id(commonFirmId).name("Shared Firm").build())
-                    .build();
-
-            UserProfile targetUserProfile = UserProfile.builder()
-                    .id(UUID.randomUUID())
-                    .entraUser(EntraUser.builder().id(targetUserId).multiFirmUser(false).entraOid(targetUserId.toString()).build())
-                    .firm(Firm.builder().id(commonFirmId).name("Shared Firm").build())
-                    .build();
-
-            when(userCommandService.isExternalUser(actorId)).thenReturn(true);
-            when(userCommandService.getActiveUserProfile(actorId)).thenReturn(actorProfile);
-            when(userCommandService.getActiveUserProfile(targetUserId)).thenReturn(targetUserProfile);
-
-            executeSuccessfulFlow(true);
-        }
-
-        private void executeSuccessfulFlow(boolean setupExternalMocksAlreadyDone) {
+        private void executeSuccessfulFlow() {
             // Real target user entity
             EntraUser realTargetUser = EntraUser.builder()
                     .id(targetUserId)
@@ -372,10 +254,6 @@ class DeactivateUserHandlerTest {
             final CommandResult expectedResult = CommandResult.success("User deactivated successfully");
 
             when(userCommandService.isInternalUser(targetUserId)).thenReturn(false);
-
-            if (!setupExternalMocksAlreadyDone) {
-                when(userCommandService.isExternalUser(actorId)).thenReturn(false);
-            }
 
             final DeactivateUserCommand command = DeactivateUserCommand.builder()
                     .userEntraObjectId(targetUserId)
