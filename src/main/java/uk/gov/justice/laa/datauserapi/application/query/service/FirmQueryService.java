@@ -55,9 +55,7 @@ public class FirmQueryService {
         authorisationService.requireFirmDirectoryAccess(authenticatedUser);
         Pageable pageable = PageRequest.of(pageNumber, pageSize, toSort(sortBy));
         String term = firmQuery == null ? "" : firmQuery;
-        Page<FirmView> page = firmType == null
-                ? firmQueryRepository.search(term, pageable)
-                : firmQueryRepository.searchByFirmType(term, firmType, pageable);
+        Page<FirmView> page = firmQueryRepository.search(term, firmType, pageable);
         PageMetadata pageMetadata = new PageMetadata(
                 page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages());
         return new FirmViewPage(page.getContent(), pageMetadata);

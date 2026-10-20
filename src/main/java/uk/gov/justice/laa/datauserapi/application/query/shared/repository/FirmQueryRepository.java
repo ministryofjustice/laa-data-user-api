@@ -37,29 +37,10 @@ public interface FirmQueryRepository extends Repository<Firm, UUID> {
         )
         FROM Firm f
         LEFT JOIN f.parentFirm pf
-        WHERE :term = ''
-            OR LOWER(f.name) LIKE LOWER(CONCAT('%', :term, '%'))
-            OR LOWER(f.code) LIKE LOWER(CONCAT('%', :term, '%'))
-        """,
-        countQuery = """
-        SELECT COUNT(f)
-        FROM Firm f
-        WHERE :term = ''
-            OR LOWER(f.name) LIKE LOWER(CONCAT('%', :term, '%'))
-            OR LOWER(f.code) LIKE LOWER(CONCAT('%', :term, '%'))
-        """)
-    Page<FirmView> search(@Param("term") String term, Pageable pageable);
-
-    @Query(value = """
-        SELECT new uk.gov.justice.laa.datauserapi.contracts.dto.FirmView(
-            f.code, f.name, f.type, pf.code, f.enabled
-        )
-        FROM Firm f
-        LEFT JOIN f.parentFirm pf
         WHERE (:term = ''
             OR LOWER(f.name) LIKE LOWER(CONCAT('%', :term, '%'))
             OR LOWER(f.code) LIKE LOWER(CONCAT('%', :term, '%')))
-            AND f.type = :firmType
+            AND (CAST(:firmType AS string) IS NULL OR f.type = :firmType)
         """,
         countQuery = """
         SELECT COUNT(f)
@@ -67,9 +48,9 @@ public interface FirmQueryRepository extends Repository<Firm, UUID> {
         WHERE (:term = ''
             OR LOWER(f.name) LIKE LOWER(CONCAT('%', :term, '%'))
             OR LOWER(f.code) LIKE LOWER(CONCAT('%', :term, '%')))
-            AND f.type = :firmType
+            AND (CAST(:firmType AS string) IS NULL OR f.type = :firmType)
         """)
-    Page<FirmView> searchByFirmType(
+    Page<FirmView> search(
             @Param("term") String term,
             @Param("firmType") FirmType firmType,
             Pageable pageable);

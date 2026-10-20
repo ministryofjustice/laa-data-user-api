@@ -13,6 +13,7 @@ import org.mockito.ArgumentCaptor;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import org.mockito.Mock;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
@@ -63,7 +64,7 @@ class FirmQueryServiceTest {
         firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
         FirmView view = new FirmView("123456", "Test Firm", FirmType.LEGAL_SERVICES_PROVIDER, null, true);
         Page<FirmView> page = new PageImpl<>(List.of(view), PageRequest.of(0, 20), 1);
-        when(firmQueryRepository.search(eq("Test"), any(Pageable.class))).thenReturn(page);
+        when(firmQueryRepository.search(eq("Test"), isNull(), any(Pageable.class))).thenReturn(page);
 
         FirmViewPage result = firmQueryService.listFirms(authenticatedUser, "Test", null, 0, 20, "name,asc");
 
@@ -72,7 +73,7 @@ class FirmQueryServiceTest {
         assertThat(result.page().totalElements()).isEqualTo(1);
 
         var pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(firmQueryRepository).search(eq("Test"), pageable.capture());
+        verify(firmQueryRepository).search(eq("Test"), isNull(), pageable.capture());
         assertThat(pageable.getValue().getSort().getOrderFor("name").isIgnoreCase()).isTrue();
         assertThat(pageable.getValue().getSort().getOrderFor("code").getDirection()).isEqualTo(Sort.Direction.ASC);
     }
@@ -80,14 +81,14 @@ class FirmQueryServiceTest {
     @Test
     void listFirms_usesEmptySearchTerm_whenFirmFilterIsMissing() {
         firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
-        when(firmQueryRepository.search(eq(""), any(Pageable.class)))
+        when(firmQueryRepository.search(eq(""), isNull(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         firmQueryService.listFirms(authenticatedUser, null, null, 0, 20, null);
         firmQueryService.listFirms(authenticatedUser, null, null, 0, 20, "");
 
         var pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(firmQueryRepository, times(2)).search(eq(""), pageable.capture());
+        verify(firmQueryRepository, times(2)).search(eq(""), isNull(), pageable.capture());
         assertThat(pageable.getAllValues()).allSatisfy(request -> {
             assertThat(request.getSort().getOrderFor("name").isIgnoreCase()).isTrue();
             assertThat(request.getSort().getOrderFor("code").getDirection()).isEqualTo(Sort.Direction.ASC);
@@ -97,14 +98,14 @@ class FirmQueryServiceTest {
     @Test
     void listFirms_mapsSupportedSortFieldsToEntityProperties() {
         firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
-        when(firmQueryRepository.search(eq(""), any(Pageable.class)))
+        when(firmQueryRepository.search(eq(""), isNull(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         List.of("code,desc", "code,asc", "name,asc", "type,desc")
                 .forEach(sortBy -> firmQueryService.listFirms(authenticatedUser, null, null, 0, 20, sortBy));
 
         var pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(firmQueryRepository, times(4)).search(eq(""), pageable.capture());
+        verify(firmQueryRepository, times(4)).search(eq(""), isNull(), pageable.capture());
         assertThat(pageable.getAllValues().stream()
                 .map(value -> value.getSort().iterator().next().getProperty()))
                 .containsExactly("code", "code", "name", "type");
@@ -139,13 +140,13 @@ class FirmQueryServiceTest {
     @Test
     void listFirms_filtersByFirmType_whenProvided() {
         firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
-        when(firmQueryRepository.searchByFirmType(eq("Barristers"), eq(FirmType.CHAMBERS), any(Pageable.class)))
+        when(firmQueryRepository.search(eq("Barristers"), eq(FirmType.CHAMBERS), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         firmQueryService.listFirms(authenticatedUser, "Barristers", FirmType.CHAMBERS, 0, 20, "type,desc");
 
         var pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(firmQueryRepository).searchByFirmType(eq("Barristers"), eq(FirmType.CHAMBERS), pageable.capture());
+        verify(firmQueryRepository).search(eq("Barristers"), eq(FirmType.CHAMBERS), pageable.capture());
         assertThat(pageable.getValue().getSort().getOrderFor("type").getDirection()).isEqualTo(Sort.Direction.DESC);
         assertThat(pageable.getValue().getSort().getOrderFor("code").getDirection()).isEqualTo(Sort.Direction.DESC);
     }
