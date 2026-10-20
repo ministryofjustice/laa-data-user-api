@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandler;
 import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
+import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
@@ -166,6 +167,14 @@ class ArchitectureTest {
             .and().doNotHaveSimpleName("CommandHandler") // Exclude the interface itself
             .should().implement(CommandHandler.class)
             .andShould().beAnnotatedWith(Component.class);
+
+    @ArchTest
+    static final ArchRule authorization_policies_must_reside_in_policy_package = classes()
+            .that().implement(AuthorizationPolicy.class)
+            .should().resideInAPackage("..application..policy..")
+            .andShould().beAnnotatedWith(Component.class)
+            .andShould().haveSimpleNameEndingWith("Policy")
+            .because("Fine-grained authorisation policies belong to one side of CQRS and are resolved as Spring beans");
 
     @ArchTest
     static final ArchRule services_must_reside_in_service_package = classes()

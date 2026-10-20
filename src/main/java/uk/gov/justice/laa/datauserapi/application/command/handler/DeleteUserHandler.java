@@ -37,6 +37,10 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Permission ({@code DELETE_EXTERNAL_USER}) and firm-scoping rules are enforced declaratively on
+ * {@link DeleteUserCommand} via {@code @RequiresPermission} before this handler runs.
+ */
 @Slf4j
 @Component
 public class DeleteUserHandler implements CommandHandler<DeleteUserCommand> {
@@ -96,19 +100,6 @@ public class DeleteUserHandler implements CommandHandler<DeleteUserCommand> {
         if (userCommandService.isInternalUser(command.userEntraObjectId())) {
             log.warn("Internal user can not be deleted: {}, by: {}", command.userEntraObjectId(), actorId);
             return CommandResult.failure("User can not delete internal user");
-        }
-
-        if (actor.isExternalUser()) {
-            if (entraUser.isMultiFirmUser()) {
-                log.warn("User {} can not delete multi-firm user: {}", actorId, command.userEntraObjectId());
-                return CommandResult.failure("User can not delete multi-firm user");
-            }
-            UUID actorFirmId = actor.activeProfile().firmId();
-            UUID targetFirmId = userCommandService.getActiveUserProfile(command.userEntraObjectId()).getFirm().getId();
-            if (!targetFirmId.equals(actorFirmId)) {
-                log.warn("User {} can not delete user {} from different firm", actorId, command.userEntraObjectId());
-                return CommandResult.failure("User can not delete user from different firm");
-            }
         }
 
         log.info(

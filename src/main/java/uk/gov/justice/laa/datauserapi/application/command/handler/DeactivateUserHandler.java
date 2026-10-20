@@ -16,7 +16,6 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
@@ -25,6 +24,10 @@ import uk.gov.justice.laa.datauserapi.service.DeactivationTypeResolver;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * Provider Admin firm scoping (no multi-firm targets, same firm only) is enforced by
+ * {@code ProviderAdminFirmScopePolicy} via {@code @PolicyGuarded} on {@link DeactivateUserCommand} before this handler runs.
+ */
 @Slf4j
 @Component
 public class DeactivateUserHandler implements CommandHandler<DeactivateUserCommand> {
@@ -68,24 +71,6 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
         if (isInternalUser) {
             log.warn("Internal user can not be deactivated: {}, by: {}", command.userEntraObjectId(), actor.entraOid());
             return CommandResult.failure("User can not deactivate internal user");
-        }
-
-        boolean isActorExternalUser = userCommandService.isExternalUser(UUID.fromString(actor.entraOid()));
-        if (isActorExternalUser) {
-            UserProfile actorProfile = userCommandService.getActiveUserProfile(UUID.fromString(actor.entraOid()));
-            UserProfile targetUserProfile = userCommandService.getActiveUserProfile(command.userEntraObjectId());
-
-            if (targetUserProfile.getEntraUser().isMultiFirmUser()) {
-                log.warn("User {} can not deactivate multi-firm user: {}", command.userEntraObjectId(), actor.entraOid());
-                return CommandResult.failure("User can not deactivate multi-firm user");
-            }
-
-            UUID actorFirmId = actorProfile.getFirm().getId();
-            UUID targetUserFirmId = targetUserProfile.getFirm().getId();
-            if (!targetUserFirmId.equals(actorFirmId)) {
-                log.warn("User {} can not deactivate user {} from different firm", actor.entraOid(), command.userEntraObjectId());
-                return CommandResult.failure("User can not deactivate user from different firm");
-            }
         }
 
         EntraUser user = entraUserCommandRepository.findByEntraOid(String.valueOf(command.userEntraObjectId()))

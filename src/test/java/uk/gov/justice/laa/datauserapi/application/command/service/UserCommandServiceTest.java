@@ -9,6 +9,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
+import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
@@ -288,4 +289,48 @@ class UserCommandServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("policy lookup tests")
+    class PolicyLookupTests {
+
+        @Test
+        void isMultiFirmUser_ReturnsFlagFromUser() {
+            EntraUser entraUser = EntraUser.builder().entraOid(String.valueOf(entraUserId)).multiFirmUser(true).build();
+            when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.of(entraUser));
+
+            assertThat(userCommandService.isMultiFirmUser(entraUserId)).isTrue();
+        }
+
+        @Test
+        void findActiveFirmId_ReturnsFirmOfActiveProfile() {
+            UUID firmId = UUID.randomUUID();
+            UserProfile inactive = UserProfile.builder().id(UUID.randomUUID()).activeProfile(false)
+                    .firm(Firm.builder().id(UUID.randomUUID()).build()).build();
+            UserProfile active = UserProfile.builder().id(UUID.randomUUID()).activeProfile(true)
+                    .firm(Firm.builder().id(firmId).build()).build();
+            EntraUser entraUser = EntraUser.builder().userProfiles(Set.of(inactive, active)).build();
+            when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.of(entraUser));
+
+            assertThat(userCommandService.findActiveFirmId(entraUserId)).contains(firmId);
+        }
+
+        @Test
+        void findActiveFirmId_EmptyWhenNoActiveProfileOrFirm() {
+            UserProfile activeNoFirm = UserProfile.builder().id(UUID.randomUUID()).activeProfile(true).build();
+            EntraUser entraUser = EntraUser.builder().userProfiles(Set.of(activeNoFirm)).build();
+            when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.of(entraUser));
+
+            assertThat(userCommandService.findActiveFirmId(entraUserId)).isEmpty();
+        }
+
+        @Test
+        void throwsNotFoundWhenUserMissing() {
+            when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> userCommandService.isMultiFirmUser(entraUserId))
+                    .isInstanceOf(ResourceNotFoundException.class);
+            assertThatThrownBy(() -> userCommandService.findActiveFirmId(entraUserId))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+    }
 }

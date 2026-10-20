@@ -15,13 +15,16 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * Provider Admin firm scoping (no multi-firm targets, same firm only) is enforced by
+ * {@code ProviderAdminFirmScopePolicy} via {@code @PolicyGuarded} on {@link ReactivateUserCommand} before this handler runs.
+ */
 @Slf4j
 @Component
 public class ReactivateUserHandler implements CommandHandler<ReactivateUserCommand> {
@@ -59,24 +62,6 @@ public class ReactivateUserHandler implements CommandHandler<ReactivateUserComma
         if (isInternalUser) {
             log.warn("Internal user can not be activated: {}, by: {}", command.userEntraObjectId(), actor.entraOid());
             return CommandResult.failure("User can not reactive internal user");
-        }
-
-        boolean isActorExternalUser = userCommandService.isExternalUser(UUID.fromString(actor.entraOid()));
-        if (isActorExternalUser) {
-            UserProfile actorProfile = userCommandService.getActiveUserProfile(UUID.fromString(actor.entraOid()));
-            UserProfile targetUserProfile = userCommandService.getActiveUserProfile(command.userEntraObjectId());
-
-            if (targetUserProfile.getEntraUser().isMultiFirmUser()) {
-                log.warn("User {} can not reactive multi-firm user: {}", command.userEntraObjectId(), actor.entraOid());
-                return CommandResult.failure("User can not reactive multi-firm user");
-            }
-
-            UUID actorFirmId = actorProfile.getFirm().getId();
-            UUID targetUserFirmId = targetUserProfile.getFirm().getId();
-            if (!targetUserFirmId.equals(actorFirmId)) {
-                log.warn("User {} can not reactivate user {} from different firm", actor.entraOid(), command.userEntraObjectId());
-                return CommandResult.failure("User can not reactive user from different firm");
-            }
         }
 
         EntraUser user = entraUserCommandRepository.findByEntraOid(String.valueOf(command.userEntraObjectId()))
