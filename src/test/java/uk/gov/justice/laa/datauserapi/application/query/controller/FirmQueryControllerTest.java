@@ -61,10 +61,10 @@ class FirmQueryControllerTest {
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .entraOid(UUID.randomUUID().toString())
                 .build();
-        when(firmQueryService.listFirms(eq(user), isNull(), eq("CHAMBERS"), eq(0), eq(20), isNull()))
+        when(firmQueryService.listFirms(eq(user), isNull(), eq(FirmType.CHAMBERS), eq(0), eq(20), isNull()))
                 .thenReturn(page);
 
-        ResponseEntity<FirmPageResponse> response = controller.queryFirms(null, "CHAMBERS", 0, 20, null, user);
+        ResponseEntity<FirmPageResponse> response = controller.queryFirms(null, FirmType.CHAMBERS, 0, 20, null, user);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isEqualTo(new FirmPageResponse(page.items(), page.page()));

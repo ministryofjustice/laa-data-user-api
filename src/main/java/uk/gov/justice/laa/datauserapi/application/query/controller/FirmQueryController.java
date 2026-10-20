@@ -17,6 +17,7 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchViewList;
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmViewPage;
 import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
 import uk.gov.justice.laa.datauserapi.application.query.service.FirmQueryService;
+import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
 import uk.gov.justice.laa.datauserapi.contracts.response.FirmOfficesResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.FirmPageResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.FirmResponse;
@@ -39,9 +40,7 @@ public class FirmQueryController {
     @GetMapping
     public ResponseEntity<FirmPageResponse> queryFirms(
             @RequestParam(name = "firm", required = false) String firm,
-            @RequestParam(name = "firm_type", required = false)
-            @Pattern(regexp = "^(LEGAL_SERVICES_PROVIDER|CHAMBERS|ADVOCATE)$",
-                    message = "must be one of LEGAL_SERVICES_PROVIDER, CHAMBERS, ADVOCATE") String firmType,
+            @RequestParam(name = "firm_type", required = false) FirmType firmType,
             @RequestParam(name = "page_number", defaultValue = "0") @Min(0) int pageNumber,
             @RequestParam(name = "page_size", defaultValue = "20") @Min(1) @Max(100) int pageSize,
             @RequestParam(name = "sort_by", required = false)

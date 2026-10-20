@@ -142,21 +142,12 @@ class FirmQueryServiceTest {
         when(firmQueryRepository.searchByFirmType(eq("Barristers"), eq(FirmType.CHAMBERS), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
-        firmQueryService.listFirms(authenticatedUser, "Barristers", "CHAMBERS", 0, 20, "type,desc");
+        firmQueryService.listFirms(authenticatedUser, "Barristers", FirmType.CHAMBERS, 0, 20, "type,desc");
 
         var pageable = ArgumentCaptor.forClass(Pageable.class);
         verify(firmQueryRepository).searchByFirmType(eq("Barristers"), eq(FirmType.CHAMBERS), pageable.capture());
         assertThat(pageable.getValue().getSort().getOrderFor("type").getDirection()).isEqualTo(Sort.Direction.DESC);
         assertThat(pageable.getValue().getSort().getOrderFor("code").getDirection()).isEqualTo(Sort.Direction.DESC);
-    }
-
-    @Test
-    void listFirms_rejectsUnsupportedFirmTypeValue() {
-        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
-
-        assertThatThrownBy(() -> firmQueryService.listFirms(authenticatedUser, null, "NOT_A_TYPE", 0, 20, null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Unsupported firm type value");
     }
 
     @Test

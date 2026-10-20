@@ -1,7 +1,9 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
 import java.net.URI;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
@@ -119,6 +122,35 @@ public class GlobalExceptionHandler {
         );
 
         return problemResponse(HttpStatus.BAD_REQUEST, problem);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ProblemDetail> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/validation-error"),
+                "Validation Error",
+                HttpStatus.BAD_REQUEST.value(),
+                "One or more request parameters failed validation.",
+                URI.create(request.getRequestURI()),
+                List.of(new FieldErrorDetail(ex.getName(), toTypeMismatchMessage(ex)))
+        );
+
+        return problemResponse(HttpStatus.BAD_REQUEST, problem);
+    }
+
+    private String toTypeMismatchMessage(MethodArgumentTypeMismatchException ex) {
+        Class<?> requiredType = ex.getRequiredType();
+        if (requiredType != null && requiredType.isEnum()) {
+            String allowedValues = Arrays.stream(requiredType.getEnumConstants())
+                    .map(Object::toString)
+                    .collect(Collectors.joining(", "));
+            return "must be one of " + allowedValues;
+        }
+        return "is invalid";
     }
 
     private FieldErrorDetail toFieldErrorDetail(ConstraintViolation<?> violation) {

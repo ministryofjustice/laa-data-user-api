@@ -17,6 +17,7 @@ import org.springframework.validation.beanvalidation.MethodValidationInterceptor
 
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmViewPage;
 import uk.gov.justice.laa.datauserapi.application.query.service.FirmQueryService;
+import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.exception.GlobalExceptionHandler;
@@ -99,14 +100,14 @@ class FirmQueryControllerValidationTest {
                 .entraOid(UUID.randomUUID().toString())
                 .build();
         FirmViewPage page = new FirmViewPage(List.of(), new PageMetadata(0, 20, 0, 0));
-        for (String firmType : List.of("LEGAL_SERVICES_PROVIDER", "CHAMBERS", "ADVOCATE")) {
+        for (FirmType firmType : List.of(FirmType.LEGAL_SERVICES_PROVIDER, FirmType.CHAMBERS, FirmType.ADVOCATE)) {
             when(firmQueryService.listFirms(eq(authenticatedEntraUser), isNull(), eq(firmType), eq(0), eq(20), isNull()))
                     .thenReturn(page);
 
             SecurityContextHolder.getContext().setAuthentication(
                     new UsernamePasswordAuthenticationToken(authenticatedEntraUser, "token"));
             try {
-                int responseStatus = mockMvc.perform(get("/api/v1/queries/firms").param("firm_type", firmType))
+                int responseStatus = mockMvc.perform(get("/api/v1/queries/firms").param("firm_type", firmType.name()))
                         .andReturn()
                         .getResponse()
                         .getStatus();

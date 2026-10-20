@@ -48,31 +48,19 @@ public class FirmQueryService {
     public FirmViewPage listFirms(
             AuthenticatedEntraUser authenticatedUser,
             String firmQuery,
-            String firmType,
+            FirmType firmType,
             int pageNumber,
             int pageSize,
             String sortBy) {
         authorisationService.requireFirmDirectoryAccess(authenticatedUser);
         Pageable pageable = PageRequest.of(pageNumber, pageSize, toSort(sortBy));
         String term = firmQuery == null ? "" : firmQuery;
-        FirmType type = toFirmType(firmType);
-        Page<FirmView> page = type == null
+        Page<FirmView> page = firmType == null
                 ? firmQueryRepository.search(term, pageable)
-                : firmQueryRepository.searchByFirmType(term, type, pageable);
+                : firmQueryRepository.searchByFirmType(term, firmType, pageable);
         PageMetadata pageMetadata = new PageMetadata(
                 page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages());
         return new FirmViewPage(page.getContent(), pageMetadata);
-    }
-
-    private FirmType toFirmType(String firmType) {
-        if (firmType == null || firmType.isBlank()) {
-            return null;
-        }
-        try {
-            return FirmType.valueOf(firmType);
-        } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Unsupported firm type value: " + firmType);
-        }
     }
 
     private Sort toSort(String sortValue) {
