@@ -25,6 +25,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,10 +44,27 @@ class FirmQueryControllerTest {
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .entraOid(UUID.randomUUID().toString())
                 .build();
-        when(firmQueryService.listFirms(eq(user), eq("Test"), eq(0), eq(20), eq("name,asc")))
+        when(firmQueryService.listFirms(eq(user), eq("Test"), isNull(), eq(0), eq(20), eq("name,asc")))
                 .thenReturn(page);
 
-        ResponseEntity<FirmPageResponse> response = controller.queryFirms("Test", 0, 20, "name,asc", user);
+        ResponseEntity<FirmPageResponse> response = controller.queryFirms("Test", null, 0, 20, "name,asc", user);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).isEqualTo(new FirmPageResponse(page.items(), page.page()));
+    }
+
+    @Test
+    void queryFirms_delegatesToService_withFirmTypeFilter() {
+        controller = new FirmQueryController(firmQueryService);
+        FirmView view = new FirmView("123456", "Test Firm", FirmType.CHAMBERS, null, true);
+        FirmViewPage page = new FirmViewPage(java.util.List.of(view), new PageMetadata(0, 20, 1, 1));
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(UUID.randomUUID().toString())
+                .build();
+        when(firmQueryService.listFirms(eq(user), isNull(), eq(FirmType.CHAMBERS), eq(0), eq(20), isNull()))
+                .thenReturn(page);
+
+        ResponseEntity<FirmPageResponse> response = controller.queryFirms(null, FirmType.CHAMBERS, 0, 20, null, user);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isEqualTo(new FirmPageResponse(page.items(), page.page()));
