@@ -28,10 +28,6 @@ spring:
 
 azure:
   tenant-id: ${AZURE_TENANT_ID}
-  client-id: ${AZURE_CLIENT_ID}
-  client-secret: ${AZURE_CLIENT_SECRET}
-  graph:
-    base-url: ${AZURE_GRAPH_BASE_URL:https://graph.microsoft.com/v1.0}
 
 sentry:
   dsn: ${SENTRY_DSN:}
@@ -54,12 +50,19 @@ management:
         enabled: true
 
 app:
+  laa:
+    default:
+      user:
+        access:
+          security:
+            group: ${APP_DEFAULT_USER_ACC_SEC_GROUP:}
   enable:
     tech:
       services:
         call: ${TECH_SERVICES_CALLS_ENABLED:false}
   tech:
     services:
+      verification-method: ${TECH_SERVICES_VERIFICATION_METHOD:activation_code_email}
       laa:
         business:
           unit: ${TECH_SERVICES_LAA_BUSINESS_UNIT:laa}

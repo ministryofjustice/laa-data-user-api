@@ -1,22 +1,23 @@
 package uk.gov.justice.laa.datauserapi.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authorization.AuthorizationDecision;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
-import java.util.ArrayList;
-import java.util.Collection;
+import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
+
+import java.io.IOException;
+import java.net.URI;
 
 /**
  * Security configuration for laa-data-user-api.
@@ -25,11 +26,15 @@ import java.util.Collection;
  */
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper mapper) throws Exception {
+        AuthenticationEntryPoint unauthorized = (request, response, exception) -> {
+            response.setHeader("WWW-Authenticate", "Bearer");
+            writeProblem(mapper, request, response, 401);
+        };
+        AccessDeniedHandler forbidden = (request, response, exception) -> writeProblem(mapper, request, response, 403);
         http
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session
@@ -52,51 +57,23 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .exceptionHandling(exceptions -> exceptions
-                .authenticationEntryPoint(problemEntryPoint(401, "Unauthorized"))
-                .accessDeniedHandler(problemDeniedHandler()))
+                .authenticationEntryPoint(unauthorized)
+                .accessDeniedHandler(forbidden))
             .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                .authenticationEntryPoint(unauthorized)
+                .accessDeniedHandler(forbidden)
+                .jwt(org.springframework.security.config.Customizer.withDefaults())
             );
         return http.build();
     }
 
-    private AuthenticationEntryPoint problemEntryPoint(int status, String title) {
-        return (request, response, exception) -> {
-            response.setStatus(status);
-            response.setContentType("application/problem+json");
-            response.getWriter().write("{\"type\":\"https://laa.gov.uk/problems/" + status
-                    + "\",\"title\":\"" + title + "\",\"status\":" + status
-                    + ",\"detail\":\"Request is not authorised\",\"instance\":\""
-                    + request.getRequestURI() + "\"}");
-        };
-    }
-
-    private AccessDeniedHandler problemDeniedHandler() {
-        return (request, response, exception) -> {
-            response.setStatus(403);
-            response.setContentType("application/problem+json");
-            response.getWriter().write("{\"type\":\"https://laa.gov.uk/problems/403\","
-                    + "\"title\":\"Forbidden\",\"status\":403,"
-                    + "\"detail\":\"Request is not authorised\",\"instance\":\""
-                    + request.getRequestURI() + "\"}");
-        };
-    }
-
-    private JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtGrantedAuthoritiesConverter scopes = new JwtGrantedAuthoritiesConverter();
-        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-            Collection<org.springframework.security.core.GrantedAuthority> authorities =
-                    new ArrayList<>(scopes.convert(jwt));
-            Object roles = jwt.getClaims().get("roles");
-            if (roles instanceof Collection<?> roleCollection) {
-                roleCollection.forEach(role ->
-                        authorities.add(new SimpleGrantedAuthority(role.toString())));
-            } else if (roles instanceof String role) {
-                authorities.add(new SimpleGrantedAuthority(role));
-            }
-            return authorities;
-        });
-        return converter;
+    private void writeProblem(ObjectMapper mapper, HttpServletRequest request,
+                              HttpServletResponse response, int status) throws IOException {
+        response.setStatus(status);
+        response.setContentType("application/problem+json");
+        var problem = new ProblemDetail(
+                URI.create("about:blank"), status == 401 ? "Unauthorized" : "Forbidden", status,
+                "Request is not authorised", URI.create(request.getRequestURI()), null);
+        mapper.writeValue(response.getOutputStream(), problem);
     }
 }
