@@ -19,6 +19,10 @@ import uk.gov.justice.laa.datauserapi.application.command.useraccount.Reactivate
 import uk.gov.justice.laa.datauserapi.contracts.request.DeactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.ReactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
+
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -40,9 +44,6 @@ class UserAccountCommandControllerTest {
 
     @Mock
     private DeactivateUserMapper deactivateUserMapper;
-
-    @Mock
-    private Jwt jwt;
 
     @Mock
     private ReactivateUserRequest reactivateUserRequest;
@@ -79,13 +80,15 @@ class UserAccountCommandControllerTest {
         @DisplayName("Should successfully reactivate user when JWT with subject is present")
         void reactivateUser_WithValidJwtSubject_ReturnsOk() {
             // Arrange
-            String actorId = "user-entra-sub-123";
-            when(jwt.getSubject()).thenReturn(actorId);
+            String actorOid = UUID.randomUUID().toString();
+            AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                    .entraOid(actorOid)
+                    .build();
             when(reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest)).thenReturn(reactivateUserCommand);
-            when(reactivateUserHandler.handle(reactivateUserCommand, actorId)).thenReturn(commandResult);
+            when(reactivateUserHandler.handle(reactivateUserCommand, actorOid)).thenReturn(commandResult);
 
             // Act
-            ResponseEntity<CommandResult> response = controller.reactivateUser(reactivateUserRequest, jwt);
+            ResponseEntity<CommandResult> response = controller.reactivateUser(reactivateUserRequest, user);
 
             // Assert
             assertThat(response).isNotNull();
@@ -93,56 +96,24 @@ class UserAccountCommandControllerTest {
             assertThat(response.getBody()).isSameAs(commandResult);
 
             verify(reactivateUserMapper).toReactivateUserCommand(reactivateUserRequest);
-            verify(reactivateUserHandler).handle(reactivateUserCommand, actorId);
+            verify(reactivateUserHandler).handle(reactivateUserCommand, actorOid);
             verifyNoInteractions(deactivateUserHandler, deactivateUserMapper);
-        }
-
-        @Test
-        @DisplayName("Should fallback actor to 'system' when JWT is null")
-        void reactivateUser_WithNullJwt_ResolvesActorAsSystem() {
-            // Arrange
-            when(reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest)).thenReturn(reactivateUserCommand);
-            when(reactivateUserHandler.handle(reactivateUserCommand, "system")).thenReturn(commandResult);
-
-            // Act
-            ResponseEntity<CommandResult> response = controller.reactivateUser(reactivateUserRequest, null);
-
-            // Assert
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody()).isSameAs(commandResult);
-
-            verify(reactivateUserHandler).handle(reactivateUserCommand, "system");
-        }
-
-        @Test
-        @DisplayName("Should fallback actor to 'system' when JWT has null subject")
-        void reactivateUser_WithNullJwtSubject_ResolvesActorAsSystem() {
-            // Arrange
-            when(jwt.getSubject()).thenReturn(null);
-            when(reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest)).thenReturn(reactivateUserCommand);
-            when(reactivateUserHandler.handle(reactivateUserCommand, "system")).thenReturn(commandResult);
-
-            // Act
-            ResponseEntity<CommandResult> response = controller.reactivateUser(reactivateUserRequest, jwt);
-
-            // Assert
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody()).isSameAs(commandResult);
-
-            verify(reactivateUserHandler).handle(reactivateUserCommand, "system");
         }
 
         @Test
         @DisplayName("Should propagate exception when handler throws exception")
         void reactivateUser_WhenHandlerFails_PropagatesException() {
             // Arrange
-            when(jwt.getSubject()).thenReturn("actor-1");
+            String actorOid = UUID.randomUUID().toString();
+            AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                    .entraOid(actorOid)
+                    .build();
             when(reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest)).thenReturn(reactivateUserCommand);
-            when(reactivateUserHandler.handle(reactivateUserCommand, "actor-1"))
+            when(reactivateUserHandler.handle(reactivateUserCommand, actorOid))
                     .thenThrow(new IllegalStateException("Reactivation failed"));
 
             // Act & Assert
-            assertThatThrownBy(() -> controller.reactivateUser(reactivateUserRequest, jwt))
+            assertThatThrownBy(() -> controller.reactivateUser(reactivateUserRequest, user))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Reactivation failed");
         }
@@ -156,13 +127,15 @@ class UserAccountCommandControllerTest {
         @DisplayName("Should successfully deactivate user when JWT with subject is present")
         void deactivateUser_WithValidJwtSubject_ReturnsOk() {
             // Arrange
-            String actorId = "admin-sub-456";
-            when(jwt.getSubject()).thenReturn(actorId);
+            String actorOid = UUID.randomUUID().toString();
+            AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                    .entraOid(actorOid)
+                    .build();
             when(deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest)).thenReturn(deactivateUserCommand);
-            when(deactivateUserHandler.handle(deactivateUserCommand, actorId)).thenReturn(commandResult);
+            when(deactivateUserHandler.handle(deactivateUserCommand, actorOid)).thenReturn(commandResult);
 
             // Act
-            ResponseEntity<CommandResult> response = controller.deactivateUser(deactivateUserRequest, jwt);
+            ResponseEntity<CommandResult> response = controller.deactivateUser(deactivateUserRequest, user);
 
             // Assert
             assertThat(response).isNotNull();
@@ -170,56 +143,24 @@ class UserAccountCommandControllerTest {
             assertThat(response.getBody()).isSameAs(commandResult);
 
             verify(deactivateUserMapper).toDeactivateUserCommand(deactivateUserRequest);
-            verify(deactivateUserHandler).handle(deactivateUserCommand, actorId);
+            verify(deactivateUserHandler).handle(deactivateUserCommand, actorOid);
             verifyNoInteractions(reactivateUserHandler, reactivateUserMapper);
-        }
-
-        @Test
-        @DisplayName("Should fallback actor to 'system' when JWT is null")
-        void deactivateUser_WithNullJwt_ResolvesActorAsSystem() {
-            // Arrange
-            when(deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest)).thenReturn(deactivateUserCommand);
-            when(deactivateUserHandler.handle(deactivateUserCommand, "system")).thenReturn(commandResult);
-
-            // Act
-            ResponseEntity<CommandResult> response = controller.deactivateUser(deactivateUserRequest, null);
-
-            // Assert
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody()).isSameAs(commandResult);
-
-            verify(deactivateUserHandler).handle(deactivateUserCommand, "system");
-        }
-
-        @Test
-        @DisplayName("Should fallback actor to 'system' when JWT has null subject")
-        void deactivateUser_WithNullJwtSubject_ResolvesActorAsSystem() {
-            // Arrange
-            when(jwt.getSubject()).thenReturn(null);
-            when(deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest)).thenReturn(deactivateUserCommand);
-            when(deactivateUserHandler.handle(deactivateUserCommand, "system")).thenReturn(commandResult);
-
-            // Act
-            ResponseEntity<CommandResult> response = controller.deactivateUser(deactivateUserRequest, jwt);
-
-            // Assert
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody()).isSameAs(commandResult);
-
-            verify(deactivateUserHandler).handle(deactivateUserCommand, "system");
         }
 
         @Test
         @DisplayName("Should propagate exception when handler throws exception")
         void deactivateUser_WhenHandlerFails_PropagatesException() {
             // Arrange
-            when(jwt.getSubject()).thenReturn("actor-2");
+            String actorOid = UUID.randomUUID().toString();
+            AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                    .entraOid(actorOid)
+                    .build();
             when(deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest)).thenReturn(deactivateUserCommand);
-            when(deactivateUserHandler.handle(deactivateUserCommand, "actor-2"))
+            when(deactivateUserHandler.handle(deactivateUserCommand, actorOid))
                     .thenThrow(new IllegalArgumentException("Deactivation reason required"));
 
             // Act & Assert
-            assertThatThrownBy(() -> controller.deactivateUser(deactivateUserRequest, jwt))
+            assertThatThrownBy(() -> controller.deactivateUser(deactivateUserRequest, user))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("Deactivation reason required");
         }

@@ -1,11 +1,13 @@
 package uk.gov.justice.laa.datauserapi.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import java.net.URI;
+
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -14,33 +16,36 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
-import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 
-import java.io.IOException;
-import java.net.URI;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.http.HttpServletResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
+import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
 
 /**
  * Security configuration for laa-data-user-api.
  * Enforces stateless JWT Bearer authentication on all API endpoints.
+ * Requires SCOPE_user_data.read or SCOPE_user_data.admin authority from JWT.
  * Actor identity is derived from the validated JWT {@code oid} claim — no Graph lookup.
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final JwtToAuthenticatedEntraUserConverter jwtToAuthenticatedEntraUserConverter;
+
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper mapper) throws Exception {
-        AuthenticationEntryPoint unauthorized = (request, response, exception) -> {
-            response.setHeader("WWW-Authenticate", "Bearer");
-            writeProblem(mapper, request, response, 401);
-        };
-        AccessDeniedHandler forbidden = (request, response, exception) -> writeProblem(mapper, request, response, 403);
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
-            .authorizeHttpRequests(authorize -> authorize
+            .authorizeHttpRequests(authorise -> authorise
                 .requestMatchers("/actuator/health", "/actuator/health/readiness", "/actuator/health/liveness", "/actuator/info").permitAll()
                 .requestMatchers("/actuator/prometheus")
                 .access((auth, context) -> {
@@ -52,28 +57,72 @@ public class SecurityConfig {
                             || new IpAddressMatcher("192.168.0.0/16").matches(context.getRequest());
                     return new AuthorizationDecision(allowed);
                 })
-                .requestMatchers("/api/v1/commands/users/create").hasAuthority("SCOPE_user_data.admin")
-                .requestMatchers("/api/v1/**").hasAuthority("SCOPE_user_data.read")
+                .requestMatchers("/api/v1/commands/**")
+                    .hasAuthority("SCOPE_user_data.admin")
+                .requestMatchers("/api/v1/queries/firms/**")
+                    .hasAnyAuthority("SCOPE_user_data.read", "SCOPE_user_data.admin")
+                .requestMatchers("/api/v1/queries/**")
+                    .hasAnyAuthority("SCOPE_user_data.read", "SCOPE_user_data.admin")
+                .requestMatchers("/api/v1/**")
+                    .hasAnyAuthority("SCOPE_user_data.read", "SCOPE_user_data.admin")
                 .anyRequest().authenticated()
             )
-            .exceptionHandling(exceptions -> exceptions
-                .authenticationEntryPoint(unauthorized)
-                .accessDeniedHandler(forbidden))
             .oauth2ResourceServer(oauth2 -> oauth2
-                .authenticationEntryPoint(unauthorized)
-                .accessDeniedHandler(forbidden)
-                .jwt(org.springframework.security.config.Customizer.withDefaults())
+                .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtToAuthenticatedEntraUserConverter))
+                .authenticationEntryPoint(authenticationEntryPoint())
+                .accessDeniedHandler(accessDeniedHandler())
             );
         return http.build();
     }
 
-    private void writeProblem(ObjectMapper mapper, HttpServletRequest request,
-                              HttpServletResponse response, int status) throws IOException {
-        response.setStatus(status);
-        response.setContentType("application/problem+json");
-        var problem = new ProblemDetail(
-                URI.create("about:blank"), status == 401 ? "Unauthorized" : "Forbidden", status,
-                "Request is not authorised", URI.create(request.getRequestURI()), null);
-        mapper.writeValue(response.getOutputStream(), problem);
+    @Bean
+    public AuthenticationEntryPoint authenticationEntryPoint() {
+        return (request, response, authException) -> {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/problem+json");
+
+            String requestUri = request.getRequestURI();
+            String originalUri = (String) request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI);
+            if (originalUri != null) {
+                requestUri = originalUri;
+            }
+
+            ProblemDetail problemDetail = new ProblemDetail(
+                    URI.create("https://silas.laa.gov.uk/errors/unauthorized"),
+                    "Unauthorized",
+                    HttpStatus.UNAUTHORIZED.value(),
+                    "Malformed or missing token",
+                    URI.create(requestUri),
+                    null
+            );
+
+            response.getWriter().write(new ObjectMapper().writeValueAsString(problemDetail));
+        };
     }
+
+    @Bean
+    public AccessDeniedHandler accessDeniedHandler() {
+        return (request, response, accessDeniedException) -> {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType("application/problem+json");
+
+            String requestUri = request.getRequestURI();
+            String originalUri = (String) request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI);
+            if (originalUri != null) {
+                requestUri = originalUri;
+            }
+
+            ProblemDetail problemDetail = new ProblemDetail(
+                    URI.create("https://silas.laa.gov.uk/errors/forbidden"),
+                    "Forbidden",
+                    HttpStatus.FORBIDDEN.value(),
+                    "You do not possess the required scopes or permissions to perform this operation.",
+                    URI.create(requestUri),
+                    null
+            );
+
+            response.getWriter().write(new ObjectMapper().writeValueAsString(problemDetail));
+        };
+    }
+
 }

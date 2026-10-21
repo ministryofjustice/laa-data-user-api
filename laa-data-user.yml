@@ -301,6 +301,7 @@ paths:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
         - $ref: '#/components/parameters/FirmQuery'
+        - $ref: '#/components/parameters/FirmTypeFilter'
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
       responses:
@@ -309,7 +310,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FirmViewPage'
+                $ref: '#/components/schemas/FirmPageResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -332,7 +333,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FirmView'
+                $ref: '#/components/schemas/FirmResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -345,7 +348,9 @@ paths:
       operationId: queryFirmsSearch
       tags: [Provider Data]
       summary: Type-ahead search for firms, returns a list of firms to be used for identifying firms in search boxes.
+      description: Internal users can search all firms. External users can search only their active firm's records and must have an active firm. Requires the user_data.read or user_data.admin scope.
       security: 
+        - entraIdOAuth: ["api://user-data/user_data.read"]
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
         - name: query
@@ -366,7 +371,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FirmSearchViewList'
+                $ref: '#/components/schemas/FirmSearchResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -389,7 +394,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OfficeViewList'
+                $ref: '#/components/schemas/FirmOfficesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1442,6 +1449,12 @@ components:
       in: query
       schema:
         type: string
+    FirmTypeFilter:
+      name: firm_type
+      description: Filters results to only firms of the given type.
+      in: query
+      schema:
+        $ref: '#/components/schemas/FirmType'
     FirmId:
       name: firmId
       description: The firm number for each firm. This is numerical key and is shared with PDA.
@@ -1829,10 +1842,10 @@ components:
           $ref: '#/components/schemas/FirmType'
         parentFirmId:
           type: string
-        active:
+        enabled:
           type: boolean
 
-    FirmViewPage:
+    FirmPageResponse:
       type: object
       required: [ items, page ]
       properties:
@@ -1844,6 +1857,22 @@ components:
         page:
           $ref: '#/components/schemas/PageMetadata'
 
+    FirmResponse:
+      type: object
+      description: Firm directory detail response
+      required: [ firmId, name, type ]
+      properties:
+        firmId:
+          type: string
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/FirmType'
+        parentFirmId:
+          type: string
+        enabled:
+          type: boolean
+
     FirmSearchView:
       type: object
       description: Read model for firm type-ahead search
@@ -1854,7 +1883,7 @@ components:
         name:
           type: string
 
-    FirmSearchViewList:
+    FirmSearchResponse:
       type: object
       required: [ items ]
       properties:
@@ -1885,6 +1914,16 @@ components:
           type: string
 
     OfficeViewList:
+      type: object
+      required: [ items ]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/OfficeView'
+
+    FirmOfficesResponse:
       type: object
       required: [ items ]
       properties:
@@ -2387,6 +2426,7 @@ components:
       properties:
         firmId:
           type: string
+          format: uuid
         deactivateReason:
           $ref: '#/components/schemas/DeactivateUserReason'
 

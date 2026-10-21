@@ -28,7 +28,7 @@ public class DeactivateUserMapper {
         DeactivateUserReasonLookup deactivateUserReasonLookup = deactivateUserReasonRepository.findByName(command.deactivateReason().name())
                 .orElseThrow(() -> new IllegalArgumentException("Deactivate reason not found: " + command.deactivateReason().name()));
         return UserAccountStatusAudit.builder()
-                .entraUser(user)
+                .entraUserId(user.getId())
                 .userAccountStatus(UserAccountStatus.DEACTIVATED)
                 .statusChangedBy(actorId)
                 .statusChangedDate(LocalDateTime.now())

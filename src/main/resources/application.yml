@@ -13,7 +13,7 @@ spring:
         jwt:
           issuer-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0
           jwk-set-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/discovery/v2.0/keys
-          audience: ${AZURE_APP_URI}
+          audience: ${AZURE_CLIENT_ID}
     tech:
       services:
         credentials:
