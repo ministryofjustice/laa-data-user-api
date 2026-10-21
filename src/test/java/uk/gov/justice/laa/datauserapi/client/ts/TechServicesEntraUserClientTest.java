@@ -17,9 +17,16 @@ import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.anything;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class TechServicesEntraUserClientTest {
     private static final String DEFAULT_GROUP = "22222222-2222-2222-2222-222222222222";
@@ -66,7 +73,7 @@ class TechServicesEntraUserClientTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"{}", "not json", "null", "", "{\"success\":false}", "{\"success\":true,\"user\":{}}",
-            "{\"success\":true,\"user\":{\"id\":\"bad-id\"}}", "{\"success\":true,\"user\":{\"id\":\"1-1-1-1-1\"}}"})
+        "{\"success\":true,\"user\":{\"id\":\"bad-id\"}}", "{\"success\":true,\"user\":{\"id\":\"1-1-1-1-1\"}}"})
     void invalidSuccessPayloadIsBadGateway(String body) {
         server.expect(anything()).andRespond(withStatus(HttpStatus.CREATED).body(body));
         assertStatus(502);
@@ -117,7 +124,9 @@ class TechServicesEntraUserClientTest {
     @Test
     void disabledIntegrationFailsExplicitlyWithoutInventingAnIdentity() {
         client = new TechServicesEntraUserClient(restClient, new ObjectMapper(),
-                () -> { throw new AssertionError("Token must not be requested"); }, "LAA", "activation_code_email", DEFAULT_GROUP, false);
+                () -> {
+                    throw new AssertionError("Token must not be requested");
+                }, "LAA", "activation_code_email", DEFAULT_GROUP, false);
         assertStatus(503);
         server.verify();
     }
@@ -125,14 +134,18 @@ class TechServicesEntraUserClientTest {
     @Test
     void authenticationFailureIsUnavailable() {
         client = new TechServicesEntraUserClient(restClient, new ObjectMapper(),
-                () -> { throw new IllegalStateException("private credentials"); }, "LAA", "activation_code_email", DEFAULT_GROUP, true);
+                () -> {
+                    throw new IllegalStateException("private credentials");
+                }, "LAA", "activation_code_email", DEFAULT_GROUP, true);
         assertStatus(503);
     }
 
     @Test
     void nestedAuthenticationTimeoutIsGatewayTimeout() {
         client = new TechServicesEntraUserClient(restClient, new ObjectMapper(),
-                () -> { throw new IllegalStateException(new java.util.concurrent.TimeoutException()); },
+                () -> {
+                    throw new IllegalStateException(new java.util.concurrent.TimeoutException());
+                },
                 "LAA", "activation_code_email", DEFAULT_GROUP, true);
         assertStatus(504);
     }
@@ -140,7 +153,9 @@ class TechServicesEntraUserClientTest {
     @Test
     void missingDefaultAccessGroupFailsBeforeTokenOrUserCreation() {
         client = new TechServicesEntraUserClient(restClient, new ObjectMapper(),
-                () -> { throw new AssertionError("Token must not be requested"); }, "LAA", "activation_code_email", "", true);
+                () -> {
+                    throw new AssertionError("Token must not be requested");
+                }, "LAA", "activation_code_email", "", true);
         assertStatus(503);
         server.verify();
     }
