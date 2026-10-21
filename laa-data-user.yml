@@ -1654,7 +1654,7 @@ components:
 
     UserProfileSilasStatus:
       type: string
-      enum: ["COMPLETE", "NO_ACCESS_ASSIGNED", "ACTIVATION_REQUIRED", "NO_FIRMS_LINKED"]
+      enum: ["COMPLETE", "NO_ACCESS_ASSIGNED", "ACTIVATION_REQUIRED", "NO_FIRMS_LINKED", "UNKNOWN"]
 
     FirmType:
       type: string
