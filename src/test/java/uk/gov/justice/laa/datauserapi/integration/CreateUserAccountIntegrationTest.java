@@ -14,8 +14,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.BadJwtException;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -40,7 +40,6 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -116,8 +115,16 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
 
     private MockHttpServletRequestBuilder authorizedPost(Map<String, Object> body) throws Exception {
         return post(PATH).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body))
-                .with(jwt().jwt(jwt -> jwt.claim("oid", actorOid.toString()))
-                        .authorities(new SimpleGrantedAuthority("SCOPE_user_data.admin")));
+                .header("Authorization", "Bearer " + stubToken("user_data.admin"));
+    }
+
+    private String stubToken(String scope) {
+        String token = UUID.randomUUID().toString();
+        when(decoder.decode(token)).thenReturn(Jwt.withTokenValue(token).header("alg", "RS256")
+                .subject("subject-is-not-the-actor-oid")
+                .claim("oid", actorOid.toString()).claim("scp", scope)
+                .claim("roles", "CREATE_EXTERNAL_USER").build());
+        return token;
     }
 
     @Test
@@ -221,9 +228,7 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
             case "notAuthzRole" -> jdbc.update("update app_role set authz_role=false where id=?", role);
             default -> throw new AssertionError(mode);
         }
-        mvc.perform(authorizedPost(body()).with(jwt().jwt(jwt -> jwt.claim("oid", actorOid.toString())
-                        .claim("roles", "CREATE_EXTERNAL_USER"))
-                        .authorities(new SimpleGrantedAuthority("SCOPE_user_data.admin"))))
+        mvc.perform(authorizedPost(body()))
                 .andExpect(status().isForbidden())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
         verifyNoInteractions(client);
@@ -232,12 +237,39 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
 
     @Test
     void requiresAdminScope() throws Exception {
-        mvc.perform(authorizedPost(body()).with(jwt().jwt(jwt -> jwt.claim("oid", actorOid.toString()))
-                        .authorities(new SimpleGrantedAuthority("SCOPE_user_data.read"))))
+        mvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body()))
+                        .header("Authorization", "Bearer " + stubToken("user_data.read")))
                 .andExpect(status().isForbidden())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(403));
         verifyNoInteractions(client);
+    }
+
+    @Test
+    void roleClaimDoesNotReplaceMissingScope() throws Exception {
+        mvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body()))
+                        .header("Authorization", "Bearer " + stubToken("")))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(403));
+        verifyNoInteractions(client);
+        assertNoLocalUser();
+    }
+
+    @Test
+    void unknownActorIsRejectedByBearerAuthentication() throws Exception {
+        String token = UUID.randomUUID().toString();
+        when(decoder.decode(token)).thenReturn(Jwt.withTokenValue(token).header("alg", "RS256")
+                .claim("oid", UUID.randomUUID().toString()).claim("scp", "user_data.admin").build());
+        mvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body()))
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(header().string("WWW-Authenticate", "Bearer"))
+                .andExpect(jsonPath("$.status").value(401));
+        verify(decoder).decode(token);
+        verifyNoInteractions(client);
+        assertNoLocalUser();
     }
 
     @Test
@@ -260,11 +292,12 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(header().exists("X-Correlation-ID"));
         verifyNoInteractions(client);
+        verify(decoder).decode("invalid");
     }
 
     @Test
     void getIsMethodNotAllowedRatherThanInternalError() throws Exception {
-        mvc.perform(get(PATH).with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_user_data.admin"))))
+        mvc.perform(get(PATH).header("Authorization", "Bearer " + stubToken("user_data.admin")))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(header().string("Allow", "POST"))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));

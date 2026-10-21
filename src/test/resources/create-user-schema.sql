@@ -19,6 +19,8 @@ CREATE TABLE app (
     ordinal INTEGER NOT NULL DEFAULT 0,
     url VARCHAR(255) NOT NULL UNIQUE,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    entra_app_id VARCHAR(255) UNIQUE,
+    entra_oid VARCHAR(255) UNIQUE,
     security_group_oid VARCHAR(255) NOT NULL UNIQUE
 );
 
@@ -29,6 +31,7 @@ CREATE TABLE app_role (
     description VARCHAR(255) NOT NULL,
     ordinal INTEGER NOT NULL DEFAULT 0,
     legacy_sync BOOLEAN NOT NULL DEFAULT FALSE,
+    ccms_code VARCHAR(30) UNIQUE,
     authz_role BOOLEAN NOT NULL DEFAULT FALSE,
     firm_type_restriction firm_type_enum[],
     user_type_restriction TEXT[]
@@ -45,6 +48,10 @@ CREATE TABLE entra_user (
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
     mail_only BOOLEAN DEFAULT FALSE,
     ccms_ebs_user BOOLEAN NOT NULL DEFAULT FALSE,
+    last_synced_on TIMESTAMP,
+    disabled_by UUID,
+    disable_type VARCHAR(20),
+    invitation_status VARCHAR(255),
     created_date TIMESTAMP NOT NULL,
     created_by VARCHAR(255) NOT NULL,
     last_modified_date TIMESTAMP,
@@ -84,6 +91,12 @@ CREATE TABLE user_profile_app_role (
 
 CREATE TABLE office (
     id UUID PRIMARY KEY,
+    code VARCHAR(255) UNIQUE,
+    address_line_1 VARCHAR(255),
+    address_line_2 VARCHAR(255),
+    address_line_3 VARCHAR(255),
+    city VARCHAR(255),
+    post_code VARCHAR(20),
     firm_id UUID NOT NULL REFERENCES firm(id)
 );
 

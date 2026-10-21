@@ -67,6 +67,9 @@ public class SecurityConfig {
                     .hasAnyAuthority("SCOPE_user_data.read", "SCOPE_user_data.admin")
                 .anyRequest().authenticated()
             )
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint(authenticationEntryPoint())
+                .accessDeniedHandler(accessDeniedHandler()))
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtToAuthenticatedEntraUserConverter))
                 .authenticationEntryPoint(authenticationEntryPoint())
@@ -79,6 +82,7 @@ public class SecurityConfig {
     public AuthenticationEntryPoint authenticationEntryPoint() {
         return (request, response, authException) -> {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setHeader("WWW-Authenticate", "Bearer");
             response.setContentType("application/problem+json");
 
             String requestUri = request.getRequestURI();

@@ -21,7 +21,6 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
-import org.springframework.http.MediaType;
 import uk.gov.justice.laa.datauserapi.contracts.response.FieldErrorDetail;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 

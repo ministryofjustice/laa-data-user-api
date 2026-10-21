@@ -37,8 +37,10 @@ The application will start on port `8080` by default. You can test the applicati
 `POST /api/v1/commands/users/create` requires `user_data.admin` scope and a validated JWT `oid`
 matching an enabled INTERNAL SiLAS user with an active profile and the `CREATE_EXTERNAL_USER`
 permission. JWT role claims alone do not grant permission, and no firm-ownership check applies.
-The `local`, `dev` and `test` decoders are development-only: they accept arbitrary tokens and grant
-read scope only. Do not elevate those decoders or use them to verify production token validation.
+The `local`, `dev` and `test` decoders are development-only: they read synthetic token values or
+unverified JWT claims without validating signatures. Authentication resolves the token's `oid`
+to an existing SiLAS user and supplies an `AuthenticatedEntraUser` principal to controllers.
+Do not use these decoders to verify production token validation.
 
 Provisioning uses the existing Tech Services integration, not direct Microsoft Graph credentials.
 Configure `TECH_SERVICES_CALLS_ENABLED=true`, `TECH_SERVICES_BASE_URL`,
@@ -91,8 +93,9 @@ and run:
   --tests '*UserAccountCreationServiceTest' --tests '*TechServicesEntraUserClientTest'
 ```
 
-These tests use isolated PostgreSQL, real HTTP security/validation filters and mocked downstream
-identity creation. They cover both multi-firm values, no assignments, duplicate/concurrent requests,
+These tests use isolated PostgreSQL, real HTTP security/validation filters, the actual database-backed
+principal converter, a mocked JWT decoder and mocked downstream identity creation.
+They cover both multi-firm values, no assignments, duplicate/concurrent requests,
 local rollback, retained-identity logging, permissions and error responses. Client tests simulate
 downstream failures and timeouts; the JWT-rejection check verifies error handling, not real Entra
 signature validation. For a real end-to-end smoke check, run with `SPRING_PROFILE=prod` against
