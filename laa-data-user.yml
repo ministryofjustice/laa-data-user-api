@@ -1943,7 +1943,7 @@ components:
     AppRoleView:
       type: object
       description: Read model for app_role
-      required: [ appRoleId, appId, name, description, authzRole, legacySync, ordinal, appRoleUserTypeRestriction ]
+      required: [ appRoleId, appId, name, description, authzRole, roleIdentifier, legacySync, ordinal, appRoleUserTypeRestriction ]
       properties:
         appRoleId:
           type: string
@@ -1959,7 +1959,7 @@ components:
           type: string
         authzRole:
           type: boolean
-        ccmsCode:
+        roleIdentifier:
           type: string
         legacySync:
           type: boolean
@@ -2453,7 +2453,7 @@ components:
 
     CreateAppRoleCommand:
       type: object
-      required: [appId, name, description, appRoleUserTypeRestriction]
+      required: [appId, name, description, roleIdentifier, appRoleUserTypeRestriction]
       properties:
         appId:
           type: string
@@ -2462,8 +2462,10 @@ components:
           type: string
         description:
           type: string
-        ccmsCode:
+        roleIdentifier:
           type: string
+          minLength: 1
+          maxLength: 255
         legacySync:
           type: boolean
           default: false
