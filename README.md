@@ -32,6 +32,74 @@ To start the application locally using Gradle, run:
 The application will start on port `8080` by default. You can test the application is running by visiting the health endpoint:
 [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health)
 
+### Creating an external user (STB-4841)
+
+`POST /api/v1/commands/users/create` requires `user_data.admin` scope and a validated JWT `oid`
+matching an enabled INTERNAL SiLAS user with an active profile and the `CREATE_EXTERNAL_USER`
+permission. JWT role claims alone do not grant permission, and no firm-ownership check applies.
+The `local`, `dev` and `test` decoders are development-only: they accept arbitrary tokens and grant
+read scope only. Do not elevate those decoders or use them to verify production token validation.
+
+Provisioning uses the existing Tech Services integration, not direct Microsoft Graph credentials.
+Configure `TECH_SERVICES_CALLS_ENABLED=true`, `TECH_SERVICES_BASE_URL`,
+`TECH_SERVICES_LAA_BUSINESS_UNIT`, `TECH_SERVICES_AZURE_SCOPE`, `TECH_SERVICES_AZURE_CLIENT_ID`,
+`TECH_SERVICES_AZURE_CLIENT_SECRET` and `TECH_SERVICES_TENANT_ID` for an approved non-production
+tenant. Set `APP_DEFAULT_USER_ACC_SEC_GROUP` to the same default SiLAS access group used by
+laa-landing-page. This baseline Entra membership is not an application-role or office assignment;
+missing group configuration fails creation explicitly with 503 before provisioning.
+For Helm deployments, set `techServicesCallsEnabled: true` and `defaultUserAccessSecurityGroup`
+alongside the existing Tech Services credentials. Integration calls remain disabled by default.
+`TECH_SERVICES_REQ_CONNECT_TIMEOUT` and `TECH_SERVICES_REQ_READ_TIMEOUT` are in seconds
+(both default to 30). `TECH_SERVICES_VERIFICATION_METHOD` defaults to `activation_code_email`.
+When integration calls are disabled, creation returns 503 rather than fabricating an identity.
+Use the shared laa-landing-page PostgreSQL database with its migrations applied, including the
+status updates in `db.changesets-5.75.yaml`; this API does not own the shared schema migrations.
+
+Example body (use an **active firm's database UUID**, not its firm code):
+
+```json
+{
+  "email": "new-user@example.com",
+  "firstName": "First",
+  "lastName": "Last",
+  "userType": "EXTERNAL",
+  "multiFirmUser": false,
+  "firmId": "11111111-1111-1111-1111-111111111111"
+}
+```
+
+A successful response is 201 with `success: true`, `userEntraObjectId` and `userProfileId`.
+The initial external profile belongs to the supplied firm and has no roles or offices.
+Email matching is case-insensitive; known duplicates return 409 with `success: false` and existing
+IDs. If only the Entra identity exists, `userProfileId` is omitted rather than invented.
+A raw downstream 409 returns `application/problem+json`. Validation, authentication, permission,
+unexpected downstream response, unavailable service and timeout failures return 400, 401, 403,
+502, 503 and 504 respectively using problem details; local persistence/commit failures return 500.
+
+The approved failure behaviour is **non-compensating identity creation for every local failure**,
+including late duplicates: both local inserts roll back, but an already-created Entra identity is
+retained. Retry returns 409 rather than silently repairing a partial account. Reconcile retained
+identities manually using the safe identity ID, failure step and `X-Correlation-ID` in the logs.
+The email advisory lock serializes this API's local writers; it is not a case-insensitive database
+constraint on other applications writing the shared schema.
+
+For repeatable local checks without changing decoder claims or calling a real tenant, start Docker
+and run:
+
+```bash
+./gradlew test --tests '*CreateUserAccountIntegrationTest' \
+  --tests '*UserAccountCreationServiceTest' --tests '*TechServicesEntraUserClientTest'
+```
+
+These tests use isolated PostgreSQL, real HTTP security/validation filters and mocked downstream
+identity creation. They cover both multi-firm values, no assignments, duplicate/concurrent requests,
+local rollback, retained-identity logging, permissions and error responses. Client tests simulate
+downstream failures and timeouts; the JWT-rejection check verifies error handling, not real Entra
+signature validation. For a real end-to-end smoke check, run with `SPRING_PROFILE=prod` against
+approved test resources and a genuine token for a permitted INTERNAL actor; submit the body above,
+inspect both local rows/no assignments, and repeat to check 409 with the same IDs. Do not point
+these checks at production or commit tokens, secrets or elevated development claims.
+
 ---
 
 ## Testing 
