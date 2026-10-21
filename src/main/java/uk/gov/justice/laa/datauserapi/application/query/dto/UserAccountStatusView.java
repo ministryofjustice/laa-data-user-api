@@ -1,6 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.query.dto;
 
-import uk.gov.justice.laa.datauserapi.model.UserAccountStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 
 import java.time.LocalDateTime;
 

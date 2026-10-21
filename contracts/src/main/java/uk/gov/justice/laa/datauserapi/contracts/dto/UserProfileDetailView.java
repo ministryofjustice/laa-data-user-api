@@ -1,8 +1,8 @@
 package uk.gov.justice.laa.datauserapi.contracts.dto;
 
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
-import uk.gov.justice.laa.datauserapi.model.UserAccountStatus;
-import uk.gov.justice.laa.datauserapi.model.UserProfileSilasStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileSilasStatus;
 
 import java.util.List;
 import java.util.UUID;

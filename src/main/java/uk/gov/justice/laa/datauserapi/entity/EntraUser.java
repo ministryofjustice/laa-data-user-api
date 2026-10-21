@@ -23,9 +23,9 @@ import lombok.Setter;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.ColumnDefault;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 import uk.gov.justice.laa.datauserapi.model.InvitationStatus;
-import uk.gov.justice.laa.datauserapi.model.UserAccountStatus;
 
 import java.time.LocalDateTime;
 import java.util.Set;

@@ -3,6 +3,7 @@ package uk.gov.justice.laa.datauserapi.application.query.mapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserView;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
@@ -16,7 +17,6 @@ import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.AppRoleUserType;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
-import uk.gov.justice.laa.datauserapi.model.UserAccountStatus;
 
 import java.util.Set;
 import java.util.UUID;
@@ -96,7 +96,7 @@ class UserViewMapperTest {
         dto.setEmail("test@test.com");
         dto.setFirstName("Josh");
         dto.setLastName("Halladey");
-        dto.setUserAccountStatus(uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus.ACTIVE);
+        dto.setUserAccountStatus(UserAccountStatus.ACTIVE);
         dto.setUserProfiles(Set.of(profile));
 
         UserView result = mapper.mapToUserView(dto);
@@ -153,7 +153,7 @@ class UserViewMapperTest {
         dto.setEmail("user@test.com");
         dto.setFirstName("Josh");
         dto.setLastName("Halladey");
-        dto.setUserAccountStatus(uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus.ACTIVE);
+        dto.setUserAccountStatus(UserAccountStatus.ACTIVE);
         dto.setUserProfiles(Set.of(profile1, profile2));
 
         UserAccountSummaryView result =
@@ -253,7 +253,7 @@ class UserViewMapperTest {
         dto.setEmail(profile.getEntraUser().getEmail());
         dto.setFirstName(profile.getEntraUser().getFirstName());
         dto.setLastName(profile.getEntraUser().getLastName());
-        dto.setUserAccountStatus(uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus.ACTIVE);
+        dto.setUserAccountStatus(UserAccountStatus.ACTIVE);
         dto.setUserProfiles(Set.of(profile));
 
         return dto;
