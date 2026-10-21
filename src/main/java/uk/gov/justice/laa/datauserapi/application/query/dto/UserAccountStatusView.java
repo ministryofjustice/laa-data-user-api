@@ -1,12 +1,12 @@
 package uk.gov.justice.laa.datauserapi.application.query.dto;
 
-import uk.gov.justice.laa.datauserapi.model.SilasAccountStatus;
+import uk.gov.justice.laa.datauserapi.model.UserAccountStatus;
 
 import java.time.LocalDateTime;
 
 public record UserAccountStatusView(
         String userEntraObjectId,
         String email,
-        SilasAccountStatus accountStatus,
+        UserAccountStatus accountStatus,
         LocalDateTime lastModifiedDate
 ) {}

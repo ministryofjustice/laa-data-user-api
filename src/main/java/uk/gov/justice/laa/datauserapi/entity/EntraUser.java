@@ -25,7 +25,7 @@ import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.ColumnDefault;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 import uk.gov.justice.laa.datauserapi.model.InvitationStatus;
-import uk.gov.justice.laa.datauserapi.model.SilasAccountStatus;
+import uk.gov.justice.laa.datauserapi.model.UserAccountStatus;
 
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -72,7 +72,7 @@ public class EntraUser extends AuditableEntity {
     @Column(name = "status", nullable = false, length = 255)
     @NotNull(message = "User account status must be provided")
     @ColumnDefault("ACTIVATION_REQUIRED")
-    private SilasAccountStatus silasAccountStatus;
+    private UserAccountStatus userAccountStatus;
 
     @Column(name = "multi_firm_user", nullable = false)
     @ColumnDefault("false")
@@ -115,7 +115,7 @@ public class EntraUser extends AuditableEntity {
     private Set<UserProfile> userProfiles;
 
     public void reactivate(String actorId) {
-        this.silasAccountStatus = SilasAccountStatus.ACTIVE;
+        this.userAccountStatus = UserAccountStatus.ACTIVE;
         setLastModified(LocalDateTime.now());
         setLastModifiedBy(actorId);
         setDeactivatedBy(null);
@@ -123,7 +123,7 @@ public class EntraUser extends AuditableEntity {
     }
 
     public void deactivate(String actorId, DeactivationType deactivationType) {
-        this.silasAccountStatus = SilasAccountStatus.DEACTIVATED;
+        this.userAccountStatus = UserAccountStatus.DEACTIVATED;
         setLastModified(LocalDateTime.now());
         setDeactivatedBy(UUID.fromString(actorId));
         setDeactivationType(deactivationType);

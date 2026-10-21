@@ -67,7 +67,7 @@ public class JwtToAuthenticatedEntraUserConverter implements Converter<Jwt, Abst
                 entraUser.getFirstName(),
                 entraUser.getLastName(),
                 entraUser.getEmail(),
-                entraUser.getSilasAccountStatus(),
+                entraUser.getUserAccountStatus(),
                 entraUser.isMultiFirmUser(),
                 entraUser.getLastSyncedOn(),
                 entraUser.isMailOnly(),

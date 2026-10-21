@@ -3,7 +3,7 @@ package uk.gov.justice.laa.datauserapi.dto;
 import lombok.Builder;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 import uk.gov.justice.laa.datauserapi.model.InvitationStatus;
-import uk.gov.justice.laa.datauserapi.model.SilasAccountStatus;
+import uk.gov.justice.laa.datauserapi.model.UserAccountStatus;
 
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -17,7 +17,7 @@ public record AuthenticatedEntraUser(
     String firstName,
     String lastName,
     String email,
-    SilasAccountStatus silasAccountStatus,
+    UserAccountStatus userAccountStatus,
     boolean multiFirmUser,
     LocalDateTime lastSyncedOn,
     boolean mailOnly,

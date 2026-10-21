@@ -15,7 +15,7 @@ import uk.gov.justice.laa.datauserapi.entity.AuditableEntity;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.model.InvitationStatus;
-import uk.gov.justice.laa.datauserapi.model.SilasAccountStatus;
+import uk.gov.justice.laa.datauserapi.model.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.model.UserProfileSilasStatus;
 
 import java.time.LocalDateTime;
@@ -68,9 +68,9 @@ public class SilasStatusRefreshBatchService {
         int updatedAccounts = 0;
         int updatedProfiles = 0;
         for (EntraUser user : users) {
-            SilasAccountStatus status = calculateAccountStatus(user, internalUserIds.contains(user.getId()));
-            if (user.getSilasAccountStatus() != status) {
-                user.setSilasAccountStatus(status);
+            UserAccountStatus status = calculateAccountStatus(user, internalUserIds.contains(user.getId()));
+            if (user.getUserAccountStatus() != status) {
+                user.setUserAccountStatus(status);
                 markModified(user, actorOid, now);
                 updatedAccounts++;
             }
@@ -86,11 +86,11 @@ public class SilasStatusRefreshBatchService {
         return new BatchResult(userIds.getLast(), updatedAccounts, updatedProfiles);
     }
 
-    private SilasAccountStatus calculateAccountStatus(EntraUser user, boolean internal) {
+    private UserAccountStatus calculateAccountStatus(EntraUser user, boolean internal) {
         if (!internal && user.getInvitationStatus() != InvitationStatus.VERIFICATION_SUCCESS) {
-            return SilasAccountStatus.ACTIVATION_REQUIRED;
+            return UserAccountStatus.ACTIVATION_REQUIRED;
         }
-        return user.isActive() ? SilasAccountStatus.ACTIVE : SilasAccountStatus.DEACTIVATED;
+        return user.isActive() ? UserAccountStatus.ACTIVE : UserAccountStatus.DEACTIVATED;
     }
 
     private UserProfileSilasStatus calculateProfileStatus(UserProfile profile) {

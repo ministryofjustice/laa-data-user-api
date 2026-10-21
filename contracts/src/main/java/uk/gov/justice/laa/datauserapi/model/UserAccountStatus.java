@@ -3,7 +3,7 @@ package uk.gov.justice.laa.datauserapi.model;
 import lombok.Getter;
 
 @Getter
-public enum SilasAccountStatus {
+public enum UserAccountStatus {
     ACTIVE("Active"),
     DEACTIVATED("Deactivated"),
     ACTIVATION_REQUIRED("Activation Required"),
@@ -11,7 +11,7 @@ public enum SilasAccountStatus {
 
     private final String value;
 
-    SilasAccountStatus(String value) {
+    UserAccountStatus(String value) {
         this.value = value;
     }
 }

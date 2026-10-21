@@ -12,7 +12,7 @@ import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Office;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.model.InvitationStatus;
-import uk.gov.justice.laa.datauserapi.model.SilasAccountStatus;
+import uk.gov.justice.laa.datauserapi.model.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.model.UserProfileSilasStatus;
 
 import java.time.LocalDateTime;
@@ -43,17 +43,17 @@ class SilasStatusRefreshBatchServiceTest {
         for (InvitationStatus invitationStatus : invitationStatuses) {
             for (UserType type : UserType.values()) {
                 for (boolean active : List.of(false, true)) {
-                    EntraUser user = user(invitationStatus, active, SilasAccountStatus.UNKNOWN);
+                    EntraUser user = user(invitationStatus, active, UserAccountStatus.UNKNOWN);
                     UserProfile profile = profile(user, type, true, true, false, UserProfileSilasStatus.UNKNOWN);
                     Fixture fixture = fixture(List.of(user.getId()), List.of(user), List.of(profile), 7);
 
                     SilasStatusRefreshBatchService.BatchResult result = fixture.service.refreshBatch(null, ACTOR);
 
                     boolean internal = type == UserType.INTERNAL;
-                    SilasAccountStatus expected = !internal && invitationStatus != InvitationStatus.VERIFICATION_SUCCESS
-                            ? SilasAccountStatus.ACTIVATION_REQUIRED
-                            : active ? SilasAccountStatus.ACTIVE : SilasAccountStatus.DEACTIVATED;
-                    assertThat(user.getSilasAccountStatus()).isEqualTo(expected);
+                    UserAccountStatus expected = !internal && invitationStatus != InvitationStatus.VERIFICATION_SUCCESS
+                            ? UserAccountStatus.ACTIVATION_REQUIRED
+                            : active ? UserAccountStatus.ACTIVE : UserAccountStatus.DEACTIVATED;
+                    assertThat(user.getUserAccountStatus()).isEqualTo(expected);
                     assertThat(result.updatedAccounts()).isEqualTo(1);
                 }
             }
@@ -71,7 +71,7 @@ class SilasStatusRefreshBatchServiceTest {
                 for (boolean hasRoles : List.of(false, true)) {
                     for (boolean hasOffices : List.of(false, true)) {
                         for (boolean unrestricted : List.of(false, true)) {
-                            EntraUser user = user(invitationStatus, true, SilasAccountStatus.ACTIVE);
+                            EntraUser user = user(invitationStatus, true, UserAccountStatus.ACTIVE);
                             UserProfile profile = profile(user, type, hasRoles, hasOffices, unrestricted,
                                     UserProfileSilasStatus.UNKNOWN);
                             Fixture fixture = fixture(List.of(user.getId()), List.of(user), List.of(profile), 4);
@@ -97,9 +97,9 @@ class SilasStatusRefreshBatchServiceTest {
 
     @Test
     void refreshBatch_handlesMixedUsersProfilesAndUsersWithoutProfiles() {
-        EntraUser internal = user(InvitationStatus.INVITE_SENT, true, SilasAccountStatus.UNKNOWN);
-        EntraUser externalUnverified = user(InvitationStatus.INVITE_SENT, false, SilasAccountStatus.UNKNOWN);
-        EntraUser externalVerified = user(InvitationStatus.VERIFICATION_SUCCESS, true, SilasAccountStatus.UNKNOWN);
+        EntraUser internal = user(InvitationStatus.INVITE_SENT, true, UserAccountStatus.UNKNOWN);
+        EntraUser externalUnverified = user(InvitationStatus.INVITE_SENT, false, UserAccountStatus.UNKNOWN);
+        EntraUser externalVerified = user(InvitationStatus.VERIFICATION_SUCCESS, true, UserAccountStatus.UNKNOWN);
         UserProfile internalProfile = profile(internal, UserType.INTERNAL, true, false, false,
                 UserProfileSilasStatus.UNKNOWN);
         UserProfile externalProfile = profile(externalUnverified, UserType.EXTERNAL, true, true, false,
@@ -113,9 +113,9 @@ class SilasStatusRefreshBatchServiceTest {
 
         SilasStatusRefreshBatchService.BatchResult result = fixture.service.refreshBatch(null, ACTOR);
 
-        assertThat(internal.getSilasAccountStatus()).isEqualTo(SilasAccountStatus.ACTIVE);
-        assertThat(externalUnverified.getSilasAccountStatus()).isEqualTo(SilasAccountStatus.ACTIVATION_REQUIRED);
-        assertThat(externalVerified.getSilasAccountStatus()).isEqualTo(SilasAccountStatus.ACTIVE);
+        assertThat(internal.getUserAccountStatus()).isEqualTo(UserAccountStatus.ACTIVE);
+        assertThat(externalUnverified.getUserAccountStatus()).isEqualTo(UserAccountStatus.ACTIVATION_REQUIRED);
+        assertThat(externalVerified.getUserAccountStatus()).isEqualTo(UserAccountStatus.ACTIVE);
         assertThat(internalProfile.getSilasStatus()).isEqualTo(UserProfileSilasStatus.COMPLETE);
         assertThat(externalProfile.getSilasStatus()).isEqualTo(UserProfileSilasStatus.ACTIVATION_REQUIRED);
         assertThat(secondExternalProfile.getSilasStatus()).isEqualTo(UserProfileSilasStatus.COMPLETE);
@@ -143,7 +143,7 @@ class SilasStatusRefreshBatchServiceTest {
     void refreshBatch_usesLastSelectedIdAsCursorEvenWhenLockedUserWasDeleted() {
         UUID firstId = UUID.randomUUID();
         UUID deletedUserId = UUID.randomUUID();
-        EntraUser remainingUser = user(InvitationStatus.VERIFICATION_SUCCESS, true, SilasAccountStatus.ACTIVE);
+        EntraUser remainingUser = user(InvitationStatus.VERIFICATION_SUCCESS, true, UserAccountStatus.ACTIVE);
         remainingUser.setId(firstId);
         Fixture fixture = fixture(List.of(firstId, deletedUserId), List.of(remainingUser), List.of(), 2);
 
@@ -156,8 +156,8 @@ class SilasStatusRefreshBatchServiceTest {
 
     @Test
     void refreshBatch_updatesOnlyChangedEntitiesAndSetsAuditFieldsForChanges() {
-        EntraUser changedUser = user(InvitationStatus.VERIFICATION_SUCCESS, false, SilasAccountStatus.ACTIVE);
-        EntraUser unchangedUser = user(InvitationStatus.VERIFICATION_SUCCESS, true, SilasAccountStatus.ACTIVE);
+        EntraUser changedUser = user(InvitationStatus.VERIFICATION_SUCCESS, false, UserAccountStatus.ACTIVE);
+        EntraUser unchangedUser = user(InvitationStatus.VERIFICATION_SUCCESS, true, UserAccountStatus.ACTIVE);
         LocalDateTime oldModified = LocalDateTime.of(2020, 1, 2, 3, 4);
         unchangedUser.setLastModified(oldModified);
         unchangedUser.setLastModifiedBy("old-actor");
@@ -172,7 +172,7 @@ class SilasStatusRefreshBatchServiceTest {
 
         SilasStatusRefreshBatchService.BatchResult result = fixture.service.refreshBatch(null, ACTOR);
 
-        assertThat(changedUser.getSilasAccountStatus()).isEqualTo(SilasAccountStatus.DEACTIVATED);
+        assertThat(changedUser.getUserAccountStatus()).isEqualTo(UserAccountStatus.DEACTIVATED);
         assertThat(changedUser.getLastModifiedBy()).isEqualTo(ACTOR);
         assertThat(changedUser.getLastModified()).isNotNull().isAfter(oldModified);
         assertThat(unchangedUser.getLastModifiedBy()).isEqualTo("old-actor");
@@ -188,7 +188,7 @@ class SilasStatusRefreshBatchServiceTest {
 
     @Test
     void refreshBatch_setsJdbcBatchSizeAndFetchesLocksThenCollectionsSeparately() {
-        EntraUser user = user(InvitationStatus.VERIFICATION_SUCCESS, true, SilasAccountStatus.ACTIVE);
+        EntraUser user = user(InvitationStatus.VERIFICATION_SUCCESS, true, UserAccountStatus.ACTIVE);
         Fixture fixture = fixture(List.of(user.getId()), List.of(user), List.of(), 11);
 
         fixture.service.refreshBatch(null, ACTOR);
@@ -206,7 +206,7 @@ class SilasStatusRefreshBatchServiceTest {
     void refreshBatch_usesAfterCursorForNextPage() {
         UUID afterId = UUID.randomUUID();
         UUID nextId = UUID.randomUUID();
-        EntraUser user = user(InvitationStatus.VERIFICATION_SUCCESS, true, SilasAccountStatus.ACTIVE);
+        EntraUser user = user(InvitationStatus.VERIFICATION_SUCCESS, true, UserAccountStatus.ACTIVE);
         user.setId(nextId);
         Fixture fixture = fixture(List.of(nextId), List.of(user), List.of(), 6);
 
@@ -237,7 +237,7 @@ class SilasStatusRefreshBatchServiceTest {
         when(duringIds.users.findRefreshUserIds(any())).thenThrow(repositoryFailure);
         assertThatThrownBy(() -> duringIds.service.refreshBatch(null, ACTOR)).isSameAs(repositoryFailure);
 
-        EntraUser user = user(InvitationStatus.VERIFICATION_SUCCESS, true, SilasAccountStatus.ACTIVE);
+        EntraUser user = user(InvitationStatus.VERIFICATION_SUCCESS, true, UserAccountStatus.ACTIVE);
         Fixture duringCollections = fixture(List.of(user.getId()), List.of(user), List.of(), 4);
         RuntimeException collectionFailure = new RuntimeException("fetch failed");
         when(duringCollections.profiles.fetchRefreshProfileRoles(List.of(user.getId()))).thenThrow(collectionFailure);
@@ -245,12 +245,12 @@ class SilasStatusRefreshBatchServiceTest {
         verify(duringCollections.profiles, never()).fetchRefreshProfileOffices(any());
     }
 
-    private static EntraUser user(InvitationStatus invitationStatus, boolean active, SilasAccountStatus status) {
+    private static EntraUser user(InvitationStatus invitationStatus, boolean active, UserAccountStatus status) {
         return EntraUser.builder()
                 .id(UUID.randomUUID())
                 .invitationStatus(invitationStatus)
                 .active(active)
-                .silasAccountStatus(status)
+                .userAccountStatus(status)
                 .build();
     }
 

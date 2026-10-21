@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.model.SilasAccountStatus;
+import uk.gov.justice.laa.datauserapi.model.UserAccountStatus;
 
 import java.util.List;
 import java.util.Optional;
@@ -24,13 +24,13 @@ public interface EntraUserCommandRepository extends JpaRepository<EntraUser, UUI
         WHERE p.firm is not null
           AND p.firm.code = :firmCode
           AND p.activeProfile = true
-          AND u.silasAccountStatus = :status
+          AND u.userAccountStatus = :status
           AND u.multiFirmUser = false
         ORDER BY u.id
         """)
     List<UUID> findActiveSingleFirmUserIdsByFirmCode(
             @Param("firmCode") String firmCode,
-            @Param("status") SilasAccountStatus status);
+            @Param("status") UserAccountStatus status);
 
     Optional<EntraUser> findByEntraOid(String entraOid);
 
