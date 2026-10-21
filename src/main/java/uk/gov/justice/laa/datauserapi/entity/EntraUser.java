@@ -23,9 +23,9 @@ import lombok.Setter;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.ColumnDefault;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 import uk.gov.justice.laa.datauserapi.model.InvitationStatus;
+import uk.gov.justice.laa.datauserapi.model.SilasAccountStatus;
 
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -39,8 +39,7 @@ import java.util.UUID;
     @Index(name = "UserEntraOidIdx", columnList = "entra_oid"),
     @Index(name = "UserCreatedByIdx", columnList = "created_by"),
     @Index(name = "UserCreatedDateIdx", columnList = "created_date"),
-    @Index(name = "UserLastModifiedDateIdx", columnList = "last_modified_date"),
-    @Index(name = "UserLastModifiedByIdx", columnList = "last_modified_by"),
+    @Index(name = "UserLastModifiedDateIdx", columnList = "last_modified_date"), @Index(name = "UserLastModifiedByIdx", columnList = "last_modified_by"),
 })
 @Getter
 @Setter
@@ -73,7 +72,7 @@ public class EntraUser extends AuditableEntity {
     @Column(name = "status", nullable = false, length = 255)
     @NotNull(message = "User account status must be provided")
     @ColumnDefault("ACTIVATION_REQUIRED")
-    private UserAccountStatus userAccountStatus;
+    private SilasAccountStatus silasAccountStatus;
 
     @Column(name = "multi_firm_user", nullable = false)
     @ColumnDefault("false")
@@ -116,7 +115,7 @@ public class EntraUser extends AuditableEntity {
     private Set<UserProfile> userProfiles;
 
     public void reactivate(String actorId) {
-        this.userAccountStatus = UserAccountStatus.ACTIVE;
+        this.silasAccountStatus = SilasAccountStatus.ACTIVE;
         setLastModified(LocalDateTime.now());
         setLastModifiedBy(actorId);
         setDeactivatedBy(null);
@@ -124,7 +123,7 @@ public class EntraUser extends AuditableEntity {
     }
 
     public void deactivate(String actorId, DeactivationType deactivationType) {
-        this.userAccountStatus = UserAccountStatus.DEACTIVATED;
+        this.silasAccountStatus = SilasAccountStatus.DEACTIVATED;
         setLastModified(LocalDateTime.now());
         setDeactivatedBy(UUID.fromString(actorId));
         setDeactivationType(deactivationType);

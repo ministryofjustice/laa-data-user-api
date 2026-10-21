@@ -76,8 +76,8 @@ public class UserViewMapper {
                 firmName,
                 firmId,
                 user.isMultiFirmUser(),
-                user.getUserAccountStatus(),
-                profile.getUserProfileStatus(),
+                user.getSilasAccountStatus(),
+                profile.getSilasStatus(),
                 !roles.isEmpty(),
 
                 UUID.fromString(user.getEntraOid()),

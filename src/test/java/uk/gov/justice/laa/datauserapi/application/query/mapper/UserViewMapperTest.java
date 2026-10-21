@@ -17,6 +17,7 @@ import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.AppRoleUserType;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+import uk.gov.justice.laa.datauserapi.model.SilasAccountStatus;
 
 import java.util.Set;
 import java.util.UUID;
@@ -45,7 +46,7 @@ class UserViewMapperTest {
                 .email("test@test.com")
                 .firstName("Josh")
                 .lastName("Halladey")
-                .userAccountStatus(UserAccountStatus.ACTIVE)
+                .silasAccountStatus(SilasAccountStatus.ACTIVE)
                 .multiFirmUser(false)
                 .mailOnly(false)
                 .build();
@@ -122,7 +123,7 @@ class UserViewMapperTest {
                 String.valueOf(AppRoleUserType.INTERNAL),
                 result.activeProfile()
                         .roles()
-                        .get(0)
+                        .getFirst()
                         .appRoleUserTypeRestriction());
     }
 
@@ -187,7 +188,7 @@ class UserViewMapperTest {
                 String.valueOf(AppRoleUserType.BOTH),
                 result.activeProfile()
                         .roles()
-                        .get(0)
+                        .getFirst()
                         .appRoleUserTypeRestriction());
     }
 
@@ -212,7 +213,7 @@ class UserViewMapperTest {
                 String.valueOf(AppRoleUserType.EXTERNAL),
                 result.activeProfile()
                         .roles()
-                        .get(0)
+                        .getFirst()
                         .appRoleUserTypeRestriction());
     }
 
@@ -225,7 +226,7 @@ class UserViewMapperTest {
                 .email("test@test.com")
                 .firstName("Test")
                 .lastName("User")
-                .userAccountStatus(UserAccountStatus.ACTIVE)
+                .silasAccountStatus(SilasAccountStatus.ACTIVE)
                 .build();
 
         Firm firm = Firm.builder()

@@ -20,7 +20,7 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
         SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountStatusView(
             u.entraOid,
             u.email,
-            u.userAccountStatus,
+            u.silasAccountStatus,
             u.lastModified
         )
         FROM EntraUser u
@@ -65,12 +65,12 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
                 
                 AND (:#{#criteria.userType} IS NULL OR up.userType = :#{#criteria.userType})
 
-                AND (:#{#criteria.userAccountStatus} IS NULL OR u.userAccountStatus = :#{#criteria.userAccountStatus})
+                AND (:#{#criteria.userAccountStatus} IS NULL OR u.silasAccountStatus = :#{#criteria.userAccountStatus})
 
                 AND (:#{#criteria.appId} IS NULL OR ar.app.id = :#{#criteria.appId})
 
                 AND( :#{#criteria.neverActivatedFilter} IS NULL OR :#{#criteria.neverActivatedFilter} = FALSE
-                                OR u.userAccountStatus = UserAccountStatus.ACTIVATION_REQUIRED)
+                                OR u.silasAccountStatus = SilasAccountStatus.ACTIVATION_REQUIRED)
 
                 AND (:#{#criteria.appRoleId} IS NULL OR ar.id = :#{#criteria.appRoleId})
 
@@ -105,11 +105,11 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
 
                 AND (:#{#criteria.userType} IS NULL OR up.userType = :#{#criteria.userType})
 
-                AND (:#{#criteria.userAccountStatus} IS NULL OR u.userAccountStatus = :#{#criteria.userAccountStatus})
+                AND (:#{#criteria.userAccountStatus} IS NULL OR u.silasAccountStatus = :#{#criteria.userAccountStatus})
 
                 AND (:#{#criteria.appId} IS NULL OR ar.app.id = :#{#criteria.appId})
 
-                AND( :#{#criteria.neverActivatedFilter} IS NULL OR :#{#criteria.neverActivatedFilter} = FALSE OR u.userAccountStatus = UserAccountStatus.ACTIVATION_REQUIRED)
+                AND( :#{#criteria.neverActivatedFilter} IS NULL OR :#{#criteria.neverActivatedFilter} = FALSE OR u.silasAccountStatus = SilasAccountStatus.ACTIVATION_REQUIRED)
 
 
                 AND (:#{#criteria.appRoleId} IS NULL OR ar.id = :#{#criteria.appRoleId})

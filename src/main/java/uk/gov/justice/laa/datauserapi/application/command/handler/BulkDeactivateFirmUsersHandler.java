@@ -6,9 +6,9 @@ import uk.gov.justice.laa.datauserapi.application.command.shared.repository.Entr
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.FirmCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.BulkDeactivateFirmUsersCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.model.SilasAccountStatus;
 
 import java.util.List;
 import java.util.UUID;
@@ -38,7 +38,7 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
         }
 
         List<UUID> userIds = entraUserCommandRepository.findActiveSingleFirmUserIdsByFirmCode(
-                firmCode, UserAccountStatus.ACTIVE);
+                firmCode, SilasAccountStatus.ACTIVE);
         int deactivated = 0;
         int failed = 0;
 
