@@ -30,4 +30,6 @@ public interface EntraUserCommandRepository extends JpaRepository<EntraUser, UUI
             @Param("status") UserAccountStatus status);
 
     Optional<EntraUser> findByEntraOid(String entraOid);
+
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, UUID id);
 }

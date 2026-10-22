@@ -2,15 +2,12 @@ package uk.gov.justice.laa.datauserapi.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import uk.gov.justice.laa.datauserapi.entity.AppRole;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.model.AuthzRole;
-import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 import java.util.List;
-import java.util.Optional;
-import java.util.Set;
 
 /**
  * Resolves the {@link DeactivationType} that should be recorded when an external user is deactivated.
@@ -35,27 +32,23 @@ public class DeactivationTypeResolver {
     /**
      * Resolves the deactivate type from the actor's current active user profile roles.
      *
-     * @param actor the EntraUser performing the deactivation action
+     * @param actor the AuthenticatedEntraUser performing the deactivation action
      * @return the appropriate {@link DeactivationType} (never {@code null})
      */
-    public DeactivationType resolve(EntraUser actor) {
+    public DeactivationType resolve(AuthenticatedEntraUser actor) {
         if (actor == null) {
             log.warn("DeactivationTypeResolver.resolve called with null actor — returning NONE");
             return DeactivationType.NONE;
         }
 
-        if (actor.getUserProfiles() == null) {
-            log.warn("DeactivationTypeResolver.resolve called with null userProfiles — returning NONE");
+        if (actor.activeProfile() == null) {
+            log.warn("DeactivationTypeResolver.resolve called with null activeProfile — returning NONE");
             return DeactivationType.NONE;
         }
 
-        List<String> roleNames = actor.getUserProfiles().stream()
-                .filter(UserProfile::isActiveProfile)
-                .findFirst()
-                .map(profile -> Optional.ofNullable(profile.getAppRoles()).orElse(Set.of()).stream()
-                        .map(AppRole::getName)
-                        .toList())
-                .orElse(List.of());
+        List<String> roleNames = actor.activeProfile().appRoles().stream()
+                .map(AuthenticatedAppRole::name)
+                .toList();
 
         return resolveFromRoles(roleNames);
     }

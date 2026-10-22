@@ -2,6 +2,7 @@ package uk.gov.justice.laa.datauserapi.client.ts;
 
 import lombok.extern.slf4j.Slf4j;
 
+import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
@@ -23,4 +24,10 @@ public class DoNothingTechServicesClient implements TechServicesClient {
                 .build());
     }
 
+    @Override
+    public TechServicesApiResponse<ChangeAccountEnabledResponse> updateUserDetails(String entraOid, String firstName, String lastName, String email) {
+        return TechServicesApiResponse.success(ChangeAccountEnabledResponse.builder().success(true)
+                .message("Successfully Update user details.")
+                .build());
+    }
 }

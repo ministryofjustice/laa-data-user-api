@@ -76,7 +76,7 @@ class DeactivateUserMapperTest {
             LocalDateTime beforeCall = LocalDateTime.now();
 
             // Act
-            UserAccountStatusAudit audit = mapper.toAuditEntity(entraUser, command, actorId);
+            UserAccountStatusAudit audit = mapper.toAuditEntity(entraUser, command.deactivateReason(), actorId);
 
             // Assert
             assertThat(audit).isNotNull();
@@ -112,7 +112,7 @@ class DeactivateUserMapperTest {
                     .thenReturn(Optional.empty());
 
             // Act & Assert
-            assertThatThrownBy(() -> mapper.toAuditEntity(entraUser, command, actorId))
+            assertThatThrownBy(() -> mapper.toAuditEntity(entraUser, command.deactivateReason(), actorId))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("Deactivate reason not found: " + reasonEnum.name());
 

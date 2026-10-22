@@ -24,9 +24,9 @@ public class DeactivateUserMapper {
         this.deactivateUserReasonRepository = deactivateUserReasonRepository;
     }
 
-    public UserAccountStatusAudit toAuditEntity(EntraUser user, DeactivateUserCommand command, String actorId) {
-        DeactivateUserReasonLookup deactivateUserReasonLookup = deactivateUserReasonRepository.findByName(command.deactivateReason().name())
-                .orElseThrow(() -> new IllegalArgumentException("Deactivate reason not found: " + command.deactivateReason().name()));
+    public UserAccountStatusAudit toAuditEntity(EntraUser user, DeactivateUserReason deactivateUserReason, String actorId) {
+        DeactivateUserReasonLookup deactivateUserReasonLookup = deactivateUserReasonRepository.findByName(deactivateUserReason.name())
+                .orElseThrow(() -> new IllegalArgumentException("Deactivate reason not found: " + deactivateUserReason.name()));
         return UserAccountStatusAudit.builder()
                 .entraUserId(user.getId())
                 .userAccountStatus(UserAccountStatus.DEACTIVATED)
