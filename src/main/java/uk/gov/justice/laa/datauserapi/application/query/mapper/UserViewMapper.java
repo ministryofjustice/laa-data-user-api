@@ -97,7 +97,7 @@ public class UserViewMapper {
                 role.getName(),
                 role.getDescription(),
                 role.isAuthzRole(),
-                role.getCcmsCode(),
+                role.getRoleIdentifier(),
                 role.isLegacySync(),
                 role.getOrdinal(),
                 String.valueOf(mapUserTypeRestriction(role.getUserTypeRestriction())),
