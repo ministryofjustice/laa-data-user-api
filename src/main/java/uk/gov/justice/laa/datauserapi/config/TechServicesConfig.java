@@ -1,5 +1,6 @@
 package uk.gov.justice.laa.datauserapi.config;
 
+import com.azure.core.credential.TokenRequestContext;
 import com.azure.identity.ClientSecretCredential;
 import com.azure.identity.ClientSecretCredentialBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,12 +29,30 @@ import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.web.client.RestClient;
 import uk.gov.justice.laa.datauserapi.client.ts.DoNothingTechServicesClient;
+import uk.gov.justice.laa.datauserapi.client.ts.EntraUserClient;
 import uk.gov.justice.laa.datauserapi.client.ts.LiveTechServicesClient;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
+import uk.gov.justice.laa.datauserapi.client.ts.TechServicesEntraUserClient;
 
+import java.time.Duration;
 
 @Configuration
 public class TechServicesConfig {
+
+    @Bean
+    public EntraUserClient entraUserClient(ClientSecretCredential credential, RestClient restClient, ObjectMapper mapper,
+            @Value("${spring.security.tech.services.credentials.scope}") String scope,
+            @Value("${app.tech.services.laa.business.unit}") String businessUnit,
+            @Value("${app.tech.services.verification-method:activation_code_email}") String verificationMethod,
+            @Value("${app.laa.default.user.access.security.group:}") String defaultSecurityGroup,
+            @Value("${app.enable.tech.services.call:false}") boolean enabled,
+            @Value("${app.tech.services.req.read.timeout:30}") int timeoutSeconds) {
+        return new TechServicesEntraUserClient(restClient, mapper, () -> {
+            var token = credential.getToken(new TokenRequestContext().addScopes(scope))
+                    .timeout(Duration.ofSeconds(timeoutSeconds)).block();
+            return token == null ? null : token.getToken();
+        }, businessUnit, verificationMethod, defaultSecurityGroup, enabled);
+    }
 
     @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}")
     private String jwkSetUri;

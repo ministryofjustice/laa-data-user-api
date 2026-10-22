@@ -50,12 +50,19 @@ management:
         enabled: true
 
 app:
+  laa:
+    default:
+      user:
+        access:
+          security:
+            group: ${APP_DEFAULT_USER_ACC_SEC_GROUP:}
   enable:
     tech:
       services:
         call: ${TECH_SERVICES_CALLS_ENABLED:false}
   tech:
     services:
+      verification-method: ${TECH_SERVICES_VERIFICATION_METHOD:activation_code_email}
       laa:
         business:
           unit: ${TECH_SERVICES_LAA_BUSINESS_UNIT:laa}

@@ -20,12 +20,22 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import uk.gov.justice.laa.datauserapi.contracts.response.FieldErrorDetail;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ProblemDetail> handleMethodNotAllowed(
+            HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        ProblemDetail problem = new ProblemDetail(URI.create("about:blank"), "Method Not Allowed", 405,
+                "The HTTP method is not supported for this endpoint", URI.create(request.getRequestURI()), null);
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).headers(ex.getHeaders())
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON).body(problem);
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleNotFound(
