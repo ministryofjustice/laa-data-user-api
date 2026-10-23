@@ -178,7 +178,7 @@ paths:
         - $ref: '#/components/parameters/Size'
         - $ref: '#/components/parameters/Sort'
         - $ref: '#/components/parameters/UserType'
-        - $ref: '#/components/parameters/UserProfileStatus'
+        - $ref: '#/components/parameters/UserProfileSilasStatus'
         - $ref: '#/components/parameters/AppIdFilter'
         - $ref: '#/components/parameters/AppEntraClientIdFilter'
         - $ref: '#/components/parameters/AppRoleIdFilter'
@@ -339,6 +339,7 @@ paths:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
         - $ref: '#/components/parameters/FirmQuery'
+        - $ref: '#/components/parameters/FirmTypeFilter'
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
         - $ref: '#/components/parameters/Sort'
@@ -1529,6 +1530,12 @@ components:
       in: query
       schema:
         type: string
+    FirmTypeFilter:
+      name: firm_type
+      description: Filters results to only firms of the given type.
+      in: query
+      schema:
+        $ref: '#/components/schemas/FirmType'
     FirmId:
       name: firmId
       description: The firm number for each firm. This is numerical key and is shared with PDA.
@@ -1632,11 +1639,11 @@ components:
       in: query
       schema:
         $ref: '#/components/schemas/UserAccountStatus'
-    UserProfileStatus:
+    UserProfileSilasStatus:
       name: user_profile_status
       in: query
       schema:
-        $ref: '#/components/schemas/UserProfileStatus'
+        $ref: '#/components/schemas/UserProfileSilasStatus'
 
   responses:
     BadRequest:
@@ -1758,9 +1765,9 @@ components:
       type: string
       enum: ["ACTIVE", "DEACTIVATED", "ACTIVATION_REQUIRED"]
 
-    UserProfileStatus:
+    UserProfileSilasStatus:
       type: string
-      enum: ["COMPLETE", "NO_ROLES_ASSIGNED", "ACTIVATION_REQUIRED"]
+      enum: ["COMPLETE", "NO_ACCESS_ASSIGNED", "ACTIVATION_REQUIRED", "NO_FIRMS_LINKED", "UNKNOWN"]
 
     FirmType:
       type: string
@@ -1857,7 +1864,7 @@ components:
         accountStatus:
           $ref: '#/components/schemas/UserAccountStatus'
         profileStatus:
-          $ref: '#/components/schemas/UserProfileStatus'
+            $ref: '#/components/schemas/UserProfileSilasStatus'
         hasAppRoles:
           type: boolean
 
@@ -2080,7 +2087,7 @@ components:
           type: string
         authzRole:
           type: boolean
-        ccmsCode:
+        roleIdentifier:
           type: string
         legacySync:
           type: boolean
@@ -2655,8 +2662,10 @@ components:
           type: string
         description:
           type: string
-        ccmsCode:
+        roleIdentifier:
           type: string
+          minLength: 1
+          maxLength: 255
         legacySync:
           type: boolean
           default: false

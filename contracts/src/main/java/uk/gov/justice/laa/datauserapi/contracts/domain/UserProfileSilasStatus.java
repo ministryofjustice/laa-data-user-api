@@ -1,4 +1,4 @@
-package uk.gov.justice.laa.datauserapi.model;
+package uk.gov.justice.laa.datauserapi.contracts.domain;
 
 import lombok.Getter;
 
