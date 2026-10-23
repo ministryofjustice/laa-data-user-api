@@ -120,7 +120,7 @@ public class JwtToAuthenticatedEntraUserConverter implements Converter<Jwt, Abst
                 appRole.getId(),
                 appRole.getName(),
                 appRole.getOrdinal(),
-                appRole.getCcmsCode(),
+                appRole.getRoleIdentifier(),
                 appRole.isLegacySync(),
                 appRole.getFirmTypeRestriction(),
                 appRole.getUserTypeRestriction(),

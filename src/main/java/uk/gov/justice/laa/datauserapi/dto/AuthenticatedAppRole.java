@@ -12,7 +12,7 @@ public record AuthenticatedAppRole(
         UUID id,
         String name,
         int ordinal,
-        String ccmsCode,
+        String roleIdentifier,
         boolean legacySync,
         FirmType[] firmTypeRestriction,
         UserType[] userTypeRestriction,

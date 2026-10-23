@@ -10,6 +10,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.FirmSearchView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.FirmView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
@@ -47,13 +48,14 @@ public class FirmQueryService {
     public FirmViewPage listFirms(
             AuthenticatedEntraUser authenticatedUser,
             String firmQuery,
+            FirmType firmType,
             int pageNumber,
             int pageSize,
             String sortBy) {
         authorisationService.requireFirmDirectoryAccess(authenticatedUser);
         Pageable pageable = PageRequest.of(pageNumber, pageSize, toSort(sortBy));
         String term = firmQuery == null ? "" : firmQuery;
-        Page<FirmView> page = firmQueryRepository.search(term, pageable);
+        Page<FirmView> page = firmQueryRepository.search(term, firmType, pageable);
         PageMetadata pageMetadata = new PageMetadata(
                 page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages());
         return new FirmViewPage(page.getContent(), pageMetadata);

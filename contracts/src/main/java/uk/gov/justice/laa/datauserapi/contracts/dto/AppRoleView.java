@@ -11,7 +11,7 @@ public record AppRoleView(
         String name,
         String description,
         boolean authzRole,
-        String ccmsCode,
+        String roleIdentifier,
         boolean legacySync,
         Integer ordinal,
         String appRoleUserTypeRestriction,
