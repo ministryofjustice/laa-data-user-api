@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class UserProfileCommandControllerTest {
 
     private static final String ENDPOINT = "/api/v1/commands/user-profiles/refresh-silas-status";
-    private static final String ACTOR = UUID.randomUUID().toString();
+    private static final AuthenticatedEntraUser ACTOR = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("actor-oid").firstName("first").lastName("last").build();
 
     @Autowired
     private MockMvc mockMvc;
@@ -78,7 +78,7 @@ class UserProfileCommandControllerTest {
 
     private UsernamePasswordAuthenticationToken authenticated(String scope) {
         return new UsernamePasswordAuthenticationToken(
-                AuthenticatedEntraUser.builder().entraOid(ACTOR).build(), null,
+                ACTOR, null,
                 List.of(new SimpleGrantedAuthority("SCOPE_" + scope)));
     }
 }

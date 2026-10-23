@@ -26,6 +26,10 @@ spring:
   profiles:
     active: ${SPRING_PROFILE:local}
 
+  config:
+    import:
+      - classpath:ccms.conn.config.yaml
+
 azure:
   tenant-id: ${AZURE_TENANT_ID}
 
