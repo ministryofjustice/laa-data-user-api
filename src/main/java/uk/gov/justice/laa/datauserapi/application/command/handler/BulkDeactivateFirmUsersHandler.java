@@ -37,7 +37,7 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
             throw new ResourceNotFoundException("Firm not found with ID: " + firmCode);
         }
 
-        List<UUID> userIds = entraUserCommandRepository.findActiveSingleFirmUserIdsByFirmCode(
+        List<UUID> userIds = entraUserCommandRepository.findActiveUserIdsByFirmCode(
                 firmCode, UserAccountStatus.ACTIVE);
         int deactivated = 0;
         int failed = 0;

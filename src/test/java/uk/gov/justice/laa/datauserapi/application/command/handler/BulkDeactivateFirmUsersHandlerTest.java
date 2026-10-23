@@ -48,7 +48,7 @@ class BulkDeactivateFirmUsersHandlerTest {
     }
 
     @Test
-    void handle_deactivatesEachActiveSingleFirmUser() {
+    void handle_deactivatesEachActiveUserLinkedToFirm() {
         String firmId = "123456";
         UUID firstUserId = UUID.randomUUID();
         UUID secondUserId = UUID.randomUUID();
@@ -57,7 +57,7 @@ class BulkDeactivateFirmUsersHandlerTest {
                 new BulkDeactivateFirmUsersCommand(firmId, DeactivateUserReason.FirmClosureorMerger);
 
         when(firmCommandRepository.existsByCode(firmId)).thenReturn(true);
-        when(entraUserCommandRepository.findActiveSingleFirmUserIdsByFirmCode(firmId, UserAccountStatus.ACTIVE))
+        when(entraUserCommandRepository.findActiveUserIdsByFirmCode(firmId, UserAccountStatus.ACTIVE))
                 .thenReturn(List.of(firstUserId, secondUserId));
         when(deactivateUserHandler.handle(any(DeactivateUserCommand.class), eq(actorId)))
                 .thenReturn(CommandResult.success("done"), CommandResult.success("done"));
@@ -66,7 +66,7 @@ class BulkDeactivateFirmUsersHandlerTest {
 
         assertThat(result.success()).isTrue();
         assertThat(result.message()).contains("Deactivated 2 users");
-        verify(entraUserCommandRepository).findActiveSingleFirmUserIdsByFirmCode(firmId, UserAccountStatus.ACTIVE);
+        verify(entraUserCommandRepository).findActiveUserIdsByFirmCode(firmId, UserAccountStatus.ACTIVE);
         ArgumentCaptor<DeactivateUserCommand> commandCaptor = ArgumentCaptor.forClass(DeactivateUserCommand.class);
         verify(deactivateUserHandler, times(2)).handle(commandCaptor.capture(), eq(actorId));
         assertThat(commandCaptor.getAllValues())
@@ -83,7 +83,7 @@ class BulkDeactivateFirmUsersHandlerTest {
         BulkDeactivateFirmUsersCommand command =
                 new BulkDeactivateFirmUsersCommand(firmId, DeactivateUserReason.FirmClosureorMerger);
         when(firmCommandRepository.existsByCode(firmId)).thenReturn(true);
-        when(entraUserCommandRepository.findActiveSingleFirmUserIdsByFirmCode(firmId, UserAccountStatus.ACTIVE))
+        when(entraUserCommandRepository.findActiveUserIdsByFirmCode(firmId, UserAccountStatus.ACTIVE))
                 .thenReturn(List.of(userId));
         when(deactivateUserHandler.handle(any(DeactivateUserCommand.class), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(CommandResult.failure("not allowed"));
