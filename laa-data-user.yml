@@ -173,6 +173,7 @@ paths:
         app_id_filter and app_role_id_filter can be used to retrieve a set of users with access to a specified app or app role respectively.
         firm_id can be used to retrieve a set of users with access to a firm and office_id will limit to just a set LAA office account. These filters can be used in conjunction e.g. to get a set of users with the 'Billing approver' role for a set firm/office.
         This endpoint will only return user profile that the actor user included in the JWT has access to view.
+        Results can be sorted by `firstName` and/or `lastName` (e.g. `sort_by=lastName,asc&sort_by=firstName,asc`).
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
@@ -1834,7 +1835,7 @@ components:
     UserProfileSummaryView:
       type: object
       description: List/search projection for user_profile + entra_user
-      required: [ userProfileId, userType, email, fullName, accountStatus, profileStatus, hasAppRoles ]
+      required: [ userProfileId, userType, email, firstName, lastName, accountStatus, profileStatus, hasAppRoles ]
       properties:
         userProfileId:
           type: string
@@ -1846,7 +1847,9 @@ components:
         email:
           type: string
           format: email
-        fullName:
+        firstName:
+          type: string
+        lastName:
           type: string
         firmName:
           type: string
@@ -1887,7 +1890,7 @@ components:
     UserProfileDetailView:
       type: object
       description: Read model for user_profile + entra_user + app_roles + offices
-      required: [ userProfileId, userType, email, fullName, accountStatus, profileStatus, hasAppRoles ]
+      required: [ userProfileId, userType, email, firstName, lastName, accountStatus, profileStatus, hasAppRoles ]
       allOf:
         - $ref: '#/components/schemas/UserProfileSummaryView'
         - type: object
