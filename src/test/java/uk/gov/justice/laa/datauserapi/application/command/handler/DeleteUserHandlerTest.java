@@ -201,8 +201,8 @@ class DeleteUserHandlerTest {
     void clearsAssociationsNotifiesPuiRolesAndDeletesWhenTechServicesFails() {
         final AuthenticatedEntraUser actorUser = internalActor();
         App app = App.builder().entraOid("app-oid").build();
-        AppRole puiRole = AppRole.builder().ccmsCode("PUI_1").legacySync(true).app(app).build();
-        AppRole otherRole = AppRole.builder().ccmsCode("OTHER").legacySync(false).app(app).build();
+        AppRole puiRole = AppRole.builder().roleIdentifier("PUI_1").legacySync(true).app(app).build();
+        AppRole otherRole = AppRole.builder().roleIdentifier("OTHER").legacySync(false).app(app).build();
         UserProfile profile = UserProfile.builder()
                 .appRoles(new HashSet<>(Set.of(puiRole, otherRole)))
                 .offices(new HashSet<>(Set.of(Office.builder().build())))
@@ -318,7 +318,7 @@ class DeleteUserHandlerTest {
 
     @Test
     void ignoresLegacyRolesWhoseAppHasNoEntraOid() {
-        AppRole role = AppRole.builder().ccmsCode("R").legacySync(true).app(App.builder().build()).build();
+        AppRole role = AppRole.builder().roleIdentifier("R").legacySync(true).app(App.builder().build()).build();
         UserProfile profile = UserProfile.builder().appRoles(new HashSet<>(Set.of(role))).build();
         EntraUser user = EntraUser.builder().entraOid(targetId.toString()).build();
         stubUser(user);

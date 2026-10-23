@@ -24,6 +24,7 @@ public interface UserProfileCommandRepository extends JpaRepository<UserProfile,
                 AND ars.legacySync = true
             """)
     List<UserProfile> findUserProfilesForCcmsSync();
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM UserProfile p WHERE p.entraUser.id IN :userIds ORDER BY p.id")
     List<UserProfile> findRefreshProfilesForUpdate(@Param("userIds") List<UUID> userIds);
@@ -34,6 +35,7 @@ public interface UserProfileCommandRepository extends JpaRepository<UserProfile,
             WHERE up.entraUser = :entraUser
             """)
     List<UserProfile> findAllByEntraUser(EntraUser entraUser);
+
     @Query("SELECT DISTINCT p FROM UserProfile p LEFT JOIN FETCH p.appRoles WHERE p.entraUser.id IN :userIds")
     List<UserProfile> fetchRefreshProfileRoles(@Param("userIds") List<UUID> userIds);
 

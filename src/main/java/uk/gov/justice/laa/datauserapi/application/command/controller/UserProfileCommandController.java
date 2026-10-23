@@ -28,6 +28,6 @@ public class UserProfileCommandController {
     public ResponseEntity<CommandResult> refreshSilasStatus(
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
         log.info("Processing SiLAS status refresh requested by {}", authenticatedUser.entraOid());
-        return ResponseEntity.ok(refreshSilasStatusHandler.handle(new RefreshSilasStatusCommand(), authenticatedUser.entraOid()));
+        return ResponseEntity.ok(refreshSilasStatusHandler.handle(new RefreshSilasStatusCommand(), authenticatedUser));
     }
 }

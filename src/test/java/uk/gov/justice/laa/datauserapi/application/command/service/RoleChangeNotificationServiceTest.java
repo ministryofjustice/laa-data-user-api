@@ -152,7 +152,7 @@ class RoleChangeNotificationServiceTest {
     @Test
     void roleSyncMarksProfileSuccessfulAfterSending() {
         App app = App.builder().entraOid(APP).build();
-        AppRole role = AppRole.builder().ccmsCode("R").legacySync(true).app(app).build();
+        AppRole role = AppRole.builder().roleIdentifier("R").legacySync(true).app(app).build();
         profile.setAppRoles(new HashSet<>(Set.of(role)));
         when(repository.findUserProfilesForCcmsSync()).thenReturn(List.of(profile));
         when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
@@ -169,7 +169,7 @@ class RoleChangeNotificationServiceTest {
     @Test
     void roleSyncMarksProfileUnsuccessfulWhenSkipped() {
         App app = App.builder().entraOid(APP).build();
-        AppRole role = AppRole.builder().ccmsCode("R").legacySync(true).app(app).build();
+        AppRole role = AppRole.builder().roleIdentifier("R").legacySync(true).app(app).build();
         profile.setAppRoles(new HashSet<>(Set.of(role)));
         when(repository.findUserProfilesForCcmsSync()).thenReturn(List.of(profile));
         when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.empty());
@@ -191,8 +191,8 @@ class RoleChangeNotificationServiceTest {
 
     @Test
     void roleSyncWithMultipleAppsIsUnsuccessfulWhenAnyAppFails() {
-        AppRole good = AppRole.builder().ccmsCode("R1").legacySync(true).app(App.builder().entraOid(APP).build()).build();
-        AppRole bad = AppRole.builder().ccmsCode("R2").legacySync(true).app(App.builder().entraOid("other").build()).build();
+        AppRole good = AppRole.builder().roleIdentifier("R1").legacySync(true).app(App.builder().entraOid(APP).build()).build();
+        AppRole bad = AppRole.builder().roleIdentifier("R2").legacySync(true).app(App.builder().entraOid("other").build()).build();
         profile.setAppRoles(new HashSet<>(Set.of(good, bad)));
         when(repository.findUserProfilesForCcmsSync()).thenReturn(List.of(profile));
         when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));

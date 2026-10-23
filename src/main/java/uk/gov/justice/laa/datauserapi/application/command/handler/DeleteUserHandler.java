@@ -192,7 +192,7 @@ public class DeleteUserHandler implements CommandHandler<DeleteUserCommand> {
                 .filter(ar -> ar.getApp().getEntraOid() != null)
                 .collect(Collectors.groupingBy(role -> role.getApp().getEntraOid(),
                         Collectors.collectingAndThen(
-                                Collectors.mapping(AppRole::getCcmsCode, Collectors.toSet()),
+                                Collectors.mapping(AppRole::getRoleIdentifier, Collectors.toSet()),
                                 HashSet::new
                         )));
     }

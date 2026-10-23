@@ -22,7 +22,7 @@ CREATE TABLE app (
 CREATE TABLE app_role (
     id UUID PRIMARY KEY, name VARCHAR(255), description VARCHAR(255),
     ordinal INTEGER NOT NULL, app_id UUID REFERENCES app,
-    authz_role BOOLEAN NOT NULL, legacy_sync BOOLEAN NOT NULL, ccms_code VARCHAR(30),
+    authz_role BOOLEAN NOT NULL, legacy_sync BOOLEAN NOT NULL, role_identifier VARCHAR(30),
     firm_type_restriction TEXT[], user_type_restriction TEXT[]
 );
 CREATE TABLE role_permission (app_role_id UUID REFERENCES app_role, permission VARCHAR(255));
