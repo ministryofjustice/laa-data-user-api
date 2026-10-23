@@ -34,6 +34,8 @@ tags:
     description: Administration endpoints for the creation and management of SiLAS apps and roles, including defining which roles can assign which other roles (`app`, `app_role`, `role_assignment`)
   - name: User Account Security Audit & Management
     description: Endpoints to allow security users to view audit data and bulk deactivate users as required (`user_account_status_audit`, reason tables)
+  - name: Permissions & RBAC
+    description: Queries exposing the role-based access control permissions held by users (`role_permission`)
   - name: Admin Triggers
     description: Operational commands triggered by system administrators. Used by SiLAS team only.
 
@@ -63,6 +65,7 @@ paths:
         - $ref: '#/components/parameters/FirmQuery'
         - $ref: '#/components/parameters/FirmIdFilter'
         - $ref: '#/components/parameters/AppIdFilter'
+        - $ref: '#/components/parameters/AppEntraClientIdFilter'
         - $ref: '#/components/parameters/AppRoleIdFilter'
         - name: never_activated_filter
           in: query
@@ -111,6 +114,11 @@ paths:
       operationId: queryUserProfilesByEntraUser
       tags: [User Profiles]
       summary: List profiles for a SiLAS user account
+      description: |
+        Returns the profiles for the user that the authenticated caller is authorised to view.
+        If the user exists and is visible to the caller but has no profiles, return 200 with an
+        empty items array. Return 404 if the user does not exist or the caller is not authorised
+        to view the user.
       parameters:
         - $ref: '#/components/parameters/UserEntraObjectId'
       responses:
@@ -134,6 +142,10 @@ paths:
       operationId: queryActiveProfileByEntraUser
       tags: [User Profiles]
       summary: Get active profile for a SiLAS user account
+      description: |
+        Returns the user's active profile, including its roles and offices. Return 404 if the
+        user does not exist, the caller is not authorised to view the user, or the user has no
+        active profile.
       parameters:
         - $ref: '#/components/parameters/UserEntraObjectId'
       responses:
@@ -168,6 +180,7 @@ paths:
         - $ref: '#/components/parameters/UserType'
         - $ref: '#/components/parameters/UserProfileSilasStatus'
         - $ref: '#/components/parameters/AppIdFilter'
+        - $ref: '#/components/parameters/AppEntraClientIdFilter'
         - $ref: '#/components/parameters/AppRoleIdFilter'
         - $ref: '#/components/parameters/OfficeIdFilter'
         - $ref: '#/components/parameters/FirmIdFilter'
@@ -229,6 +242,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/UserProfileId'
         - $ref: '#/components/parameters/AppIdFilter'
+        - $ref: '#/components/parameters/AppEntraClientIdFilter'
       responses:
         '200':
           description: App roles
@@ -268,6 +282,30 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/queries/user-profiles/{userProfileId}/assignable-roles:
+    get:
+      operationId: queryUserProfileAssignableRoles
+      tags: [User Profiles]
+      summary: Get app roles the actor can assign to a user profile
+      description: Returns the app roles that the authenticated actor has permission to assign to the specified user profile, including each role's app.
+      parameters:
+        - $ref: '#/components/parameters/UserProfileId'
+      responses:
+        '200':
+          description: App roles the actor can assign to the user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppRoleViewList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/v1/queries/user-profiles/{userProfileId}/offices:
     get:
       operationId: queryUserProfileOffices
@@ -296,7 +334,7 @@ paths:
     get:
       operationId: queryFirms
       tags: [Provider Data]
-      summary: Get list of firms, with pagination and query field. Used for firm directory.
+      summary: Get list of firms, with pagination, sorting and query field. Used for firm directory.
       security: 
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
@@ -304,6 +342,7 @@ paths:
         - $ref: '#/components/parameters/FirmTypeFilter'
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
       responses:
         '200':
           description: Firm
@@ -426,7 +465,7 @@ paths:
     get:
       operationId: queryAppById
       tags: [Application & Role Management]
-      summary: Get app by ID (Application Client ID in Entra ID)
+      summary: Get app by internal SiLAS app ID
       parameters:
         - $ref: '#/components/parameters/AppId'
       responses:
@@ -512,6 +551,34 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  # --- Permissions & RBAC queries ---
+  /api/v1/queries/current-user/permissions:
+    get:
+      operationId: queryCurrentUserPermissions
+      tags: [Permissions & RBAC]
+      summary: Get permissions for the authenticated user
+      description: |
+        Returns the de-duplicated set of permissions granted to the authenticated actor (identified
+        from the JWT) via the app roles assigned to their active profile, sorted alphabetically.
+        For INTERNAL users, their single profile is treated as the active profile.
+        Requires a delegated user token; app-only tokens with no user identity return 403.
+        Return 404 if the actor has no SiLAS user account or no active profile.
+      security:
+        - entraIdOAuth: ["api://user-data/user_data.admin"]
+      responses:
+        '200':
+          description: Permissions held by the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserPermissionsView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
 
 
@@ -670,6 +737,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: A different user account already exists with the supplied email address
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '502':
           $ref: '#/components/responses/BadGateway'
         '503':
@@ -766,7 +839,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeleteUserResult'
+                $ref: '#/components/schemas/DeleteUserAccountResult'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -873,6 +946,14 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
   /api/v1/commands/user-profiles/assign-app-roles:
     post:
@@ -939,6 +1020,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
         '502':
           $ref: '#/components/responses/BadGateway'
         '503':
@@ -1021,6 +1104,7 @@ paths:
       operationId: commandUserProfileChangeFirm
       tags: [User Profiles]
       summary: Reassign profile to a different firm
+      description: A profile can be reassigned only when it has no app-role assignments. This operation updates local profile data only and does not call Tech Services or enqueue CCMS synchronization.
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
@@ -1045,7 +1129,11 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Conflict because the target firm already has a profile for the user, or the profile has app-role assignments.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 
   /api/v1/commands/user-profiles/delete:
     post:
@@ -1227,8 +1315,14 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: A role with the same name or role identifier already exists in the application.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 
   /api/v1/commands/app-roles/update:
     post:
@@ -1258,6 +1352,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: A role with the same name or role identifier already exists in the application, or the role identifier cannot be changed because legacySync=true.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 
   /api/v1/commands/app-roles/delete:
     post:
@@ -1382,6 +1482,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
 components:
   securitySchemes:
@@ -1451,7 +1557,7 @@ components:
         type: string
     AppId:
       name: appId
-      description: Identifier for the application. This uses the Entra client ID.
+      description: Internal SiLAS ID for the application.
       in: path
       required: true
       schema:
@@ -1466,7 +1572,14 @@ components:
         format: uuid
     AppIdFilter:
       name: app_id
-      description: Identifier for the application. This uses the Entra client ID. Used to filter user results to only show users with this app assigned.
+      description: Internal SiLAS ID for the application. Used to filter user results to only show users with this app assigned.
+      in: query
+      schema:
+        type: string
+        format: uuid
+    AppEntraClientIdFilter:
+      name: appEntraClientId
+      description: Entra ID client ID for the application. Used to filter user results to only show users with this app assigned.
       in: query
       schema:
         type: string
@@ -1911,9 +2024,10 @@ components:
     AppView:
       type: object
       description: Read model for app
-      required: [ appId, name, description, url, active, ordinal, appEntraObjectId ]
+      required: [ appId, name, description, url, active, ordinal, appEntraObjectId, appEntraClientId ]
       properties:
         appId:
+          description: Internal SiLAS ID for the application.
           type: string
           format: uuid
         name:
@@ -1927,6 +2041,10 @@ components:
         ordinal:
           type: integer
         appEntraObjectId:
+          type: string
+          format: uuid
+        appEntraClientId:
+          description: Entra ID client ID for the application.
           type: string
           format: uuid
 
@@ -1943,14 +2061,24 @@ components:
     AppRoleView:
       type: object
       description: Read model for app_role
-      required: [ appRoleId, appId, name, description, authzRole, roleIdentifier, legacySync, ordinal, appRoleUserTypeRestriction ]
+      required: [ appRoleId, appId, appEntraClientId, roleIdentifier, name, description, authzRole, legacySync, ordinal, appRoleUserTypeRestriction ]
       properties:
         appRoleId:
           type: string
           format: uuid
         appId:
+          description: Internal SiLAS ID for the application.
           type: string
           format: uuid
+        appEntraClientId:
+          description: Entra ID client ID for the application.
+          type: string
+          format: uuid
+        roleIdentifier:
+          description: Case-sensitive identifier shared between systems. Unique within the application.
+          type: string
+          minLength: 1
+          maxLength: 255
         appName:
           type: string
         name:
@@ -1983,10 +2111,24 @@ components:
           items:
             $ref: '#/components/schemas/AppRoleView'
 
+    CurrentUserPermissionsView:
+      type: object
+      description: Read model for the de-duplicated permissions held by the authenticated user's active profile (`role_permission`)
+      required: [ permissions ]
+      properties:
+        permissions:
+          type: array
+          uniqueItems: true
+          maxItems: 500
+          items:
+            type: string
+            minLength: 1
+            maxLength: 255
+
     RoleAssignmentRestrictionView:
       type: object
       description: Read model for role assignment restrictions
-      required: [ appRoleId, appRoleName, appId, appName, assigningAppRoleId, assigningAppRoleName ]
+      required: [ appRoleId, appRoleName, appId, appEntraClientId, appName, assigningAppRoleId, assigningAppRoleName ]
       properties:
         appRoleId:
           type: string
@@ -1994,6 +2136,11 @@ components:
         appRoleName:
           type: string
         appId:
+          description: Internal SiLAS ID for the application.
+          type: string
+          format: uuid
+        appEntraClientId:
+          description: Entra ID client ID for the application.
           type: string
           format: uuid
         appName:
@@ -2223,6 +2370,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/CommandResult'
         - type: object
+          required: [userProfileId]
           properties:
             userProfileId:
               type: string
@@ -2230,12 +2378,14 @@ components:
 
     AssignAppRolesCommand:
       type: object
+      description: Assign local SiLAS app-role IDs to a user profile.
       required: [userProfileId, appRoleIds]
       properties:
         userProfileId:
           type: string
           format: uuid
         appRoleIds:
+          description: Local SiLAS app-role IDs to assign.
           type: array
           maxItems: 500
           items:
@@ -2244,6 +2394,7 @@ components:
 
     RemoveAppRolesCommand:
       type: object
+      description: Remove the union of roles selected by appIds and appRoleIds. Both selectors may be supplied; omitting both or providing empty lists is a successful no-op.
       required: [userProfileId ]
       properties:
         userProfileId:
@@ -2252,24 +2403,25 @@ components:
         appIds:
           type: array
           maxItems: 100
-          description: Use to remove all roles for the specified applications.
+          description: SiLAS app IDs whose roles should be removed.
           items:
             type: string
             format: uuid
         appRoleIds:
           type: array
           maxItems: 500
-          description: Use to remove a set of roles across multiple apps
+          description: SiLAS app-role IDs to remove.
           items:
             type: string
             format: uuid
 
     AppRoleAssignment:
       type: object
-      description: A single app and the set of role IDs to apply for it
+      description: A single app, identified by its internal SiLAS app ID, and the complete set of local SiLAS role IDs to assign to it.
       required: [appId, appRoleIds]
       properties:
         appId:
+          description: SiLAS app ID for the application.
           type: string
           format: uuid
         appRoleIds:
@@ -2285,6 +2437,7 @@ components:
       required: [appId, ordinal]
       properties:
         appId:
+          description: SiLAS app ID for the application.
           type: string
           format: uuid
         ordinal:
@@ -2292,7 +2445,7 @@ components:
 
     AppRoleOrdinal:
       type: object
-      description: An app role and its display position
+      description: An app role and its zero-based display position within an application
       required: [appRoleId, ordinal]
       properties:
         appRoleId:
@@ -2300,9 +2453,11 @@ components:
           format: uuid
         ordinal:
           type: integer
+          minimum: 0
 
     UpdateAppRolesCommand:
       type: object
+      description: Replace role assignments for each listed app; omitted apps are unchanged. An empty role list clears that app, and an empty appsAndRoles list is a successful no-op.
       required: [userProfileId, appsAndRoles]
       properties:
         userProfileId:
@@ -2385,10 +2540,20 @@ components:
           type: string
           format: uuid
 
+    DeleteUserAccountResult:
+      allOf:
+        - $ref: '#/components/schemas/CommandResult'
+        - type: object
+          properties:
+            userEntraObjectId:
+              type: string
+              format: uuid
+
     DeleteUserResult:
       allOf:
         - $ref: '#/components/schemas/CommandResult'
         - type: object
+          required: [userEntraObjectId, userProfileId]
           properties:
             userEntraObjectId:
               type: string
@@ -2412,6 +2577,7 @@ components:
       required: [appId]
       properties:
         appId:
+          description: Internal SiLAS ID for the application.
           type: string
           format: uuid
         description:
@@ -2433,6 +2599,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/CommandResult'
         - type: object
+          required: [failedCount, failedApps]
           properties:
             syncedCount:
               type: integer
@@ -2441,6 +2608,31 @@ components:
               maxItems: 100
               items:
                 $ref: '#/components/schemas/AppView'
+            failedCount:
+              type: integer
+              description: Number of app records that failed to sync.
+            failedApps:
+              type: array
+              maxItems: 100
+              description: App records that failed to sync, with safe error details.
+              items:
+                $ref: '#/components/schemas/SyncAppFailure'
+
+    SyncAppFailure:
+      type: object
+      required: [appEntraObjectId, errorCode, detail]
+      properties:
+        appEntraObjectId:
+          description: Entra ID Object ID for the app, or null when it could not be determined.
+          type: string
+          format: uuid
+          nullable: true
+        errorCode:
+          description: Safe error code that does not expose internal exception details.
+          type: string
+        detail:
+          description: Safe explanation of why this app record failed to sync.
+          type: string
 
     TriggerCcmsRoleSyncResult:
       allOf:
@@ -2453,12 +2645,20 @@ components:
 
     CreateAppRoleCommand:
       type: object
-      required: [appId, name, description, roleIdentifier, appRoleUserTypeRestriction]
+      description: Create a role for an existing application, whether active or inactive. Role names and role identifiers must each be unique within the application. Role identifiers are case-sensitive. Roles created through this API have authzRole=false.
+      required: [appId, roleIdentifier, name, description, appRoleUserTypeRestriction]
       properties:
         appId:
+          description: Internal SiLAS ID of an existing application. The application may be inactive.
           type: string
           format: uuid
+        roleIdentifier:
+          description: Case-sensitive identifier shared between systems. Must be unique within the application.
+          type: string
+          minLength: 1
+          maxLength: 255
         name:
+          description: Human-readable label describing the role. Must be unique within the application.
           type: string
         description:
           type: string
@@ -2478,6 +2678,7 @@ components:
             $ref: '#/components/schemas/FirmType'
 
     CreateAppRoleResult:
+      description: Result of creating an app role. The created role has authzRole=false.
       allOf:
         - $ref: '#/components/schemas/CommandResult'
         - type: object
@@ -2488,19 +2689,28 @@ components:
 
     UpdateAppRoleCommand:
       type: object
+      description: Update the supplied roleIdentifier, name and/or description. Omitted fields remain unchanged; supplying only appRoleId is a successful no-op. Role identifiers may be changed only when legacySync=false. For legacy-synced roles, supplying the unchanged identifier is a successful no-op; changing it is rejected. Role restrictions are create-only and are not updated here.
       required: [appRoleId]
       properties:
         appRoleId:
           type: string
           format: uuid
+        roleIdentifier:
+          description: Case-sensitive identifier shared between systems. Must be unique within the application and may be changed only when legacySync=false.
+          type: string
+          minLength: 1
+          maxLength: 255
         name:
           type: string
+          minLength: 1
         description:
           type: string
+          minLength: 1
 
     DeleteAppRoleCommand:
       type: object
-      required: [appRoleId]
+      description: Deleting a role removes its profile assignments and role-assignment restriction entries that reference it.
+      required: [appRoleId, reason]
       properties:
         appRoleId:
           type: string
@@ -2510,9 +2720,11 @@ components:
 
     ReorderAppRolesCommand:
       type: object
+      description: Update ordinals for a subset of roles in an application. Omitted roles retain their ordinals; an empty list is a successful no-op. The resulting ordinals must be unique within the application. Invalid role IDs or ordinals reject the entire request without changes.
       required: [appId, appRoleOrdinals]
       properties:
         appId:
+          description: SiLAS app ID for the application.
           type: string
           format: uuid
         appRoleOrdinals:
