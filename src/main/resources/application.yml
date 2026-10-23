@@ -50,6 +50,8 @@ management:
         enabled: true
 
 app:
+  silas-status-refresh:
+    batch-size: ${SILAS_STATUS_REFRESH_BATCH_SIZE:500}
   enable:
     tech:
       services:

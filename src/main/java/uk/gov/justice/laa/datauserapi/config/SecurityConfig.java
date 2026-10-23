@@ -27,7 +27,7 @@ import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserC
 /**
  * Security configuration for laa-data-user-api.
  * Enforces stateless JWT Bearer authentication on all API endpoints.
- * Requires SCOPE_user_data.read or SCOPE_user_data.admin authority from JWT.
+ * Requires SCOPE_user_data.read, SCOPE_user_data.admin, or an endpoint-specific admin authority from JWT.
  * Actor identity is derived from the validated JWT {@code oid} claim — no Graph lookup.
  */
 @Configuration
@@ -57,6 +57,8 @@ public class SecurityConfig {
                             || new IpAddressMatcher("192.168.0.0/16").matches(context.getRequest());
                     return new AuthorizationDecision(allowed);
                 })
+                .requestMatchers("/api/v1/commands/user-profiles/refresh-silas-status")
+                    .hasAuthority("SCOPE_system.admin")
                 .requestMatchers("/api/v1/commands/**")
                     .hasAuthority("SCOPE_user_data.admin")
                 .requestMatchers("/api/v1/queries/firms/**")
