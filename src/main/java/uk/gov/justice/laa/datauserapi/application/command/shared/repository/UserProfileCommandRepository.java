@@ -18,10 +18,14 @@ public interface UserProfileCommandRepository extends JpaRepository<UserProfile,
     @Query("""
             SELECT ups FROM UserProfile ups
                         JOIN FETCH ups.entraUser eu
-                        JOIN FETCH ups.firm f
+                        LEFT JOIN FETCH ups.firm f
                         JOIN FETCH ups.appRoles ars
             WHERE ups.lastCcmsSyncSuccessful = false
-                AND ars.legacySync = true
+                 AND EXISTS (
+                     SELECT candidate.id FROM UserProfile candidate
+                     JOIN candidate.appRoles syncRole
+                     WHERE candidate.id = ups.id AND syncRole.legacySync = true
+                 )
             """)
     List<UserProfile> findUserProfilesForCcmsSync();
 

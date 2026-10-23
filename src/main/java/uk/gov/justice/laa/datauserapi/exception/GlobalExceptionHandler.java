@@ -58,7 +58,7 @@ public class GlobalExceptionHandler {
                 null
         );
 
-        return problemResponse(HttpStatus.NOT_FOUND, problem);
+        return problemResponse(HttpStatus.INTERNAL_SERVER_ERROR, problem);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
