@@ -12,13 +12,17 @@ import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeactivateUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeleteUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.ReactivateUserHandler;
+import uk.gov.justice.laa.datauserapi.application.command.controller.mapper.ConvertToMultiFirmCommandMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmultifirm.ConvertToMultiFirmCommand;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmultifirm.ConvertToMultiFirmHandler;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeleteUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.contracts.request.ConvertToMultiFirmRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.DeactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.DeleteUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.ReactivateUserRequest;
@@ -37,16 +41,22 @@ public class UserAccountCommandController implements CommandControllerSupport {
     private final DeactivateUserMapper deactivateUserMapper;
     private final DeleteUserHandler deleteUserHandler;
     private final DeleteUserMapper deleteUserMapper;
+    private final ConvertToMultiFirmHandler convertToMultiFirmHandler;
+    private final ConvertToMultiFirmCommandMapper convertToMultiFirmCommandMapper;
 
     public UserAccountCommandController(ReactivateUserHandler reactivateUserHandler, ReactivateUserMapper reactivateUserMapper,
                                         DeactivateUserHandler deactivateUserHandler, DeactivateUserMapper deactivateUserMapper,
-                                        DeleteUserHandler deleteUserHandler, DeleteUserMapper deleteUserMapper) {
+                                        DeleteUserHandler deleteUserHandler, DeleteUserMapper deleteUserMapper,
+                                        ConvertToMultiFirmHandler convertToMultiFirmHandler,
+                                        ConvertToMultiFirmCommandMapper convertToMultiFirmCommandMapper) {
         this.reactivateUserHandler = reactivateUserHandler;
         this.reactivateUserMapper = reactivateUserMapper;
         this.deactivateUserHandler = deactivateUserHandler;
         this.deactivateUserMapper = deactivateUserMapper;
         this.deleteUserHandler = deleteUserHandler;
         this.deleteUserMapper = deleteUserMapper;
+        this.convertToMultiFirmHandler = convertToMultiFirmHandler;
+        this.convertToMultiFirmCommandMapper = convertToMultiFirmCommandMapper;
     }
 
     @PostMapping("/users/reactivate")
@@ -81,6 +91,17 @@ public class UserAccountCommandController implements CommandControllerSupport {
         CommandResult result = deleteUserHandler.handle(deleteUserCommand, authenticatedUser);
         log.info("Delete user command for ID: {} by {} with reason: {} completed, success: {}",
                 deleteUserRequest.userEntraObjectId(), authenticatedUser.entraOid(), deleteUserRequest.deleteReason(), result.success());
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/users/convert-to-multi-firm")
+    public ResponseEntity<CommandResult> convertToMultiFirm(
+            @Valid @RequestBody ConvertToMultiFirmRequest request,
+            @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
+        log.info("Processing convert to multi-firm command for user: {}", request.userEntraObjectId());
+        ConvertToMultiFirmCommand command = convertToMultiFirmCommandMapper.toCommand(request);
+        CommandResult result = convertToMultiFirmHandler.handle(command, authenticatedUser);
+        log.info("User {} converted to multi-firm by {}", request.userEntraObjectId(), authenticatedUser.entraOid());
         return ResponseEntity.ok(result);
     }
 

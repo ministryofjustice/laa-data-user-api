@@ -44,6 +44,23 @@ public class GlobalExceptionHandler {
         return problemResponse(HttpStatus.NOT_FOUND, problem);
     }
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ProblemDetail> handleConflict(
+            ConflictException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/conflict"),
+                "Conflict",
+                HttpStatus.CONFLICT.value(),
+                ex.getMessage(),
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return problemResponse(HttpStatus.CONFLICT, problem);
+    }
+
     @ExceptionHandler(ReferenceDataNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleReferenceDataNotFound(
             ReferenceDataNotFoundException ex,

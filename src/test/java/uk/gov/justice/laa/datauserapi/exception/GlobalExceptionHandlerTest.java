@@ -51,6 +51,20 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void handleConflict_shouldReturn409WithProblemDetail() {
+        ConflictException ex = new ConflictException("User is already a multi-firm user");
+
+        ResponseEntity<ProblemDetail> response = handler.handleConflict(ex, request);
+
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals(409, response.getBody().status());
+        assertEquals("Conflict", response.getBody().title());
+        assertEquals("User is already a multi-firm user", response.getBody().detail());
+    }
+
+    @Test
     void handleScopeMissing_shouldReturn403WithProblemDetail() {
         ScopeMissingException ex = new ScopeMissingException("Missing user.read or user.admin scope");
 
