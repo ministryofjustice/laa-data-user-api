@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.UpdateUserProfileUnrestrictedOfficesCommand;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 
@@ -24,7 +25,7 @@ public class UpdateUserProfileUnrestrictedOfficesHandler
 
     @Override
     @Transactional
-    public CommandResult handle(UpdateUserProfileUnrestrictedOfficesCommand command, String actorOid) {
+    public CommandResult handle(UpdateUserProfileUnrestrictedOfficesCommand command, AuthenticatedEntraUser actor) {
         UserProfile userProfile = userProfileCommandRepository.findById(command.userProfileId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "User profile not found with ID: " + command.userProfileId()));
@@ -32,11 +33,11 @@ public class UpdateUserProfileUnrestrictedOfficesHandler
         userProfile.setUnrestrictedOfficeAccess(command.unrestrictedOfficeAccess());
         userProfile.getOffices().clear();
         userProfile.setLastModified(LocalDateTime.now());
-        userProfile.setLastModifiedBy(actorOid);
+        userProfile.setLastModifiedBy(String.valueOf(actor.id()));
         userProfileCommandRepository.save(userProfile);
 
         log.info("Updated unrestricted office access to {} for user profile {} by {}",
-                command.unrestrictedOfficeAccess(), command.userProfileId(), actorOid);
+                command.unrestrictedOfficeAccess(), command.userProfileId(), actor.entraOid());
         return CommandResult.success("Updated unrestricted office access for user profile " + command.userProfileId());
     }
 }

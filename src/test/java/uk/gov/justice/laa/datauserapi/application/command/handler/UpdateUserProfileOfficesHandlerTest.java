@@ -9,6 +9,7 @@ import uk.gov.justice.laa.datauserapi.application.command.shared.repository.Offi
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.UpdateUserProfileOfficesCommand;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.Office;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
@@ -52,16 +53,16 @@ class UpdateUserProfileOfficesHandlerTest {
         profile.setUnrestrictedOfficeAccess(true);
         when(userProfileCommandRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(officeCommandRepository.findAllById(Set.of(office.getId()))).thenReturn(List.of(office));
-        String actorOid = UUID.randomUUID().toString();
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("actorId").build();
 
         CommandResult result = handler.handle(
-                new UpdateUserProfileOfficesCommand(profileId, Set.of(office.getId())), actorOid);
+                new UpdateUserProfileOfficesCommand(profileId, Set.of(office.getId())), actor);
 
         assertThat(result.success()).isTrue();
         assertThat(profile.getOffices()).containsExactly(office);
         assertThat(profile.isUnrestrictedOfficeAccess()).isFalse();
         assertThat(profile.getLastModified()).isNotNull();
-        assertThat(profile.getLastModifiedBy()).isEqualTo(actorOid);
+        assertThat(profile.getLastModifiedBy()).isEqualTo(actor.id().toString());
         verify(userProfileCommandRepository).save(profile);
     }
 
@@ -74,8 +75,10 @@ class UpdateUserProfileOfficesHandlerTest {
         when(userProfileCommandRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(officeCommandRepository.findAllById(Set.of())).thenReturn(List.of());
 
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("actorId").build();
+
         CommandResult result = handler.handle(
-                new UpdateUserProfileOfficesCommand(profileId, Set.of()), "actor");
+                new UpdateUserProfileOfficesCommand(profileId, Set.of()), actor);
 
         assertThat(result.success()).isTrue();
         assertThat(profile.getOffices()).isEmpty();
@@ -87,8 +90,10 @@ class UpdateUserProfileOfficesHandlerTest {
         UUID profileId = UUID.randomUUID();
         when(userProfileCommandRepository.findById(profileId)).thenReturn(Optional.empty());
 
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("actorId").build();
+
         assertThatThrownBy(() -> handler.handle(
-                new UpdateUserProfileOfficesCommand(profileId, Set.of()), "actor"))
+                new UpdateUserProfileOfficesCommand(profileId, Set.of()), actor))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining(profileId.toString());
 
@@ -104,8 +109,9 @@ class UpdateUserProfileOfficesHandlerTest {
         when(userProfileCommandRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(officeCommandRepository.findAllById(Set.of(missingOfficeId))).thenReturn(List.of());
 
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("actorId").build();
         assertThatThrownBy(() -> handler.handle(
-                new UpdateUserProfileOfficesCommand(profileId, Set.of(missingOfficeId)), "actor"))
+                new UpdateUserProfileOfficesCommand(profileId, Set.of(missingOfficeId)), actor))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("offices were not found");
 
@@ -121,8 +127,10 @@ class UpdateUserProfileOfficesHandlerTest {
         when(userProfileCommandRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(officeCommandRepository.findAllById(Set.of(office.getId()))).thenReturn(List.of(office));
 
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("actorId").build();
+
         CommandResult result = handler.handle(
-                new UpdateUserProfileOfficesCommand(profileId, Set.of(office.getId())), "actor");
+                new UpdateUserProfileOfficesCommand(profileId, Set.of(office.getId())), actor);
 
         assertThat(result.success()).isFalse();
         assertThat(result.message()).contains("must belong to the user profile's firm");
@@ -138,8 +146,9 @@ class UpdateUserProfileOfficesHandlerTest {
         when(userProfileCommandRepository.findById(profileId)).thenReturn(Optional.of(profile));
         when(officeCommandRepository.findAllById(Set.of(office.getId()))).thenReturn(List.of(office));
 
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("actorId").build();
         CommandResult result = handler.handle(
-                new UpdateUserProfileOfficesCommand(profileId, Set.of(office.getId())), "actor");
+                new UpdateUserProfileOfficesCommand(profileId, Set.of(office.getId())), actor);
 
         assertThat(result.success()).isFalse();
         verify(userProfileCommandRepository, never()).save(org.mockito.ArgumentMatchers.any());

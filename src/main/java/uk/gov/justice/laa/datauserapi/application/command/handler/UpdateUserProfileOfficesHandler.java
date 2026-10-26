@@ -7,6 +7,7 @@ import uk.gov.justice.laa.datauserapi.application.command.shared.repository.Offi
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.UpdateUserProfileOfficesCommand;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Office;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
@@ -32,7 +33,7 @@ public class UpdateUserProfileOfficesHandler implements CommandHandler<UpdateUse
 
     @Override
     @Transactional
-    public CommandResult handle(UpdateUserProfileOfficesCommand command, String actorOid) {
+    public CommandResult handle(UpdateUserProfileOfficesCommand command, AuthenticatedEntraUser actor) {
         UserProfile userProfile = userProfileCommandRepository.findById(command.userProfileId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "User profile not found with ID: " + command.userProfileId()));
@@ -53,10 +54,10 @@ public class UpdateUserProfileOfficesHandler implements CommandHandler<UpdateUse
         userProfile.getOffices().addAll(offices);
         userProfile.setUnrestrictedOfficeAccess(false);
         userProfile.setLastModified(LocalDateTime.now());
-        userProfile.setLastModifiedBy(actorOid);
+        userProfile.setLastModifiedBy(String.valueOf(actor.id()));
         userProfileCommandRepository.save(userProfile);
 
-        log.info("Updated offices for user profile {} by {}", command.userProfileId(), actorOid);
+        log.info("Updated offices for user profile {} by {}", command.userProfileId(), actor.entraOid());
         return CommandResult.success("Updated offices for user profile " + command.userProfileId());
     }
 }

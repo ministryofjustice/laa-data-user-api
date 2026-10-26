@@ -8,6 +8,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.UpdateUserProfileUnrestrictedOfficesCommand;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Office;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
@@ -39,18 +40,19 @@ class UpdateUserProfileUnrestrictedOfficesHandlerTest {
     @Test
     void handle_enablesUnrestrictedAccessAndClearsAssignedOffices() {
         UUID profileId = UUID.randomUUID();
-        String actorOid = UUID.randomUUID().toString();
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("actorId").build();
+
         UserProfile profile = profile(profileId);
         when(userProfileCommandRepository.findById(profileId)).thenReturn(Optional.of(profile));
 
         CommandResult result = handler.handle(
-                new UpdateUserProfileUnrestrictedOfficesCommand(profileId, true), actorOid);
+                new UpdateUserProfileUnrestrictedOfficesCommand(profileId, true), actor);
 
         assertThat(result.success()).isTrue();
         assertThat(profile.isUnrestrictedOfficeAccess()).isTrue();
         assertThat(profile.getOffices()).isEmpty();
         assertThat(profile.getLastModified()).isNotNull();
-        assertThat(profile.getLastModifiedBy()).isEqualTo(actorOid);
+        assertThat(profile.getLastModifiedBy()).isEqualTo(actor.id().toString());
         verify(userProfileCommandRepository).save(profile);
     }
 
@@ -59,10 +61,11 @@ class UpdateUserProfileUnrestrictedOfficesHandlerTest {
         UUID profileId = UUID.randomUUID();
         UserProfile profile = profile(profileId);
         profile.setUnrestrictedOfficeAccess(true);
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("actorId").build();
         when(userProfileCommandRepository.findById(profileId)).thenReturn(Optional.of(profile));
 
         CommandResult result = handler.handle(
-                new UpdateUserProfileUnrestrictedOfficesCommand(profileId, false), "actor");
+                new UpdateUserProfileUnrestrictedOfficesCommand(profileId, false), actor);
 
         assertThat(result.success()).isTrue();
         assertThat(profile.isUnrestrictedOfficeAccess()).isFalse();
@@ -75,8 +78,10 @@ class UpdateUserProfileUnrestrictedOfficesHandlerTest {
         UUID profileId = UUID.randomUUID();
         when(userProfileCommandRepository.findById(profileId)).thenReturn(Optional.empty());
 
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("actorId").build();
+
         assertThatThrownBy(() -> handler.handle(
-                new UpdateUserProfileUnrestrictedOfficesCommand(profileId, true), "actor"))
+                new UpdateUserProfileUnrestrictedOfficesCommand(profileId, true), actor))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining(profileId.toString());
 
