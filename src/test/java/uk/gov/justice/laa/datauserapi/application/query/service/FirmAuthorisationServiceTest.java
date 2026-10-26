@@ -1,93 +1,86 @@
 package uk.gov.justice.laa.datauserapi.application.query.service;
 
 import java.util.Set;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import static org.mockito.Mockito.when;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 
 import uk.gov.justice.laa.datauserapi.application.query.dto.FirmSearchAccess;
-import uk.gov.justice.laa.datauserapi.application.query.shared.repository.FirmDirectoryActorQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 
-@ExtendWith(MockitoExtension.class)
 class FirmAuthorisationServiceTest {
-
-    @Mock
-    private FirmDirectoryActorQueryRepository actorQueryRepository;
 
     private FirmAuthorisationService authorisationService;
 
     @BeforeEach
     void setUp() {
-        authorisationService = new FirmAuthorisationService(actorQueryRepository);
+        authorisationService = new FirmAuthorisationService();
     }
 
     @Test
     void requireFirmDirectoryAccess_throws_whenUserIsExternal() {
-        UUID entraUserId = UUID.randomUUID();
-        when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.EXTERNAL));
-
-        assertThatThrownBy(() -> authorisationService.requireFirmDirectoryAccess(entraUserId))
-                .isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> authorisationService.requireFirmDirectoryAccess(user(UserType.EXTERNAL, null)))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("External users cannot access the firm directory");
     }
 
     @Test
     void requireFirmDirectoryAccess_throws_whenInternalUserLacksPermission() {
-        UUID entraUserId = UUID.randomUUID();
-        when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.INTERNAL));
-        when(actorQueryRepository.findActivePermissions(entraUserId.toString())).thenReturn(Set.of());
-
-        assertThatThrownBy(() -> authorisationService.requireFirmDirectoryAccess(entraUserId))
-                .isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> authorisationService.requireFirmDirectoryAccess(user(UserType.INTERNAL, null)))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("Missing VIEW_FIRM_DIRECTORY permission");
     }
 
     @Test
     void requireFirmDirectoryAccess_succeeds_whenInternalUserHasPermission() {
-        UUID entraUserId = UUID.randomUUID();
-        when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.INTERNAL));
-        when(actorQueryRepository.findActivePermissions(entraUserId.toString())).thenReturn(Set.of(Permission.VIEW_FIRM_DIRECTORY));
+        authorisationService.requireFirmDirectoryAccess(
+                user(UserType.INTERNAL, null, Permission.VIEW_FIRM_DIRECTORY));
+    }
 
-        authorisationService.requireFirmDirectoryAccess(entraUserId);
+    @Test
+    void requireFirmDirectoryAccess_throws_whenUserHasNoActiveProfile() {
+        assertThatThrownBy(() -> authorisationService.requireFirmDirectoryAccess(
+                AuthenticatedEntraUser.builder().build()))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("No active user profile found");
     }
 
     @Test
     void resolveSearchAccess_allowsAllFirms_forInternalUser() {
-        UUID entraUserId = UUID.randomUUID();
-        when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.INTERNAL));
-
-        FirmSearchAccess access = authorisationService.resolveSearchAccess(entraUserId);
+        FirmSearchAccess access = authorisationService.resolveSearchAccess(user(UserType.INTERNAL, null));
 
         assertThat(access).isEqualTo(new FirmSearchAccess(true, null));
     }
 
     @Test
     void resolveSearchAccess_restrictsToActiveFirm_forExternalUser() {
-        UUID entraUserId = UUID.randomUUID();
-        when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.EXTERNAL));
-        when(actorQueryRepository.findActiveFirmCode(entraUserId.toString())).thenReturn(java.util.Optional.of("123456"));
-
-        FirmSearchAccess access = authorisationService.resolveSearchAccess(entraUserId);
+        FirmSearchAccess access = authorisationService.resolveSearchAccess(user(UserType.EXTERNAL, "123456"));
 
         assertThat(access).isEqualTo(new FirmSearchAccess(false, "123456"));
     }
 
     @Test
     void resolveSearchAccess_deniesExternalUser_whenNoActiveFirm() {
-        UUID entraUserId = UUID.randomUUID();
-        when(actorQueryRepository.findActiveUserType(entraUserId.toString())).thenReturn(java.util.Optional.of(UserType.EXTERNAL));
-        when(actorQueryRepository.findActiveFirmCode(entraUserId.toString())).thenReturn(java.util.Optional.empty());
-
-        assertThatThrownBy(() -> authorisationService.resolveSearchAccess(entraUserId))
+        assertThatThrownBy(() -> authorisationService.resolveSearchAccess(user(UserType.EXTERNAL, null)))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessage("External user has no active firm");
+    }
+
+    private AuthenticatedEntraUser user(UserType userType, String firmCode, Permission... permissions) {
+        Set<Permission> grantedPermissions = Set.of(permissions);
+        Set<AuthenticatedAppRole> roles = grantedPermissions.isEmpty()
+                ? Set.of()
+                : Set.of(new AuthenticatedAppRole(
+                        null, null, 0, null, false, null, null, null, false, null, grantedPermissions));
+        AuthenticatedUserProfile profile = new AuthenticatedUserProfile(
+                null, true, userType, null, null, null, firmCode, null, null, false, false, Set.of(), roles);
+        return AuthenticatedEntraUser.builder().activeProfile(profile).build();
     }
 }

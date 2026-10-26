@@ -39,8 +39,7 @@ import java.util.UUID;
     @Index(name = "UserEntraOidIdx", columnList = "entra_oid"),
     @Index(name = "UserCreatedByIdx", columnList = "created_by"),
     @Index(name = "UserCreatedDateIdx", columnList = "created_date"),
-    @Index(name = "UserLastModifiedDateIdx", columnList = "last_modified_date"),
-    @Index(name = "UserLastModifiedByIdx", columnList = "last_modified_by"),
+    @Index(name = "UserLastModifiedDateIdx", columnList = "last_modified_date"), @Index(name = "UserLastModifiedByIdx", columnList = "last_modified_by"),
 })
 @Getter
 @Setter

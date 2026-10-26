@@ -1,8 +1,10 @@
+package uk.gov.justice.laa.datauserapi.contracts.dto;
+
 package uk.gov.justice.laa.datauserapi.contracts.response;
 
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileSilasStatus;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 
@@ -19,7 +21,7 @@ public record UserProfileDetailView(
         String firmId,
         boolean multiFirmUser,
         UserAccountStatus accountStatus,
-        UserProfileStatus profileStatus,
+        UserProfileSilasStatus profileStatus,
         boolean hasAppRoles,
         UUID userEntraObjectId,
         boolean unrestrictedOfficeAccess,

@@ -3,6 +3,9 @@ package uk.gov.justice.laa.datauserapi.application.query.mapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryView;
+import uk.gov.justice.laa.datauserapi.contracts.dto.UserView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserView;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
@@ -122,7 +125,7 @@ class UserViewMapperTest {
                 String.valueOf(AppRoleUserType.INTERNAL),
                 result.activeProfile()
                         .roles()
-                        .get(0)
+                        .getFirst()
                         .appRoleUserTypeRestriction());
     }
 
@@ -187,7 +190,7 @@ class UserViewMapperTest {
                 String.valueOf(AppRoleUserType.BOTH),
                 result.activeProfile()
                         .roles()
-                        .get(0)
+                        .getFirst()
                         .appRoleUserTypeRestriction());
     }
 
@@ -212,7 +215,7 @@ class UserViewMapperTest {
                 String.valueOf(AppRoleUserType.EXTERNAL),
                 result.activeProfile()
                         .roles()
-                        .get(0)
+                        .getFirst()
                         .appRoleUserTypeRestriction());
     }
 

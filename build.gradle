@@ -55,6 +55,7 @@ dependencies {
     implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    implementation 'org.springframework.retry:spring-retry:2.0.13'
     implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springDocVersion}"
     implementation 'com.fasterxml.jackson.core:jackson-annotations:2.22'
     implementation 'tools.jackson.dataformat:jackson-dataformat-csv:3.0.3'
@@ -66,6 +67,12 @@ dependencies {
     implementation 'com.azure:azure-identity'
     implementation 'org.modelmapper:modelmapper:3.2.6'
     implementation 'org.postgresql:postgresql'
+
+    implementation platform('software.amazon.awssdk:bom:2.56.0')
+
+    implementation 'software.amazon.awssdk:sqs'
+    implementation 'software.amazon.awssdk:ssm'
+    implementation 'software.amazon.awssdk:sts'
 
     implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
 
