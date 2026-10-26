@@ -49,7 +49,7 @@ class ConvertToMultiFirmHandlerTest {
     @Test
     void handle_setsMultiFirmFlagAndSaves() {
         EntraUser target = EntraUser.builder().entraOid(targetId.toString()).multiFirmUser(false).build();
-        when(repository.findByEntraOid(targetId.toString())).thenReturn(Optional.of(target));
+        when(repository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(target));
 
         CommandResult result = handler.handle(command,
                 actor(UserType.INTERNAL, true, Permission.EDIT_EXTERNAL_USER, Permission.CONVERT_USER_TO_MULTI_FIRM));
@@ -63,7 +63,7 @@ class ConvertToMultiFirmHandlerTest {
     @Test
     void handle_whenAlreadyMultiFirm_throwsConflictAndDoesNotSave() {
         EntraUser target = EntraUser.builder().entraOid(targetId.toString()).multiFirmUser(true).build();
-        when(repository.findByEntraOid(targetId.toString())).thenReturn(Optional.of(target));
+        when(repository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(target));
 
         assertThatThrownBy(() -> handler.handle(command,
                 actor(UserType.INTERNAL, true, Permission.EDIT_EXTERNAL_USER, Permission.CONVERT_USER_TO_MULTI_FIRM)))
@@ -74,7 +74,7 @@ class ConvertToMultiFirmHandlerTest {
 
     @Test
     void handle_whenTargetMissing_throwsNotFound() {
-        when(repository.findByEntraOid(targetId.toString())).thenReturn(Optional.empty());
+        when(repository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> handler.handle(command,
                 actor(UserType.INTERNAL, true, Permission.EDIT_EXTERNAL_USER, Permission.CONVERT_USER_TO_MULTI_FIRM)))
@@ -130,7 +130,7 @@ class ConvertToMultiFirmHandlerTest {
     @Test
     void handle_permissionsMaySpanMultipleRoles() {
         EntraUser target = EntraUser.builder().entraOid(targetId.toString()).multiFirmUser(false).build();
-        when(repository.findByEntraOid(targetId.toString())).thenReturn(Optional.of(target));
+        when(repository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(target));
         AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
                 .activeProfile(true)
                 .userType(UserType.INTERNAL)

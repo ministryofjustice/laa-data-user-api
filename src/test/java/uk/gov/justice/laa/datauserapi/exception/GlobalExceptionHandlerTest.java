@@ -14,6 +14,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.http.HttpInputMessage;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
@@ -62,6 +64,21 @@ class GlobalExceptionHandlerTest {
         assertEquals(409, response.getBody().status());
         assertEquals("Conflict", response.getBody().title());
         assertEquals("User is already a multi-firm user", response.getBody().detail());
+    }
+
+    @Test
+    void handleUnreadableBody_shouldReturn400WithProblemDetail() {
+        HttpMessageNotReadableException ex = new HttpMessageNotReadableException(
+                "JSON parse error", mock(HttpInputMessage.class));
+
+        ResponseEntity<ProblemDetail> response = handler.handleUnreadableBody(ex, request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals(400, response.getBody().status());
+        assertEquals("Validation Error", response.getBody().title());
+        assertEquals("The request body is missing or malformed.", response.getBody().detail());
     }
 
     @Test

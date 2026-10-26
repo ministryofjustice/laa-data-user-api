@@ -34,6 +34,10 @@ public interface EntraUserCommandRepository extends JpaRepository<EntraUser, UUI
 
     Optional<EntraUser> findByEntraOid(String entraOid);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM EntraUser u WHERE u.entraOid = :entraOid")
+    Optional<EntraUser> findByEntraOidForUpdate(@Param("entraOid") String entraOid);
+
     @Query("SELECT u.id FROM EntraUser u ORDER BY u.id")
     List<UUID> findRefreshUserIds(Pageable pageable);
 

@@ -39,7 +39,8 @@ public class ConvertToMultiFirmHandler implements CommandHandler<ConvertToMultiF
 
         requireAuthorisedActor(actor);
 
-        EntraUser user = entraUserCommandRepository.findByEntraOid(mapper.toEntraOid(command))
+        // Locks the row so concurrent conversions serialise and the loser sees the converted state
+        EntraUser user = entraUserCommandRepository.findByEntraOidForUpdate(mapper.toEntraOid(command))
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "User account not found for oid: " + command.userEntraObjectId()));
 
