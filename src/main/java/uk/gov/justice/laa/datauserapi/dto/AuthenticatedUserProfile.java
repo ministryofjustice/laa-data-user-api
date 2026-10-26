@@ -1,12 +1,14 @@
 package uk.gov.justice.laa.datauserapi.dto;
 
+import lombok.Builder;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
-import uk.gov.justice.laa.datauserapi.model.UserProfileSilasStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileSilasStatus;
 
 import java.util.Set;
 import java.util.UUID;
 
+@Builder
 public record AuthenticatedUserProfile(
 
     UUID id,

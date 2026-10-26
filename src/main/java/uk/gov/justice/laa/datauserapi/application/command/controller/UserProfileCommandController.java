@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import uk.gov.justice.laa.datauserapi.application.command.handler.RefreshSilasStatusHandler;
+import uk.gov.justice.laa.datauserapi.application.command.userprofile.RefreshSilasStatusCommand;
 import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserProfileOfficesHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserProfileUnrestrictedOfficesHandler;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.UpdateUserProfileOfficesMapper;
@@ -19,22 +21,27 @@ import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserProfileOffices
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
+import uk.gov.justice.laa.datauserapi.security.RequiresSystemAdminScope;
 
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/commands/user-profiles")
 @RequiresAdminScope
+@RequiresSystemAdminScope
 public class UserProfileCommandController {
 
     private final UpdateUserProfileOfficesHandler updateUserProfileOfficesHandler;
+    private final RefreshSilasStatusHandler refreshSilasStatusHandler;
     private final UpdateUserProfileOfficesMapper updateUserProfileOfficesMapper;
     private final UpdateUserProfileUnrestrictedOfficesHandler updateUserProfileUnrestrictedOfficesHandler;
 
     public UserProfileCommandController(
             UpdateUserProfileOfficesHandler updateUserProfileOfficesHandler,
+            RefreshSilasStatusHandler refreshSilasStatusHandler,
             UpdateUserProfileOfficesMapper updateUserProfileOfficesMapper,
             UpdateUserProfileUnrestrictedOfficesHandler updateUserProfileUnrestrictedOfficesHandler) {
         this.updateUserProfileOfficesHandler = updateUserProfileOfficesHandler;
+        this.refreshSilasStatusHandler = refreshSilasStatusHandler;
         this.updateUserProfileOfficesMapper = updateUserProfileOfficesMapper;
         this.updateUserProfileUnrestrictedOfficesHandler = updateUserProfileUnrestrictedOfficesHandler;
     }
@@ -57,5 +64,12 @@ public class UserProfileCommandController {
         UpdateUserProfileUnrestrictedOfficesCommand command = updateUserProfileOfficesMapper.toUpdateUserProfileUnrestrictedOfficesCommand(unrestrictedRequest);
         CommandResult result = updateUserProfileUnrestrictedOfficesHandler.handle(command, authenticatedUser.entraOid());
         return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/refresh-silas-status")
+    public ResponseEntity<CommandResult> refreshSilasStatus(
+            @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
+        log.info("Processing SiLAS status refresh requested by {}", authenticatedUser.entraOid());
+        return ResponseEntity.ok(refreshSilasStatusHandler.handle(new RefreshSilasStatusCommand(), authenticatedUser));
     }
 }

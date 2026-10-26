@@ -166,7 +166,7 @@ paths:
         - $ref: '#/components/parameters/Size'
         - $ref: '#/components/parameters/Sort'
         - $ref: '#/components/parameters/UserType'
-        - $ref: '#/components/parameters/UserProfileStatus'
+        - $ref: '#/components/parameters/UserProfileSilasStatus'
         - $ref: '#/components/parameters/AppIdFilter'
         - $ref: '#/components/parameters/AppRoleIdFilter'
         - $ref: '#/components/parameters/OfficeIdFilter'
@@ -1526,11 +1526,11 @@ components:
       in: query
       schema:
         $ref: '#/components/schemas/UserAccountStatus'
-    UserProfileStatus:
+    UserProfileSilasStatus:
       name: user_profile_status
       in: query
       schema:
-        $ref: '#/components/schemas/UserProfileStatus'
+        $ref: '#/components/schemas/UserProfileSilasStatus'
 
   responses:
     BadRequest:
@@ -1652,9 +1652,9 @@ components:
       type: string
       enum: ["ACTIVE", "DEACTIVATED", "ACTIVATION_REQUIRED"]
 
-    UserProfileStatus:
+    UserProfileSilasStatus:
       type: string
-      enum: ["COMPLETE", "NO_ROLES_ASSIGNED", "ACTIVATION_REQUIRED"]
+      enum: ["COMPLETE", "NO_ACCESS_ASSIGNED", "ACTIVATION_REQUIRED", "NO_FIRMS_LINKED", "UNKNOWN"]
 
     FirmType:
       type: string
@@ -1751,7 +1751,7 @@ components:
         accountStatus:
           $ref: '#/components/schemas/UserAccountStatus'
         profileStatus:
-          $ref: '#/components/schemas/UserProfileStatus'
+            $ref: '#/components/schemas/UserProfileSilasStatus'
         hasAppRoles:
           type: boolean
 

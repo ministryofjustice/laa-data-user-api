@@ -26,6 +26,10 @@ spring:
   profiles:
     active: ${SPRING_PROFILE:local}
 
+  config:
+    import:
+      - classpath:ccms.conn.config.yaml
+
 azure:
   tenant-id: ${AZURE_TENANT_ID}
 
@@ -50,6 +54,8 @@ management:
         enabled: true
 
 app:
+  silas-status-refresh:
+    batch-size: ${SILAS_STATUS_REFRESH_BATCH_SIZE:500}
   enable:
     tech:
       services:

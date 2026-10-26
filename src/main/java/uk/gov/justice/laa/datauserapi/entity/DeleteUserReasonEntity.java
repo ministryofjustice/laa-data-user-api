@@ -20,7 +20,7 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "delete_user_reason")
 @ToString(doNotUseGetters = true)
 @NoArgsConstructor(access = AccessLevel.PROTECTED, force = true)
-public class DeleteUserReason extends BaseEntity {
+public class DeleteUserReasonEntity extends BaseEntity {
 
     @Column(name = "code", nullable = false, length = 255, unique = true)
     @NotBlank(message = "Reason code must be provided")
