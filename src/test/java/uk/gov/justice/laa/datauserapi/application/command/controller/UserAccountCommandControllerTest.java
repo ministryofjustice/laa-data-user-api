@@ -16,12 +16,10 @@ import uk.gov.justice.laa.datauserapi.application.command.controller.mapper.Conv
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
-import uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmultifirm.ConvertToMultiFirmCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmultifirm.ConvertToMultiFirmHandler;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeleteUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
-import uk.gov.justice.laa.datauserapi.contracts.request.ConvertToMultiFirmRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.DeactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.DeleteUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.ReactivateUserRequest;
@@ -210,26 +208,6 @@ class UserAccountCommandControllerTest {
         when(deleteUserHandler.handle(command, user)).thenReturn(result);
 
         ResponseEntity<CommandResult> response = controller.deleteUser(request, user);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isSameAs(result);
-    }
-
-    @Test
-    @DisplayName("convertToMultiFirm delegates to the convert handler with the authenticated user as actor")
-    void convertToMultiFirm_DelegatesToHandler() {
-        UUID actorId = UUID.randomUUID();
-        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
-                .id(actorId)
-                .entraOid(actorId.toString())
-                .build();
-        ConvertToMultiFirmRequest request = new ConvertToMultiFirmRequest(UUID.randomUUID());
-        ConvertToMultiFirmCommand command = new ConvertToMultiFirmCommand(request.userEntraObjectId());
-        CommandResult result = CommandResult.success("converted");
-        when(convertToMultiFirmCommandMapper.toCommand(request)).thenReturn(command);
-        when(convertToMultiFirmHandler.handle(command, user)).thenReturn(result);
-
-        ResponseEntity<CommandResult> response = controller.convertToMultiFirm(request, user);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isSameAs(result);

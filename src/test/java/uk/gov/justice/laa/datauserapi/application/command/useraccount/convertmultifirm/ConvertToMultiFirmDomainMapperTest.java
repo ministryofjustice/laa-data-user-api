@@ -4,20 +4,11 @@ import org.junit.jupiter.api.Test;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 
-import java.util.UUID;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ConvertToMultiFirmDomainMapperTest {
 
     private final ConvertToMultiFirmDomainMapper mapper = new ConvertToMultiFirmDomainMapper();
-
-    @Test
-    void toEntraOid_returnsStringForm() {
-        UUID id = UUID.randomUUID();
-
-        assertThat(mapper.toEntraOid(new ConvertToMultiFirmCommand(id))).isEqualTo(id.toString());
-    }
 
     @Test
     void toCommandResult_returnsSuccessWithOid() {

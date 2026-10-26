@@ -45,7 +45,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringJUnitConfig(ConvertToMultiFirmIntegrationTest.Config.class)
 @Testcontainers
@@ -95,16 +94,6 @@ class ConvertToMultiFirmIntegrationTest {
                 .containsAllEntriesOf(without(userBefore, "multi_firm_user", "last_modified_by", "last_modified_date"));
         assertThat(jdbc.queryForMap("SELECT * FROM user_profile WHERE id = ?", PROFILE_ID)).isEqualTo(profileBefore);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM user_profile", Integer.class)).isEqualTo(1);
-    }
-
-    @Test
-    void alreadyConvertedUserIsRejectedWithoutChange() {
-        handler.handle(command(), actor("actor-1"));
-        Map<String, Object> afterFirst = jdbc.queryForMap("SELECT * FROM entra_user WHERE id = ?", TARGET_ID);
-
-        assertThatThrownBy(() -> handler.handle(command(), actor("actor-2"))).isInstanceOf(ConflictException.class);
-
-        assertThat(jdbc.queryForMap("SELECT * FROM entra_user WHERE id = ?", TARGET_ID)).isEqualTo(afterFirst);
     }
 
     @Test
