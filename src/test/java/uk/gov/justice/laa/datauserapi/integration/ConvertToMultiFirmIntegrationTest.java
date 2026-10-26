@@ -108,32 +108,91 @@ class ConvertToMultiFirmIntegrationTest {
     }
 
     @Test
-    void concurrentConversionsSerialiseAndOnlyFirstSucceeds() throws Exception {
+    void secondConversionBlocksUntilFirstCommitsThenIsRejected() throws Exception {
+        OverlappingConversions run = convertOverlapping(false);
+
+        assertThat(run.first().success()).isTrue();
+        assertThat(run.secondFailure()).isInstanceOf(ConflictException.class);
+        assertThat(jdbc.queryForMap("SELECT multi_firm_user, last_modified_by FROM entra_user WHERE id = ?", TARGET_ID))
+                .containsEntry("multi_firm_user", true)
+                .containsEntry("last_modified_by", "actor-1");
+    }
+
+    @Test
+    void secondConversionSucceedsWhenFirstRollsBack() throws Exception {
+        OverlappingConversions run = convertOverlapping(true);
+
+        assertThat(run.secondFailure()).isNull();
+        assertThat(run.second().success()).isTrue();
+        assertThat(jdbc.queryForMap("SELECT multi_firm_user, last_modified_by FROM entra_user WHERE id = ?", TARGET_ID))
+                .containsEntry("multi_firm_user", true)
+                .containsEntry("last_modified_by", "actor-2");
+    }
+
+    /**
+     * Holds the first transaction open until PostgreSQL reports another session waiting on a lock,
+     * which proves the second conversion genuinely overlapped the first before it is released.
+     */
+    private OverlappingConversions convertOverlapping(boolean rollbackFirst) throws Exception {
         CountDownLatch firstHandled = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
-            // The first transaction holds the row lock until after the second request has started
             Future<CommandResult> first = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
                 CommandResult result = handler.handle(command(), actor("actor-1"));
                 firstHandled.countDown();
-                sleep(1000);
+                awaitLatch(releaseFirst);
+                if (rollbackFirst) {
+                    status.setRollbackOnly();
+                }
                 return result;
             }));
             Future<CommandResult> second = executor.submit(() -> {
-                assertThat(firstHandled.await(10, TimeUnit.SECONDS)).isTrue();
+                awaitLatch(firstHandled);
                 return handler.handle(command(), actor("actor-2"));
             });
 
-            assertThat(first.get(30, TimeUnit.SECONDS).success()).isTrue();
-            assertThatThrownBy(() -> second.get(30, TimeUnit.SECONDS))
-                    .isInstanceOf(ExecutionException.class)
-                    .hasCauseInstanceOf(ConflictException.class);
+            try {
+                awaitSessionWaitingOnLock();
+            } finally {
+                releaseFirst.countDown();
+            }
+
+            CommandResult firstResult = first.get(30, TimeUnit.SECONDS);
+            try {
+                return new OverlappingConversions(firstResult, second.get(30, TimeUnit.SECONDS), null);
+            } catch (ExecutionException e) {
+                return new OverlappingConversions(firstResult, null, e.getCause());
+            }
         } finally {
             executor.shutdownNow();
         }
+    }
 
-        assertThat(jdbc.queryForObject("SELECT last_modified_by FROM entra_user WHERE id = ?", String.class, TARGET_ID))
-                .isEqualTo("actor-1");
+    private void awaitSessionWaitingOnLock() throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            Integer waiting = jdbc.queryForObject(
+                    "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND pid <> pg_backend_pid()",
+                    Integer.class);
+            if (waiting != null && waiting > 0) {
+                return;
+            }
+            Thread.sleep(25);
+        }
+        throw new AssertionError("The second conversion never waited on the first transaction's row lock");
+    }
+
+    private static void awaitLatch(CountDownLatch latch) {
+        try {
+            assertThat(latch.await(15, TimeUnit.SECONDS)).isTrue();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private record OverlappingConversions(CommandResult first, CommandResult second, Throwable secondFailure) {
     }
 
     private static Map<String, Object> without(Map<String, Object> row, String... columns) {
@@ -142,14 +201,6 @@ class ConvertToMultiFirmIntegrationTest {
             copy.remove(column);
         }
         return copy;
-    }
-
-    private static void sleep(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     private static ConvertToMultiFirmCommand command() {
