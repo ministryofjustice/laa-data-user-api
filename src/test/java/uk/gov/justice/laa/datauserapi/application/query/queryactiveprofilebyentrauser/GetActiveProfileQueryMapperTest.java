@@ -2,7 +2,7 @@ package uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyent
 
 import org.junit.jupiter.api.Test;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileSilasStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
@@ -47,7 +47,7 @@ class GetActiveProfileQueryMapperTest {
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
 
         assertThat(result.accountStatus()).isEqualTo(UserAccountStatus.ACTIVE);
-        assertThat(result.profileStatus()).isEqualTo(UserProfileStatus.COMPLETE);
+        assertThat(result.profileStatus()).isEqualTo(UserProfileSilasStatus.COMPLETE);
     }
 
     @Test
@@ -221,7 +221,7 @@ class GetActiveProfileQueryMapperTest {
         when(profile.isActiveProfile()).thenReturn(true);
         when(profile.getUserType()).thenReturn(UserType.INTERNAL);
         when(profile.getEntraUser()).thenReturn(user);
-        when(profile.getUserProfileStatus()).thenReturn(UserProfileStatus.COMPLETE);
+        when(profile.getSilasStatus()).thenReturn(UserProfileSilasStatus.COMPLETE);
         when(profile.getAppRoles()).thenReturn(new HashSet<>());
         when(profile.getOffices()).thenReturn(new HashSet<>());
         when(profile.getFirm()).thenReturn(null);
@@ -250,7 +250,6 @@ class GetActiveProfileQueryMapperTest {
         when(role.getName()).thenReturn(name);
         when(role.getDescription()).thenReturn(name + " Role");
         when(role.isAuthzRole()).thenReturn(true);
-        when(role.getCcmsCode()).thenReturn(ccmsCode);
         when(role.isLegacySync()).thenReturn(false);
         when(role.getOrdinal()).thenReturn(1);
         when(role.getUserTypeRestriction()).thenReturn(null);

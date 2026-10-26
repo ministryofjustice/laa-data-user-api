@@ -38,7 +38,7 @@ public class GetActiveProfileQueryMapper {
                 activeProfile.getFirm() != null ? activeProfile.getFirm().getId().toString() : "",
                 user.isMultiFirmUser(),
                 user.getUserAccountStatus(),
-                activeProfile.getUserProfileStatus(),
+                activeProfile.getSilasStatus(),
                 !roles.isEmpty(),
                 UUID.fromString(user.getEntraOid()),
                 activeProfile.isUnrestrictedOfficeAccess(),
@@ -75,7 +75,7 @@ public class GetActiveProfileQueryMapper {
                 role.getName(),
                 role.getDescription(),
                 role.isAuthzRole(),
-                role.getCcmsCode(),
+                role.getRoleIdentifier(),
                 role.isLegacySync(),
                 role.getOrdinal(),
                 role.getUserTypeRestriction() == null || Arrays.stream(role.getUserTypeRestriction()).distinct().count() != 1

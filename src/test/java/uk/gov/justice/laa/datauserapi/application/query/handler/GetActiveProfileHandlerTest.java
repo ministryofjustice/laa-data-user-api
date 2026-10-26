@@ -216,7 +216,6 @@ class GetActiveProfileHandlerTest {
                 .name("Test Role")
                 .description("Test Role Description")
                 .ordinal(1)
-                .ccmsCode("TEST")
                 .legacySync(false)
                 .authzRole(false)
                 .app(app)
