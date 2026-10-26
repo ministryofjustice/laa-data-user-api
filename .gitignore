@@ -31,3 +31,6 @@ out/
 
 # Generated at deploy time from values-secrets.template.yaml; contains real secret values
 deployment/helm/laa-data-user-api/values-secrets.generated.yaml
+
+# Local env file
+.env

@@ -1,7 +1,9 @@
 package uk.gov.justice.laa.datauserapi.contracts.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Builder;
 
+@Builder
 public record PageMetadata(
         @JsonProperty("page_number")
         int pageNumber,

@@ -20,6 +20,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import uk.gov.justice.laa.datauserapi.contracts.response.FieldErrorDetail;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 
@@ -27,7 +28,7 @@ import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(ResourceNotFoundException.class)
+    @ExceptionHandler(value = {ResourceNotFoundException.class, NoResourceFoundException.class})
     public ResponseEntity<ProblemDetail> handleNotFound(
             ResourceNotFoundException ex,
             HttpServletRequest request) {
@@ -174,6 +175,24 @@ public class GlobalExceptionHandler {
         String path = violation.getPropertyPath().toString();
         String field = path.contains(".") ? path.substring(path.lastIndexOf('.') + 1) : path;
         return new FieldErrorDetail(field, violation.getMessage());
+    }
+
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ProblemDetail> handleBadRequest(
+            BadRequestException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/validation-error"),
+                "Validation Error",
+                HttpStatus.BAD_REQUEST.value(),
+                ex.getMessage(),
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
