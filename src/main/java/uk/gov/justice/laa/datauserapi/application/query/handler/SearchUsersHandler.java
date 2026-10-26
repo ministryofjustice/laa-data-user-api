@@ -8,8 +8,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryPage;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserAccountSummaryView;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
@@ -63,9 +63,9 @@ public class SearchUsersHandler {
 
         UserSearchCriteria enrichedCriteria = new UserSearchCriteria(criteria.pageNumber(), criteria.pageSize(),
                 criteria.sortBy(), criteria.user(), criteria.firm(), criteria.firmId(), criteria.appId(),
-                criteria.appRoleId(), criteria.userType(), criteria.userAccountStatus(), criteria.neverActivatedFilter(),
-                actorProfile.getUserType() == UserType.INTERNAL, actorProfile.getUserType() == UserType.EXTERNAL,
-                actorFirmId, canViewExternalUsers);
+                criteria.appEntraClientId(), criteria.appRoleId(), criteria.userType(), criteria.userAccountStatus(), 
+                criteria.neverActivatedFilter(), actorProfile.getUserType() == UserType.INTERNAL, 
+                actorProfile.getUserType() == UserType.EXTERNAL, actorFirmId, canViewExternalUsers);
 
         int pageNumber = enrichedCriteria.pageNumber() == null ? 0 : enrichedCriteria.pageNumber();
         int pageSize = enrichedCriteria.pageSize() == null ? 20 : enrichedCriteria.pageSize();

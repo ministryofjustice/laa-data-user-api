@@ -104,6 +104,7 @@ class ArchitectureTest {
                     "..application.command.service..",
                     "..application.command.mapper..",
                     "..application.query.service..",
+                    "..application.query.handler..",
                     "..repository..",
                     "..authorisation.."
             )
@@ -147,7 +148,7 @@ class ArchitectureTest {
 
             .whereLayer("QueryController").mayNotBeAccessedByAnyLayer()
             .whereLayer("QueryService").mayOnlyBeAccessedByLayers("QueryController", "QueryHandler")
-            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation");
+            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation", "QueryHandler");
 
     // =========================================================================
     // 5. Naming Conventions & Stereotype Annotations

@@ -21,6 +21,7 @@ public record UserSearchCriteria(
         String firm,
         UUID firmId,
         UUID appId,
+        String appEntraClientId,
         UUID appRoleId,
         String userType,
         UserAccountStatus userAccountStatus,

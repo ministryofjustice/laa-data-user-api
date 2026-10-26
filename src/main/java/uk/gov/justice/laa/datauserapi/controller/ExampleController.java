@@ -8,10 +8,12 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailResponse;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -28,7 +30,7 @@ public class ExampleController {
      * Returns the caller's profile derived from the validated JWT {@code oid} claim.
      */
     @GetMapping("/me")
-    public ResponseEntity<UserProfileDetailResponse> me(@AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
+    public ResponseEntity<UserProfileDetailView> me(@AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
         String oid = authenticatedUser.entraOid();
         if (oid == null || oid.isBlank()) {
             return ResponseEntity.unprocessableContent().build();
@@ -38,20 +40,25 @@ public class ExampleController {
         log.info("[/me] request",
                 kv("oid", oid),
                 kv("email", email));
-        UserProfileDetailResponse response = new UserProfileDetailResponse(
+
+        UserProfileDetailView view = new UserProfileDetailView(
                 UUID.randomUUID(),
-                oid,
-                "EXTERNAL",
+                false,
+                UserType.EXTERNAL,
                 email != null ? email : "",
-                name != null ? name : "",
+                name != null ? name : "fullName",
+                "firmName",
+                "firmId",
+                false,
                 null,
                 null,
-                "ACTIVE",
-                "ACTIVE",
                 false,
+                UUID.fromString(oid),
                 false,
-                false
+                true,
+                List.of(),
+                List.of()
         );
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(view);
     }
 }
