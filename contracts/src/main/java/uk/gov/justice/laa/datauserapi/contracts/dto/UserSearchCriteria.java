@@ -19,6 +19,7 @@ public record UserSearchCriteria(
 
         List<String> sort_by,
         String user,
+        String email_query,
         String firm,
         UUID firm_id,
         UUID app_id,

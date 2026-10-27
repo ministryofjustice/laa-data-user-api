@@ -62,7 +62,7 @@ public class SearchUsersHandler {
                 ? (actorProfile.getFirm() == null ? null : actorProfile.getFirm().getId()) : null;
 
         UserSearchCriteria enrichedCriteria = new UserSearchCriteria(criteria.page_number(), criteria.page_size(),
-                criteria.sort_by(), criteria.user(), criteria.firm(), criteria.firm_id(), criteria.app_id(),
+                criteria.sort_by(), criteria.user(), criteria.email_query(), criteria.firm(), criteria.firm_id(), criteria.app_id(),
                 criteria.app_entra_client_id(), criteria.app_role_id(), criteria.user_type(), criteria.user_account_status(),
                 criteria.never_activated_filter(), actorProfile.getUserType() == UserType.INTERNAL,
                 actorProfile.getUserType() == UserType.EXTERNAL, actorFirmId, canViewExternalUsers);

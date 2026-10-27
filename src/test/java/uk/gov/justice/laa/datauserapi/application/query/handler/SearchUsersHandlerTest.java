@@ -195,7 +195,7 @@ class SearchUsersHandlerTest {
 
         UserSearchCriteria criteria = new UserSearchCriteria(
                 0, 500, null,
-                null, null, null,
+                null, null, null, null,
                 null, null, null, null,
                 null, false, false, null, null, false
         );
@@ -220,7 +220,7 @@ class SearchUsersHandlerTest {
 
     private UserSearchCriteria criteria() {
         UserSearchCriteria criteria = new UserSearchCriteria(
-                null, null, null,
+                null, null, null, null,
                 null, null, null,
                 null, null, null, null,
                 null, false, false, null, null, false
