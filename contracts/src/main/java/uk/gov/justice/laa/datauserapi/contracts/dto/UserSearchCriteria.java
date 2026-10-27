@@ -11,25 +11,24 @@ import java.util.UUID;
 
 public record UserSearchCriteria(
         @Min(value = 0, message = "page_number must be >= 0")
-        Integer pageNumber,
+        Integer page_number,
 
         @Min(value = 1, message = "page_size must be >= 1")
         @Max(value = 100, message = "page_size must be <= 100")
-        Integer pageSize,
+        Integer page_size,
 
-        List<String> sortBy,
+        List<String> sort_by,
         String user,
         String firm,
-        UUID firmId,
-        UUID appId,
-        String appEntraClientId,
-        UUID appRoleId,
-        UserType userType,
-        UserAccountStatus userAccountStatus,
-        Boolean neverActivatedFilter,
+        UUID firm_id,
+        UUID app_id,
+        String app_entra_client_id,
+        UUID app_role_id,
+        UserType user_type,
+        UserAccountStatus user_account_status,
+        Boolean never_activated_filter,
         Boolean actorInternal,
         Boolean actorExternal,
         UUID actorFirmId,
         Boolean canViewExternalUsers
-) {
-}
+) {}
