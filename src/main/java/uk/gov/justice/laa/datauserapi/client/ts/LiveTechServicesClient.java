@@ -20,9 +20,11 @@ import org.springframework.web.client.RestClient;
 import uk.gov.justice.laa.datauserapi.client.ts.request.ChangeAccountReactivationRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateUserDetailsRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
+import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateSecurityGroupsRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorResponse;
+import uk.gov.justice.laa.datauserapi.client.ts.response.UpdateSecurityGroupsResponse;
 import uk.gov.justice.laa.datauserapi.config.CachingConfig;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
@@ -30,6 +32,7 @@ import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -176,6 +179,57 @@ public class LiveTechServicesClient implements TechServicesClient {
             log.error("Error while sending deactivate user request to Tech Services.", ex);
             throw new TechServicesClientException("Error while sending deactivate user request to Tech Services.", ex);
         }
+    }
+
+    @Override
+    public void deleteRoleAssignment(EntraUserDto entraUser) {
+        try {
+            UpdateSecurityGroupsRequest request = UpdateSecurityGroupsRequest
+                    .builder()
+                    .groups(Collections.emptySet())
+                    .build();
+
+            String uri = String.format(TECH_SERVICES_UPDATE_USER_GRP_ENDPOINT, laaBusinessUnit, entraUser.getEntraOid());
+
+            log.info("TechServices DELETE groups: userId={}, entraOid={}, uri={}", entraUser.getId(), entraUser.getEntraOid(), uri);
+            log.info("Sending request to tech services to remove group memberships for deleting: {}", request);
+
+            String accessToken = getAccessToken();
+            ResponseEntity<UpdateSecurityGroupsResponse> response = restClient
+                    .patch()
+                    .uri(uri)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .toEntity(UpdateSecurityGroupsResponse.class);
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                UpdateSecurityGroupsResponse responseBody = response.getBody();
+                assert responseBody != null;
+                log.info("Security Groups removed successfully for user: {} with entra oid: {} with security groups removed {}",
+                        entraUser.getId(), entraUser.getEntraOid(), responseBody.getGroupsRemoved());
+            } else {
+                log.error("Failed to remove security groups for user: {} with entra oid: {} with error code {}", entraUser.getId(), entraUser.getEntraOid(), response.getStatusCode());
+                throw new TechServicesClientException("Failed to remove security groups for user: " + entraUser.getId() + " with entra oid: " + entraUser.getEntraOid()
+                        + " with error code " + response.getStatusCode());
+            }
+        } catch (HttpClientErrorException | HttpServerErrorException httpEx) {
+            String errorJson = httpEx.getResponseBodyAsString();
+            // Do not throw error for 404, user may already be deleted in entra
+            if (httpEx.getStatusCode() == HttpStatus.NOT_FOUND) {
+                log.warn("Tech Services DELETE groups returned 404 Not Found for userId={}, entraOid={}. User will be deleted from Silas db. Body={}",
+                        entraUser.getId(), entraUser.getEntraOid(), errorJson);
+                return;
+            }
+            log.error("Tech Services DELETE groups failed for userId={}, entraOid={}, status={}, body={}",
+                    entraUser.getId(), entraUser.getEntraOid(), httpEx.getStatusCode(), errorJson, httpEx);
+            throw new TechServicesClientException("Error while sending security group removal to Tech Services: " + httpEx.getStatusCode(), httpEx);
+        } catch (Exception ex) {
+            log.error("Error while sending security group removal to Tech Services.", ex);
+            throw new TechServicesClientException("Error while sending security group removal to Tech Services.", ex);
+        }
+
     }
 
     private String getAccessToken() {

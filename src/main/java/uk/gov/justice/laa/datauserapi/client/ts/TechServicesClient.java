@@ -13,4 +13,5 @@ public interface TechServicesClient {
 
     TechServicesApiResponse<ChangeAccountEnabledResponse> updateUserDetails(String entraOid, String firstName, String lastName, String email);
 
+    void deleteRoleAssignment(EntraUserDto entraUser);
 }

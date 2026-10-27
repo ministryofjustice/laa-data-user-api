@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandler;
 import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
+import uk.gov.justice.laa.datauserapi.security.RequiresSystemAdminScope;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
@@ -103,6 +104,7 @@ class ArchitectureTest {
                     "..application.command.service..",
                     "..application.command.mapper..",
                     "..application.query.service..",
+                    "..application.query.handler..",
                     "..repository..",
                     "..authorisation.."
             )
@@ -146,7 +148,7 @@ class ArchitectureTest {
 
             .whereLayer("QueryController").mayNotBeAccessedByAnyLayer()
             .whereLayer("QueryService").mayOnlyBeAccessedByLayers("QueryController", "QueryHandler")
-            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation");
+            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation", "QueryHandler");
 
     // =========================================================================
     // 5. Naming Conventions & Stereotype Annotations
@@ -221,7 +223,8 @@ class ArchitectureTest {
             .and().areAnnotatedWith(RestController.class)
             .should().beAnnotatedWith(RequiresAdminScope.class)
             .orShould().beMetaAnnotatedWith(RequiresAdminScope.class)
-            .because("Command endpoints mutate state and must be restricted to the user_data.admin scope");
+            .orShould().beAnnotatedWith(RequiresSystemAdminScope.class)
+            .because("Command endpoints mutate state and must require the user_data.admin or system.admin scope");
 
     @ArchTest
     static final ArchRule query_controllers_must_require_read_scope = classes()

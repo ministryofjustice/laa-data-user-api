@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.DeactivateUserReasonRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.contracts.request.DeactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.entity.DeactivateUserReasonLookup;
@@ -29,7 +29,7 @@ public class DeactivateUserMapper {
                 .orElseThrow(() -> new IllegalArgumentException("Deactivate reason not found: " + deactivateUserReason.name()));
         return UserAccountStatusAudit.builder()
                 .entraUserId(user.getId())
-                .userAccountStatus(UserAccountStatus.DEACTIVATED)
+                .userAccountAuditStatus(UserAccountAuditStatus.DEACTIVATED)
                 .statusChangedBy(actorId)
                 .statusChangedDate(LocalDateTime.now())
                 .deactivateUserReasonLookup(deactivateUserReasonLookup)

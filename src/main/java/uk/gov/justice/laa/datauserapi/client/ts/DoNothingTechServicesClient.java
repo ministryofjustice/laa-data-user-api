@@ -30,4 +30,9 @@ public class DoNothingTechServicesClient implements TechServicesClient {
                 .message("Successfully Update user details.")
                 .build());
     }
+    @Override
+    public void deleteRoleAssignment(EntraUserDto entraUser) {
+
+    }
+
 }
