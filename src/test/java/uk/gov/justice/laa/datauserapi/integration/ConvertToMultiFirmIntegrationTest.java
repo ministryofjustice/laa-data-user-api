@@ -128,7 +128,7 @@ class ConvertToMultiFirmIntegrationTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
             Future<CommandResult> first = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
-                CommandResult result = handler.handle(command(), actor("actor-1"));
+                final CommandResult result = handler.handle(command(), actor("actor-1"));
                 firstHandled.countDown();
                 awaitLatch(releaseFirst);
                 if (rollbackFirst) {
