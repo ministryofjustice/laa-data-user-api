@@ -1,4 +1,4 @@
-package uk.gov.justice.laa.datauserapi.config.ccms;
+package uk.gov.justice.laa.datauserapi.application.command.config.ccms;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

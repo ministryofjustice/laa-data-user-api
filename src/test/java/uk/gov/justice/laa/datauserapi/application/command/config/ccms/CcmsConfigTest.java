@@ -1,9 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.command.config.ccms;
 
 import org.junit.jupiter.api.Test;
-import uk.gov.justice.laa.datauserapi.config.ccms.CcmsConfig;
-import uk.gov.justice.laa.datauserapi.config.ccms.CcmsConnectionConfigProperties;
-import uk.gov.justice.laa.datauserapi.config.ccms.UserConfig;
 
 import java.util.Map;
 
@@ -46,6 +43,7 @@ class CcmsConfigTest {
         assertThatThrownBy(() -> sqs("arn:aws:sqs:eu-west-2:1").parseSqsQueueUrlFromArn())
                 .hasMessageContaining("6 parts");
         assertThatThrownBy(() -> sqs("bad").parseRegionFromArn()).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> sqs(null).parseRegionFromArn()).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> sqs("arn:aws:sqs:eu-west-2:1").parseRegionFromArn())
                 .hasMessageContaining("6 parts");
     }
