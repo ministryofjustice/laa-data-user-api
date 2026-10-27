@@ -1,6 +1,9 @@
 package uk.gov.justice.laa.datauserapi.application.command.config.ccms;
 
 import org.junit.jupiter.api.Test;
+import uk.gov.justice.laa.datauserapi.config.ccms.CcmsConfig;
+import uk.gov.justice.laa.datauserapi.config.ccms.CcmsConnectionConfigProperties;
+import uk.gov.justice.laa.datauserapi.config.ccms.UserConfig;
 
 import java.util.Map;
 

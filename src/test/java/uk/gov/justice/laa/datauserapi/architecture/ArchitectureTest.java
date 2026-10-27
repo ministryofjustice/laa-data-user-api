@@ -8,6 +8,8 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
+import com.tngtech.archunit.library.dependencies.SliceAssignment;
+import com.tngtech.archunit.library.dependencies.SliceIdentifier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -191,7 +193,28 @@ class ArchitectureTest {
 
     @ArchTest
     static final ArchRule application_packages_are_free_of_cycles =
-            slices().matching("uk.gov.justice.laa.datauserapi.(*)..")
+            slices().assignedFrom(new SliceAssignment() {
+                private static final String BASE_PACKAGE = "uk.gov.justice.laa.datauserapi.";
+
+                @Override
+                public SliceIdentifier getIdentifierOf(JavaClass javaClass) {
+                    String packageName = javaClass.getPackageName();
+                    if (!packageName.startsWith(BASE_PACKAGE)) {
+                        return SliceIdentifier.ignore();
+                    }
+                    String relativePackage = packageName.substring(BASE_PACKAGE.length());
+                    // CCMS settings are independent of security configuration in the parent slice.
+                    if (relativePackage.equals("config.ccms") || relativePackage.startsWith("config.ccms.")) {
+                        return SliceIdentifier.of("config.ccms");
+                    }
+                    return SliceIdentifier.of(relativePackage.split("\\.")[0]);
+                }
+
+                @Override
+                public String getDescription() {
+                    return "top-level packages with independent CCMS configuration";
+                }
+            })
                     .should().beFreeOfCycles();
 
     @ArchTest

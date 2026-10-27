@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsClient;
-import uk.gov.justice.laa.datauserapi.application.command.config.ccms.CcmsConfig;
-import uk.gov.justice.laa.datauserapi.application.command.config.ccms.CcmsConnectionConfigProperties;
+import uk.gov.justice.laa.datauserapi.config.ccms.CcmsConfig;
+import uk.gov.justice.laa.datauserapi.config.ccms.CcmsConnectionConfigProperties;
 
 
 import java.util.Map;

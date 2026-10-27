@@ -3,9 +3,10 @@ package uk.gov.justice.laa.datauserapi.application.command.registry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.sqs.SqsClient;
-import uk.gov.justice.laa.datauserapi.application.command.config.ccms.CcmsConfig;
-import uk.gov.justice.laa.datauserapi.application.command.config.ccms.CcmsConnectionConfigProperties;
-import uk.gov.justice.laa.datauserapi.application.command.config.ccms.UserConfig;
+import uk.gov.justice.laa.datauserapi.config.ccms.CcmsConfig;
+import uk.gov.justice.laa.datauserapi.config.ccms.CcmsConnectionConfigProperties;
+import uk.gov.justice.laa.datauserapi.config.ccms.UserConfig;
+
 
 import static org.assertj.core.api.Assertions.assertThat;
 
