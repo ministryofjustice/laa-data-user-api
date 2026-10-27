@@ -1,36 +1,38 @@
 package uk.gov.justice.laa.datauserapi.application.command.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.ApiCallAttemptTimeoutException;
+import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 import uk.gov.justice.laa.datauserapi.application.command.model.CcmsMessage;
 import uk.gov.justice.laa.datauserapi.application.command.registry.SqsClientRegistry;
-import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
-import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.exception.CcmsSyncException;
 
+import java.net.SocketTimeoutException;
+import java.net.http.HttpTimeoutException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
+import java.util.concurrent.TimeoutException;
 
 @Service
 @RequiredArgsConstructor
@@ -39,7 +41,6 @@ public class RoleChangeNotificationService {
 
     private final SqsClientRegistry sqsClientRegistry;
     private final ObjectMapper objectMapper;
-    private final UserProfileCommandRepository userProfileRepository;
 
     private static final String USER_TYPE_ATTRIBUTE = "userType";
 
@@ -68,8 +69,7 @@ public class RoleChangeNotificationService {
 
         try {
             log.info("Initializing CCMS role change message for user: {}", userProfile.getEntraUser().getEntraOid());
-            sendRoleChangeNotificationToSqs(userProfile, appEntraOid, newPuiRoles, oldPuiRoles);
-            return true;
+            return sendRoleChangeNotificationToSqs(userProfile, appEntraOid, newPuiRoles, oldPuiRoles);
         } catch (Exception e) {
             log.warn("CCMS notification attempt failed for user: {}: {}",
                     userProfile.getEntraUser().getEntraOid(), e.getMessage());
@@ -78,12 +78,40 @@ public class RoleChangeNotificationService {
     }
 
 
-    private void sendRoleChangeNotificationToSqs(UserProfile userProfile, String appEntraOid, Set<String> newPuiRoles, Set<String> oldPuiRoles) throws Exception {
+    public void sendSyncMessage(UserProfile profile, String appOid, Set<String> roles) {
+        try {
+            if (!sendRoleChangeNotificationToSqs(profile, appOid, roles, Set.of())) {
+                throw new CcmsSyncException(HttpStatus.SERVICE_UNAVAILABLE, "CCMS SQS queue or client is unavailable.");
+            }
+        } catch (ApiCallTimeoutException | ApiCallAttemptTimeoutException ex) {
+            throw new CcmsSyncException(HttpStatus.GATEWAY_TIMEOUT, "CCMS SQS request timed out.", ex);
+        } catch (AwsServiceException ex) {
+            HttpStatus status = switch (ex.statusCode()) {
+                case 408, 504 -> HttpStatus.GATEWAY_TIMEOUT;
+                case 429, 503 -> HttpStatus.SERVICE_UNAVAILABLE;
+                default -> HttpStatus.BAD_GATEWAY;
+            };
+            throw new CcmsSyncException(status, "CCMS SQS rejected the synchronization request.", ex);
+        } catch (SdkClientException ex) {
+            for (Throwable cause = ex.getCause(); cause != null; cause = cause.getCause()) {
+                if (cause instanceof SocketTimeoutException
+                        || cause instanceof HttpTimeoutException
+                        || cause instanceof TimeoutException) {
+                    throw new CcmsSyncException(HttpStatus.GATEWAY_TIMEOUT, "CCMS SQS request timed out.", ex);
+                }
+            }
+            throw new CcmsSyncException(HttpStatus.SERVICE_UNAVAILABLE, "CCMS SQS queue is unreachable.", ex);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Could not serialize CCMS synchronization message.", ex);
+        }
+    }
+
+    private boolean sendRoleChangeNotificationToSqs(UserProfile userProfile, String appEntraOid, Set<String> newPuiRoles, Set<String> oldPuiRoles) throws JsonProcessingException {
         Optional<SqsClient> sqsClientOpt = sqsClientRegistry.getSqsClient(appEntraOid);
         Optional<String> sqsQueueUrlOpt = sqsClientRegistry.getSqsQueueUrl(appEntraOid);
         if (sqsClientOpt.isEmpty() || sqsQueueUrlOpt.isEmpty() || "NONE".equalsIgnoreCase(sqsQueueUrlOpt.get())) {
             log.info("Skipping CCMS update for user: {}", userProfile.getEntraUser().getEntraOid());
-            return;
+            return false;
         }
 
         SqsClient sqsClient = sqsClientOpt.get();
@@ -121,11 +149,16 @@ public class RoleChangeNotificationService {
                     .build();
 
             SendMessageResponse response = sqsClient.sendMessage(sendMessageRequest);
+            if (response == null || response.messageId() == null || response.messageId().isBlank()
+                    || (response.sdkHttpResponse() != null && !response.sdkHttpResponse().isSuccessful())) {
+                throw new CcmsSyncException(HttpStatus.BAD_GATEWAY, "CCMS SQS returned an unexpected response.");
+            }
             log.info("CCMS role change message sent to queue for user: {} with entra oid: {}, messageId: {}",
                     userProfile.getId(), entraUser.getEntraOid(), response.messageId());
         } else {
             log.info("No CCMS roles updated for user: {} with entra oid: {}, skipping", userProfile.getId(), userProfile.getEntraUser().getEntraOid());
         }
+        return true;
     }
 
     @Recover
@@ -145,57 +178,4 @@ public class RoleChangeNotificationService {
 
         return UUID.nameUUIDFromBytes(content.getBytes()).toString();
     }
-
-
-    @Async
-    public void ccmsRoleSync() {
-        List<UserProfile> profiles = userProfileRepository.findUserProfilesForCcmsSync();
-
-        if (profiles.isEmpty()) {
-            log.info("No profiles found for CCMS role sync");
-            return;
-        }
-
-        AtomicInteger successful = new AtomicInteger();
-        AtomicInteger unsuccessful = new AtomicInteger();
-
-        profiles.forEach(profile -> {
-            try {
-                Map<String, Set<String>> ccmsRolesMap = profile.getAppRoles().stream()
-                        .filter(AppRole::isLegacySync)
-                        .collect(Collectors.groupingBy(role -> role.getApp().getEntraOid(),
-                                Collectors.collectingAndThen(
-                                        Collectors.mapping(AppRole::getRoleIdentifier, Collectors.toSet()),
-                                        HashSet::new
-                                )));
-
-                boolean notificationSuccess = profile.isLastCcmsSyncSuccessful();
-                boolean ccmsSyncResult = true;
-                for (Map.Entry<String, Set<String>> ccmsRoles : ccmsRolesMap.entrySet()) {
-                    boolean currentSyncResult = sendMessage(profile, ccmsRoles.getKey(), ccmsRoles.getValue(), Collections.emptySet());
-                    ccmsSyncResult = ccmsSyncResult && currentSyncResult;
-                    notificationSuccess = ccmsSyncResult;
-
-                    log.info("CCMS role sync for user: {} with entra oid: {} {}", profile.getId(), profile.getEntraUser().getEntraOid(), notificationSuccess);
-                }
-
-                profile.setLastCcmsSyncSuccessful(notificationSuccess);
-                userProfileRepository.save(profile);
-
-                if (notificationSuccess) {
-                    successful.incrementAndGet();
-                } else {
-                    unsuccessful.incrementAndGet();
-                }
-            } catch (Exception e) {
-                log.error("Error syncing roles for user: {} with entra oid: {}", profile.getId(), profile.getEntraUser().getEntraOid(), e);
-                unsuccessful.incrementAndGet();
-            }
-
-        });
-
-        log.info("CCMS role sync complete. Successful: {}, Unsuccessful: {}",
-                successful.get(), unsuccessful.get());
-    }
-
 }

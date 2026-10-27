@@ -24,7 +24,7 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-public class ReactivateUserHandler implements CommandHandler<ReactivateUserCommand> {
+public class ReactivateUserHandler implements CommandHandler<ReactivateUserCommand, CommandResult> {
 
     private final EntraUserCommandRepository entraUserCommandRepository;
     private final UserAccountStatusAuditRepository auditRepository;

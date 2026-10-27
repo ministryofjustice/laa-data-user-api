@@ -27,7 +27,7 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-public class DeactivateUserHandler implements CommandHandler<DeactivateUserCommand> {
+public class DeactivateUserHandler implements CommandHandler<DeactivateUserCommand, CommandResult> {
 
     private final EntraUserCommandRepository entraUserCommandRepository;
     private final UserAccountStatusAuditRepository auditRepository;

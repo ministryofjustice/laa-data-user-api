@@ -57,7 +57,8 @@ public class SecurityConfig {
                             || new IpAddressMatcher("192.168.0.0/16").matches(context.getRequest());
                     return new AuthorizationDecision(allowed);
                 })
-                .requestMatchers("/api/v1/commands/user-profiles/refresh-silas-status")
+                .requestMatchers("/api/v1/commands/user-profiles/refresh-silas-status",
+                        "/api/v1/commands/ccms/trigger-role-sync")
                     .hasAuthority("SCOPE_system.admin")
                 .requestMatchers("/api/v1/commands/**")
                     .hasAuthority("SCOPE_user_data.admin")

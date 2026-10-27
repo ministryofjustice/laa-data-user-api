@@ -9,6 +9,7 @@ import uk.gov.justice.laa.datauserapi.application.command.config.ccms.CcmsConnec
 
 
 import java.util.Map;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -29,7 +30,11 @@ public class SqsClientRegistry {
 
         SqsClient client = sqsClientsCache.computeIfAbsent(appEntraObjectId, name -> {
             CcmsConfig config = activeConfigs.get(name);
-            return SqsClient.builder().region(Region.of(config.getUser().getApi().getSqs().parseRegionFromArn())).build();
+            return SqsClient.builder().region(Region.of(config.getUser().getApi().getSqs().parseRegionFromArn()))
+                    .overrideConfiguration(configuration -> configuration
+                            .apiCallTimeout(Duration.ofSeconds(10))
+                            .apiCallAttemptTimeout(Duration.ofSeconds(3)))
+                    .build();
         });
 
         return Optional.of(client);
@@ -52,4 +57,3 @@ public class SqsClientRegistry {
     }
 
 }
-

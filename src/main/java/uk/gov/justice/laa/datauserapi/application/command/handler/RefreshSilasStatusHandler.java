@@ -10,7 +10,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 @Slf4j
 @Component
-public class RefreshSilasStatusHandler implements CommandHandler<RefreshSilasStatusCommand> {
+public class RefreshSilasStatusHandler implements CommandHandler<RefreshSilasStatusCommand, CommandResult> {
 
     private final SilasStatusRefreshService refreshService;
 
