@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
@@ -25,10 +26,13 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 import reactor.core.publisher.Mono;
 import uk.gov.justice.laa.datauserapi.client.ts.request.ChangeAccountReactivationRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateSecurityGroupsRequest;
+import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateUserDetailsRequest;
+import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.UpdateSecurityGroupsResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
@@ -468,6 +472,136 @@ class LiveTechServicesClientTest {
 
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
                     .contains("Could not retrieve a valid Tech Services access token from cache");
+        }
+    }
+
+    @Nested
+    class UpdateUserDetailsTests {
+
+        private void mockPatch() {
+            when(restClient.patch()).thenReturn(requestBodyUriSpec);
+            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
+            when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
+            when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
+            when(requestBodySpec.body(any(UpdateUserDetailsRequest.class))).thenReturn(requestBodySpec);
+            when(requestBodySpec.retrieve()).thenReturn(responseSpec);
+        }
+
+        private HttpClientErrorException clientError(HttpStatus status, String body) {
+            return HttpClientErrorException.create(status, status.getReasonPhrase(), HttpHeaders.EMPTY, body.getBytes(), null);
+        }
+
+        @Test
+        void returnsSuccessOn200WithBody() {
+            mockTokenGeneration();
+            mockPatch();
+            ChangeAccountEnabledResponse body = ChangeAccountEnabledResponse.builder().success(true).message("ok").build();
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenReturn(ResponseEntity.ok(body));
+
+            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
+                    client.updateUserDetails("user-123", "John", "Doe", "j@d.com");
+
+            assertThat(result.isSuccess()).isTrue();
+            assertThat(result.getData()).isSameAs(body);
+            verify(requestBodyUriSpec).uri("test-unit/users/user-123");
+            ArgumentCaptor<UpdateUserDetailsRequest> captor = ArgumentCaptor.forClass(UpdateUserDetailsRequest.class);
+            verify(requestBodySpec).body(captor.capture());
+            assertThat(captor.getValue().toString()).contains("givenName=John", "surname=Doe", "mail=j@d.com");
+        }
+
+        @Test
+        void returnsUnexpectedResponseErrorWhenBodyMissing() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenReturn(ResponseEntity.ok().build());
+
+            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
+                    client.updateUserDetails("user-123", "John", null, null);
+
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getError().getCode()).isEqualTo("UNEXPECTED_RESPONSE");
+        }
+
+        @Test
+        void returnsUnexpectedResponseErrorWhenStatusNotOk() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenReturn(
+                    new ResponseEntity<>(ChangeAccountEnabledResponse.builder().build(), HttpStatus.ACCEPTED));
+
+            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
+                    client.updateUserDetails("user-123", "John", null, null);
+
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getError().getCode()).isEqualTo("UNEXPECTED_RESPONSE");
+        }
+
+        @Test
+        void returnsParsedErrorOn4xx() throws Exception {
+            mockTokenGeneration();
+            mockPatch();
+            String json = "{\"code\":\"ERR\",\"message\":\"bad\"}";
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(clientError(HttpStatus.BAD_REQUEST, json));
+            TechServicesErrorResponse error = TechServicesErrorResponse.builder().success(false).code("ERR").message("bad").build();
+            when(objectMapper.readValue(json, TechServicesErrorResponse.class)).thenReturn(error);
+
+            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
+                    client.updateUserDetails("user-123", "John", null, null);
+
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getError()).isSameAs(error);
+        }
+
+        @Test
+        void buildsErrorFromStatusWhenBodyEmpty() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(clientError(HttpStatus.NOT_FOUND, ""));
+
+            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
+                    client.updateUserDetails("user-123", "John", null, null);
+
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getError().getCode()).contains("404");
+            assertThat(result.getError().getMessage()).isEqualTo("Not Found");
+            verifyNoInteractions(objectMapper);
+        }
+
+        @Test
+        void returnsErrorOn5xx() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(HttpServerErrorException.create(
+                    HttpStatus.SERVICE_UNAVAILABLE, "Unavailable", HttpHeaders.EMPTY, new byte[0], null));
+
+            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
+                    client.updateUserDetails("user-123", "John", null, null);
+
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getError().getCode()).contains("503");
+        }
+
+        @Test
+        void wrapsErrorWhenErrorBodyCannotBeParsed() throws Exception {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(clientError(HttpStatus.BAD_REQUEST, "oops"));
+            when(objectMapper.readValue("oops", TechServicesErrorResponse.class)).thenThrow(new RuntimeException("parse"));
+
+            assertThatThrownBy(() -> client.updateUserDetails("user-123", "John", null, null))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("Error while getting users from Tech Services.");
+        }
+
+        @Test
+        void wrapsUnexpectedErrors() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(new IllegalStateException("boom"));
+
+            assertThatThrownBy(() -> client.updateUserDetails("user-123", "John", null, null))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("Unexpected error while updating users details from Tech Services.");
         }
     }
 

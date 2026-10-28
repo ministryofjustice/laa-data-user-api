@@ -20,6 +20,8 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 import uk.gov.justice.laa.datauserapi.client.ts.request.ChangeAccountReactivationRequest;
+import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateUserDetailsRequest;
+import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateSecurityGroupsRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
@@ -306,6 +308,80 @@ public class LiveTechServicesClient implements TechServicesClient {
         Objects.requireNonNull(cacheManager.getCache(CachingConfig.TECH_SERVICES_DETAILS_CACHE)).put(ACCESS_TOKEN, accessToken);
 
         return accessToken;
+    }
+
+    @Override
+    public TechServicesApiResponse<ChangeAccountEnabledResponse> updateUserDetails(String entraOid, String firstName,
+                                                                                   String lastName, String email) {
+        ResponseEntity<ChangeAccountEnabledResponse> response = null;
+        try {
+
+            UpdateUserDetailsRequest request = new UpdateUserDetailsRequest(firstName, lastName, email);
+            String uri = String.format(TECH_SERVICES_UPDATE_USER_GRP_ENDPOINT, laaBusinessUnit, entraOid);
+            log.info("Sending request to tech services to update user details for entra user: {}", entraOid);
+            String accessToken = getAccessToken();
+            response = restClient
+                    .patch()
+                    .uri(uri)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .toEntity(ChangeAccountEnabledResponse.class);
+
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                log.info("Successfully update users details from Tech Services for business unit: {}", laaBusinessUnit);
+                return TechServicesApiResponse.success(response.getBody());
+
+            } else {
+                log.warn("Unexpected response from Tech Services Patch users details endpoint: status={}",
+                        response.getStatusCode());
+                return TechServicesApiResponse.error(TechServicesErrorResponse.builder()
+                        .success(false)
+                        .code("UNEXPECTED_RESPONSE")
+                        .message("Unexpected response from Tech Services")
+                        .build());
+            }
+
+        } catch (HttpClientErrorException | HttpServerErrorException httpEx) {
+            String errorJson = httpEx.getResponseBodyAsString();
+            log.info("The patch users details error response from TS: {}", errorJson);
+            TechServicesErrorResponse errorResponse = null;
+            try {
+                if (errorJson.isEmpty()) {
+                    errorResponse = TechServicesErrorResponse.builder()
+                            .code(httpEx.getStatusCode().toString())
+                            .message(httpEx.getStatusText())
+                            .success(false)
+                            .build();
+                } else {
+                    errorResponse = objectMapper.readValue(errorJson, TechServicesErrorResponse.class);
+                }
+                if (httpEx.getStatusCode().is4xxClientError()) {
+                    log.info("Error while updating users details from Tech Services, the root cause is {} ({})",
+                            errorResponse.getMessage(), errorResponse.getCode());
+                    return TechServicesApiResponse.error(errorResponse);
+                }
+                if (httpEx.getStatusCode().is5xxServerError()) {
+                    log.warn("Error while updating users details from Tech Services, the root cause is {} ({})",
+                            errorResponse.getMessage(), errorResponse.getCode());
+                    return TechServicesApiResponse.error(errorResponse);
+                }
+                log.warn("Error while getting users from Tech Services, the root cause is {} ({})",
+                        errorResponse.getMessage(), errorResponse.getCode(), httpEx);
+                throw httpEx;
+            } catch (Exception ex) {
+                String responseBody = response != null && response.getBody() != null ? response.getBody().toString() : "Unknown";
+                log.warn("Error while getting users from Tech Services. The response body is {}",
+                        responseBody, ex);
+                throw new RuntimeException("Error while getting users from Tech Services.", ex);
+            }
+        } catch (Exception ex) {
+            String responseBody = response != null && response.getBody() != null ? response.getBody().toString() : "Unknown";
+            log.error("Unexpected error while Update users details from Tech Services. Response body: {}",
+                    responseBody, ex);
+            throw new RuntimeException("Unexpected error while updating users details from Tech Services.", ex);
+        }
     }
 
 }

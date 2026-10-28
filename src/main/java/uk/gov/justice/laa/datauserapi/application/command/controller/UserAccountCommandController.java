@@ -16,14 +16,18 @@ import uk.gov.justice.laa.datauserapi.application.command.handler.DeleteUserHand
 import uk.gov.justice.laa.datauserapi.application.command.handler.ReactivateUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserDetailsHandler;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.UpdateUserDetailsMapper;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeleteUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.UpdateUserDetailsCommand;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.contracts.request.DeactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.DeleteUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.ReactivateUserRequest;
+import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserDetailsRequest;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
 
@@ -37,16 +41,21 @@ public class UserAccountCommandController implements CommandControllerSupport {
     private final ReactivateUserMapper reactivateUserMapper;
     private final DeactivateUserHandler deactivateUserHandler;
     private final DeactivateUserMapper deactivateUserMapper;
+    private final UpdateUserDetailsHandler updateUserDetailsHandler;
+    private final UpdateUserDetailsMapper updateUserDetailsMapper;
     private final DeleteUserHandler deleteUserHandler;
     private final DeleteUserMapper deleteUserMapper;
 
     public UserAccountCommandController(ReactivateUserHandler reactivateUserHandler, ReactivateUserMapper reactivateUserMapper,
                                         DeactivateUserHandler deactivateUserHandler, DeactivateUserMapper deactivateUserMapper,
+                                        UpdateUserDetailsHandler updateUserDetailsHandler, UpdateUserDetailsMapper updateUserDetailsMapper,
                                         DeleteUserHandler deleteUserHandler, DeleteUserMapper deleteUserMapper) {
         this.reactivateUserHandler = reactivateUserHandler;
         this.reactivateUserMapper = reactivateUserMapper;
         this.deactivateUserHandler = deactivateUserHandler;
         this.deactivateUserMapper = deactivateUserMapper;
+        this.updateUserDetailsHandler = updateUserDetailsHandler;
+        this.updateUserDetailsMapper = updateUserDetailsMapper;
         this.deleteUserHandler = deleteUserHandler;
         this.deleteUserMapper = deleteUserMapper;
     }
@@ -77,6 +86,16 @@ public class UserAccountCommandController implements CommandControllerSupport {
                 kv("entraOid", deactivateUserRequest.userEntraObjectId()),
                 kv("actorEntraOid", authenticatedUser.entraOid()),
                 kv("reason", deactivateUserRequest.deactivateReason()));
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/users/update-details")
+    public ResponseEntity<CommandResult> updateUserDetails(
+            @Valid @RequestBody UpdateUserDetailsRequest updateUserDetailsRequest,
+            @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
+        log.info("Processing update user details command for user: {}", updateUserDetailsRequest.userEntraObjectId());
+        UpdateUserDetailsCommand command = updateUserDetailsMapper.toUpdateUserDetailsCommand(updateUserDetailsRequest);
+        CommandResult result = updateUserDetailsHandler.handle(command, authenticatedUser);
         return ResponseEntity.ok(result);
     }
 
