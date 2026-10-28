@@ -134,6 +134,7 @@ class ArchitectureTest {
                     "..application.command.handler..",
                     "..application.command.service..",
                     "..application.command.mapper..",
+                    "..application.command.useraccount..",
                     "..application.query.service..",
                     "..application.query.handler..",
                     "..repository..",
@@ -159,10 +160,12 @@ class ArchitectureTest {
             .layer("CommandMapper").definedBy("..application.command.mapper..")
             .layer("CommandService").definedBy("..application.command.service..")
             .layer("CommandRepository").definedBy("..application.command.shared.repository..")
+            .layer("CommandAction").definedBy("..application.command.useraccount..")
 
             .whereLayer("CommandController").mayNotBeAccessedByAnyLayer()
-            .whereLayer("CommandHandler").mayOnlyBeAccessedByLayers("CommandController")
-            .whereLayer("CommandRepository").mayOnlyBeAccessedByLayers("CommandHandler", "CommandService", "CommandMapper");
+            .whereLayer("CommandHandler").mayOnlyBeAccessedByLayers("CommandController", "CommandAction")
+            .whereLayer("CommandRepository").mayOnlyBeAccessedByLayers(
+                    "CommandHandler", "CommandService", "CommandMapper", "CommandAction");
 
     // =========================================================================
     // 4. Query Side Structural Layering
