@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.command.ccms.TriggerCcmsRoleSyncCommand;
 import uk.gov.justice.laa.datauserapi.application.command.handler.TriggerCcmsRoleSyncHandler;
-import uk.gov.justice.laa.datauserapi.contracts.response.TriggerCcmsRoleSyncResult;
+import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.RequiresSystemAdminScope;
 
@@ -25,7 +25,7 @@ public class CcmsCommandController {
     private final TriggerCcmsRoleSyncHandler handler;
 
     @PostMapping("/trigger-role-sync")
-    public ResponseEntity<TriggerCcmsRoleSyncResult> triggerRoleSync(
+    public ResponseEntity<CommandResult> triggerRoleSync(
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
         log.info("Processing CCMS role sync request",
                 kv("actorEntraOid", authenticatedUser.entraOid()));

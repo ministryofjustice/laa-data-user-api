@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Component
-public class DeleteUserHandler implements CommandHandler<DeleteUserCommand, CommandResult> {
+public class DeleteUserHandler implements CommandHandler<DeleteUserCommand> {
 
     private final EntraUserCommandRepository entraUserCommandRepository;
     private final UserProfileCommandRepository userProfileCommandRepository;

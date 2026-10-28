@@ -18,7 +18,7 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeactivateFirmUsersCommand, CommandResult> {
+public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeactivateFirmUsersCommand> {
 
     private final FirmCommandRepository firmCommandRepository;
     private final EntraUserCommandRepository entraUserCommandRepository;

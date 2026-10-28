@@ -99,7 +99,7 @@ class SilasStatusRefreshAsyncIntegrationTest {
         awaitCompletedTasks(completed + 1);
 
         assertThat(output.getOut()).contains(
-                "Asynchronous SiLAS status refresh failed; previously committed batches remain updated",
+                "Asynchronous command failed; previously committed profile or batch updates remain committed",
                 "Deliberate background failure");
         when(batchService.refreshBatch(isNull(), any(String.class)))
                 .thenReturn(new SilasStatusRefreshBatchService.BatchResult(null, 0, 0));

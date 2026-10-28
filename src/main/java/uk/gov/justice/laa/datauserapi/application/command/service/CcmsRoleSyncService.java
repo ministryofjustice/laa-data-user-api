@@ -1,19 +1,26 @@
 package uk.gov.justice.laa.datauserapi.application.command.service;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
-import uk.gov.justice.laa.datauserapi.contracts.response.TriggerCcmsRoleSyncResult;
 import uk.gov.justice.laa.datauserapi.exception.CcmsSyncException;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class CcmsRoleSyncService {
 
     private final UserProfileCommandRepository repository;
     private final CcmsRoleSyncProfileService profileService;
 
-    public TriggerCcmsRoleSyncResult sync(String actorOid) {
+    @Async("ccmsRoleSyncExecutor")
+    public void sync(String actorOid) {
+        log.info("Starting asynchronous CCMS role sync",
+                kv("actorEntraOid", actorOid));
         var profiles = repository.findUserProfilesForCcmsSync();
         int processed = 0;
         int successful = 0;
@@ -31,11 +38,18 @@ public class CcmsRoleSyncService {
             }
         }
         if (failure != null) {
-            throw new CcmsSyncException(failure.getStatus(),
-                    "CCMS role sync completed: " + successful + " profiles succeeded; "
-                            + (processed - successful) + " profiles failed and remain eligible for retry.",
+            log.warn("CCMS role sync completed with failures; failed profiles remain eligible for retry",
+                    kv("actorEntraOid", actorOid),
+                    kv("processedProfiles", processed),
+                    kv("successfulProfiles", successful),
+                    kv("unsuccessfulProfiles", processed - successful),
                     failure);
+        } else {
+            log.info("CCMS role sync completed successfully",
+                    kv("actorEntraOid", actorOid),
+                    kv("processedProfiles", processed),
+                    kv("successfulProfiles", successful),
+                    kv("unsuccessfulProfiles", 0));
         }
-        return new TriggerCcmsRoleSyncResult(true, processed);
     }
 }

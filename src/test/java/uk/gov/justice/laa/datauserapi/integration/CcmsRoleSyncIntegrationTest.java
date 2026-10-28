@@ -11,7 +11,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
@@ -33,7 +32,6 @@ import uk.gov.justice.laa.datauserapi.application.command.service.CcmsRoleSyncSe
 import uk.gov.justice.laa.datauserapi.application.command.service.RoleChangeNotificationService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.exception.CcmsSyncException;
 
 import javax.sql.DataSource;
 import java.util.Map;
@@ -41,7 +39,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -110,11 +107,7 @@ class CcmsRoleSyncIntegrationTest {
             return SendMessageResponse.builder().messageId("message").build();
         });
 
-        assertThatThrownBy(() -> service.sync("actor"))
-                .isInstanceOfSatisfying(CcmsSyncException.class, ex -> {
-                    assertThat(ex.getStatus()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT);
-                    assertThat(ex.getMessage()).contains("2 profiles succeeded", "1 profiles failed");
-                });
+        service.sync("actor");
         assertThat(jdbc.queryForList("SELECT last_sync_successful FROM user_profile ORDER BY id", Boolean.class))
                 .containsExactly(true, false, true, true, false);
         assertThat(repository.findUserProfilesForCcmsSync()).extracting(profile -> profile.getId())
@@ -127,9 +120,7 @@ class CcmsRoleSyncIntegrationTest {
 
         when(sqs.sendMessage(any(SendMessageRequest.class)))
                 .thenReturn(SendMessageResponse.builder().messageId("retry-message").build());
-        var retryResult = service.sync("retry-actor");
-        assertThat(retryResult.success()).isTrue();
-        assertThat(retryResult.userProfileCount()).isEqualTo(1);
+        service.sync("retry-actor");
         assertThat(repository.findUserProfilesForCcmsSync()).isEmpty();
         assertThat(jdbc.queryForObject("SELECT last_modified_by FROM user_profile WHERE id = ?", String.class, id(2)))
                 .isEqualTo("retry-actor");
@@ -137,11 +128,9 @@ class CcmsRoleSyncIntegrationTest {
     }
 
     @Test
-    void unexpectedResponsesPersistFalseForEveryProfileAndReturnBadGateway() {
+    void unexpectedResponsesPersistFalseForEveryProfile() {
         when(sqs.sendMessage(any(SendMessageRequest.class))).thenReturn(SendMessageResponse.builder().build());
-        assertThatThrownBy(() -> service.sync("actor"))
-                .isInstanceOfSatisfying(CcmsSyncException.class,
-                        ex -> assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_GATEWAY));
+        service.sync("actor");
         assertThat(repository.findUserProfilesForCcmsSync()).hasSize(3);
         verify(sqs, times(9)).sendMessage(any(SendMessageRequest.class));
     }
@@ -151,9 +140,7 @@ class CcmsRoleSyncIntegrationTest {
         when(sqs.sendMessage(any(SendMessageRequest.class)))
                 .thenReturn(SendMessageResponse.builder().messageId("message").build());
         new TransactionTemplate(transactionManager).executeWithoutResult(transaction -> {
-            var result = service.sync("actor");
-            assertThat(result.success()).isTrue();
-            assertThat(result.userProfileCount()).isEqualTo(3);
+            service.sync("actor");
             transaction.setRollbackOnly();
         });
         assertThat(jdbc.queryForList("SELECT last_sync_successful FROM user_profile WHERE id IN (?, ?, ?)",

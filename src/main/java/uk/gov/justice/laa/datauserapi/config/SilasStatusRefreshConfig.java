@@ -30,7 +30,7 @@ public class SilasStatusRefreshConfig implements AsyncConfigurer {
     @Override
     public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
         return (exception, method, parameters) ->
-                log.error("Asynchronous SiLAS status refresh failed; previously committed batches remain updated",
+                log.error("Asynchronous command failed; previously committed profile or batch updates remain committed",
                         kv("actorEntraOid", parameters[0]),
                         kv("method", method.getName()),
                         exception);

@@ -1373,11 +1373,11 @@ paths:
         - entraIdOAuth: ["api://user-data/system.admin"]
       responses:
         '200':
-          description: CCMS User sync triggered
+          description: CCMS role sync trigger result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TriggerCcmsRoleSyncResult'
+                $ref: '#/components/schemas/CommandResult'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2441,15 +2441,6 @@ components:
               maxItems: 100
               items:
                 $ref: '#/components/schemas/AppView'
-
-    TriggerCcmsRoleSyncResult:
-      allOf:
-        - $ref: '#/components/schemas/CommandResult'
-        - type: object
-          properties:
-            userProfileCount:
-              type: integer
-              description: Number of profiles for which CCMS role sync was triggered
 
     CreateAppRoleCommand:
       type: object

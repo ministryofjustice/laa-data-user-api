@@ -29,24 +29,6 @@ import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(CcmsSyncException.class)
-    public ResponseEntity<ProblemDetail> handleCcmsSyncFailure(
-            CcmsSyncException ex, HttpServletRequest request) {
-        log.warn("CCMS role sync failed",
-                kv("status", ex.getStatus().value()),
-                kv("requestUri", request.getRequestURI()),
-                ex);
-        ProblemDetail problem = new ProblemDetail(
-                URI.create("https://silas.laa.gov.uk/errors/ccms-sync-failed"),
-                ex.getStatus().getReasonPhrase(),
-                ex.getStatus().value(),
-                ex.getMessage(),
-                URI.create(request.getRequestURI()),
-                null
-        );
-        return problemResponse(ex.getStatus(), problem);
-    }
-
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleNotFound(
             ResourceNotFoundException ex,

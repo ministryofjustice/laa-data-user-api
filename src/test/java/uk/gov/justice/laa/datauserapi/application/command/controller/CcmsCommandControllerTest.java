@@ -3,7 +3,6 @@ package uk.gov.justice.laa.datauserapi.application.command.controller;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -18,9 +17,8 @@ import uk.gov.justice.laa.datauserapi.application.command.ccms.TriggerCcmsRoleSy
 import uk.gov.justice.laa.datauserapi.application.command.handler.TriggerCcmsRoleSyncHandler;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
 import uk.gov.justice.laa.datauserapi.config.SecurityConfig;
-import uk.gov.justice.laa.datauserapi.contracts.response.TriggerCcmsRoleSyncResult;
+import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
-import uk.gov.justice.laa.datauserapi.exception.CcmsSyncException;
 import uk.gov.justice.laa.datauserapi.exception.GlobalExceptionHandler;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 
@@ -56,16 +54,16 @@ class CcmsCommandControllerTest {
     private JwtDecoder jwtDecoder;
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 1, 5})
-    void systemAdminReceivesHandlerResultUsingAuthenticatedActor(int count) throws Exception {
-        TriggerCcmsRoleSyncResult expected = new TriggerCcmsRoleSyncResult(true, count);
+    @ValueSource(booleans = {true, false})
+    void systemAdminReceivesHandlerResultUsingAuthenticatedActor(boolean accepted) throws Exception {
+        CommandResult expected = new CommandResult(accepted, accepted ? "Accepted" : "Worker busy");
         when(handler.handle(new TriggerCcmsRoleSyncCommand(), ACTOR)).thenReturn(expected);
 
         mockMvc.perform(post(ENDPOINT).with(authentication(authenticated("system.admin"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.userProfileCount").value(count))
-                .andExpect(jsonPath("$.message").doesNotExist());
+                .andExpect(jsonPath("$.success").value(accepted))
+                .andExpect(jsonPath("$.userProfileCount").doesNotExist())
+                .andExpect(jsonPath("$.message").value(expected.message()));
 
         verify(handler).handle(new TriggerCcmsRoleSyncCommand(), ACTOR);
     }
@@ -101,20 +99,6 @@ class CcmsCommandControllerTest {
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.instance").value(ENDPOINT));
         verifyNoInteractions(handler);
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = {502, 503, 504})
-    void downstreamFailureReturnsProblemDetail(int code) throws Exception {
-        when(handler.handle(new TriggerCcmsRoleSyncCommand(), ACTOR))
-                .thenThrow(new CcmsSyncException(HttpStatus.valueOf(code), "Some CCMS profiles failed."));
-        mockMvc.perform(post(ENDPOINT).with(authentication(authenticated("system.admin"))))
-                .andExpect(status().is(code))
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status").value(code))
-                .andExpect(jsonPath("$.title").value(HttpStatus.valueOf(code).getReasonPhrase()))
-                .andExpect(jsonPath("$.detail").value("Some CCMS profiles failed."))
-                .andExpect(jsonPath("$.instance").value(ENDPOINT));
     }
 
     private UsernamePasswordAuthenticationToken authenticated(String scope) {
