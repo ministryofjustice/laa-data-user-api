@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.handler;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Component;
@@ -48,16 +50,21 @@ public class ReactivateUserHandler implements CommandHandler<ReactivateUserComma
     @Override
     @Transactional(rollbackFor = TechServicesClientException.class)
     public CommandResult handle(ReactivateUserCommand command, AuthenticatedEntraUser actor) {
-        log.info("Enabling user account with ID: {}", command.userEntraObjectId());
+        log.info("Enabling user account",
+                kv("entraOid", command.userEntraObjectId()),
+                kv("actorEntraOid", actor.entraOid()));
 
         if (Objects.equals(UUID.fromString(actor.entraOid()), command.userEntraObjectId())) {
-            log.warn("User can not reactive self: {}", actor.entraOid());
+            log.warn("User cannot reactivate their own account",
+                    kv("actorEntraOid", actor.entraOid()));
             return CommandResult.failure("User can not reactive self");
         }
 
         boolean isInternalUser = userCommandService.isInternalUser(command.userEntraObjectId());
         if (isInternalUser) {
-            log.warn("Internal user can not be activated: {}, by: {}", command.userEntraObjectId(), actor.entraOid());
+            log.warn("Internal user cannot be activated",
+                    kv("entraOid", command.userEntraObjectId()),
+                    kv("actorEntraOid", actor.entraOid()));
             return CommandResult.failure("User can not reactive internal user");
         }
 
@@ -67,14 +74,18 @@ public class ReactivateUserHandler implements CommandHandler<ReactivateUserComma
             UserProfile targetUserProfile = userCommandService.getActiveUserProfile(command.userEntraObjectId());
 
             if (targetUserProfile.getEntraUser().isMultiFirmUser()) {
-                log.warn("User {} can not reactive multi-firm user: {}", command.userEntraObjectId(), actor.entraOid());
+                log.warn("Actor cannot reactivate a multi-firm user",
+                        kv("entraOid", command.userEntraObjectId()),
+                        kv("actorEntraOid", actor.entraOid()));
                 return CommandResult.failure("User can not reactive multi-firm user");
             }
 
             UUID actorFirmId = actorProfile.getFirm().getId();
             UUID targetUserFirmId = targetUserProfile.getFirm().getId();
             if (!targetUserFirmId.equals(actorFirmId)) {
-                log.warn("User {} can not reactivate user {} from different firm", actor.entraOid(), command.userEntraObjectId());
+                log.warn("Actor cannot reactivate a user from a different firm",
+                        kv("actorEntraOid", actor.entraOid()),
+                        kv("entraOid", command.userEntraObjectId()));
                 return CommandResult.failure("User can not reactive user from different firm");
             }
         }
@@ -91,7 +102,9 @@ public class ReactivateUserHandler implements CommandHandler<ReactivateUserComma
         UserAccountStatusAudit audit = mapper.toAuditEntity(user, actor.entraOid(), command.comments());
         auditRepository.save(audit);
 
-        log.info("User account not found for oid: {}", command.userEntraObjectId());
+        log.info("User account reactivated",
+                kv("entraOid", user.getEntraOid()),
+                kv("actorEntraOid", actor.entraOid()));
 
         return mapper.toCommandResult(user);
     }

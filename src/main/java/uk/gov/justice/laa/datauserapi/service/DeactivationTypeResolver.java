@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.service;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
@@ -37,12 +39,15 @@ public class DeactivationTypeResolver {
      */
     public DeactivationType resolve(AuthenticatedEntraUser actor) {
         if (actor == null) {
-            log.warn("DeactivationTypeResolver.resolve called with null actor — returning NONE");
+            log.warn("Deactivation type resolution received no actor",
+                    kv("deactivationType", DeactivationType.NONE));
             return DeactivationType.NONE;
         }
 
         if (actor.activeProfile() == null) {
-            log.warn("DeactivationTypeResolver.resolve called with null activeProfile — returning NONE");
+            log.warn("Deactivation type resolution received no active profile",
+                    kv("actorEntraOid", actor.entraOid()),
+                    kv("deactivationType", DeactivationType.NONE));
             return DeactivationType.NONE;
         }
 
@@ -82,4 +87,3 @@ public class DeactivationTypeResolver {
         return DeactivationType.NONE;
     }
 }
-

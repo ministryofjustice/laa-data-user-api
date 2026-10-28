@@ -69,6 +69,8 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
 
                 AND (:#{#criteria.appId} IS NULL OR ar.app.id = :#{#criteria.appId})
 
+                AND (:#{#criteria.appEntraClientId} IS NULL OR ar.app.entraAppId = :#{#criteria.appEntraClientId})
+
                 AND( :#{#criteria.neverActivatedFilter} IS NULL OR :#{#criteria.neverActivatedFilter} = FALSE
                                 OR u.userAccountStatus = UserAccountStatus.ACTIVATION_REQUIRED)
 
@@ -108,6 +110,8 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
                 AND (:#{#criteria.userAccountStatus} IS NULL OR u.userAccountStatus = :#{#criteria.userAccountStatus})
 
                 AND (:#{#criteria.appId} IS NULL OR ar.app.id = :#{#criteria.appId})
+
+                AND (:#{#criteria.appEntraClientId} IS NULL OR ar.app.entraAppId = :#{#criteria.appEntraClientId})
 
                 AND( :#{#criteria.neverActivatedFilter} IS NULL OR :#{#criteria.neverActivatedFilter} = FALSE OR u.userAccountStatus = UserAccountStatus.ACTIVATION_REQUIRED)
 

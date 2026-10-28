@@ -30,7 +30,8 @@ jobs:
       # Keep in step with the reusable-workflow pin above - this selects the ASH
       # CLI release that workflow installs (git+https://.../automated-security-helper@<ash-version>).
       ash-version: v3.7.1
-      ash-mode: container
+      # local mode avoids ASH building its container image, which pulls from public.ecr.aws and gets 429s
+      ash-mode: local
       config: .ash/ash.yaml
       # NOTE: currently a no-op upstream - run-ash-security-scan.yml compares
       # this boolean input against the string 'true', which is always false, so
@@ -57,7 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: ash_output
           path: .ash/ash_output
@@ -96,11 +97,16 @@ jobs:
           echo
 
           # A scanner that errored or is missing its dependencies leaves a
-          # coverage gap - treat that as a failure, not a pass.
-          broken=$(jq -r '[.scanner_results // {}
-                           | to_entries[]
-                           | select(.value.status == "ERROR" or .value.status == "MISSING")
-                           | "\(.key) (\(.value.status))"] | join(", ")' "$results_json")
+          # coverage gap - treat that as a failure, not a pass. Local mode reports the
+          # disabled cdk-nag/cfn-nag as MISSING, so only the scanners enabled in
+          # .ash/ash.yaml must have PASSED; any other scanner only fails on ERROR.
+          broken=$(jq -r --argjson req '["checkov","grype","opengrep","syft"]' '
+                    [ (.scanner_results // {}) as $s
+                      | ($req[] as $k | ($s[$k].status // "ABSENT") as $st
+                         | select($st != "PASSED") | "\($k) (\($st))"),
+                        ($s | to_entries[]
+                         | select(.value.status == "ERROR" and ((.key as $k | $req | index($k)) | not))
+                         | "\(.key) (ERROR)") ] | join(", ")' "$results_json")
 
           rc=0
 
@@ -136,7 +142,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up JDK
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: 'corretto'
           java-version: '25'
@@ -182,13 +188,13 @@ jobs:
       security-events: write
     steps:
       - name: Download ASH output artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.01
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.01
         with:
           name: ash_output
           path: .ash/ash_output
 
       - name: Upload ASH SARIF file
-        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
         with:
           sarif_file: .ash/ash_output/reports/ash.sarif
           wait-for-processing: true
