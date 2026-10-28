@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.controller;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -53,10 +55,13 @@ public class UserAccountCommandController implements CommandControllerSupport {
     public ResponseEntity<CommandResult> reactivateUser(
             @Valid @RequestBody ReactivateUserRequest reactivateUserRequest,
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        log.info("Processing reactivate user command for user: {}", reactivateUserRequest.userEntraObjectId());
+        log.info("Processing reactivate user command",
+                kv("entraOid", reactivateUserRequest.userEntraObjectId()));
         ReactivateUserCommand reactivateUserCommand = reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest);
         CommandResult result = reactivateUserHandler.handle(reactivateUserCommand, authenticatedUser);
-        log.info("User account reactivated with ID: {} by {}", reactivateUserRequest.userEntraObjectId(), authenticatedUser.entraOid());
+        log.info("User account reactivated",
+                kv("entraOid", reactivateUserRequest.userEntraObjectId()),
+                kv("actorEntraOid", authenticatedUser.entraOid()));
         return ResponseEntity.ok(result);
     }
 
@@ -64,11 +69,14 @@ public class UserAccountCommandController implements CommandControllerSupport {
     public ResponseEntity<CommandResult> deactivateUser(
             @Valid @RequestBody DeactivateUserRequest deactivateUserRequest,
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        log.info("Processing deactivate user command for user: {}", deactivateUserRequest.userEntraObjectId());
+        log.info("Processing deactivate user command",
+                kv("entraOid", deactivateUserRequest.userEntraObjectId()));
         DeactivateUserCommand deactivateUserCommand = deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest);
         CommandResult result = deactivateUserHandler.handle(deactivateUserCommand, authenticatedUser);
-        log.info("User account deactivated with ID: {} by {} with reason: {}", deactivateUserRequest.userEntraObjectId(),
-                authenticatedUser.entraOid(), deactivateUserRequest.deactivateReason());
+        log.info("User account deactivated",
+                kv("entraOid", deactivateUserRequest.userEntraObjectId()),
+                kv("actorEntraOid", authenticatedUser.entraOid()),
+                kv("reason", deactivateUserRequest.deactivateReason()));
         return ResponseEntity.ok(result);
     }
 
@@ -76,11 +84,15 @@ public class UserAccountCommandController implements CommandControllerSupport {
     public ResponseEntity<CommandResult> deleteUser(
             @Valid @RequestBody DeleteUserRequest deleteUserRequest,
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        log.info("Processing delete user command for user: {}", deleteUserRequest.userEntraObjectId());
+        log.info("Processing delete user command",
+                kv("entraOid", deleteUserRequest.userEntraObjectId()));
         DeleteUserCommand deleteUserCommand = deleteUserMapper.toDeleteUserCommand(deleteUserRequest);
         CommandResult result = deleteUserHandler.handle(deleteUserCommand, authenticatedUser);
-        log.info("Delete user command for ID: {} by {} with reason: {} completed, success: {}",
-                deleteUserRequest.userEntraObjectId(), authenticatedUser.entraOid(), deleteUserRequest.deleteReason(), result.success());
+        log.info("Delete user command completed",
+                kv("entraOid", deleteUserRequest.userEntraObjectId()),
+                kv("actorEntraOid", authenticatedUser.entraOid()),
+                kv("reason", deleteUserRequest.deleteReason()),
+                kv("success", result.success()));
         return ResponseEntity.ok(result);
     }
 

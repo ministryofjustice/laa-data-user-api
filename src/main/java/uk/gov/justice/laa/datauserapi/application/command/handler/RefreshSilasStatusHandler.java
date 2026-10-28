@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.handler;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.stereotype.Component;
@@ -23,7 +25,9 @@ public class RefreshSilasStatusHandler implements CommandHandler<RefreshSilasSta
         try {
             refreshService.refresh(actor.entraOid());
         } catch (TaskRejectedException ex) {
-            log.warn("SiLAS status refresh requested by {} could not be started", actor.entraOid(), ex);
+            log.warn("SiLAS status refresh could not be started",
+                    kv("actorEntraOid", actor.entraOid()),
+                    ex);
             return CommandResult.failure("SiLAS status refresh is already running or the worker is unavailable.");
         }
         return CommandResult.success("SiLAS status refresh accepted for asynchronous processing.");

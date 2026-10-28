@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.config.jwt;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,7 +39,10 @@ public class JwtDecoderConfig {
     @Bean
     @Primary
     public JwtDecoder jwtDecoder() {
-        log.debug("JWT Decoder — issuer: {}, jwkSetUri: {}, audience: {}", issuerUri, jwkSetUri, audience);
+        log.debug("Configuring JWT decoder",
+                kv("issuerUri", issuerUri),
+                kv("jwkSetUri", jwkSetUri),
+                kv("audience", audience));
         try {
             OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(audience);
             OAuth2TokenValidator<Jwt> timestampValidator = new JwtTimestampValidator();
@@ -48,7 +53,9 @@ public class JwtDecoderConfig {
                 new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator, timestampValidator));
             return jwtDecoder;
         } catch (Exception e) {
-            log.error("Failed to create JWT Decoder: {}", e.getMessage(), e);
+            log.error("JWT decoder creation failed",
+                    kv("exceptionMessage", e.getMessage()),
+                    e);
             throw new RuntimeException("JWT Decoder configuration failed", e);
         }
     }

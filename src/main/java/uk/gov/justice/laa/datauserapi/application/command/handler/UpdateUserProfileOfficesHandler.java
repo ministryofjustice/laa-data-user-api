@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.handler;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,7 +59,10 @@ public class UpdateUserProfileOfficesHandler implements CommandHandler<UpdateUse
         userProfile.setLastModifiedBy(String.valueOf(actor.id()));
         userProfileCommandRepository.save(userProfile);
 
-        log.info("Updated offices for user profile {} by {}", command.userProfileId(), actor.entraOid());
+        log.info("Updated user profile offices",
+                kv("userProfileId", command.userProfileId()),
+                kv("actorEntraOid", actor.entraOid()),
+                kv("officeIds", command.officeIds()));
         return CommandResult.success("Updated offices for user profile " + command.userProfileId());
     }
 }
