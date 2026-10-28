@@ -2,12 +2,12 @@ package uk.gov.justice.laa.datauserapi.application.query.handler;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import uk.gov.justice.laa.datauserapi.contracts.dto.UserView;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserView;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.exception.InvalidUuidFormatException;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
@@ -33,8 +33,8 @@ public class GetUserAccountHandler {
     public UserView handle(GetUserAccountQuery query) {
         EntraUserDto actor = queryService.findByEntraOid(query.actorOid());
 
-        UserProfile actorProfile = actor.getUserProfiles().stream()
-                .filter(UserProfile::isActiveProfile)
+        UserProfileDto actorProfile = actor.getUserProfiles().stream()
+                .filter(UserProfileDto::isActiveProfile)
                 .findFirst()
                 .orElseThrow(() -> new InvalidActorContextException(
                         "Actor has no active profile: " + query.actorOid()));
@@ -56,7 +56,7 @@ public class GetUserAccountHandler {
         return userViewMapper.mapToUserView(target);
     }
 
-    private boolean canView(UserProfile actorProfile, EntraUserDto target) {
+    private boolean canView(UserProfileDto actorProfile, EntraUserDto target) {
         if (actorProfile.getUserType() == UserType.INTERNAL
                 && target.getUserProfiles().stream()
                 .anyMatch(profile -> profile.getUserType() == UserType.INTERNAL)) {

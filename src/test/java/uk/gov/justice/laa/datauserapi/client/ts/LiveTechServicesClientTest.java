@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
@@ -25,19 +26,26 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 import reactor.core.publisher.Mono;
 import uk.gov.justice.laa.datauserapi.client.ts.request.ChangeAccountReactivationRequest;
+import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateSecurityGroupsRequest;
+import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateUserDetailsRequest;
+import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
+import uk.gov.justice.laa.datauserapi.client.ts.response.UpdateSecurityGroupsResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorResponse;
 import uk.gov.justice.laa.datauserapi.config.CachingConfig;
+import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -136,8 +144,8 @@ class LiveTechServicesClientTest {
             verify(cache).put(LiveTechServicesClient.ACCESS_TOKEN, mockToken);
 
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending reactivate user request to Tech Services for: user-123",
-                            "Reactivate user request by Tech Services is successful for entra user user-123");
+                    .contains("Sending user reactivation request to Tech Services",
+                            "Tech Services reactivated user");
         }
 
         @Test
@@ -156,7 +164,8 @@ class LiveTechServicesClientTest {
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
 
-            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage).contains("Failed to reactivate entra user: user-123");
+            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
+                    .contains("Tech Services rejected user reactivation");
         }
 
         @Test
@@ -182,7 +191,7 @@ class LiveTechServicesClientTest {
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .anyMatch(msg -> msg.contains("Failed to reactivate entra user user-123, the root cause is Request too early (TOO_EARLY)"));
+                    .contains("Tech Services deferred user reactivation");
         }
 
         @Test
@@ -209,8 +218,8 @@ class LiveTechServicesClientTest {
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending reactivate user request to Tech Services for: user-123",
-                            "Failed to reactivate user John Doe, the root cause is Error (ERROR)");
+                    .contains("Sending user reactivation request to Tech Services",
+                            "Tech Services failed to reactivate user");
         }
 
         @Test
@@ -237,14 +246,14 @@ class LiveTechServicesClientTest {
         @Test
         void shouldThrowRuntimeExceptionWhenUserIsNull() {
             assertThatThrownBy(() -> client.reactivateUser(null)).isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Error while sending reactivate user request to Tech Services.");
+                    .hasMessageContaining("Invalid user details provided for reactivate user request to Tech Services.");
         }
 
         @Test
         void shouldThrowRuntimeExceptionWhenUserOidIsNull() {
             EntraUserDto userNoOid = new EntraUserDto();
             assertThatThrownBy(() -> client.reactivateUser(userNoOid)).isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Error while sending reactivate user request to Tech Services.");
+                    .hasMessageContaining("Invalid user details provided for reactivate user request to Tech Services.");
         }
     }
 
@@ -291,8 +300,8 @@ class LiveTechServicesClientTest {
             assertThat(result.getError()).isEqualTo(expectedError);
 
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending deactivate user request to Tech Services for: user-123",
-                            "User user-123 not found in Tech Services during deactivate request, the root cause is Not Found (404)");
+                    .contains("Sending user deactivation request to Tech Services",
+                            "User not found in Tech Services during deactivation");
         }
 
         @Test
@@ -312,8 +321,8 @@ class LiveTechServicesClientTest {
             assertThat(result.getError()).isEqualTo(expectedError);
 
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending deactivate user request to Tech Services for: user-123",
-                            "Failed to deactivate entra user: user-123");
+                    .contains("Sending user deactivation request to Tech Services",
+                            "Tech Services rejected user deactivation");
         }
 
         @Test
@@ -339,8 +348,8 @@ class LiveTechServicesClientTest {
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending deactivate user request to Tech Services for: user-123",
-                            "Failed to deactivate entra user: user-123, the root cause is Request too early (TOO_EARLY)");
+                    .contains("Sending user deactivation request to Tech Services",
+                            "Tech Services deferred user deactivation");
         }
 
         @Test
@@ -367,8 +376,8 @@ class LiveTechServicesClientTest {
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending deactivate user request to Tech Services for: user-123",
-                            "Failed to deactivate user user-123, the root cause is Bad Request (BAD_REQUEST)");
+                    .contains("Sending user deactivation request to Tech Services",
+                            "Tech Services failed to deactivate user");
         }
 
         @Test
@@ -394,7 +403,7 @@ class LiveTechServicesClientTest {
         @Test
         void shouldThrowRuntimeExceptionWhenUserIsNull() {
             assertThatThrownBy(() -> client.deactivateUser(null, "Reason"))
-                    .isInstanceOf(RuntimeException.class).hasMessageContaining("Error while sending deactivate user request to Tech Services.");
+                    .isInstanceOf(RuntimeException.class).hasMessageContaining("Invalid user details provided for deactivate user request to Tech Services.");
         }
     }
 
@@ -461,7 +470,225 @@ class LiveTechServicesClientTest {
 
             client.reactivateUser(validUser);
 
-            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage).contains("Error while getting access token from cache");
+            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
+                    .contains("Could not retrieve a valid Tech Services access token from cache");
+        }
+    }
+
+    @Nested
+    class UpdateUserDetailsTests {
+
+        private void mockPatch() {
+            when(restClient.patch()).thenReturn(requestBodyUriSpec);
+            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
+            when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
+            when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
+            when(requestBodySpec.body(any(UpdateUserDetailsRequest.class))).thenReturn(requestBodySpec);
+            when(requestBodySpec.retrieve()).thenReturn(responseSpec);
+        }
+
+        private HttpClientErrorException clientError(HttpStatus status, String body) {
+            return HttpClientErrorException.create(status, status.getReasonPhrase(), HttpHeaders.EMPTY, body.getBytes(), null);
+        }
+
+        @Test
+        void returnsSuccessOn200WithBody() {
+            mockTokenGeneration();
+            mockPatch();
+            ChangeAccountEnabledResponse body = ChangeAccountEnabledResponse.builder().success(true).message("ok").build();
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenReturn(ResponseEntity.ok(body));
+
+            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
+                    client.updateUserDetails("user-123", "John", "Doe", "j@d.com");
+
+            assertThat(result.isSuccess()).isTrue();
+            assertThat(result.getData()).isSameAs(body);
+            verify(requestBodyUriSpec).uri("test-unit/users/user-123");
+            ArgumentCaptor<UpdateUserDetailsRequest> captor = ArgumentCaptor.forClass(UpdateUserDetailsRequest.class);
+            verify(requestBodySpec).body(captor.capture());
+            assertThat(captor.getValue().toString()).contains("givenName=John", "surname=Doe", "mail=j@d.com");
+        }
+
+        @Test
+        void returnsUnexpectedResponseErrorWhenBodyMissing() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenReturn(ResponseEntity.ok().build());
+
+            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
+                    client.updateUserDetails("user-123", "John", null, null);
+
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getError().getCode()).isEqualTo("UNEXPECTED_RESPONSE");
+        }
+
+        @Test
+        void returnsUnexpectedResponseErrorWhenStatusNotOk() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenReturn(
+                    new ResponseEntity<>(ChangeAccountEnabledResponse.builder().build(), HttpStatus.ACCEPTED));
+
+            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
+                    client.updateUserDetails("user-123", "John", null, null);
+
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getError().getCode()).isEqualTo("UNEXPECTED_RESPONSE");
+        }
+
+        @Test
+        void returnsParsedErrorOn4xx() throws Exception {
+            mockTokenGeneration();
+            mockPatch();
+            String json = "{\"code\":\"ERR\",\"message\":\"bad\"}";
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(clientError(HttpStatus.BAD_REQUEST, json));
+            TechServicesErrorResponse error = TechServicesErrorResponse.builder().success(false).code("ERR").message("bad").build();
+            when(objectMapper.readValue(json, TechServicesErrorResponse.class)).thenReturn(error);
+
+            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
+                    client.updateUserDetails("user-123", "John", null, null);
+
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getError()).isSameAs(error);
+        }
+
+        @Test
+        void buildsErrorFromStatusWhenBodyEmpty() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(clientError(HttpStatus.NOT_FOUND, ""));
+
+            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
+                    client.updateUserDetails("user-123", "John", null, null);
+
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getError().getCode()).contains("404");
+            assertThat(result.getError().getMessage()).isEqualTo("Not Found");
+            verifyNoInteractions(objectMapper);
+        }
+
+        @Test
+        void returnsErrorOn5xx() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(HttpServerErrorException.create(
+                    HttpStatus.SERVICE_UNAVAILABLE, "Unavailable", HttpHeaders.EMPTY, new byte[0], null));
+
+            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
+                    client.updateUserDetails("user-123", "John", null, null);
+
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getError().getCode()).contains("503");
+        }
+
+        @Test
+        void wrapsErrorWhenErrorBodyCannotBeParsed() throws Exception {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(clientError(HttpStatus.BAD_REQUEST, "oops"));
+            when(objectMapper.readValue("oops", TechServicesErrorResponse.class)).thenThrow(new RuntimeException("parse"));
+
+            assertThatThrownBy(() -> client.updateUserDetails("user-123", "John", null, null))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("Error while getting users from Tech Services.");
+        }
+
+        @Test
+        void wrapsUnexpectedErrors() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(new IllegalStateException("boom"));
+
+            assertThatThrownBy(() -> client.updateUserDetails("user-123", "John", null, null))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("Unexpected error while updating users details from Tech Services.");
+        }
+    }
+
+    @Nested
+    class DeleteRoleAssignmentTests {
+
+        private void mockPatch() {
+            when(restClient.patch()).thenReturn(requestBodyUriSpec);
+            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
+            when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
+            when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
+            when(requestBodySpec.body(any(UpdateSecurityGroupsRequest.class))).thenReturn(requestBodySpec);
+            when(requestBodySpec.retrieve()).thenReturn(responseSpec);
+        }
+
+        @Test
+        void succeedsOn2xx() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class))
+                    .thenReturn(ResponseEntity.ok(UpdateSecurityGroupsResponse.builder().success(true).build()));
+
+            assertThatCode(() -> client.deleteRoleAssignment(validUser)).doesNotThrowAnyException();
+
+            verify(requestBodySpec).body(any(UpdateSecurityGroupsRequest.class));
+        }
+
+        @Test
+        void ignoresNotFound() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class)).thenThrow(
+                    HttpClientErrorException.create(HttpStatus.NOT_FOUND, "Not Found", HttpHeaders.EMPTY, "{}".getBytes(), null));
+
+            assertThatCode(() -> client.deleteRoleAssignment(validUser)).doesNotThrowAnyException();
+        }
+
+        @Test
+        void throwsOnOtherHttpError() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class)).thenThrow(
+                    HttpClientErrorException.create(HttpStatus.BAD_REQUEST, "Bad", HttpHeaders.EMPTY, "{}".getBytes(), null));
+
+            assertThatThrownBy(() -> client.deleteRoleAssignment(validUser))
+                    .isInstanceOf(TechServicesClientException.class)
+                    .hasMessageContaining("400");
+        }
+
+        @Test
+        void throwsOnNon2xxResponse() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class))
+                    .thenReturn(new ResponseEntity<>(HttpStatus.FOUND));
+
+            assertThatThrownBy(() -> client.deleteRoleAssignment(validUser))
+                    .isInstanceOf(TechServicesClientException.class);
+        }
+
+        @Test
+        void wrapsUnexpectedErrors() {
+            mockTokenGeneration();
+            mockPatch();
+            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class)).thenThrow(new IllegalStateException("boom"));
+
+            assertThatThrownBy(() -> client.deleteRoleAssignment(validUser))
+                    .isInstanceOf(TechServicesClientException.class)
+                    .hasMessageContaining("security group removal");
+        }
+    }
+
+    @Nested
+    class EdgeCaseTests {
+
+        @Test
+        void deactivateRejectsNullUser() {
+            assertThatThrownBy(() -> client.deactivateUser(null, "r")).isInstanceOf(TechServicesClientException.class);
+            assertThatThrownBy(() -> client.deactivateUser(new EntraUserDto(), "r"))
+                    .isInstanceOf(TechServicesClientException.class);
+        }
+
+        @Test
+        void fetchesNewTokenWhenCacheMissing() {
+            when(cacheManager.getCache(CachingConfig.TECH_SERVICES_DETAILS_CACHE)).thenReturn(null);
+
+            assertThatThrownBy(() -> client.reactivateUser(validUser)).isInstanceOf(RuntimeException.class);
         }
     }
 }

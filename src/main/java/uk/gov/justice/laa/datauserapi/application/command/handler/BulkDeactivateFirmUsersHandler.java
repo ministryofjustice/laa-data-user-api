@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.handler;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
@@ -8,6 +10,7 @@ import uk.gov.justice.laa.datauserapi.application.command.useraccount.BulkDeacti
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 
 import java.util.List;
@@ -31,7 +34,7 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
     }
 
     @Override
-    public CommandResult handle(BulkDeactivateFirmUsersCommand command, String actorOid) {
+    public CommandResult handle(BulkDeactivateFirmUsersCommand command, AuthenticatedEntraUser actor) {
         String firmCode = command.firmId();
         if (!firmCommandRepository.existsByCode(firmCode)) {
             throw new ResourceNotFoundException("Firm not found with ID: " + firmCode);
@@ -47,12 +50,14 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
                     .userEntraObjectId(userId)
                     .deactivateReason(command.deactivateReason())
                     .build();
-            CommandResult result = deactivateUserHandler.handle(deactivateCommand, actorOid);
+            CommandResult result = deactivateUserHandler.handle(deactivateCommand, actor);
             if (result.success()) {
                 deactivated++;
             } else {
                 failed++;
-                log.warn("Could not bulk-deactivate user {} for firm {}", userId, firmCode);
+                log.warn("Could not bulk-deactivate user",
+                        kv("entraOid", userId),
+                        kv("firmCode", firmCode));
             }
         }
 

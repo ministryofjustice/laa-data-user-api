@@ -16,6 +16,7 @@ import uk.gov.justice.laa.datauserapi.application.command.service.SilasStatusRef
 import uk.gov.justice.laa.datauserapi.application.command.service.SilasStatusRefreshService;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.RefreshSilasStatusCommand;
 import uk.gov.justice.laa.datauserapi.config.SilasStatusRefreshConfig;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -53,6 +54,9 @@ class SilasStatusRefreshAsyncIntegrationTest {
     void dispatchesWithoutBlockingRequestAndRejectsOverlapUntilWorkerCompletes() throws Exception {
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
+        final AuthenticatedEntraUser actor1 = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("first").firstName("first").lastName("last").build();
+        final AuthenticatedEntraUser actor2 = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("second").firstName("second").lastName("last").build();
+        final AuthenticatedEntraUser actor3 = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("third").firstName("third").lastName("last").build();
         AtomicReference<String> workerThread = new AtomicReference<>();
         doAnswer(invocation -> {
             workerThread.set(Thread.currentThread().getName());
@@ -66,17 +70,17 @@ class SilasStatusRefreshAsyncIntegrationTest {
 
         try {
             assertTimeoutPreemptively(Duration.ofSeconds(2),
-                    () -> assertThat(handler.handle(new RefreshSilasStatusCommand(), "first").success()).isTrue());
+                    () -> assertThat(handler.handle(new RefreshSilasStatusCommand(), actor1).success()).isTrue());
             assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
             assertThat(workerThread.get()).startsWith("silas-status-refresh-");
-            assertThat(handler.handle(new RefreshSilasStatusCommand(), "second").success()).isFalse();
+            assertThat(handler.handle(new RefreshSilasStatusCommand(), actor2).success()).isFalse();
         } finally {
             release.countDown();
             awaitCompletedTasks(completed + 1);
         }
         when(batchService.refreshBatch(null, "third"))
                 .thenReturn(new SilasStatusRefreshBatchService.BatchResult(null, 0, 0));
-        assertThat(handler.handle(new RefreshSilasStatusCommand(), "third").success()).isTrue();
+        assertThat(handler.handle(new RefreshSilasStatusCommand(), actor3).success()).isTrue();
         awaitCompletedTasks(completed + 2);
         verify(batchService).refreshBatch(null, "third");
     }
@@ -90,14 +94,17 @@ class SilasStatusRefreshAsyncIntegrationTest {
                 .thenThrow(new IllegalStateException("Deliberate background failure"));
         long completed = executor.getThreadPoolExecutor().getCompletedTaskCount();
 
-        assertThat(handler.handle(new RefreshSilasStatusCommand(), "failed-actor").success()).isTrue();
+        final AuthenticatedEntraUser failedActor = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("failed-actor").firstName("failed").lastName("actor").build();
+        assertThat(handler.handle(new RefreshSilasStatusCommand(), failedActor).success()).isTrue();
         awaitCompletedTasks(completed + 1);
 
-        assertThat(output.getOut()).contains("Asynchronous SiLAS status refresh failed for actor failed-actor",
-                "Previously committed batches remain updated.", "Deliberate background failure");
+        assertThat(output.getOut()).contains(
+                "Asynchronous SiLAS status refresh failed; previously committed batches remain updated",
+                "Deliberate background failure");
         when(batchService.refreshBatch(isNull(), any(String.class)))
                 .thenReturn(new SilasStatusRefreshBatchService.BatchResult(null, 0, 0));
-        assertThat(handler.handle(new RefreshSilasStatusCommand(), "retry-actor").success()).isTrue();
+        final AuthenticatedEntraUser retryActor = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("retry-actor").firstName("retry").lastName("actor").build();
+        assertThat(handler.handle(new RefreshSilasStatusCommand(), retryActor).success()).isTrue();
         awaitCompletedTasks(completed + 2);
         verify(batchService).refreshBatch(null, "retry-actor");
     }

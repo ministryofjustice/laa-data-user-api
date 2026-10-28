@@ -9,18 +9,24 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.jwt.Jwt;
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeactivateUserHandler;
+import uk.gov.justice.laa.datauserapi.application.command.handler.DeleteUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.ReactivateUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserDetailsHandler;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.UpdateUserDetailsMapper;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.UpdateUserDetailsCommand;
+import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserDetailsRequest;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeleteUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.contracts.request.DeactivateUserRequest;
+import uk.gov.justice.laa.datauserapi.contracts.request.DeleteUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.request.ReactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
-import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 
 import java.util.UUID;
 
@@ -46,6 +52,18 @@ class UserAccountCommandControllerTest {
     private DeactivateUserMapper deactivateUserMapper;
 
     @Mock
+    private UpdateUserDetailsHandler updateUserDetailsHandler;
+
+    @Mock
+    private UpdateUserDetailsMapper updateUserDetailsMapper;
+
+    @Mock
+    private DeleteUserHandler deleteUserHandler;
+
+    @Mock
+    private DeleteUserMapper deleteUserMapper;
+
+    @Mock
     private ReactivateUserRequest reactivateUserRequest;
 
     @Mock
@@ -68,7 +86,11 @@ class UserAccountCommandControllerTest {
                 reactivateUserHandler,
                 reactivateUserMapper,
                 deactivateUserHandler,
-                deactivateUserMapper
+                deactivateUserMapper,
+                updateUserDetailsHandler,
+                updateUserDetailsMapper,
+                deleteUserHandler,
+                deleteUserMapper
         );
     }
 
@@ -80,15 +102,18 @@ class UserAccountCommandControllerTest {
         @DisplayName("Should successfully reactivate user when JWT with subject is present")
         void reactivateUser_WithValidJwtSubject_ReturnsOk() {
             // Arrange
-            String actorOid = UUID.randomUUID().toString();
-            AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
-                    .entraOid(actorOid)
+            UUID actorId = UUID.randomUUID();
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(actorId)
+                    .entraOid(actorId.toString())
+                    .email("actor@example.com")
+                    .active(true)
                     .build();
             when(reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest)).thenReturn(reactivateUserCommand);
-            when(reactivateUserHandler.handle(reactivateUserCommand, actorOid)).thenReturn(commandResult);
+            when(reactivateUserHandler.handle(reactivateUserCommand, actorUser)).thenReturn(commandResult);
 
             // Act
-            ResponseEntity<CommandResult> response = controller.reactivateUser(reactivateUserRequest, user);
+            ResponseEntity<CommandResult> response = controller.reactivateUser(reactivateUserRequest, actorUser);
 
             // Assert
             assertThat(response).isNotNull();
@@ -96,7 +121,7 @@ class UserAccountCommandControllerTest {
             assertThat(response.getBody()).isSameAs(commandResult);
 
             verify(reactivateUserMapper).toReactivateUserCommand(reactivateUserRequest);
-            verify(reactivateUserHandler).handle(reactivateUserCommand, actorOid);
+            verify(reactivateUserHandler).handle(reactivateUserCommand, actorUser);
             verifyNoInteractions(deactivateUserHandler, deactivateUserMapper);
         }
 
@@ -104,12 +129,13 @@ class UserAccountCommandControllerTest {
         @DisplayName("Should propagate exception when handler throws exception")
         void reactivateUser_WhenHandlerFails_PropagatesException() {
             // Arrange
-            String actorOid = UUID.randomUUID().toString();
+            UUID actorId = UUID.randomUUID();
             AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
-                    .entraOid(actorOid)
+                    .id(actorId)
+                    .entraOid(actorId.toString())
                     .build();
             when(reactivateUserMapper.toReactivateUserCommand(reactivateUserRequest)).thenReturn(reactivateUserCommand);
-            when(reactivateUserHandler.handle(reactivateUserCommand, actorOid))
+            when(reactivateUserHandler.handle(reactivateUserCommand, user))
                     .thenThrow(new IllegalStateException("Reactivation failed"));
 
             // Act & Assert
@@ -127,12 +153,13 @@ class UserAccountCommandControllerTest {
         @DisplayName("Should successfully deactivate user when JWT with subject is present")
         void deactivateUser_WithValidJwtSubject_ReturnsOk() {
             // Arrange
-            String actorOid = UUID.randomUUID().toString();
+            UUID actorId = UUID.randomUUID();
             AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
-                    .entraOid(actorOid)
+                    .id(actorId)
+                    .entraOid(actorId.toString())
                     .build();
             when(deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest)).thenReturn(deactivateUserCommand);
-            when(deactivateUserHandler.handle(deactivateUserCommand, actorOid)).thenReturn(commandResult);
+            when(deactivateUserHandler.handle(deactivateUserCommand, user)).thenReturn(commandResult);
 
             // Act
             ResponseEntity<CommandResult> response = controller.deactivateUser(deactivateUserRequest, user);
@@ -143,7 +170,7 @@ class UserAccountCommandControllerTest {
             assertThat(response.getBody()).isSameAs(commandResult);
 
             verify(deactivateUserMapper).toDeactivateUserCommand(deactivateUserRequest);
-            verify(deactivateUserHandler).handle(deactivateUserCommand, actorOid);
+            verify(deactivateUserHandler).handle(deactivateUserCommand, user);
             verifyNoInteractions(reactivateUserHandler, reactivateUserMapper);
         }
 
@@ -151,12 +178,13 @@ class UserAccountCommandControllerTest {
         @DisplayName("Should propagate exception when handler throws exception")
         void deactivateUser_WhenHandlerFails_PropagatesException() {
             // Arrange
-            String actorOid = UUID.randomUUID().toString();
+            UUID actorId = UUID.randomUUID();
             AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
-                    .entraOid(actorOid)
+                    .id(actorId)
+                    .entraOid(actorId.toString())
                     .build();
             when(deactivateUserMapper.toDeactivateUserCommand(deactivateUserRequest)).thenReturn(deactivateUserCommand);
-            when(deactivateUserHandler.handle(deactivateUserCommand, actorOid))
+            when(deactivateUserHandler.handle(deactivateUserCommand, user))
                     .thenThrow(new IllegalArgumentException("Deactivation reason required"));
 
             // Act & Assert
@@ -164,5 +192,44 @@ class UserAccountCommandControllerTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("Deactivation reason required");
         }
+    }
+
+    @Test
+    @DisplayName("updateUserDetails delegates to the handler with the authenticated user as actor")
+    void updateUserDetails_DelegatesToHandler() {
+        String actorOid = UUID.randomUUID().toString();
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder().entraOid(actorOid).build();
+        UpdateUserDetailsRequest request = UpdateUserDetailsRequest.builder()
+                .userEntraObjectId(UUID.randomUUID()).firstName("A").build();
+        UpdateUserDetailsCommand command = UpdateUserDetailsCommand.builder()
+                .userEntraObjectId(request.userEntraObjectId()).firstName("A").build();
+        when(updateUserDetailsMapper.toUpdateUserDetailsCommand(request)).thenReturn(command);
+        when(updateUserDetailsHandler.handle(command, user)).thenReturn(commandResult);
+
+        ResponseEntity<CommandResult> response = controller.updateUserDetails(request, user);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isSameAs(commandResult);
+    }
+
+    @Test
+    @DisplayName("deleteUser delegates to the delete handler with the JWT subject as actor")
+    void deleteUser_DelegatesToHandler() {
+        UUID actorId = UUID.randomUUID();
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .id(actorId)
+                .entraOid(actorId.toString())
+                .build();
+        DeleteUserRequest request = new DeleteUserRequest(
+                java.util.UUID.randomUUID(), uk.gov.justice.laa.datauserapi.contracts.domain.DeleteUserReason.LeftFirm);
+        DeleteUserCommand command = new DeleteUserCommand(request.userEntraObjectId(), request.deleteReason());
+        CommandResult result = CommandResult.success("deleted");
+        when(deleteUserMapper.toDeleteUserCommand(request)).thenReturn(command);
+        when(deleteUserHandler.handle(command, user)).thenReturn(result);
+
+        ResponseEntity<CommandResult> response = controller.deleteUser(request, user);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isSameAs(result);
     }
 }
