@@ -58,28 +58,28 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
                     OR LOWER(u.email) LIKE LOWER(CONCAT('%', :#{#criteria.user}, '%'))
                     OR LOWER(CONCAT(u.firstName, ' ', u.lastName)) LIKE LOWER(CONCAT('%', :#{#criteria.user}, '%')))
                 
-                AND (:#{#criteria.email_query} IS NULL
-                    OR :#{#criteria.email_query} = ''
+                AND (:#{#criteria.emailQuery} IS NULL
+                    OR :#{#criteria.emailQuery} = ''
                     OR LOWER(u.email) LIKE LOWER(
-                    CONCAT('%', :#{#criteria.email_query}, '%')))
+                    CONCAT('%', :#{#criteria.emailQuery}, '%')))
 
-                AND (:#{#criteria.firm_id} IS NULL OR up.firm.id = :#{#criteria.firm_id})
+                AND (:#{#criteria.firmId} IS NULL OR up.firm.id = :#{#criteria.firmId})
 
                 AND (:#{#criteria.firm} IS NULL OR :#{#criteria.firm} = '' OR LOWER(f.name) LIKE LOWER(CONCAT('%', :#{#criteria.firm}, '%'))
                                 OR CAST(f.id AS STRING) LIKE CONCAT('%', :#{#criteria.firm}, '%'))
                 
-                AND (:#{#criteria.user_type} IS NULL OR up.userType = :#{#criteria.user_type})
+                AND (:#{#criteria.userType} IS NULL OR up.userType = :#{#criteria.userType})
 
-                AND (:#{#criteria.user_account_status} IS NULL OR u.userAccountStatus = :#{#criteria.user_account_status})
+                AND (:#{#criteria.userAccountStatus} IS NULL OR u.userAccountStatus = :#{#criteria.userAccountStatus})
 
-                AND (:#{#criteria.app_id} IS NULL OR ar.app.id = :#{#criteria.app_id})
+                AND (:#{#criteria.appId} IS NULL OR ar.app.id = :#{#criteria.appId})
 
-                AND (:#{#criteria.app_entra_client_id} IS NULL OR ar.app.entraAppId = :#{#criteria.app_entra_client_id})
+                AND (:#{#criteria.appEntraClientId} IS NULL OR ar.app.entraAppId = :#{#criteria.appEntraClientId})
 
-                AND( :#{#criteria.never_activated_filter} IS NULL OR :#{#criteria.never_activated_filter} = FALSE
+                AND( :#{#criteria.neverActivatedFilter} IS NULL OR :#{#criteria.neverActivatedFilter} = FALSE
                                 OR u.userAccountStatus = UserAccountStatus.ACTIVATION_REQUIRED)
 
-                AND (:#{#criteria.app_role_id} IS NULL OR ar.id = :#{#criteria.app_role_id})
+                AND (:#{#criteria.appRoleId} IS NULL OR ar.id = :#{#criteria.appRoleId})
 
                 """,
             countQuery = """
@@ -105,27 +105,27 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
                     OR LOWER(CONCAT(u.firstName, ' ', u.lastName))
                         LIKE LOWER(CONCAT('%', :#{#criteria.user}, '%')))
                
-                AND (:#{#criteria.email_query} IS NULL
-                    OR :#{#criteria.email_query} = ''
-                    OR LOWER(u.email) LIKE LOWER(CONCAT('%', :#{#criteria.email_query}, '%')))
+                AND (:#{#criteria.emailQuery} IS NULL
+                    OR :#{#criteria.emailQuery} = ''
+                    OR LOWER(u.email) LIKE LOWER(CONCAT('%', :#{#criteria.emailQuery}, '%')))
 
-                AND (:#{#criteria.firm_id} IS NULL OR up.firm.id = :#{#criteria.firm_id})
+                AND (:#{#criteria.firmId} IS NULL OR up.firm.id = :#{#criteria.firmId})
 
                 AND (:#{#criteria.firm} IS NULL OR :#{#criteria.firm} = '' OR LOWER(f.name) LIKE LOWER(CONCAT('%', :#{#criteria.firm}, '%'))
                                  OR CAST(f.id AS STRING) LIKE CONCAT('%', :#{#criteria.firm}, '%'))
 
-                AND (:#{#criteria.user_type} IS NULL OR up.userType = :#{#criteria.user_type})
+                AND (:#{#criteria.userType} IS NULL OR up.userType = :#{#criteria.userType})
 
-                AND (:#{#criteria.user_account_status} IS NULL OR u.userAccountStatus = :#{#criteria.user_account_status})
+                AND (:#{#criteria.userAccountStatus} IS NULL OR u.userAccountStatus = :#{#criteria.userAccountStatus})
 
-                AND (:#{#criteria.app_id} IS NULL OR ar.app.id = :#{#criteria.app_id})
+                AND (:#{#criteria.appId} IS NULL OR ar.app.id = :#{#criteria.appId})
 
-                AND (:#{#criteria.app_entra_client_id} IS NULL OR ar.app.entraAppId = :#{#criteria.app_entra_client_id})
+                AND (:#{#criteria.appEntraClientId} IS NULL OR ar.app.entraAppId = :#{#criteria.appEntraClientId})
 
-                AND( :#{#criteria.never_activated_filter} IS NULL OR :#{#criteria.never_activated_filter} = FALSE OR u.userAccountStatus = UserAccountStatus.ACTIVATION_REQUIRED)
+                AND( :#{#criteria.neverActivatedFilter} IS NULL OR :#{#criteria.neverActivatedFilter} = FALSE OR u.userAccountStatus = UserAccountStatus.ACTIVATION_REQUIRED)
 
 
-                AND (:#{#criteria.app_role_id} IS NULL OR ar.id = :#{#criteria.app_role_id})
+                AND (:#{#criteria.appRoleId} IS NULL OR ar.id = :#{#criteria.appRoleId})
                 """
     )
     Page<EntraUser> searchUsers(

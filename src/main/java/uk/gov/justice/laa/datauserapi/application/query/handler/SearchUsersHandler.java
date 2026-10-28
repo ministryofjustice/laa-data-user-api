@@ -61,17 +61,17 @@ public class SearchUsersHandler {
         UUID actorFirmId = actorProfile.getUserType() == UserType.EXTERNAL
                 ? (actorProfile.getFirm() == null ? null : actorProfile.getFirm().getId()) : null;
 
-        UserSearchCriteria enrichedCriteria = new UserSearchCriteria(criteria.page_number(), criteria.page_size(),
-                criteria.sort_by(), criteria.user(), criteria.email_query(), criteria.firm(), criteria.firm_id(), criteria.app_id(),
-                criteria.app_entra_client_id(), criteria.app_role_id(), criteria.user_type(), criteria.user_account_status(),
-                criteria.never_activated_filter(), actorProfile.getUserType() == UserType.INTERNAL,
+        UserSearchCriteria enrichedCriteria = new UserSearchCriteria(criteria.pageNumber(), criteria.pageSize(),
+                criteria.sortBy(), criteria.user(), criteria.emailQuery(), criteria.firm(), criteria.firmId(), criteria.appId(),
+                criteria.appEntraClientId(), criteria.appRoleId(), criteria.userType(), criteria.userAccountStatus(),
+                criteria.neverActivatedFilter(), actorProfile.getUserType() == UserType.INTERNAL,
                 actorProfile.getUserType() == UserType.EXTERNAL, actorFirmId, canViewExternalUsers);
 
-        int pageNumber = enrichedCriteria.page_number() == null ? 0 : enrichedCriteria.page_number();
-        int pageSize = enrichedCriteria.page_size() == null ? 20 : enrichedCriteria.page_size();
+        int pageNumber = enrichedCriteria.pageNumber() == null ? 0 : enrichedCriteria.pageNumber();
+        int pageSize = enrichedCriteria.pageSize() == null ? 20 : enrichedCriteria.pageSize();
         pageSize = Math.min(pageSize, 100);
 
-        Pageable pageable = PageRequest.of(pageNumber, pageSize, toSort(enrichedCriteria.sort_by()));
+        Pageable pageable = PageRequest.of(pageNumber, pageSize, toSort(enrichedCriteria.sortBy()));
         Page<EntraUserDto> page = queryService.searchUsers(enrichedCriteria, pageable);
 
         List<UserAccountSummaryView> items = page.getContent().stream()
