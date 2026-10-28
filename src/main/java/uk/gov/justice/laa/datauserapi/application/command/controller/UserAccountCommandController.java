@@ -93,7 +93,8 @@ public class UserAccountCommandController implements CommandControllerSupport {
     public ResponseEntity<CommandResult> updateUserDetails(
             @Valid @RequestBody UpdateUserDetailsRequest updateUserDetailsRequest,
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        log.info("Processing update user details command for user: {}", updateUserDetailsRequest.userEntraObjectId());
+        log.info("Processing update user details command",
+                kv("entraOid", updateUserDetailsRequest.userEntraObjectId()));
         UpdateUserDetailsCommand command = updateUserDetailsMapper.toUpdateUserDetailsCommand(updateUserDetailsRequest);
         CommandResult result = updateUserDetailsHandler.handle(command, authenticatedUser);
         return ResponseEntity.ok(result);

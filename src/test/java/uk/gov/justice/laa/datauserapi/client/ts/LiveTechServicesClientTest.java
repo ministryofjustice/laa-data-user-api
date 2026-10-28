@@ -246,14 +246,14 @@ class LiveTechServicesClientTest {
         @Test
         void shouldThrowRuntimeExceptionWhenUserIsNull() {
             assertThatThrownBy(() -> client.reactivateUser(null)).isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Error while sending reactivate user request to Tech Services.");
+                    .hasMessageContaining("Invalid user details provided for reactivate user request to Tech Services.");
         }
 
         @Test
         void shouldThrowRuntimeExceptionWhenUserOidIsNull() {
             EntraUserDto userNoOid = new EntraUserDto();
             assertThatThrownBy(() -> client.reactivateUser(userNoOid)).isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Error while sending reactivate user request to Tech Services.");
+                    .hasMessageContaining("Invalid user details provided for reactivate user request to Tech Services.");
         }
     }
 
@@ -403,7 +403,7 @@ class LiveTechServicesClientTest {
         @Test
         void shouldThrowRuntimeExceptionWhenUserIsNull() {
             assertThatThrownBy(() -> client.deactivateUser(null, "Reason"))
-                    .isInstanceOf(RuntimeException.class).hasMessageContaining("Error while sending deactivate user request to Tech Services.");
+                    .isInstanceOf(RuntimeException.class).hasMessageContaining("Invalid user details provided for deactivate user request to Tech Services.");
         }
     }
 
