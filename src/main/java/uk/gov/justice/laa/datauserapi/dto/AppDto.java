@@ -1,0 +1,83 @@
+package uk.gov.justice.laa.datauserapi.dto;
+
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import uk.gov.justice.laa.datauserapi.model.AppType;
+
+import java.io.Serial;
+import java.io.Serializable;
+import java.util.Objects;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AppDto implements Comparable<AppDto>, Serializable {
+    @Serial
+    private static final long serialVersionUID = 1L;
+    private String id;
+    private String entraAppId;
+    private String name;
+    private String title;
+    private String description;
+    private String url;
+    private int ordinal;
+    private boolean selected;
+    private AppType appType;
+    private boolean enabled;
+    private boolean changeNotAllowed;
+    private boolean hiddenFromSelection;
+    private ChangeType changeType;
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof AppDto appDto) {
+            return Objects.equals(id, appDto.id) && Objects.equals(name, appDto.name);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, name);
+    }
+
+    @Override
+    public int compareTo(@NotNull AppDto o) {
+        int cmp = Boolean.compare(o.enabled, enabled);
+
+        if (cmp != 0) {
+            return cmp;
+        }
+
+        cmp = ordinal - o.ordinal;
+
+        if (cmp != 0) {
+            return cmp;
+        }
+
+        if (name == null && o.name == null) {
+            return 0;
+        }
+        if (name == null) {
+            return 1;
+        }
+        if (o.name == null) {
+            return -1;
+        }
+
+        return name.compareToIgnoreCase(o.name);
+    }
+
+    public enum ChangeType {
+        NONE,
+        ADDED,
+        UPDATED,
+        DELETED,
+        REVIEW,
+    }
+}
+

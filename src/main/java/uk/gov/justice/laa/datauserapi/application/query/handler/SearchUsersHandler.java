@@ -15,7 +15,7 @@ import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
@@ -42,8 +42,8 @@ public class SearchUsersHandler {
     public UserAccountSummaryPage handle(SearchUsersQuery query) {
         EntraUserDto actor = queryService.findByEntraOid(query.actorOid());
 
-        UserProfile actorProfile = actor.getUserProfiles().stream()
-                .filter(UserProfile::isActiveProfile)
+        UserProfileDto actorProfile = actor.getUserProfiles().stream()
+                .filter(UserProfileDto::isActiveProfile)
                 .findFirst()
                 .orElseThrow(() -> new InvalidActorContextException(
                         "Actor has no active profile: " + query.actorOid()));
