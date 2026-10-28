@@ -6,10 +6,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
+import uk.gov.justice.laa.datauserapi.config.MapperConfig;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
+import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -62,5 +65,18 @@ class UserAccountQueryMapperTest {
         assertThat(result.getContent()).isEmpty();
         assertThat(result.getSize()).isEqualTo(10);
         verifyNoInteractions(modelMapper);
+    }
+
+    @Test
+    void mapsBidirectionalUserProfilesWithoutRecursing() {
+        EntraUser user = EntraUser.builder().firstName("Ada").lastName("Lovelace").build();
+        UserProfile profile = UserProfile.builder().entraUser(user).build();
+        user.setUserProfiles(Set.of(profile));
+        UserAccountQueryMapper realMapper = new UserAccountQueryMapper(new MapperConfig().modelMapper());
+
+        EntraUserDto dto = realMapper.toDto(Optional.of(user), "oid");
+
+        assertThat(dto.getUserProfiles()).hasSize(1);
+        assertThat(dto.getUserProfiles().iterator().next().getEntraUser()).isNotNull();
     }
 }
