@@ -9,6 +9,8 @@ import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import lombok.NoArgsConstructor;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileSilasStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
@@ -31,6 +33,8 @@ public class UserProfileDto implements Serializable {
     private UserProfileSilasStatus silasStatus;
 
     // Related entities as DTOs
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private EntraUserDto entraUser;
     private FirmDto firm;
     private List<OfficeDto> offices;
