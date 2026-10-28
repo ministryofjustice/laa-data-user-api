@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.handler;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,7 +38,9 @@ public class UpdateUserDetailsHandler implements CommandHandler<UpdateUserDetail
     @Override
     @Transactional (rollbackFor = TechServicesClientException.class)
     public CommandResult handle(UpdateUserDetailsCommand command, AuthenticatedEntraUser actor) {
-        log.info("Handling update user details command for user: {} by actor: {}", command.userEntraObjectId(), actor.entraOid());
+        log.info("Handling update user details command",
+                kv("entraOid", command.userEntraObjectId()),
+                kv("actorEntraOid", actor.entraOid()));
         String actorId = String.valueOf(actor.entraOid());
 
         EntraUser user = entraUserCommandRepository.findByEntraOid(String.valueOf(command.userEntraObjectId()))
@@ -44,7 +48,8 @@ public class UpdateUserDetailsHandler implements CommandHandler<UpdateUserDetail
 
         if (command.email() != null && !command.email().equalsIgnoreCase(user.getEmail())
                 && entraUserCommandRepository.existsByEmailIgnoreCaseAndIdNot(command.email(), user.getId())) {
-            log.warn("Email already in use, can not update user: {}", command.userEntraObjectId());
+            log.warn("Email already in use; cannot update user",
+                    kv("entraOid", command.userEntraObjectId()));
             return CommandResult.failure("Email address is already in use by another user");
         }
 
@@ -65,8 +70,9 @@ public class UpdateUserDetailsHandler implements CommandHandler<UpdateUserDetail
             user.setLastModifiedBy(actorId);
             entraUserCommandRepository.save(user);
 
-            log.info("Successfully updated user details in database for user ID: {} by: {}",
-                    command.userEntraObjectId(), actorId);
+            log.info("Updated user details in database",
+                    kv("entraOid", command.userEntraObjectId()),
+                    kv("actorEntraOid", actorId));
             return updateUserDetailsMapper.toCommandResult(user);
         } else {
             throw new RuntimeException("Tech Services API call failed: " + response.getError());
