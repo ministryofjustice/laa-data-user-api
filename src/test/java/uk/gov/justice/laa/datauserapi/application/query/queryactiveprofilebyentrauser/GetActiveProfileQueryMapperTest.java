@@ -7,15 +7,15 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
-import uk.gov.justice.laa.datauserapi.entity.App;
-import uk.gov.justice.laa.datauserapi.entity.AppRole;
-import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.entity.Firm;
-import uk.gov.justice.laa.datauserapi.entity.Office;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.dto.AppDto;
+import uk.gov.justice.laa.datauserapi.dto.AppRoleDto;
+import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
+import uk.gov.justice.laa.datauserapi.dto.FirmDto;
+import uk.gov.justice.laa.datauserapi.dto.OfficeDto;
+import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,7 +29,7 @@ class GetActiveProfileQueryMapperTest {
 
     @Test
     void mapsUserProfileToDetailView() {
-        UserProfile profile = createBasicUserProfile();
+        UserProfileDto profile = createBasicUserProfile();
 
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
 
@@ -42,7 +42,7 @@ class GetActiveProfileQueryMapperTest {
 
     @Test
     void mapsAccountAndProfileStatus() {
-        UserProfile profile = createBasicUserProfile();
+        UserProfileDto profile = createBasicUserProfile();
 
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
 
@@ -52,11 +52,11 @@ class GetActiveProfileQueryMapperTest {
 
     @Test
     void includesFirmDetailsWhenPresent() {
-        Firm firm = mock(Firm.class);
+        FirmDto firm = mock(FirmDto.class);
         when(firm.getId()).thenReturn(UUID.randomUUID());
         when(firm.getName()).thenReturn("Test Firm");
 
-        UserProfile profile = createUserProfileWithFirm(firm);
+        UserProfileDto profile = createUserProfileWithFirm(firm);
 
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
 
@@ -66,7 +66,7 @@ class GetActiveProfileQueryMapperTest {
 
     @Test
     void handlesMissingFirmForInternalProfile() {
-        UserProfile profile = createBasicUserProfile();
+        UserProfileDto profile = createBasicUserProfile();
         when(profile.getFirm()).thenReturn(null);
 
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
@@ -77,11 +77,11 @@ class GetActiveProfileQueryMapperTest {
 
     @Test
     void mapsAppRoles() {
-        AppRole role1 = createAppRole("Admin", "ADMIN");
-        AppRole role2 = createAppRole("Editor", "EDITOR");
+        AppRoleDto role1 = createAppRole("Admin", "ADMIN");
+        AppRoleDto role2 = createAppRole("Editor", "EDITOR");
 
-        UserProfile profile = createBasicUserProfile();
-        when(profile.getAppRoles()).thenReturn(Set.of(role1, role2));
+        UserProfileDto profile = createBasicUserProfile();
+        when(profile.getAppRoles()).thenReturn(List.of(role1, role2));
 
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
 
@@ -91,11 +91,11 @@ class GetActiveProfileQueryMapperTest {
 
     @Test
     void mapsOffices() {
-        Office office1 = createOffice("Office1", "1000");
-        Office office2 = createOffice("Office2", "2000");
+        OfficeDto office1 = createOffice("Office1", "1000");
+        OfficeDto office2 = createOffice("Office2", "2000");
 
-        UserProfile profile = createBasicUserProfile();
-        when(profile.getOffices()).thenReturn(Set.of(office1, office2));
+        UserProfileDto profile = createBasicUserProfile();
+        when(profile.getOffices()).thenReturn(List.of(office1, office2));
 
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
 
@@ -104,25 +104,23 @@ class GetActiveProfileQueryMapperTest {
 
     @Test
     void mapsOfficeDetailsCorrectly() {
-        Firm firm = mock(Firm.class);
         UUID firmId = UUID.randomUUID();
-        when(firm.getId()).thenReturn(firmId);
 
-        Office.Address address = mock(Office.Address.class);
+        OfficeDto.AddressDto address = mock(OfficeDto.AddressDto.class);
         when(address.getPostcode()).thenReturn("SW1A 1AA");
         when(address.getAddressLine1()).thenReturn("123 Main St");
         when(address.getAddressLine2()).thenReturn("Suite 100");
         when(address.getAddressLine3()).thenReturn("Floor 3");
         when(address.getCity()).thenReturn("London");
 
-        Office office = mock(Office.class);
+        OfficeDto office = mock(OfficeDto.class);
         UUID officeId = UUID.randomUUID();
         when(office.getId()).thenReturn(officeId);
-        when(office.getFirm()).thenReturn(firm);
+        when(office.getFirmId()).thenReturn(firmId.toString());
         when(office.getAddress()).thenReturn(address);
 
-        UserProfile profile = createBasicUserProfile();
-        when(profile.getOffices()).thenReturn(Set.of(office));
+        UserProfileDto profile = createBasicUserProfile();
+        when(profile.getOffices()).thenReturn(List.of(office));
 
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
 
@@ -136,8 +134,8 @@ class GetActiveProfileQueryMapperTest {
 
     @Test
     void indicatesNoRolesWhenEmpty() {
-        UserProfile profile = createBasicUserProfile();
-        when(profile.getAppRoles()).thenReturn(new HashSet<>());
+        UserProfileDto profile = createBasicUserProfile();
+        when(profile.getAppRoles()).thenReturn(new ArrayList<>());
 
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
 
@@ -147,7 +145,7 @@ class GetActiveProfileQueryMapperTest {
 
     @Test
     void mapsUnrestrictedOfficeAccess() {
-        UserProfile profile = createBasicUserProfile();
+        UserProfileDto profile = createBasicUserProfile();
         when(profile.isUnrestrictedOfficeAccess()).thenReturn(true);
 
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
@@ -157,7 +155,7 @@ class GetActiveProfileQueryMapperTest {
 
     @Test
     void mapsLastSyncSuccessfulStatus() {
-        UserProfile profile = createBasicUserProfile();
+        UserProfileDto profile = createBasicUserProfile();
         when(profile.isLastCcmsSyncSuccessful()).thenReturn(false);
 
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
@@ -167,7 +165,7 @@ class GetActiveProfileQueryMapperTest {
 
     @Test
     void mapsUserEntraObjectId() {
-        UserProfile profile = createBasicUserProfile();
+        UserProfileDto profile = createBasicUserProfile();
 
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
 
@@ -176,7 +174,7 @@ class GetActiveProfileQueryMapperTest {
 
     @Test
     void mapsMultiFirmUserIndicator() {
-        EntraUser user = mock(EntraUser.class);
+        EntraUserDto user = mock(EntraUserDto.class);
         when(user.getEntraOid()).thenReturn(USER_ENTRA_OID);
         when(user.getEmail()).thenReturn("test@example.com");
         when(user.getFirstName()).thenReturn("John");
@@ -184,7 +182,7 @@ class GetActiveProfileQueryMapperTest {
         when(user.getUserAccountStatus()).thenReturn(UserAccountStatus.ACTIVE);
         when(user.isMultiFirmUser()).thenReturn(true);
 
-        UserProfile profile = createBasicUserProfile();
+        UserProfileDto profile = createBasicUserProfile();
         when(profile.getEntraUser()).thenReturn(user);
 
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
@@ -194,10 +192,10 @@ class GetActiveProfileQueryMapperTest {
 
     @Test
     void mapsAppRoleDetails() {
-        AppRole role = createAppRole("Manager", "MGR");
+        AppRoleDto role = createAppRole("Manager", "MGR");
 
-        UserProfile profile = createBasicUserProfile();
-        when(profile.getAppRoles()).thenReturn(Set.of(role));
+        UserProfileDto profile = createBasicUserProfile();
+        when(profile.getAppRoles()).thenReturn(List.of(role));
 
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
 
@@ -207,8 +205,8 @@ class GetActiveProfileQueryMapperTest {
     }
 
     // Helper methods
-    private UserProfile createBasicUserProfile() {
-        EntraUser user = mock(EntraUser.class);
+    private UserProfileDto createBasicUserProfile() {
+        EntraUserDto user = mock(EntraUserDto.class);
         when(user.getEntraOid()).thenReturn(USER_ENTRA_OID);
         when(user.getEmail()).thenReturn("test@example.com");
         when(user.getFirstName()).thenReturn("John");
@@ -216,14 +214,14 @@ class GetActiveProfileQueryMapperTest {
         when(user.getUserAccountStatus()).thenReturn(UserAccountStatus.ACTIVE);
         when(user.isMultiFirmUser()).thenReturn(false);
 
-        UserProfile profile = mock(UserProfile.class);
+        UserProfileDto profile = mock(UserProfileDto.class);
         when(profile.getId()).thenReturn(UUID.randomUUID());
         when(profile.isActiveProfile()).thenReturn(true);
         when(profile.getUserType()).thenReturn(UserType.INTERNAL);
         when(profile.getEntraUser()).thenReturn(user);
         when(profile.getSilasStatus()).thenReturn(UserProfileSilasStatus.COMPLETE);
-        when(profile.getAppRoles()).thenReturn(new HashSet<>());
-        when(profile.getOffices()).thenReturn(new HashSet<>());
+        when(profile.getAppRoles()).thenReturn(List.of());
+        when(profile.getOffices()).thenReturn(List.of());
         when(profile.getFirm()).thenReturn(null);
         when(profile.isUnrestrictedOfficeAccess()).thenReturn(false);
         when(profile.isLastCcmsSyncSuccessful()).thenReturn(true);
@@ -231,21 +229,21 @@ class GetActiveProfileQueryMapperTest {
         return profile;
     }
 
-    private UserProfile createUserProfileWithFirm(Firm firm) {
-        UserProfile profile = createBasicUserProfile();
+    private UserProfileDto createUserProfileWithFirm(FirmDto firm) {
+        UserProfileDto profile = createBasicUserProfile();
         when(profile.getUserType()).thenReturn(UserType.EXTERNAL);
         when(profile.getFirm()).thenReturn(firm);
         return profile;
     }
 
-    private AppRole createAppRole(String name, String ccmsCode) {
-        App app = mock(App.class);
-        UUID appId = UUID.randomUUID();
+    private AppRoleDto createAppRole(String name, String ccmsCode) {
+        AppDto app = mock(AppDto.class);
+        String appId = UUID.randomUUID().toString();
         when(app.getId()).thenReturn(appId);
         when(app.getName()).thenReturn("Test App");
 
-        AppRole role = mock(AppRole.class);
-        when(role.getId()).thenReturn(UUID.randomUUID());
+        AppRoleDto role = mock(AppRoleDto.class);
+        when(role.getId()).thenReturn(UUID.randomUUID().toString());
         when(role.getApp()).thenReturn(app);
         when(role.getName()).thenReturn(name);
         when(role.getDescription()).thenReturn(name + " Role");
@@ -258,20 +256,19 @@ class GetActiveProfileQueryMapperTest {
         return role;
     }
 
-    private Office createOffice(String code, String postcode) {
-        Firm firm = mock(Firm.class);
-        when(firm.getId()).thenReturn(UUID.randomUUID());
+    private OfficeDto createOffice(String code, String postcode) {
+        String firmId = UUID.randomUUID().toString();
 
-        Office.Address address = mock(Office.Address.class);
+        OfficeDto.AddressDto address = mock(OfficeDto.AddressDto.class);
         when(address.getPostcode()).thenReturn(postcode);
         when(address.getAddressLine1()).thenReturn("Test Address");
         when(address.getAddressLine2()).thenReturn("");
         when(address.getAddressLine3()).thenReturn("");
         when(address.getCity()).thenReturn("London");
 
-        Office office = mock(Office.class);
+        OfficeDto office = mock(OfficeDto.class);
         when(office.getId()).thenReturn(UUID.randomUUID());
-        when(office.getFirm()).thenReturn(firm);
+        when(office.getFirmId()).thenReturn(firmId);
         when(office.getAddress()).thenReturn(address);
 
         return office;

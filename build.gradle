@@ -44,6 +44,9 @@ dependencyManagement {
             entry 'tomcat-embed-el'
             entry 'tomcat-embed-websocket'
         }
+
+        // SNYK-JAVA-IONETTY-21755444
+        dependency 'io.netty:netty-tcnative-boringssl-static:2.0.84.Final'
     }
 }
 

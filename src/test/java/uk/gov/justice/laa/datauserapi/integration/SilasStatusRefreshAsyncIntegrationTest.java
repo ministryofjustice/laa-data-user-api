@@ -98,8 +98,9 @@ class SilasStatusRefreshAsyncIntegrationTest {
         assertThat(handler.handle(new RefreshSilasStatusCommand(), failedActor).success()).isTrue();
         awaitCompletedTasks(completed + 1);
 
-        assertThat(output.getOut()).contains("Asynchronous SiLAS status refresh failed for actor failed-actor",
-                "Previously committed batches remain updated.", "Deliberate background failure");
+        assertThat(output.getOut()).contains(
+                "Asynchronous SiLAS status refresh failed; previously committed batches remain updated",
+                "Deliberate background failure");
         when(batchService.refreshBatch(isNull(), any(String.class)))
                 .thenReturn(new SilasStatusRefreshBatchService.BatchResult(null, 0, 0));
         final AuthenticatedEntraUser retryActor = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).entraOid("retry-actor").firstName("retry").lastName("actor").build();

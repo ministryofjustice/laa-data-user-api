@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.controller;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,7 +31,8 @@ public class UserProfileSystemAdminCommandController {
     @PostMapping("/refresh-silas-status")
     public ResponseEntity<CommandResult> refreshSilasStatus(
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        log.info("Processing SiLAS status refresh requested by {}", authenticatedUser.entraOid());
+        log.info("Processing SiLAS status refresh request",
+                kv("actorEntraOid", authenticatedUser.entraOid()));
         return ResponseEntity.ok(refreshSilasStatusHandler.handle(new RefreshSilasStatusCommand(), authenticatedUser));
     }
 }

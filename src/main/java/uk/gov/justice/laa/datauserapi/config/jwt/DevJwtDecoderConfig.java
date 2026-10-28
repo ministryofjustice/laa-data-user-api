@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.config.jwt;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
@@ -113,7 +115,9 @@ public class DevJwtDecoderConfig {
 
             return new Jwt(token, issuedAt, expiresAt, headers, Collections.unmodifiableMap(claims));
         } catch (Exception e) {
-            log.warn("Failed to parse JWT payload in dev decoder: {}", e.getMessage());
+            log.warn("Failed to parse JWT payload in development decoder",
+                    kv("exceptionMessage", e.getMessage()),
+                    e);
             throw new JwtException("Dev JWT decoder failed - unable to parse token payload", e);
         }
     }

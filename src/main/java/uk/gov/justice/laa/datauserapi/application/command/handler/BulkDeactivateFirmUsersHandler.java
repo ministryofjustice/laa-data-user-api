@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.handler;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
@@ -53,7 +55,9 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
                 deactivated++;
             } else {
                 failed++;
-                log.warn("Could not bulk-deactivate user {} for firm {}", userId, firmCode);
+                log.warn("Could not bulk-deactivate user",
+                        kv("entraOid", userId),
+                        kv("firmCode", firmCode));
             }
         }
 

@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.controller;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -44,16 +46,18 @@ public class UserProfileCommandController {
             @Valid @RequestBody UpdateOfficesRequest request,
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
         if (request instanceof UpdateUserProfileOfficesRequest officesRequest) {
-            log.info("Processing office update for user profile {} by {}",
-                    officesRequest.userProfileId(), authenticatedUser.entraOid());
+            log.info("Processing office update",
+                    kv("userProfileId", officesRequest.userProfileId()),
+                    kv("actorEntraOid", authenticatedUser.entraOid()));
             UpdateUserProfileOfficesCommand command = updateUserProfileOfficesMapper.toUpdateUserProfileOfficesCommand(officesRequest);
             CommandResult result = updateUserProfileOfficesHandler.handle(command, authenticatedUser);
             return ResponseEntity.ok(result);
         }
 
         UpdateOfficesUnrestrictedCommand unrestrictedRequest = (UpdateOfficesUnrestrictedCommand) request;
-        log.info("Processing unrestricted office access update for user profile {} by {}",
-                unrestrictedRequest.userProfileId(), authenticatedUser.entraOid());
+        log.info("Processing unrestricted office access update",
+                kv("userProfileId", unrestrictedRequest.userProfileId()),
+                kv("actorEntraOid", authenticatedUser.entraOid()));
         UpdateUserProfileUnrestrictedOfficesCommand command = updateUserProfileOfficesMapper.toUpdateUserProfileUnrestrictedOfficesCommand(unrestrictedRequest);
         CommandResult result = updateUserProfileUnrestrictedOfficesHandler.handle(command, authenticatedUser);
         return ResponseEntity.ok(result);

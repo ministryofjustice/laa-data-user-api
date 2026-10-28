@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.handler;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import jakarta.persistence.EntityManager;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
@@ -78,12 +80,15 @@ public class DeleteUserHandler implements CommandHandler<DeleteUserCommand, Comm
     @Override
     @Transactional
     public CommandResult handle(DeleteUserCommand command, AuthenticatedEntraUser actor) {
-        log.info("Handling delete user command for user: {} by actor: {}", command.userEntraObjectId(), actor.entraOid());
+        log.info("Handling delete user command",
+                kv("entraOid", command.userEntraObjectId()),
+                kv("actorEntraOid", actor.entraOid()));
         entityManager.clear();
 
         UUID actorId = UUID.fromString(actor.entraOid());
         if (Objects.equals(actorId, command.userEntraObjectId())) {
-            log.warn("User can not delete self: {}", actorId);
+            log.warn("User cannot delete their own account",
+                    kv("actorEntraOid", actor.entraOid()));
             return CommandResult.failure("User can not delete self");
         }
 
@@ -94,26 +99,33 @@ public class DeleteUserHandler implements CommandHandler<DeleteUserCommand, Comm
                 .orElseThrow(() -> new ResourceNotFoundException("User account not found for oid: " + command.userEntraObjectId()));
 
         if (userCommandService.isInternalUser(command.userEntraObjectId())) {
-            log.warn("Internal user can not be deleted: {}, by: {}", command.userEntraObjectId(), actorId);
+            log.warn("Internal user cannot be deleted",
+                    kv("entraOid", command.userEntraObjectId()),
+                    kv("actorEntraOid", actor.entraOid()));
             return CommandResult.failure("User can not delete internal user");
         }
 
         if (actor.isExternalUser()) {
             if (entraUser.isMultiFirmUser()) {
-                log.warn("User {} can not delete multi-firm user: {}", actorId, command.userEntraObjectId());
+                log.warn("Actor cannot delete a multi-firm user",
+                        kv("actorEntraOid", actor.entraOid()),
+                        kv("entraOid", command.userEntraObjectId()));
                 return CommandResult.failure("User can not delete multi-firm user");
             }
             UUID actorFirmId = actor.activeProfile().firmId();
             UUID targetFirmId = userCommandService.getActiveUserProfile(command.userEntraObjectId()).getFirm().getId();
             if (!targetFirmId.equals(actorFirmId)) {
-                log.warn("User {} can not delete user {} from different firm", actorId, command.userEntraObjectId());
+                log.warn("Actor cannot delete a user from a different firm",
+                        kv("actorEntraOid", actor.entraOid()),
+                        kv("entraOid", command.userEntraObjectId()));
                 return CommandResult.failure("User can not delete user from different firm");
             }
         }
 
-        log.info(
-                "Deleting external user. actorEntraId={}, entraUserId={}, reason={}",
-                actorId, entraUser.getId(), deleteUserReasonEntity.getCode());
+        log.info("Deleting external user",
+                kv("actorEntraOid", actor.entraOid()),
+                kv("entraUserId", entraUser.getId()),
+                kv("reason", deleteUserReasonEntity.getCode()));
 
         EntraUserDto userDto = modelMapper.map(entraUser, EntraUserDto.class);
         removeFromTechServices(userDto);
@@ -125,8 +137,10 @@ public class DeleteUserHandler implements CommandHandler<DeleteUserCommand, Comm
         removeUserProfiles(entraUser);
         removeEntraUser(entraUser);
 
-        log.info("User account deleted with oid: {} by: {} with reason: {}",
-                command.userEntraObjectId(), actor.entraOid(), command.deleteReason());
+        log.info("User account deleted",
+                kv("entraOid", command.userEntraObjectId()),
+                kv("actorEntraOid", actor.entraOid()),
+                kv("reason", command.deleteReason()));
         return deleteUserMapper.toCommandResult(entraUser);
     }
 
@@ -135,15 +149,18 @@ public class DeleteUserHandler implements CommandHandler<DeleteUserCommand, Comm
         TechServicesApiResponse<ChangeAccountReactivationResponse> deactivation =
                 techServicesClient.deactivateUser(userDto, "RoleChangeorNoLongerRequired");
         if (!deactivation.isSuccess()) {
-            log.warn("Failed to disable user in tech services: {}, but continuing to delete user",
-                    deactivation.getError());
+            log.warn("Failed to disable user in Tech Services; continuing with local deletion",
+                    kv("entraOid", userDto.getEntraOid()),
+                    kv("techServicesError", deactivation.getError()));
         }
 
         try {
             techServicesClient.deleteRoleAssignment(userDto);
         } catch (Exception ex) {
-            log.warn("Failed to delete role assignment in tech services: {}, but continuing to delete user",
-                    ex.getMessage());
+            log.warn("Failed to delete role assignment in Tech Services; continuing with local deletion",
+                    kv("entraOid", userDto.getEntraOid()),
+                    kv("exceptionMessage", ex.getMessage()),
+                    ex);
         }
     }
 

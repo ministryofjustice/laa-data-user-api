@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.handler;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,8 +38,10 @@ public class UpdateUserProfileUnrestrictedOfficesHandler
         userProfile.setLastModifiedBy(String.valueOf(actor.id()));
         userProfileCommandRepository.save(userProfile);
 
-        log.info("Updated unrestricted office access to {} for user profile {} by {}",
-                command.unrestrictedOfficeAccess(), command.userProfileId(), actor.entraOid());
+        log.info("Updated unrestricted office access",
+                kv("unrestrictedOfficeAccess", command.unrestrictedOfficeAccess()),
+                kv("userProfileId", command.userProfileId()),
+                kv("actorEntraOid", actor.entraOid()));
         return CommandResult.success("Updated unrestricted office access for user profile " + command.userProfileId());
     }
 }

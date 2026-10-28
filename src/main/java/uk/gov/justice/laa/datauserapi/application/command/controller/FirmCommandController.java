@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.controller;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -35,7 +37,9 @@ public class FirmCommandController implements CommandControllerSupport {
     public ResponseEntity<CommandResult> bulkDeactivateUsers(
             @Valid @RequestBody BulkDeactivateFirmUsersRequest request,
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        log.info("Processing bulk user deactivation for firm {} by {}", request.firmId(), authenticatedUser.entraOid());
+        log.info("Processing bulk user deactivation",
+                kv("firmId", request.firmId()),
+                kv("actorEntraOid", authenticatedUser.entraOid()));
         CommandResult result = bulkDeactivateFirmUsersHandler.handle(
                 bulkDeactivateFirmUsersMapper.toCommand(request), authenticatedUser);
         return ResponseEntity.ok(result);
