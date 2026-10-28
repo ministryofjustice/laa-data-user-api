@@ -140,8 +140,8 @@ class LiveTechServicesClientTest {
             verify(cache).put(LiveTechServicesClient.ACCESS_TOKEN, mockToken);
 
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending reactivate user request to Tech Services for: user-123",
-                            "Reactivate user request by Tech Services is successful for entra user user-123");
+                    .contains("Sending user reactivation request to Tech Services",
+                            "Tech Services reactivated user");
         }
 
         @Test
@@ -160,7 +160,8 @@ class LiveTechServicesClientTest {
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
 
-            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage).contains("Failed to reactivate entra user: user-123");
+            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
+                    .contains("Tech Services rejected user reactivation");
         }
 
         @Test
@@ -186,7 +187,7 @@ class LiveTechServicesClientTest {
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .anyMatch(msg -> msg.contains("Failed to reactivate entra user user-123, the root cause is Request too early (TOO_EARLY)"));
+                    .contains("Tech Services deferred user reactivation");
         }
 
         @Test
@@ -213,8 +214,8 @@ class LiveTechServicesClientTest {
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending reactivate user request to Tech Services for: user-123",
-                            "Failed to reactivate user John Doe, the root cause is Error (ERROR)");
+                    .contains("Sending user reactivation request to Tech Services",
+                            "Tech Services failed to reactivate user");
         }
 
         @Test
@@ -295,8 +296,8 @@ class LiveTechServicesClientTest {
             assertThat(result.getError()).isEqualTo(expectedError);
 
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending deactivate user request to Tech Services for: user-123",
-                            "User user-123 not found in Tech Services during deactivate request, the root cause is Not Found (404)");
+                    .contains("Sending user deactivation request to Tech Services",
+                            "User not found in Tech Services during deactivation");
         }
 
         @Test
@@ -316,8 +317,8 @@ class LiveTechServicesClientTest {
             assertThat(result.getError()).isEqualTo(expectedError);
 
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending deactivate user request to Tech Services for: user-123",
-                            "Failed to deactivate entra user: user-123");
+                    .contains("Sending user deactivation request to Tech Services",
+                            "Tech Services rejected user deactivation");
         }
 
         @Test
@@ -343,8 +344,8 @@ class LiveTechServicesClientTest {
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending deactivate user request to Tech Services for: user-123",
-                            "Failed to deactivate entra user: user-123, the root cause is Request too early (TOO_EARLY)");
+                    .contains("Sending user deactivation request to Tech Services",
+                            "Tech Services deferred user deactivation");
         }
 
         @Test
@@ -371,8 +372,8 @@ class LiveTechServicesClientTest {
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getError()).isEqualTo(expectedError);
             assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending deactivate user request to Tech Services for: user-123",
-                            "Failed to deactivate user user-123, the root cause is Bad Request (BAD_REQUEST)");
+                    .contains("Sending user deactivation request to Tech Services",
+                            "Tech Services failed to deactivate user");
         }
 
         @Test
@@ -465,7 +466,8 @@ class LiveTechServicesClientTest {
 
             client.reactivateUser(validUser);
 
-            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage).contains("Error while getting access token from cache");
+            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
+                    .contains("Could not retrieve a valid Tech Services access token from cache");
         }
     }
 

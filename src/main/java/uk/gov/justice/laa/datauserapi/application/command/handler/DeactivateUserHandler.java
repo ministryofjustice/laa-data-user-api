@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.handler;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Component;
@@ -57,16 +59,21 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
     @Override
     @Transactional(rollbackFor = TechServicesClientException.class)
     public CommandResult handle(DeactivateUserCommand command, AuthenticatedEntraUser actor) {
-        log.info("Handling deactivate user command for user: {}", command.userEntraObjectId());
+        log.info("Handling deactivate user command",
+                kv("entraOid", command.userEntraObjectId()),
+                kv("actorEntraOid", actor.entraOid()));
 
         if (Objects.equals(UUID.fromString(actor.entraOid()), command.userEntraObjectId())) {
-            log.warn("User can not reactive self: {}", actor.entraOid());
+            log.warn("User cannot deactivate their own account",
+                    kv("actorEntraOid", actor.entraOid()));
             return CommandResult.failure("User can not reactive self");
         }
 
         boolean isInternalUser = userCommandService.isInternalUser(command.userEntraObjectId());
         if (isInternalUser) {
-            log.warn("Internal user can not be deactivated: {}, by: {}", command.userEntraObjectId(), actor.entraOid());
+            log.warn("Internal user cannot be deactivated",
+                    kv("entraOid", command.userEntraObjectId()),
+                    kv("actorEntraOid", actor.entraOid()));
             return CommandResult.failure("User can not deactivate internal user");
         }
 
@@ -76,14 +83,18 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
             UserProfile targetUserProfile = userCommandService.getActiveUserProfile(command.userEntraObjectId());
 
             if (targetUserProfile.getEntraUser().isMultiFirmUser()) {
-                log.warn("User {} can not deactivate multi-firm user: {}", command.userEntraObjectId(), actor.entraOid());
+                log.warn("Actor cannot deactivate a multi-firm user",
+                        kv("entraOid", command.userEntraObjectId()),
+                        kv("actorEntraOid", actor.entraOid()));
                 return CommandResult.failure("User can not deactivate multi-firm user");
             }
 
             UUID actorFirmId = actorProfile.getFirm().getId();
             UUID targetUserFirmId = targetUserProfile.getFirm().getId();
             if (!targetUserFirmId.equals(actorFirmId)) {
-                log.warn("User {} can not deactivate user {} from different firm", actor.entraOid(), command.userEntraObjectId());
+                log.warn("Actor cannot deactivate a user from a different firm",
+                        kv("actorEntraOid", actor.entraOid()),
+                        kv("entraOid", command.userEntraObjectId()));
                 return CommandResult.failure("User can not deactivate user from different firm");
             }
         }
@@ -101,7 +112,10 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
         DeactivateUserReason deactivateUserReason = command.deactivateReason();
         UserAccountStatusAudit audit = deactivateUserMapper.toAuditEntity(user, deactivateUserReason, actor.entraOid());
         auditRepository.save(audit);
-        log.info("User account deactivated with ID: {} by: {} with reason: {}", user.getId(), actor.entraOid(), deactivateUserReason);
+        log.info("User account deactivated",
+                kv("entraOid", user.getEntraOid()),
+                kv("actorEntraOid", actor.entraOid()),
+                kv("reason", deactivateUserReason));
 
         return deactivateUserMapper.toCommandResult(user);
     }

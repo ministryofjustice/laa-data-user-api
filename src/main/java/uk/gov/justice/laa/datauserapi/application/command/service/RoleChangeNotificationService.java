@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.service;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -61,18 +63,24 @@ public class RoleChangeNotificationService {
         Optional<String> sqsQueueUrlOpt = sqsClientRegistry.getSqsQueueUrl(appEntraOid);
         // Skip until queue is ready for env
         if (sqsQueueUrlOpt.isEmpty() || "NONE".equalsIgnoreCase(sqsQueueUrlOpt.get())) {
-            log.info("Skipping CCMS update for user: {}",
-                    userProfile.getEntraUser().getEntraOid());
+            log.info("Skipping CCMS update because the queue is unavailable",
+                    kv("entraOid", userProfile.getEntraUser().getEntraOid()),
+                    kv("applicationEntraOid", appEntraOid));
             return false;
         }
 
         try {
-            log.info("Initializing CCMS role change message for user: {}", userProfile.getEntraUser().getEntraOid());
+            log.info("Initializing CCMS role change message",
+                    kv("entraOid", userProfile.getEntraUser().getEntraOid()),
+                    kv("applicationEntraOid", appEntraOid));
             sendRoleChangeNotificationToSqs(userProfile, appEntraOid, newPuiRoles, oldPuiRoles);
             return true;
         } catch (Exception e) {
-            log.warn("CCMS notification attempt failed for user: {}: {}",
-                    userProfile.getEntraUser().getEntraOid(), e.getMessage());
+            log.warn("CCMS notification attempt failed",
+                    kv("entraOid", userProfile.getEntraUser().getEntraOid()),
+                    kv("applicationEntraOid", appEntraOid),
+                    kv("exceptionMessage", e.getMessage()),
+                    e);
             throw new RuntimeException("CCMS notification failed", e);
         }
     }
@@ -82,7 +90,9 @@ public class RoleChangeNotificationService {
         Optional<SqsClient> sqsClientOpt = sqsClientRegistry.getSqsClient(appEntraOid);
         Optional<String> sqsQueueUrlOpt = sqsClientRegistry.getSqsQueueUrl(appEntraOid);
         if (sqsClientOpt.isEmpty() || sqsQueueUrlOpt.isEmpty() || "NONE".equalsIgnoreCase(sqsQueueUrlOpt.get())) {
-            log.info("Skipping CCMS update for user: {}", userProfile.getEntraUser().getEntraOid());
+            log.info("Skipping CCMS update because the queue or client is unavailable",
+                    kv("entraOid", userProfile.getEntraUser().getEntraOid()),
+                    kv("applicationEntraOid", appEntraOid));
             return;
         }
 
@@ -90,7 +100,10 @@ public class RoleChangeNotificationService {
         String sqsQueueUrl = sqsQueueUrlOpt.get();
         EntraUser entraUser = userProfile.getEntraUser();
         if (!newPuiRoles.equals(oldPuiRoles)) {
-            log.info("CCMS roles updated for user: {} with entra oid: {}, generating message", userProfile.getId(), userProfile.getEntraUser().getEntraOid());
+            log.info("Generating CCMS role change message",
+                    kv("userProfileId", userProfile.getId()),
+                    kv("entraOid", userProfile.getEntraUser().getEntraOid()),
+                    kv("applicationEntraOid", appEntraOid));
             CcmsMessage.CcmsMessageBuilder ccmsMessageBuilder = CcmsMessage.builder()
                     .userName(userProfile.getLegacyUserId().toString())
                     .firstName(entraUser.getFirstName())
@@ -104,8 +117,11 @@ public class RoleChangeNotificationService {
             }
 
             String messageBody = objectMapper.writeValueAsString(ccmsMessageBuilder.build());
-            log.info("CCMS role change generated for user profile: {} with entra oid: {} and legacy profile id: {} containing CCMS roles: {}",
-                    userProfile.getId(), userProfile.getEntraUser().getEntraOid(), userProfile.getLegacyUserId().toString(), newPuiRoles);
+            log.info("CCMS role change message generated",
+                    kv("userProfileId", userProfile.getId()),
+                    kv("entraOid", userProfile.getEntraUser().getEntraOid()),
+                    kv("legacyUserId", userProfile.getLegacyUserId()),
+                    kv("ccmsRoles", newPuiRoles));
 
             Map<String, MessageAttributeValue> userTypeAttribute = Map.of(USER_TYPE_ATTRIBUTE, MessageAttributeValue.builder()
                     .stringValue(userProfile.getUserType().toString())
@@ -121,17 +137,24 @@ public class RoleChangeNotificationService {
                     .build();
 
             SendMessageResponse response = sqsClient.sendMessage(sendMessageRequest);
-            log.info("CCMS role change message sent to queue for user: {} with entra oid: {}, messageId: {}",
-                    userProfile.getId(), entraUser.getEntraOid(), response.messageId());
+            log.info("CCMS role change message sent to queue",
+                    kv("userProfileId", userProfile.getId()),
+                    kv("entraOid", entraUser.getEntraOid()),
+                    kv("messageId", response.messageId()));
         } else {
-            log.info("No CCMS roles updated for user: {} with entra oid: {}, skipping", userProfile.getId(), userProfile.getEntraUser().getEntraOid());
+            log.info("No CCMS roles changed; skipping notification",
+                    kv("userProfileId", userProfile.getId()),
+                    kv("entraOid", userProfile.getEntraUser().getEntraOid()),
+                    kv("applicationEntraOid", appEntraOid));
         }
     }
 
     @Recover
     public boolean recoverFromRetryFailure(RuntimeException e, UserProfile userProfile) {
-        log.error("All retry attempts failed for CCMS notification for user: {} with entra oid: {}, saving roles to db and moving on",
-                userProfile.getId(), userProfile.getEntraUser().getEntraOid(), e);
+        log.error("All CCMS notification retries failed; continuing with database update",
+                kv("userProfileId", userProfile.getId()),
+                kv("entraOid", userProfile.getEntraUser().getEntraOid()),
+                e);
         return false;
     }
 
@@ -152,7 +175,8 @@ public class RoleChangeNotificationService {
         List<UserProfile> profiles = userProfileRepository.findUserProfilesForCcmsSync();
 
         if (profiles.isEmpty()) {
-            log.info("No profiles found for CCMS role sync");
+            log.info("No profiles found for CCMS role sync",
+                    kv("profileCount", 0));
             return;
         }
 
@@ -176,7 +200,10 @@ public class RoleChangeNotificationService {
                     ccmsSyncResult = ccmsSyncResult && currentSyncResult;
                     notificationSuccess = ccmsSyncResult;
 
-                    log.info("CCMS role sync for user: {} with entra oid: {} {}", profile.getId(), profile.getEntraUser().getEntraOid(), notificationSuccess);
+                    log.info("CCMS role sync completed for profile",
+                            kv("userProfileId", profile.getId()),
+                            kv("entraOid", profile.getEntraUser().getEntraOid()),
+                            kv("successful", notificationSuccess));
                 }
 
                 profile.setLastCcmsSyncSuccessful(notificationSuccess);
@@ -188,14 +215,18 @@ public class RoleChangeNotificationService {
                     unsuccessful.incrementAndGet();
                 }
             } catch (Exception e) {
-                log.error("Error syncing roles for user: {} with entra oid: {}", profile.getId(), profile.getEntraUser().getEntraOid(), e);
+                log.error("Failed to sync CCMS roles for profile",
+                        kv("userProfileId", profile.getId()),
+                        kv("entraOid", profile.getEntraUser().getEntraOid()),
+                        e);
                 unsuccessful.incrementAndGet();
             }
 
         });
 
-        log.info("CCMS role sync complete. Successful: {}, Unsuccessful: {}",
-                successful.get(), unsuccessful.get());
+        log.info("CCMS role sync completed",
+                kv("successfulProfiles", successful.get()),
+                kv("unsuccessfulProfiles", unsuccessful.get()));
     }
 
 }

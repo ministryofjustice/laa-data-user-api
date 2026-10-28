@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.config.ccms;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -33,12 +35,14 @@ public class UserConfig {
 
         public String parseSqsQueueUrlFromArn() {
             if ("none".equalsIgnoreCase(arn)) {
-                log.info("queue ARN is set to 'none', skipping");
+                log.info("CCMS queue ARN is disabled; skipping queue URL resolution",
+                        kv("queueArn", "none"));
                 return "none";
             }
 
             String queueUrl = parseQueueUrlFromArn();
-            log.info("SQS queue URL from ARN: {}", queueUrl);
+            log.info("Resolved SQS queue URL from ARN",
+                    kv("queueUrl", queueUrl));
             return queueUrl;
         }
 

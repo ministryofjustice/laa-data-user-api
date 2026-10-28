@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.client.ts;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import com.azure.core.credential.TokenRequestContext;
 import com.azure.identity.ClientSecretCredential;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -62,7 +64,8 @@ public class LiveTechServicesClient implements TechServicesClient {
     public TechServicesApiResponse<ChangeAccountReactivationResponse> reactivateUser(EntraUserDto user) {
         try {
             if (user == null || user.getEntraOid() == null) {
-                log.error("Invalid user details provided for reactivate user request to Tech Services.");
+                log.error("Invalid user details for Tech Services reactivation request",
+                        kv("entraOid", user == null ? null : user.getEntraOid()));
                 throw new TechServicesClientException("Invalid user details provided for reactivate user request to Tech Services.");
             }
 
@@ -70,7 +73,8 @@ public class LiveTechServicesClient implements TechServicesClient {
 
             ChangeAccountReactivationRequest request = new ChangeAccountReactivationRequest(true);
 
-            log.info("Sending reactivate user request to Tech Services for: {}", user.getEntraOid());
+            log.info("Sending user reactivation request to Tech Services",
+                    kv("entraOid", user.getEntraOid()));
 
             String uri = String.format(TECH_SERVICES_UPDATE_USER_GRP_ENDPOINT, laaBusinessUnit, user.getEntraOid());
 
@@ -84,13 +88,16 @@ public class LiveTechServicesClient implements TechServicesClient {
                     .toEntity(String.class);
 
             if (response.getStatusCode().is2xxSuccessful()) {
-                log.info("Reactivate user request by Tech Services is successful for entra user {}",
-                        user.getEntraOid());
+                log.info("Tech Services reactivated user",
+                        kv("entraOid", user.getEntraOid()),
+                        kv("status", response.getStatusCode()));
                 ChangeAccountReactivationResponse successResponse = objectMapper.readValue(response.getBody(), ChangeAccountReactivationResponse.class);
                 return TechServicesApiResponse.success(successResponse);
             } else {
                 TechServicesErrorResponse errorResponse = objectMapper.readValue(response.getBody(), TechServicesErrorResponse.class);
-                log.error("Failed to reactivate entra user: {}", user.getEntraOid());
+                log.error("Tech Services rejected user reactivation",
+                        kv("entraOid", user.getEntraOid()),
+                        kv("status", response.getStatusCode()));
                 return TechServicesApiResponse.error(errorResponse);
             }
 
@@ -99,19 +106,29 @@ public class LiveTechServicesClient implements TechServicesClient {
             try {
                 TechServicesErrorResponse errorResponse = objectMapper.readValue(errorJson, TechServicesErrorResponse.class);
                 if (HttpStatus.TOO_EARLY.equals(httpEx.getStatusCode())) {
-                    log.info("Failed to reactivate entra user {}, the root cause is {} ({})",
-                            user.getEntraOid(), errorResponse.getMessage(), errorResponse.getCode(), httpEx);
+                    log.info("Tech Services deferred user reactivation",
+                            kv("entraOid", user.getEntraOid()),
+                            kv("errorMessage", errorResponse.getMessage()),
+                            kv("errorCode", errorResponse.getCode()),
+                            httpEx);
                     return TechServicesApiResponse.error(errorResponse);
                 }
-                log.error("Failed to reactivate user {}, the root cause is {} ({})",
-                        user.getFirstName() + " " + user.getLastName(), errorResponse.getMessage(), errorResponse.getCode(), httpEx);
+                log.error("Tech Services failed to reactivate user",
+                        kv("entraOid", user.getEntraOid()),
+                        kv("errorMessage", errorResponse.getMessage()),
+                        kv("errorCode", errorResponse.getCode()),
+                        httpEx);
                 return TechServicesApiResponse.error(errorResponse);
             } catch (Exception ex) {
-                log.error("Error while sending reactivate user request to Tech Services.", ex);
+                log.error("Error sending reactivation request to Tech Services",
+                        kv("entraOid", user == null ? null : user.getEntraOid()),
+                        ex);
                 throw new TechServicesClientException("Error while sending reactivate user request to Tech Services.", ex);
             }
         } catch (Exception ex) {
-            log.error("Error while sending reactivate user request to Tech Services.", ex);
+            log.error("Error sending reactivation request to Tech Services",
+                    kv("entraOid", user == null ? null : user.getEntraOid()),
+                    ex);
             throw new TechServicesClientException("Error while sending reactivate user request to Tech Services.", ex);
         }
     }
@@ -120,7 +137,8 @@ public class LiveTechServicesClient implements TechServicesClient {
     public TechServicesApiResponse<ChangeAccountReactivationResponse> deactivateUser(EntraUserDto user, String reason) {
         try {
             if (user == null || user.getEntraOid() == null) {
-                log.error("Invalid user details provided for deactivate user request to Tech Services.");
+                log.error("Invalid user details for Tech Services deactivation request",
+                        kv("entraOid", user == null ? null : user.getEntraOid()));
                 throw new TechServicesClientException("Invalid user details provided for deactivate user request to Tech Services.");
             }
 
@@ -128,7 +146,8 @@ public class LiveTechServicesClient implements TechServicesClient {
 
             ChangeAccountReactivationRequest request = new ChangeAccountReactivationRequest(false, reason);
 
-            log.info("Sending deactivate user request to Tech Services for: {}", user.getEntraOid());
+            log.info("Sending user deactivation request to Tech Services",
+                    kv("entraOid", user.getEntraOid()));
 
             String uri = String.format(TECH_SERVICES_UPDATE_USER_GRP_ENDPOINT, laaBusinessUnit, user.getEntraOid());
 
@@ -142,13 +161,16 @@ public class LiveTechServicesClient implements TechServicesClient {
                     .toEntity(String.class);
 
             if (response.getStatusCode().is2xxSuccessful()) {
-                log.info("Deactivate user request by Tech Services is successful for entra user{}",
-                        user.getEntraOid());
+                log.info("Tech Services deactivated user",
+                        kv("entraOid", user.getEntraOid()),
+                        kv("status", response.getStatusCode()));
                 ChangeAccountReactivationResponse successResponse = objectMapper.readValue(response.getBody(), ChangeAccountReactivationResponse.class);
                 return TechServicesApiResponse.success(successResponse);
             } else {
                 TechServicesErrorResponse errorResponse = objectMapper.readValue(response.getBody(), TechServicesErrorResponse.class);
-                log.error("Failed to deactivate entra user: {}", user.getEntraOid());
+                log.error("Tech Services rejected user deactivation",
+                        kv("entraOid", user.getEntraOid()),
+                        kv("status", response.getStatusCode()));
                 return TechServicesApiResponse.error(errorResponse);
             }
 
@@ -157,24 +179,36 @@ public class LiveTechServicesClient implements TechServicesClient {
             try {
                 TechServicesErrorResponse errorResponse = objectMapper.readValue(errorJson, TechServicesErrorResponse.class);
                 if (HttpStatus.TOO_EARLY.equals(httpEx.getStatusCode())) {
-                    log.info("Failed to deactivate entra user: {}, the root cause is {} ({})",
-                            user.getEntraOid(), errorResponse.getMessage(), errorResponse.getCode(), httpEx);
+                    log.info("Tech Services deferred user deactivation",
+                            kv("entraOid", user.getEntraOid()),
+                            kv("errorMessage", errorResponse.getMessage()),
+                            kv("errorCode", errorResponse.getCode()),
+                            httpEx);
                     return TechServicesApiResponse.error(errorResponse);
                 }
                 if (HttpStatus.NOT_FOUND.equals(httpEx.getStatusCode())) {
-                    log.warn("User {} not found in Tech Services during deactivate request, the root cause is {} ({})",
-                            user.getEntraOid(), errorResponse.getMessage(), errorResponse.getCode());
+                    log.warn("User not found in Tech Services during deactivation",
+                            kv("entraOid", user.getEntraOid()),
+                            kv("errorMessage", errorResponse.getMessage()),
+                            kv("errorCode", errorResponse.getCode()));
                     return TechServicesApiResponse.error(errorResponse);
                 }
-                log.error("Failed to deactivate user {}, the root cause is {} ({})",
-                        user.getEntraOid(), errorResponse.getMessage(), errorResponse.getCode(), httpEx);
+                log.error("Tech Services failed to deactivate user",
+                        kv("entraOid", user.getEntraOid()),
+                        kv("errorMessage", errorResponse.getMessage()),
+                        kv("errorCode", errorResponse.getCode()),
+                        httpEx);
                 return TechServicesApiResponse.error(errorResponse);
             } catch (Exception ex) {
-                log.error("Error while sending deactivate user request to Tech Services.", ex);
+                log.error("Error sending deactivation request to Tech Services",
+                        kv("entraOid", user == null ? null : user.getEntraOid()),
+                        ex);
                 throw new TechServicesClientException("Error while sending deactivate user request to Tech Services.", ex);
             }
         } catch (Exception ex) {
-            log.error("Error while sending deactivate user request to Tech Services.", ex);
+            log.error("Error sending deactivation request to Tech Services",
+                    kv("entraOid", user == null ? null : user.getEntraOid()),
+                    ex);
             throw new TechServicesClientException("Error while sending deactivate user request to Tech Services.", ex);
         }
     }
@@ -189,8 +223,11 @@ public class LiveTechServicesClient implements TechServicesClient {
 
             String uri = String.format(TECH_SERVICES_UPDATE_USER_GRP_ENDPOINT, laaBusinessUnit, entraUser.getEntraOid());
 
-            log.info("TechServices DELETE groups: userId={}, entraOid={}, uri={}", entraUser.getId(), entraUser.getEntraOid(), uri);
-            log.info("Sending request to tech services to remove group memberships for deleting: {}", request);
+            log.info("Sending group removal request to Tech Services",
+                    kv("userId", entraUser.getId()),
+                    kv("entraOid", entraUser.getEntraOid()),
+                    kv("uri", uri),
+                    kv("groups", request.getGroups()));
 
             String accessToken = getAccessToken();
             ResponseEntity<UpdateSecurityGroupsResponse> response = restClient
@@ -205,10 +242,15 @@ public class LiveTechServicesClient implements TechServicesClient {
             if (response.getStatusCode().is2xxSuccessful()) {
                 UpdateSecurityGroupsResponse responseBody = response.getBody();
                 assert responseBody != null;
-                log.info("Security Groups removed successfully for user: {} with entra oid: {} with security groups removed {}",
-                        entraUser.getId(), entraUser.getEntraOid(), responseBody.getGroupsRemoved());
+                log.info("Tech Services removed user security groups",
+                        kv("userId", entraUser.getId()),
+                        kv("entraOid", entraUser.getEntraOid()),
+                        kv("groupsRemoved", responseBody.getGroupsRemoved()));
             } else {
-                log.error("Failed to remove security groups for user: {} with entra oid: {} with error code {}", entraUser.getId(), entraUser.getEntraOid(), response.getStatusCode());
+                log.error("Tech Services rejected security group removal",
+                        kv("userId", entraUser.getId()),
+                        kv("entraOid", entraUser.getEntraOid()),
+                        kv("status", response.getStatusCode()));
                 throw new TechServicesClientException("Failed to remove security groups for user: " + entraUser.getId() + " with entra oid: " + entraUser.getEntraOid()
                         + " with error code " + response.getStatusCode());
             }
@@ -216,15 +258,24 @@ public class LiveTechServicesClient implements TechServicesClient {
             String errorJson = httpEx.getResponseBodyAsString();
             // Do not throw error for 404, user may already be deleted in entra
             if (httpEx.getStatusCode() == HttpStatus.NOT_FOUND) {
-                log.warn("Tech Services DELETE groups returned 404 Not Found for userId={}, entraOid={}. User will be deleted from Silas db. Body={}",
-                        entraUser.getId(), entraUser.getEntraOid(), errorJson);
+                log.warn("Tech Services returned 404 during group removal; continuing with local deletion",
+                        kv("userId", entraUser.getId()),
+                        kv("entraOid", entraUser.getEntraOid()),
+                        kv("responseBody", errorJson));
                 return;
             }
-            log.error("Tech Services DELETE groups failed for userId={}, entraOid={}, status={}, body={}",
-                    entraUser.getId(), entraUser.getEntraOid(), httpEx.getStatusCode(), errorJson, httpEx);
+            log.error("Tech Services group removal request failed",
+                    kv("userId", entraUser.getId()),
+                    kv("entraOid", entraUser.getEntraOid()),
+                    kv("status", httpEx.getStatusCode()),
+                    kv("responseBody", errorJson),
+                    httpEx);
             throw new TechServicesClientException("Error while sending security group removal to Tech Services: " + httpEx.getStatusCode(), httpEx);
         } catch (Exception ex) {
-            log.error("Error while sending security group removal to Tech Services.", ex);
+            log.error("Error sending security group removal request to Tech Services",
+                    kv("userId", entraUser.getId()),
+                    kv("entraOid", entraUser.getEntraOid()),
+                    ex);
             throw new TechServicesClientException("Error while sending security group removal to Tech Services.", ex);
         }
 
@@ -243,7 +294,9 @@ public class LiveTechServicesClient implements TechServicesClient {
                     }
                 }
             } catch (Exception ex) {
-                log.info("Error while getting access token from cache", ex);
+                log.info("Could not retrieve a valid Tech Services access token from cache",
+                        kv("cacheName", CachingConfig.TECH_SERVICES_DETAILS_CACHE),
+                        ex);
             }
 
         }
