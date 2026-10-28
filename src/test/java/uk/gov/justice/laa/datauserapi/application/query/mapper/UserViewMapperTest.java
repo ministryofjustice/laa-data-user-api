@@ -6,18 +6,18 @@ import org.junit.jupiter.api.Test;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserView;
+import uk.gov.justice.laa.datauserapi.dto.AppDto;
+import uk.gov.justice.laa.datauserapi.dto.AppRoleDto;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.entity.App;
-import uk.gov.justice.laa.datauserapi.entity.AppRole;
-import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.entity.Firm;
-import uk.gov.justice.laa.datauserapi.entity.Office;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.dto.FirmDto;
+import uk.gov.justice.laa.datauserapi.dto.OfficeDto;
+import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.AppRoleUserType;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -40,7 +40,7 @@ class UserViewMapperTest {
 
         String entraOid = UUID.randomUUID().toString();
 
-        EntraUser user = EntraUser.builder()
+        EntraUserDto user = EntraUserDto.builder()
                 .entraOid(entraOid)
                 .email("test@test.com")
                 .firstName("Josh")
@@ -50,45 +50,45 @@ class UserViewMapperTest {
                 .mailOnly(false)
                 .build();
 
-        Firm firm = Firm.builder()
+        FirmDto firm = FirmDto.builder()
                 .id(UUID.randomUUID())
                 .name("Test Firm")
                 .build();
 
-        Office.Address address = Office.Address.builder()
+        OfficeDto.AddressDto address = OfficeDto.AddressDto.builder()
                 .postcode("SW1")
                 .addressLine1("Line1")
                 .city("London")
                 .build();
 
-        Office office = Office.builder()
+        OfficeDto office = OfficeDto.builder()
                 .id(UUID.randomUUID())
-                .firm(firm)
+                .firmId(firm.getId().toString())
                 .address(address)
                 .build();
 
-        App app = App.builder()
-                .id(UUID.randomUUID())
+        AppDto app = AppDto.builder()
+                .id(UUID.randomUUID().toString())
                 .name("CCMS")
                 .build();
 
-        AppRole role = AppRole.builder()
-                .id(UUID.randomUUID())
+        AppRoleDto role = AppRoleDto.builder()
+                .id(UUID.randomUUID().toString())
                 .app(app)
                 .name("ROLE_USER")
                 .description("Role description")
                 .userTypeRestriction(new UserType[]{UserType.INTERNAL})
                 .build();
 
-        UserProfile profile = UserProfile.builder()
+        UserProfileDto profile = UserProfileDto.builder()
                 .id(UUID.randomUUID())
                 .activeProfile(true)
                 .userType(UserType.INTERNAL)
                 .firm(firm)
                 .entraUser(user)
                 .userProfileStatus(UserProfileStatus.COMPLETE)
-                .appRoles(Set.of(role))
-                .offices(Set.of(office))
+                .appRoles(List.of(role))
+                .offices(List.of(office))
                 .build();
 
         EntraUserDto dto = new EntraUserDto();
@@ -129,7 +129,7 @@ class UserViewMapperTest {
     @Test
     void shouldThrowWhenNoActiveProfileFound() {
 
-        UserProfile profile = UserProfile.builder()
+        UserProfileDto profile = UserProfileDto.builder()
                 .activeProfile(false)
                 .build();
 
@@ -145,8 +145,8 @@ class UserViewMapperTest {
     @Test
     void shouldMapSummaryView() {
 
-        UserProfile profile1 = UserProfile.builder().build();
-        UserProfile profile2 = UserProfile.builder().build();
+        UserProfileDto profile1 = UserProfileDto.builder().id(UUID.randomUUID()).build();
+        UserProfileDto profile2 = UserProfileDto.builder().id(UUID.randomUUID()).build();
 
         EntraUserDto dto = new EntraUserDto();
         dto.setEntraOid("oid");
@@ -169,17 +169,17 @@ class UserViewMapperTest {
     @Test
     void shouldMapRoleRestrictionToBothWhenNull() {
 
-        AppRole role = AppRole.builder()
-                .id(UUID.randomUUID())
-                .app(App.builder()
-                        .id(UUID.randomUUID())
+        AppRoleDto role = AppRoleDto.builder()
+                .id(UUID.randomUUID().toString())
+                .app(AppDto.builder()
+                        .id(UUID.randomUUID().toString())
                         .name("CCMS")
                         .build())
                 .name("ROLE")
                 .userTypeRestriction(null)
                 .build();
 
-        UserProfile profile = buildProfile(role);
+        UserProfileDto profile = buildProfile(role);
 
         UserView result = mapper.mapToUserView(buildDto(profile));
 
@@ -194,17 +194,17 @@ class UserViewMapperTest {
     @Test
     void shouldMapRoleRestrictionToExternal() {
 
-        AppRole role = AppRole.builder()
-                .id(UUID.randomUUID())
-                .app(App.builder()
-                        .id(UUID.randomUUID())
+        AppRoleDto role = AppRoleDto.builder()
+                .id(UUID.randomUUID().toString())
+                .app(AppDto.builder()
+                        .id(UUID.randomUUID().toString())
                         .name("CCMS")
                         .build())
                 .name("ROLE")
                 .userTypeRestriction(new UserType[]{UserType.EXTERNAL})
                 .build();
 
-        UserProfile profile = buildProfile(role);
+        UserProfileDto profile = buildProfile(role);
 
         UserView result = mapper.mapToUserView(buildDto(profile));
 
@@ -216,11 +216,11 @@ class UserViewMapperTest {
                         .appRoleUserTypeRestriction());
     }
 
-    private UserProfile buildProfile(AppRole role) {
+    private UserProfileDto buildProfile(AppRoleDto role) {
 
         String oid = UUID.randomUUID().toString();
 
-        EntraUser user = EntraUser.builder()
+        EntraUserDto user = EntraUserDto.builder()
                 .entraOid(oid)
                 .email("test@test.com")
                 .firstName("Test")
@@ -228,24 +228,24 @@ class UserViewMapperTest {
                 .userAccountStatus(UserAccountStatus.ACTIVE)
                 .build();
 
-        Firm firm = Firm.builder()
+        FirmDto firm = FirmDto.builder()
                 .id(UUID.randomUUID())
                 .name("Firm")
                 .build();
 
-        return UserProfile.builder()
+        return UserProfileDto.builder()
                 .id(UUID.randomUUID())
                 .activeProfile(true)
                 .userType(UserType.INTERNAL)
                 .firm(firm)
                 .entraUser(user)
                 .userProfileStatus(UserProfileStatus.COMPLETE)
-                .appRoles(Set.of(role))
-                .offices(Set.of())
+                .appRoles(List.of(role))
+                .offices(List.of())
                 .build();
     }
 
-    private EntraUserDto buildDto(UserProfile profile) {
+    private EntraUserDto buildDto(UserProfileDto profile) {
 
         EntraUserDto dto = new EntraUserDto();
 

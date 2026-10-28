@@ -7,11 +7,10 @@ import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserView;
 
+import uk.gov.justice.laa.datauserapi.dto.AppRoleDto;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.entity.AppRole;
-import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.entity.Office;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.dto.OfficeDto;
+import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.AppRoleUserType;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
@@ -25,8 +24,8 @@ import java.util.UUID;
 public class UserViewMapper {
 
     public UserView mapToUserView(EntraUserDto user) {
-        UserProfile activeProfile = user.getUserProfiles().stream()
-                .filter(UserProfile::isActiveProfile)
+        UserProfileDto activeProfile = user.getUserProfiles().stream()
+                .filter(UserProfileDto::isActiveProfile)
                 .findFirst()
                 .orElseThrow(() -> new InvalidActorContextException(
                         "No active profile found for user: " + user.getEntraOid()));
@@ -50,9 +49,9 @@ public class UserViewMapper {
         return new UserView(userAccount, profile);
     }
 
-    private UserProfileDetailView mapProfile(UserProfile profile) {
+    private UserProfileDetailView mapProfile(UserProfileDto profile) {
 
-        EntraUser user = profile.getEntraUser();
+        EntraUserDto user = profile.getEntraUser();
 
         List<AppRoleView> roles = profile.getAppRoles()
                 .stream()
@@ -88,7 +87,7 @@ public class UserViewMapper {
         );
     }
 
-    private AppRoleView mapAppRole(AppRole role) {
+    private AppRoleView mapAppRole(AppRoleDto role) {
 
         return new AppRoleView(
                 role.getId(),
@@ -108,10 +107,10 @@ public class UserViewMapper {
         );
     }
 
-    private OfficeView mapOffice(Office office) {
+    private OfficeView mapOffice(OfficeDto office) {
         return new OfficeView(
                 office.getId().toString(),
-                office.getFirm().getId().toString(),
+                office.getFirmId(),
                 office.getAddress().getPostcode(),
                 office.getAddress().getAddressLine1(),
                 office.getAddress().getAddressLine2(),
