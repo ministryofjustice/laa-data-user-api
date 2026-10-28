@@ -43,6 +43,7 @@ class CcmsConfigTest {
         assertThatThrownBy(() -> sqs("arn:aws:sqs:eu-west-2:1").parseSqsQueueUrlFromArn())
                 .hasMessageContaining("6 parts");
         assertThatThrownBy(() -> sqs("bad").parseRegionFromArn()).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> sqs(null).parseRegionFromArn()).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> sqs("arn:aws:sqs:eu-west-2:1").parseRegionFromArn())
                 .hasMessageContaining("6 parts");
     }

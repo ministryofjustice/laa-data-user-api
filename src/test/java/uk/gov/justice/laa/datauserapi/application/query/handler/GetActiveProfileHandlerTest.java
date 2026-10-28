@@ -1,9 +1,11 @@
 package uk.gov.justice.laa.datauserapi.application.query.handler;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.modelmapper.ModelMapper;
 import uk.gov.justice.laa.datauserapi.application.query.service.QueryAuthorisationService;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
@@ -44,13 +46,16 @@ class GetActiveProfileHandlerTest {
     @Mock
     private QueryAuthorisationService authorizationService;
 
+    private ModelMapper modelMapper;
+
     private String actorOid;
     private String userEntraObjectId;
 
-    @org.junit.jupiter.api.BeforeEach
+    @BeforeEach
     void setUp() {
         actorOid = UUID.randomUUID().toString();
         userEntraObjectId = UUID.randomUUID().toString();
+        modelMapper = new ModelMapper();
     }
 
     @Test
@@ -65,13 +70,13 @@ class GetActiveProfileHandlerTest {
                 .thenReturn(Optional.of(targetProfile));
         when(authorizationService.canViewProfile(actorProfile, targetProfile.getUserType(), null)).thenReturn(true);
 
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService);
+        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService, modelMapper);
         UserProfileDetailView result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).isNotNull();
         assertThat(result.userType()).isEqualTo(UserType.INTERNAL);
         assertThat(result.roles()).isNotEmpty();
-        assertThat(result.roles().get(0).appEntraClientId()).isEqualTo("test-entra-client-id-123");
+        assertThat(result.roles().getFirst().appEntraClientId()).isEqualTo("test-entra-client-id-123");
     }
 
     @Test
@@ -84,7 +89,7 @@ class GetActiveProfileHandlerTest {
         when(userProfileQueryRepository.findActiveProfileWithDetailsAndRoles(userEntraObjectId))
                 .thenReturn(Optional.empty());
 
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService);
+        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService, modelMapper);
 
         assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile)))
                 .isInstanceOf(ResourceNotFoundException.class)
@@ -119,7 +124,7 @@ class GetActiveProfileHandlerTest {
                 targetProfile.getUserType(),
                 targetFirm.getId().toString())).thenReturn(false);
 
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService);
+        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService, modelMapper);
 
         assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile)))
                 .isInstanceOf(ResourceNotFoundException.class)
@@ -138,18 +143,18 @@ class GetActiveProfileHandlerTest {
                 .thenReturn(Optional.of(targetProfile));
         when(authorizationService.canViewProfile(actorProfile, targetProfile.getUserType(), null)).thenReturn(true);
 
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService);
+        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService, modelMapper);
         UserProfileDetailView result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).isNotNull();
         assertThat(result.userType()).isEqualTo(UserType.EXTERNAL);
         assertThat(result.roles()).isNotEmpty();
-        assertThat(result.roles().get(0).appEntraClientId()).isEqualTo("test-entra-client-id-123");
+        assertThat(result.roles().getFirst().appEntraClientId()).isEqualTo("test-entra-client-id-123");
     }
 
     @Test
     void throwsExceptionWhenActorHasNoActiveProfile() {
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService);
+        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService, modelMapper);
 
         assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser(null)))
                 .isInstanceOf(InvalidActorContextException.class)

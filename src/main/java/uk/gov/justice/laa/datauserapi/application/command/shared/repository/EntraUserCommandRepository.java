@@ -38,6 +38,8 @@ public interface EntraUserCommandRepository extends JpaRepository<EntraUser, UUI
     @Query("SELECT u FROM EntraUser u WHERE u.entraOid = :entraOid")
     Optional<EntraUser> findByEntraOidForUpdate(@Param("entraOid") String entraOid);
 
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, UUID id);
+
     @Query("SELECT u.id FROM EntraUser u ORDER BY u.id")
     List<UUID> findRefreshUserIds(Pageable pageable);
 

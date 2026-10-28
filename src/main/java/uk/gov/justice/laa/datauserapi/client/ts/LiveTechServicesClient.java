@@ -20,6 +20,8 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 import uk.gov.justice.laa.datauserapi.client.ts.request.ChangeAccountReactivationRequest;
+import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateUserDetailsRequest;
+import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateSecurityGroupsRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
@@ -62,13 +64,14 @@ public class LiveTechServicesClient implements TechServicesClient {
 
     @Override
     public TechServicesApiResponse<ChangeAccountReactivationResponse> reactivateUser(EntraUserDto user) {
-        try {
-            if (user == null || user.getEntraOid() == null) {
-                log.error("Invalid user details for Tech Services reactivation request",
-                        kv("entraOid", user == null ? null : user.getEntraOid()));
-                throw new TechServicesClientException("Invalid user details provided for reactivate user request to Tech Services.");
-            }
 
+        if (user == null || user.getEntraOid() == null) {
+            log.error("Invalid user details for Tech Services reactivation request",
+                    kv("entraOid", null));
+            throw new TechServicesClientException("Invalid user details provided for reactivate user request to Tech Services.");
+        }
+
+        try {
             String accessToken = getAccessToken();
 
             ChangeAccountReactivationRequest request = new ChangeAccountReactivationRequest(true);
@@ -121,13 +124,13 @@ public class LiveTechServicesClient implements TechServicesClient {
                 return TechServicesApiResponse.error(errorResponse);
             } catch (Exception ex) {
                 log.error("Error sending reactivation request to Tech Services",
-                        kv("entraOid", user == null ? null : user.getEntraOid()),
+                        kv("entraOid", user.getEntraOid()),
                         ex);
                 throw new TechServicesClientException("Error while sending reactivate user request to Tech Services.", ex);
             }
         } catch (Exception ex) {
             log.error("Error sending reactivation request to Tech Services",
-                    kv("entraOid", user == null ? null : user.getEntraOid()),
+                    kv("entraOid", user.getEntraOid()),
                     ex);
             throw new TechServicesClientException("Error while sending reactivate user request to Tech Services.", ex);
         }
@@ -135,13 +138,13 @@ public class LiveTechServicesClient implements TechServicesClient {
 
     @Override
     public TechServicesApiResponse<ChangeAccountReactivationResponse> deactivateUser(EntraUserDto user, String reason) {
-        try {
-            if (user == null || user.getEntraOid() == null) {
-                log.error("Invalid user details for Tech Services deactivation request",
-                        kv("entraOid", user == null ? null : user.getEntraOid()));
-                throw new TechServicesClientException("Invalid user details provided for deactivate user request to Tech Services.");
-            }
+        if (user == null || user.getEntraOid() == null) {
+            log.error("Invalid user details for Tech Services deactivation request",
+                    kv("entraOid", null));
+            throw new TechServicesClientException("Invalid user details provided for deactivate user request to Tech Services.");
+        }
 
+        try {
             String accessToken = getAccessToken();
 
             ChangeAccountReactivationRequest request = new ChangeAccountReactivationRequest(false, reason);
@@ -201,13 +204,13 @@ public class LiveTechServicesClient implements TechServicesClient {
                 return TechServicesApiResponse.error(errorResponse);
             } catch (Exception ex) {
                 log.error("Error sending deactivation request to Tech Services",
-                        kv("entraOid", user == null ? null : user.getEntraOid()),
+                        kv("entraOid", user.getEntraOid()),
                         ex);
                 throw new TechServicesClientException("Error while sending deactivate user request to Tech Services.", ex);
             }
         } catch (Exception ex) {
             log.error("Error sending deactivation request to Tech Services",
-                    kv("entraOid", user == null ? null : user.getEntraOid()),
+                    kv("entraOid", user.getEntraOid()),
                     ex);
             throw new TechServicesClientException("Error while sending deactivate user request to Tech Services.", ex);
         }
@@ -306,6 +309,89 @@ public class LiveTechServicesClient implements TechServicesClient {
         Objects.requireNonNull(cacheManager.getCache(CachingConfig.TECH_SERVICES_DETAILS_CACHE)).put(ACCESS_TOKEN, accessToken);
 
         return accessToken;
+    }
+
+    @Override
+    public TechServicesApiResponse<ChangeAccountEnabledResponse> updateUserDetails(String entraOid, String firstName,
+                                                                                   String lastName, String email) {
+        ResponseEntity<ChangeAccountEnabledResponse> response = null;
+        try {
+
+            UpdateUserDetailsRequest request = new UpdateUserDetailsRequest(firstName, lastName, email);
+            String uri = String.format(TECH_SERVICES_UPDATE_USER_GRP_ENDPOINT, laaBusinessUnit, entraOid);
+            log.info("Sending user details update request to Tech Services",
+                    kv("entraOid", entraOid));
+            String accessToken = getAccessToken();
+            response = restClient
+                    .patch()
+                    .uri(uri)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .toEntity(ChangeAccountEnabledResponse.class);
+
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                log.info("Tech Services updated user details",
+                        kv("businessUnit", laaBusinessUnit));
+                return TechServicesApiResponse.success(response.getBody());
+
+            } else {
+                log.warn("Unexpected response from Tech Services user details update",
+                        kv("status", response.getStatusCode()));
+                return TechServicesApiResponse.error(TechServicesErrorResponse.builder()
+                        .success(false)
+                        .code("UNEXPECTED_RESPONSE")
+                        .message("Unexpected response from Tech Services")
+                        .build());
+            }
+
+        } catch (HttpClientErrorException | HttpServerErrorException httpEx) {
+            String errorJson = httpEx.getResponseBodyAsString();
+            log.info("Tech Services user details update returned an error response",
+                    kv("responseBody", errorJson));
+            TechServicesErrorResponse errorResponse;
+            try {
+                if (errorJson.isEmpty()) {
+                    errorResponse = TechServicesErrorResponse.builder()
+                            .code(httpEx.getStatusCode().toString())
+                            .message(httpEx.getStatusText())
+                            .success(false)
+                            .build();
+                } else {
+                    errorResponse = objectMapper.readValue(errorJson, TechServicesErrorResponse.class);
+                }
+                if (httpEx.getStatusCode().is4xxClientError()) {
+                    log.info("Tech Services rejected user details update",
+                            kv("errorMessage", errorResponse.getMessage()),
+                            kv("errorCode", errorResponse.getCode()));
+                    return TechServicesApiResponse.error(errorResponse);
+                }
+                if (httpEx.getStatusCode().is5xxServerError()) {
+                    log.warn("Tech Services failed to update user details",
+                            kv("errorMessage", errorResponse.getMessage()),
+                            kv("errorCode", errorResponse.getCode()));
+                    return TechServicesApiResponse.error(errorResponse);
+                }
+                log.warn("Tech Services user details update failed",
+                        kv("errorMessage", errorResponse.getMessage()),
+                        kv("errorCode", errorResponse.getCode()),
+                        httpEx);
+                throw httpEx;
+            } catch (Exception ex) {
+                String responseBody = response != null && response.getBody() != null ? response.getBody().toString() : "Unknown";
+                log.warn("Error handling Tech Services user details update response",
+                        kv("responseBody", responseBody),
+                        ex);
+                throw new RuntimeException("Error while getting users from Tech Services.", ex);
+            }
+        } catch (Exception ex) {
+            String responseBody = response != null && response.getBody() != null ? response.getBody().toString() : "Unknown";
+            log.error("Unexpected error updating user details in Tech Services",
+                    kv("responseBody", responseBody),
+                    ex);
+            throw new RuntimeException("Unexpected error while updating users details from Tech Services.", ex);
+        }
     }
 
 }

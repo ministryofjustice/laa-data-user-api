@@ -5,10 +5,11 @@ import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
-import uk.gov.justice.laa.datauserapi.entity.AppRole;
+import uk.gov.justice.laa.datauserapi.dto.AppRoleDto;
+import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
+import uk.gov.justice.laa.datauserapi.dto.OfficeDto;
+import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.entity.Office;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 
 import java.util.Arrays;
 import java.util.List;
@@ -17,8 +18,8 @@ import java.util.UUID;
 @Component
 public class GetActiveProfileQueryMapper {
 
-    public UserProfileDetailView mapProfileToDetailView(UserProfile activeProfile) {
-        EntraUser user = activeProfile.getEntraUser();
+    public UserProfileDetailView mapProfileToDetailView(UserProfileDto activeProfile) {
+        EntraUserDto user = activeProfile.getEntraUser();
 
         List<AppRoleView> roles = activeProfile.getAppRoles().stream()
                 .map(this::mapAppRole)
@@ -66,7 +67,7 @@ public class GetActiveProfileQueryMapper {
                 .toList();
     }
 
-    private AppRoleView mapAppRole(AppRole role) {
+    private AppRoleView mapAppRole(AppRoleDto role) {
         return new AppRoleView(
                 role.getId(),
                 role.getApp().getId(),
@@ -85,10 +86,10 @@ public class GetActiveProfileQueryMapper {
         );
     }
 
-    private OfficeView mapOffice(Office office) {
+    private OfficeView mapOffice(OfficeDto office) {
         return new OfficeView(
                 office.getId().toString(),
-                office.getFirm().getId().toString(),
+                office.getFirmId(),
                 office.getAddress().getPostcode(),
                 office.getAddress().getAddressLine1(),
                 office.getAddress().getAddressLine2(),

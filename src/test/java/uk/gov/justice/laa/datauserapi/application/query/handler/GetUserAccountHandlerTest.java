@@ -8,16 +8,17 @@ import uk.gov.justice.laa.datauserapi.contracts.response.UserView;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
+import uk.gov.justice.laa.datauserapi.dto.AppRoleDto;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.entity.AppRole;
-import uk.gov.justice.laa.datauserapi.entity.Firm;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.dto.FirmDto;
+import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -41,8 +42,8 @@ class GetUserAccountHandlerTest {
 
     @Test
     void allowsInternalActorToViewInternalUser() {
-        EntraUserDto actor = user(UserType.INTERNAL, Set.of());
-        EntraUserDto target = user(UserType.INTERNAL, Set.of());
+        EntraUserDto actor = user(UserType.INTERNAL, List.of());
+        EntraUserDto target = user(UserType.INTERNAL, List.of());
         UserView view = mock(UserView.class);
         when(queryService.findByEntraOid(ACTOR_ID)).thenReturn(actor);
         when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_ID))
@@ -57,8 +58,8 @@ class GetUserAccountHandlerTest {
 
     @Test
     void hidesExternalUserWhenActorLacksPermission() {
-        EntraUserDto actor = user(UserType.INTERNAL, Set.of());
-        EntraUserDto target = user(UserType.EXTERNAL, Set.of());
+        EntraUserDto actor = user(UserType.INTERNAL, List.of());
+        EntraUserDto target = user(UserType.EXTERNAL, List.of());
         when(queryService.findByEntraOid(ACTOR_ID)).thenReturn(actor);
         when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_ID))
                 .thenReturn(target);
@@ -70,11 +71,11 @@ class GetUserAccountHandlerTest {
 
     @Test
     void allowsInternalActorWithPermissionToViewExternalUser() {
-        AppRole role = mock(AppRole.class);
+        AppRoleDto role = mock(AppRoleDto.class);
         when(role.getPermissions()).thenReturn(Set.of(Permission.VIEW_EXTERNAL_USER));
 
-        EntraUserDto actor = user(UserType.INTERNAL, Set.of(role));
-        EntraUserDto target = user(UserType.EXTERNAL, Set.of());
+        EntraUserDto actor = user(UserType.INTERNAL, List.of(role));
+        EntraUserDto target = user(UserType.EXTERNAL, List.of());
 
         UserView view = mock(UserView.class);
 
@@ -91,11 +92,11 @@ class GetUserAccountHandlerTest {
 
     @Test
     void allowsExternalActorToViewUserFromSameFirm() {
-        Firm firm = mock(Firm.class);
+        FirmDto firm = mock(FirmDto.class);
         when(firm.getId()).thenReturn(UUID.randomUUID());
 
-        EntraUserDto actor = user(UserType.EXTERNAL, Set.of());
-        EntraUserDto target = user(UserType.EXTERNAL, Set.of());
+        EntraUserDto actor = user(UserType.EXTERNAL, List.of());
+        EntraUserDto target = user(UserType.EXTERNAL, List.of());
 
         when(actor.getUserProfiles().stream().findFirst().get().getFirm()).thenReturn(firm);
         when(target.getUserProfiles().stream().findFirst().get().getFirm()).thenReturn(firm);
@@ -116,14 +117,14 @@ class GetUserAccountHandlerTest {
 
     @Test
     void hidesExternalUserFromDifferentFirm() {
-        Firm actorFirm = mock(Firm.class);
-        Firm targetFirm = mock(Firm.class);
+        FirmDto actorFirm = mock(FirmDto.class);
+        FirmDto targetFirm = mock(FirmDto.class);
 
         when(actorFirm.getId()).thenReturn(UUID.randomUUID());
         when(targetFirm.getId()).thenReturn(UUID.randomUUID());
 
-        EntraUserDto actor = user(UserType.EXTERNAL, Set.of());
-        EntraUserDto target = user(UserType.EXTERNAL, Set.of());
+        EntraUserDto actor = user(UserType.EXTERNAL, List.of());
+        EntraUserDto target = user(UserType.EXTERNAL, List.of());
 
         when(actor.getUserProfiles().stream().findFirst().get().getFirm()).thenReturn(actorFirm);
         when(target.getUserProfiles().stream().findFirst().get().getFirm()).thenReturn(targetFirm);
@@ -141,7 +142,7 @@ class GetUserAccountHandlerTest {
 
     @Test
     void throwsWhenActorHasNoActiveProfile() {
-        UserProfile profile = mock(UserProfile.class);
+        UserProfileDto profile = mock(UserProfileDto.class);
         when(profile.isActiveProfile()).thenReturn(false);
 
         EntraUserDto actor = mock(EntraUserDto.class);
@@ -158,7 +159,7 @@ class GetUserAccountHandlerTest {
 
     @Test
     void throwsWhenActorUserTypeCannotBeDetermined() {
-        UserProfile profile = mock(UserProfile.class);
+        UserProfileDto profile = mock(UserProfileDto.class);
 
         when(profile.isActiveProfile()).thenReturn(true);
         when(profile.getUserType()).thenReturn(null);
@@ -180,8 +181,8 @@ class GetUserAccountHandlerTest {
         return new GetUserAccountHandler(queryService, userViewMapper);
     }
 
-    private EntraUserDto user(UserType userType, Set<AppRole> roles) {
-        UserProfile profile = mock(UserProfile.class);
+    private EntraUserDto user(UserType userType, List<AppRoleDto> roles) {
+        UserProfileDto profile = mock(UserProfileDto.class);
         lenient().when(profile.isActiveProfile()).thenReturn(true);
         lenient().when(profile.getUserType()).thenReturn(userType);
         lenient().when(profile.getAppRoles()).thenReturn(roles);

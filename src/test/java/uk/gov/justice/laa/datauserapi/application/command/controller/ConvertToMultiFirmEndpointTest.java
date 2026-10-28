@@ -19,9 +19,11 @@ import uk.gov.justice.laa.datauserapi.application.command.controller.mapper.Conv
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeactivateUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeleteUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.ReactivateUserHandler;
+import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserDetailsHandler;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.UpdateUserDetailsMapper;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmultifirm.ConvertToMultiFirmDomainMapper;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmultifirm.ConvertToMultiFirmHandler;
@@ -90,6 +92,10 @@ class ConvertToMultiFirmEndpointTest {
     private DeactivateUserHandler deactivateUserHandler;
     @MockitoBean
     private DeactivateUserMapper deactivateUserMapper;
+    @MockitoBean
+    private UpdateUserDetailsHandler updateUserDetailsHandler;
+    @MockitoBean
+    private UpdateUserDetailsMapper updateUserDetailsMapper;
     @MockitoBean
     private DeleteUserHandler deleteUserHandler;
     @MockitoBean

@@ -7,6 +7,7 @@ import uk.gov.justice.laa.datauserapi.application.command.config.ccms.CcmsConfig
 import uk.gov.justice.laa.datauserapi.application.command.config.ccms.CcmsConnectionConfigProperties;
 import uk.gov.justice.laa.datauserapi.application.command.config.ccms.UserConfig;
 
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SqsClientRegistryTest {

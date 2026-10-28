@@ -14,9 +14,13 @@ import uk.gov.justice.laa.datauserapi.application.command.handler.DeleteUserHand
 import uk.gov.justice.laa.datauserapi.application.command.handler.ReactivateUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.controller.mapper.ConvertToMultiFirmCommandMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserDetailsHandler;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmultifirm.ConvertToMultiFirmHandler;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.UpdateUserDetailsMapper;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.UpdateUserDetailsCommand;
+import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserDetailsRequest;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeleteUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
@@ -48,6 +52,12 @@ class UserAccountCommandControllerTest {
 
     @Mock
     private DeactivateUserMapper deactivateUserMapper;
+
+    @Mock
+    private UpdateUserDetailsHandler updateUserDetailsHandler;
+
+    @Mock
+    private UpdateUserDetailsMapper updateUserDetailsMapper;
 
     @Mock
     private DeleteUserHandler deleteUserHandler;
@@ -85,6 +95,8 @@ class UserAccountCommandControllerTest {
                 reactivateUserMapper,
                 deactivateUserHandler,
                 deactivateUserMapper,
+                updateUserDetailsHandler,
+                updateUserDetailsMapper,
                 deleteUserHandler,
                 deleteUserMapper,
                 convertToMultiFirmHandler,
@@ -190,6 +202,24 @@ class UserAccountCommandControllerTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("Deactivation reason required");
         }
+    }
+
+    @Test
+    @DisplayName("updateUserDetails delegates to the handler with the authenticated user as actor")
+    void updateUserDetails_DelegatesToHandler() {
+        String actorOid = UUID.randomUUID().toString();
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder().entraOid(actorOid).build();
+        UpdateUserDetailsRequest request = UpdateUserDetailsRequest.builder()
+                .userEntraObjectId(UUID.randomUUID()).firstName("A").build();
+        UpdateUserDetailsCommand command = UpdateUserDetailsCommand.builder()
+                .userEntraObjectId(request.userEntraObjectId()).firstName("A").build();
+        when(updateUserDetailsMapper.toUpdateUserDetailsCommand(request)).thenReturn(command);
+        when(updateUserDetailsHandler.handle(command, user)).thenReturn(commandResult);
+
+        ResponseEntity<CommandResult> response = controller.updateUserDetails(request, user);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isSameAs(commandResult);
     }
 
     @Test

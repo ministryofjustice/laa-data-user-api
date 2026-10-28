@@ -1,6 +1,5 @@
 package uk.gov.justice.laa.datauserapi.application.query.service;
 
-import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -11,7 +10,7 @@ import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.EntraUserQueryRepository;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserAccountQueryRepository;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.entity.EntraUser;
+import uk.gov.justice.laa.datauserapi.application.query.mapper.UserAccountQueryMapper;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 
 import java.util.List;
@@ -23,14 +22,14 @@ public class UserAccountQueryService {
 
     private final UserAccountQueryRepository queryRepository;
     private final EntraUserQueryRepository userRepository;
-    private final ModelMapper modelMapper;
+    private final UserAccountQueryMapper mapper;
 
     public UserAccountQueryService(UserAccountQueryRepository queryRepository,
                                    EntraUserQueryRepository userRepository,
-                                   ModelMapper modelMapper) {
+                                   UserAccountQueryMapper mapper) {
         this.queryRepository = queryRepository;
         this.userRepository = userRepository;
-        this.modelMapper = modelMapper;
+        this.mapper = mapper;
     }
 
     public List<AccountStatusHistoryView> getAuditHistory(UUID userEntraObjectId) {
@@ -43,18 +42,14 @@ public class UserAccountQueryService {
     }
 
     public EntraUserDto findByEntraOid(String entraOid) {
-        EntraUser user = userRepository.findByEntraOid(entraOid)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + entraOid));
-        return modelMapper.map(user, EntraUserDto.class);
+        return mapper.toDto(userRepository.findByEntraOid(entraOid), entraOid);
     }
 
     public EntraUserDto findUserAccountSummaryByUserEntraObjectId(String userEntraObjectId) {
-        EntraUser user = userRepository.findByEntraOid(userEntraObjectId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userEntraObjectId));
-        return modelMapper.map(user, EntraUserDto.class);
+        return mapper.toDto(userRepository.findByEntraOid(userEntraObjectId), userEntraObjectId);
     }
 
     public Page<EntraUserDto> searchUsers(UserSearchCriteria criteria, Pageable pageable) {
-        return userRepository.searchUsers(criteria, pageable).map(user -> modelMapper.map(user, EntraUserDto.class));
+        return mapper.toPage(userRepository.searchUsers(criteria, pageable));
     }
 }

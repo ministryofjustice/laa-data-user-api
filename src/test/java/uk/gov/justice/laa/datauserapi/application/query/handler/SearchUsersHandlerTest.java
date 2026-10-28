@@ -15,10 +15,10 @@ import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
+import uk.gov.justice.laa.datauserapi.dto.AppRoleDto;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.entity.AppRole;
-import uk.gov.justice.laa.datauserapi.entity.Firm;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.dto.FirmDto;
+import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
@@ -48,11 +48,11 @@ class SearchUsersHandlerTest {
 
     @Test
     void shouldReturnPagedResultsForInternalActor() {
-        UserProfile profile = mock(UserProfile.class);
+        UserProfileDto profile = mock(UserProfileDto.class);
 
         when(profile.isActiveProfile()).thenReturn(true);
         when(profile.getUserType()).thenReturn(UserType.INTERNAL);
-        when(profile.getAppRoles()).thenReturn(Set.of());
+        when(profile.getAppRoles()).thenReturn(List.of());
 
         EntraUserDto actor = mock(EntraUserDto.class);
         when(actor.getUserProfiles()).thenReturn(Set.of(profile));
@@ -77,7 +77,7 @@ class SearchUsersHandlerTest {
 
     @Test
     void shouldThrowWhenActorHasNoActiveProfile() {
-        UserProfile profile = mock(UserProfile.class);
+        UserProfileDto profile = mock(UserProfileDto.class);
 
         when(profile.isActiveProfile()).thenReturn(false);
 
@@ -92,7 +92,7 @@ class SearchUsersHandlerTest {
 
     @Test
     void shouldThrowWhenActorUserTypeCannotBeDetermined() {
-        UserProfile profile = mock(UserProfile.class);
+        UserProfileDto profile = mock(UserProfileDto.class);
 
         when(profile.isActiveProfile()).thenReturn(true);
         when(profile.getUserType()).thenReturn(null);
@@ -110,16 +110,16 @@ class SearchUsersHandlerTest {
 
     @Test
     void shouldPassActorFirmIdForExternalUsers() {
-        Firm firm = mock(Firm.class);
+        FirmDto firm = mock(FirmDto.class);
         UUID firmId = UUID.randomUUID();
 
         when(firm.getId()).thenReturn(firmId);
 
-        UserProfile profile = mock(UserProfile.class);
+        UserProfileDto profile = mock(UserProfileDto.class);
         when(profile.isActiveProfile()).thenReturn(true);
         when(profile.getUserType()).thenReturn(UserType.EXTERNAL);
         when(profile.getFirm()).thenReturn(firm);
-        when(profile.getAppRoles()).thenReturn(Set.of());
+        when(profile.getAppRoles()).thenReturn(List.of());
 
         EntraUserDto actor = mock(EntraUserDto.class);
         when(actor.getUserProfiles()).thenReturn(Set.of(profile));
@@ -139,16 +139,16 @@ class SearchUsersHandlerTest {
 
     @Test
     void shouldSetCanViewExternalUsersWhenPermissionPresent() {
-        AppRole role = mock(AppRole.class);
+        AppRoleDto role = mock(AppRoleDto.class);
 
         when(role.getPermissions())
                 .thenReturn(Set.of(Permission.VIEW_EXTERNAL_USER));
 
-        UserProfile profile = mock(UserProfile.class);
+        UserProfileDto profile = mock(UserProfileDto.class);
 
         when(profile.isActiveProfile()).thenReturn(true);
         when(profile.getUserType()).thenReturn(UserType.INTERNAL);
-        when(profile.getAppRoles()).thenReturn(Set.of(role));
+        when(profile.getAppRoles()).thenReturn(List.of(role));
 
         EntraUserDto actor = mock(EntraUserDto.class);
         when(actor.getUserProfiles()).thenReturn(Set.of(profile));
@@ -166,7 +166,7 @@ class SearchUsersHandlerTest {
 
     @Test
     void shouldUseDefaultPagingValues() {
-        UserProfile profile = internalProfile();
+        UserProfileDto profile = internalProfile();
 
         EntraUserDto actor = mock(EntraUserDto.class);
         when(actor.getUserProfiles()).thenReturn(Set.of(profile));
@@ -185,7 +185,7 @@ class SearchUsersHandlerTest {
 
     @Test
     void shouldCapPageSizeAt100() {
-        UserProfile profile = internalProfile();
+        UserProfileDto profile = internalProfile();
 
         EntraUserDto actor = mock(EntraUserDto.class);
         when(actor.getUserProfiles()).thenReturn(Set.of(profile));
@@ -195,7 +195,7 @@ class SearchUsersHandlerTest {
 
         UserSearchCriteria criteria = new UserSearchCriteria(
                 0, 500, null,
-                null, null, null,
+                null, null, null, null,
                 null, null, null, null,
                 null, false, false, null, null, false
         );
@@ -208,19 +208,19 @@ class SearchUsersHandlerTest {
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(100);
     }
 
-    private UserProfile internalProfile() {
-        UserProfile profile = mock(UserProfile.class);
+    private UserProfileDto internalProfile() {
+        UserProfileDto profile = mock(UserProfileDto.class);
 
         when(profile.isActiveProfile()).thenReturn(true);
         when(profile.getUserType()).thenReturn(UserType.INTERNAL);
-        when(profile.getAppRoles()).thenReturn(Set.of());
+        when(profile.getAppRoles()).thenReturn(List.of());
 
         return profile;
     }
 
     private UserSearchCriteria criteria() {
         UserSearchCriteria criteria = new UserSearchCriteria(
-                null, null, null,
+                null, null, null, null,
                 null, null, null,
                 null, null, null, null,
                 null, false, false, null, null, false
