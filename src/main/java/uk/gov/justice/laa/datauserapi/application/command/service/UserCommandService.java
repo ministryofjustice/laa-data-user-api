@@ -30,11 +30,13 @@ public class UserCommandService {
         this.userProfileCommandRepository = userProfileCommandRepository;
     }
 
+    @Transactional(readOnly = true)
     public boolean isExternalUser(UUID userEntraObjectId) {
         UserType userType = getUserType(userEntraObjectId);
         return UserType.EXTERNAL.equals(userType);
     }
 
+    @Transactional(readOnly = true)
     public boolean isInternalUser(UUID userEntraObjectId) {
         UserType userType = getUserType(userEntraObjectId);
         return UserType.INTERNAL.equals(userType);
@@ -46,6 +48,7 @@ public class UserCommandService {
         return entraUser.getUserProfiles().stream().map(UserProfile::getUserType).findFirst().orElse(null);
     }
 
+    @Transactional(readOnly = true)
     public UserProfile getActiveUserProfile(UUID userEntraObjectId) {
         EntraUser entraUser = entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
                 .orElseThrow(() -> new ResourceNotFoundException("User account not found for oid: " + userEntraObjectId));
