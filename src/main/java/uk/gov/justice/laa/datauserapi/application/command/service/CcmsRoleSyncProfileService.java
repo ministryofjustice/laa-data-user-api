@@ -5,6 +5,7 @@ import static net.logstash.logback.argument.StructuredArguments.kv;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
+import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.CcmsSyncException;
 
 import java.time.LocalDateTime;
@@ -45,9 +47,7 @@ public class CcmsRoleSyncProfileService {
                 || profile.getAppRoles().stream().filter(AppRole::isLegacySync).anyMatch(role ->
                 role.getApp().getEntraOid() == null || role.getApp().getEntraOid().isBlank()
                         || role.getRoleIdentifier() == null || role.getRoleIdentifier().isBlank())) {
-            profile.setLastCcmsSyncSuccessful(false);
-            profile.setLastModifiedBy(actorOid);
-            profile.setLastModified(LocalDateTime.now());
+            persistSyncResult(id, false, actorOid);
             log.error("CCMS profile is missing a required identifier",
                     kv("profileId", id),
                     kv("actorEntraOid", actorOid));
@@ -76,14 +76,19 @@ public class CcmsRoleSyncProfileService {
                 failure = preferFailure(failure, ex);
             }
         }
-        profile.setLastCcmsSyncSuccessful(failure == null);
-        profile.setLastModifiedBy(actorOid);
-        profile.setLastModified(LocalDateTime.now());
+        persistSyncResult(id, failure == null, actorOid);
         // Return the downstream failure so this profile's flag commits before the batch reports it.
         return new ProfileSyncResult(true, failure);
     }
 
     public record ProfileSyncResult(boolean processed, CcmsSyncException failure) {
+    }
+
+    private void persistSyncResult(UUID id, boolean successful, String actorOid) {
+        // Don't change the loaded profile so a flush cannot overwrite concurrent profile edits
+        if (repository.updateCcmsSyncResult(id, successful, actorOid, LocalDateTime.now()) != 1) {
+            throw new ObjectOptimisticLockingFailureException(UserProfile.class, id);
+        }
     }
 
     static CcmsSyncException preferFailure(CcmsSyncException existing, CcmsSyncException next) {

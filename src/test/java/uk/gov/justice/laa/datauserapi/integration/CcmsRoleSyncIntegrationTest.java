@@ -9,6 +9,8 @@ import org.hibernate.Session;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -66,6 +68,8 @@ class CcmsRoleSyncIntegrationTest {
 
     @Autowired
     private CcmsRoleSyncService service;
+    @Autowired
+    private CcmsRoleSyncProfileService profileService;
     @Autowired
     private UserProfileCommandRepository repository;
     @Autowired
@@ -155,7 +159,7 @@ class CcmsRoleSyncIntegrationTest {
     }
 
     @Test
-    void continuesAfterProfileDeletedDuringSqsRequestFailsAtCommit(CapturedOutput output) {
+    void continuesAfterProfileDeletedDuringSqsRequest(CapturedOutput output) {
         AtomicReference<UUID> deletedProfile = new AtomicReference<>();
         when(sqs.sendMessage(any(SendMessageRequest.class))).thenAnswer(invocation -> {
             SendMessageRequest request = invocation.getArgument(0);
@@ -183,6 +187,56 @@ class CcmsRoleSyncIntegrationTest {
         verify(sqs, times(3)).sendMessage(any(SendMessageRequest.class));
         assertThat(output.getOut()).contains("CCMS profile synchronization transaction failed",
                 "ObjectOptimisticLockingFailureException", "CCMS role sync completed with failures");
+    }
+
+    @Test
+    void missingIdentifierUpdatesOnlySyncResultAndAuditColumns() {
+        jdbc.update("UPDATE user_profile SET legacy_user_id = NULL WHERE id = ?", id(1));
+
+        assertThat(profileService.syncProfile(id(1), "actor").failure()).isNotNull();
+
+        assertThat(jdbc.queryForObject("SELECT last_sync_successful FROM user_profile WHERE id = ?",
+                Boolean.class, id(1))).isFalse();
+        assertThat(jdbc.queryForObject("SELECT last_modified_by FROM user_profile WHERE id = ?",
+                String.class, id(1))).isEqualTo("actor");
+        assertThat(jdbc.queryForObject("SELECT silas_status FROM user_profile WHERE id = ?",
+                String.class, id(1))).isEqualTo("COMPLETE");
+        verify(sqs, times(0)).sendMessage(any(SendMessageRequest.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void preservesConcurrentProfileChangesDuringSqsRetries(boolean successful) {
+        when(sqs.sendMessage(any(SendMessageRequest.class))).thenAnswer(invocation -> {
+            var concurrentUpdate = new TransactionTemplate(transactionManager);
+            concurrentUpdate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            concurrentUpdate.executeWithoutResult(transaction ->
+                    jdbc.update("""
+                            UPDATE user_profile
+                            SET silas_status = 'ACTIVATION_REQUIRED', unrestricted_office_access = TRUE
+                            WHERE id = ?
+                            """, id(1)));
+            if (!successful) {
+                throw ApiCallTimeoutException.create(1000);
+            }
+            return SendMessageResponse.builder().messageId("message").build();
+        });
+
+        var result = profileService.syncProfile(id(1), "actor");
+
+        assertThat(result.processed()).isTrue();
+        assertThat(result.failure() == null).isEqualTo(successful);
+        assertThat(jdbc.queryForObject("SELECT silas_status FROM user_profile WHERE id = ?",
+                String.class, id(1))).isEqualTo("ACTIVATION_REQUIRED");
+        assertThat(jdbc.queryForObject("SELECT unrestricted_office_access FROM user_profile WHERE id = ?",
+                Boolean.class, id(1))).isTrue();
+        assertThat(jdbc.queryForObject("SELECT last_sync_successful FROM user_profile WHERE id = ?",
+                Boolean.class, id(1))).isEqualTo(successful);
+        assertThat(jdbc.queryForObject("SELECT last_modified_by FROM user_profile WHERE id = ?",
+                String.class, id(1))).isEqualTo("actor");
+        assertThat(jdbc.queryForObject("SELECT last_modified_date FROM user_profile WHERE id = ?",
+                java.time.LocalDateTime.class, id(1))).isNotNull();
+        verify(sqs, times(successful ? 1 : 3)).sendMessage(any(SendMessageRequest.class));
     }
 
     @Test
