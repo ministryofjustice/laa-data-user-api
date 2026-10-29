@@ -102,7 +102,7 @@ class CcmsRoleSyncAsyncIntegrationTest {
 
     @Configuration(proxyBeanMethods = false)
     @Import({SilasStatusRefreshConfig.class, CcmsRoleSyncConfig.class,
-            CcmsRoleSyncService.class, TriggerCcmsRoleSyncHandler.class})
+        CcmsRoleSyncService.class, TriggerCcmsRoleSyncHandler.class})
     static class Config {
         @Bean
         UserProfileCommandRepository repository() {
