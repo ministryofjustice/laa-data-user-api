@@ -16,10 +16,7 @@ import java.util.UUID;
 public interface UserProfileCommandRepository extends JpaRepository<UserProfile, UUID> {
 
     @Query("""
-            SELECT ups FROM UserProfile ups
-                        JOIN FETCH ups.entraUser eu
-                        LEFT JOIN FETCH ups.firm f
-                        JOIN FETCH ups.appRoles ars
+            SELECT ups.id FROM UserProfile ups
             WHERE ups.lastCcmsSyncSuccessful = false
                  AND EXISTS (
                      SELECT candidate.id FROM UserProfile candidate
@@ -27,7 +24,7 @@ public interface UserProfileCommandRepository extends JpaRepository<UserProfile,
                      WHERE candidate.id = ups.id AND syncRole.legacySync = true
                  )
             """)
-    List<UserProfile> findUserProfilesForCcmsSync();
+    List<UUID> findUserProfileIdsForCcmsSync();
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM UserProfile p WHERE p.entraUser.id IN :userIds ORDER BY p.id")

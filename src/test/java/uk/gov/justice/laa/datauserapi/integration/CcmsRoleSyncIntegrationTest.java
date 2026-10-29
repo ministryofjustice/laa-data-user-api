@@ -2,11 +2,17 @@ package uk.gov.justice.laa.datauserapi.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.PersistenceContext;
+import org.hibernate.Session;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -17,6 +23,7 @@ import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -37,6 +44,7 @@ import javax.sql.DataSource;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -48,6 +56,7 @@ import static org.mockito.Mockito.when;
 
 @SpringJUnitConfig(CcmsRoleSyncIntegrationTest.Config.class)
 @Testcontainers
+@ExtendWith(OutputCaptureExtension.class)
 class CcmsRoleSyncIntegrationTest {
 
     @Container
@@ -67,6 +76,8 @@ class CcmsRoleSyncIntegrationTest {
     private JdbcTemplate jdbc;
     @Autowired
     private PlatformTransactionManager transactionManager;
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @BeforeEach
     void seed() {
@@ -98,6 +109,22 @@ class CcmsRoleSyncIntegrationTest {
     }
 
     @Test
+    void selectsEligibleIdsOnceWithoutLoadingEntityGraphs() {
+        jdbc.update("""
+                INSERT INTO app_role (id, app_id, name, ordinal, authz_role, legacy_sync, role_identifier)
+                VALUES (?, ?, 'Another legacy', 2, FALSE, TRUE, 'ANOTHER_LEGACY')
+                """, id(32), id(20));
+        jdbc.update("INSERT INTO user_profile_app_role VALUES (?, ?)", id(1), id(32));
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(transaction -> {
+            assertThat(repository.findUserProfileIdsForCcmsSync()).containsExactlyInAnyOrder(id(1), id(2), id(3));
+            var statistics = entityManager.unwrap(Session.class).getStatistics();
+            assertThat(statistics.getEntityCount()).isZero();
+            assertThat(statistics.getCollectionCount()).isZero();
+        });
+    }
+
+    @Test
     void partialFailureCommitsPerProfileAndRetriggerSelectsOnlyFailedProfiles() {
         when(sqs.sendMessage(any(SendMessageRequest.class))).thenAnswer(invocation -> {
             SendMessageRequest request = invocation.getArgument(0);
@@ -110,7 +137,7 @@ class CcmsRoleSyncIntegrationTest {
         service.sync("actor");
         assertThat(jdbc.queryForList("SELECT last_sync_successful FROM user_profile ORDER BY id", Boolean.class))
                 .containsExactly(true, false, true, true, false);
-        assertThat(repository.findUserProfilesForCcmsSync()).extracting(profile -> profile.getId())
+        assertThat(repository.findUserProfileIdsForCcmsSync())
                 .containsExactly(id(2));
         assertThat(jdbc.queryForObject("SELECT last_modified_by FROM user_profile WHERE id = ?", String.class, id(2)))
                 .isEqualTo("actor");
@@ -121,17 +148,48 @@ class CcmsRoleSyncIntegrationTest {
         when(sqs.sendMessage(any(SendMessageRequest.class)))
                 .thenReturn(SendMessageResponse.builder().messageId("retry-message").build());
         service.sync("retry-actor");
-        assertThat(repository.findUserProfilesForCcmsSync()).isEmpty();
+        assertThat(repository.findUserProfileIdsForCcmsSync()).isEmpty();
         assertThat(jdbc.queryForObject("SELECT last_modified_by FROM user_profile WHERE id = ?", String.class, id(2)))
                 .isEqualTo("retry-actor");
         verify(sqs, times(6)).sendMessage(any(SendMessageRequest.class));
     }
 
     @Test
+    void continuesAfterProfileDeletedDuringSqsRequestFailsAtCommit(CapturedOutput output) {
+        AtomicReference<UUID> deletedProfile = new AtomicReference<>();
+        when(sqs.sendMessage(any(SendMessageRequest.class))).thenAnswer(invocation -> {
+            SendMessageRequest request = invocation.getArgument(0);
+            if (deletedProfile.get() == null) {
+                UUID profileId = jdbc.queryForObject("SELECT id FROM user_profile WHERE legacy_user_id = ?",
+                        UUID.class, UUID.fromString(request.messageGroupId()));
+                deletedProfile.set(profileId);
+                var deletion = new TransactionTemplate(transactionManager);
+                deletion.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+                deletion.executeWithoutResult(transaction -> {
+                    jdbc.update("DELETE FROM user_profile_app_role WHERE user_profile_id = ?", profileId);
+                    jdbc.update("DELETE FROM user_profile WHERE id = ?", profileId);
+                });
+            }
+            return SendMessageResponse.builder().messageId("message").build();
+        });
+
+        service.sync("actor");
+
+        assertThat(deletedProfile.get()).isNotNull();
+        assertThat(repository.existsById(deletedProfile.get())).isFalse();
+        assertThat(jdbc.queryForList("""
+                SELECT last_sync_successful FROM user_profile WHERE id IN (?, ?, ?)
+                """, Boolean.class, id(1), id(2), id(3))).containsExactly(true, true);
+        verify(sqs, times(3)).sendMessage(any(SendMessageRequest.class));
+        assertThat(output.getOut()).contains("CCMS profile synchronization transaction failed",
+                "ObjectOptimisticLockingFailureException", "CCMS role sync completed with failures");
+    }
+
+    @Test
     void unexpectedResponsesPersistFalseForEveryProfile() {
         when(sqs.sendMessage(any(SendMessageRequest.class))).thenReturn(SendMessageResponse.builder().build());
         service.sync("actor");
-        assertThat(repository.findUserProfilesForCcmsSync()).hasSize(3);
+        assertThat(repository.findUserProfileIdsForCcmsSync()).hasSize(3);
         verify(sqs, times(9)).sendMessage(any(SendMessageRequest.class));
     }
 
