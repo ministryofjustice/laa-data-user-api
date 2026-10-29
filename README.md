@@ -62,6 +62,181 @@ Tech Services calls intentionally precede database updates; this ordering is unc
 
 ---
 
+## Access control (RBAC)
+
+Command and query handlers use message-level RBAC. Declare the requirement on the command or
+query type, not on an individual handler or controller. The `RequiresPermissionAuthorizationManager`
+intercepts handler methods whose message parameter has `@RequiresPermission` or `@PolicyGuarded`;
+it runs before the handler, including before a handler's transaction is opened. A denial raises
+Spring Security's `AccessDeniedException` and is returned as HTTP 403 by the security/exception
+handling layer.
+
+For `@RequiresPermission`, the manager collects the permissions from the app roles on the actor's
+active profile. By default, `Match.ANY` means the actor must have at least one listed permission;
+`Match.ALL` requires every listed permission. After this coarse permission check, authorization
+policies run in this order:
+
+1. Applicable global policies, which enforce cross-cutting rules for supported message types.
+2. Policies explicitly listed on the message, which enforce rules specific to that action.
+
+Every applicable policy must allow. Policies return `PolicyDecision.allow()` or
+`PolicyDecision.deny("reason")`; denials are logged as structured `INFO` events and the reason is
+not sent to the caller. Missing actors, missing permissions, null messages when policies are
+required, and incompatible declared policy/message types fail closed.
+
+### Existing target capabilities and policies
+
+Commands and queries can implement a target capability to opt into reusable rules:
+
+| Capability           | Target                      | Global policy                                                                                                                                         |
+|----------------------|-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `TargetsUser`        | One user by Entra object ID | `ProviderAdminFirmScopePolicy`: non-internal actors must have a firm; the target must not be multi-firm and must have an active profile in that firm. |
+| `TargetsUserProfile` | One profile by profile ID   | `ProviderAdminProfileFirmScopePolicy`: non-internal actors must have a firm matching the target profile's firm.                                       |
+| `TargetsFirm`        | One firm by firm code       | `ProviderAdminOwnFirmPolicy`: non-internal actors must have a firm matching the target firm code.                                                     |
+
+These policies are Spring components implementing `GlobalAuthorizationPolicy`. They are discovered
+automatically and run for every guarded message implementing the corresponding capability.
+Internal actors bypass these provider-firm checks; actors without a confirmed internal profile are
+scoped and fail closed if they have no firm.
+
+Other reusable command-side policies in `application.command.policy` are:
+
+| Policy                            | Capability           | Rule                                                                                                      |
+|-----------------------------------|----------------------|-----------------------------------------------------------------------------------------------------------|
+| `NotSelfTargetPolicy`             | `TargetsUser`        | The actor cannot target their own Entra account.                                                          |
+| `ExternalTargetOnlyPolicy`        | `TargetsUser`        | The target user must not be an internal user.                                                             |
+| `TargetNotDeactivatedPolicy`      | `TargetsUser`        | The target user must not already be deactivated.                                                          |
+| `ReactivationHierarchyPolicy`     | `TargetsUser`        | The target must be deactivated, and the actor's roles must permit reactivation for its deactivation type. |
+| `NotSelfProfileTargetPolicy`      | `TargetsUserProfile` | The actor cannot target a profile belonging to their own account.                                         |
+| `ExternalProfileTargetOnlyPolicy` | `TargetsUserProfile` | The target profile must not belong to an internal user.                                                   |
+
+For example, `DeactivateUserCommand` requires `DISABLE_EXTERNAL_USER`, cannot target the actor,
+must target an external user who is not already deactivated, and is subject to the global
+same-firm rule. Office-update commands require `EDIT_USER_OFFICE`, apply the profile self/internal
+target policies, and are subject to the global profile firm-scope rule.
+
+### Using existing permissions and policies
+
+Put `@RequiresPermission` on the message and include any applicable message-specific policies.
+The global firm-scope policy is automatic when the message implements its target capability;
+do not also add that global policy to the annotation.
+
+```java
+@Builder
+@RequiresPermission(value = Permission.DISABLE_EXTERNAL_USER,
+        policies = {
+            NotSelfTargetPolicy.class,
+            ExternalTargetOnlyPolicy.class,
+            TargetNotDeactivatedPolicy.class
+        })
+public record DeactivateUserCommand(
+        UUID userEntraObjectId,
+        DeactivateUserReason deactivateReason
+) implements TargetsUser {
+
+    @Override
+    public UUID targetUserEntraObjectId() {
+        return userEntraObjectId;
+    }
+}
+```
+
+For multiple permissions, select whether one or all must be held:
+
+```java
+@RequiresPermission(
+        value = {Permission.EDIT_USER_DETAILS, Permission.EDIT_USER_FIRM},
+        match = RequiresPermission.Match.ALL)
+public record UpdateUserCommand(...) {
+}
+```
+
+Use the target capability that matches the actual resource being acted on. If none of the existing
+capabilities fit, define a small capability interface in `security.rbac` and implement it on
+messages that expose that target. The interface should provide the identifier or attributes needed
+by the policy; avoid making policies depend on unrelated command fields.
+
+### Adding a permission
+
+1. Add the permission name to `model.Permission`.
+2. Annotate the relevant command/query message with `@RequiresPermission` and choose `ANY` or
+   `ALL` if the default `ANY` does not express the requirement.
+3. Ensure the intended application app roles are granted this permission in the role/permission
+   configuration used to build the actor's active-profile roles. Adding an enum value or annotation
+   alone does **not** grant it to any role. Update `ADMIN_PERMISSIONS` or
+   `DELEGATE_FIRM_ACCESS_PERMISSIONS` only if the new permission is intentionally part of those
+   named groups.
+4. Add authorization tests for both allowed and denied actors. Include a test that verifies the
+   handler is not invoked on denial where appropriate.
+
+### Adding a message-specific policy
+
+Implement `AuthorizationPolicy<M>` as a Spring bean, normally under
+`application.command.policy` or `application.query.policy` for the relevant CQRS side. The
+message type (or a target capability such as `TargetsUser`) is the generic parameter. Use the
+side's service/repository boundary to read the facts required for the decision, and return a
+specific denial reason without logging sensitive request data.
+
+```java
+@Component
+public class TargetBelongsToActorPolicy implements AuthorizationPolicy<TargetsUser> {
+
+    private final UserCommandService userCommandService;
+
+    public TargetBelongsToActorPolicy(UserCommandService userCommandService) {
+        this.userCommandService = userCommandService;
+    }
+
+    @Override
+    public PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
+        UUID actorFirmId = Optional.ofNullable(actor.activeProfile())
+                .map(AuthenticatedUserProfile::firmId)
+                .orElse(null);
+        if (actorFirmId == null) {
+            return PolicyDecision.deny("actor has no active firm");
+        }
+        return userCommandService.findActiveFirmId(message.targetUserEntraObjectId())
+                .filter(actorFirmId::equals)
+                .isPresent()
+                ? PolicyDecision.allow()
+                : PolicyDecision.deny("target user is outside the actor's firm");
+    }
+}
+```
+
+The policy example assumes imports for `AuthenticatedUserProfile`, `Optional`, and `UUID`.
+
+Then list it on the message's `@RequiresPermission`:
+
+```java
+@RequiresPermission(value = Permission.EDIT_USER_DETAILS,
+        policies = TargetBelongsToActorPolicy.class)
+public record UpdateUserDetailsCommand(...) implements TargetsUser {
+    // Implement targetUserEntraObjectId() for the relevant target ID.
+}
+```
+
+Use `@PolicyGuarded(policies = ...)` only when the message has policy checks but genuinely has no
+permission requirement. Do not combine `@PolicyGuarded` and `@RequiresPermission` on one message.
+Prefer a permission whenever one applies.
+
+### Adding a global policy
+
+Use `GlobalAuthorizationPolicy<M>` only for a rule that should apply to every guarded message of a
+given capability. Implement `appliesTo` to select the relevant actors/messages and `evaluate` to
+make the decision. Register it as a Spring `@Component`; it is discovered automatically. Keep
+global rules broad and stable—action-specific rules belong in `@RequiresPermission(policies = ...)`.
+Global policies run after a required permission check and before message-specific policies.
+
+### Required coverage and checks
+
+Every command must declare either `@RequiresPermission` or `@PolicyGuarded`; the ArchUnit
+`every_command_must_declare_its_authorisation` rule enforces this. Add tests for a granted decision,
+each denial path, and the global-policy behavior relevant to the target capability. Run the
+focused policy/handler tests and the architecture test when introducing or changing access control.
+
+---
+
 ## Docker
 
 To build the Docker image locally:
