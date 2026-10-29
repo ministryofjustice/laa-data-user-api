@@ -3,7 +3,10 @@ package uk.gov.justice.laa.datauserapi.application.command.handler;
 import static net.logstash.logback.argument.StructuredArguments.kv;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.FirmCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.BulkDeactivateFirmUsersCommand;
@@ -33,6 +36,8 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
         this.deactivateUserHandler = deactivateUserHandler;
     }
 
+    // Each user is deactivated in its own transaction so one failure does not roll back the rest.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @Override
     public CommandResult handle(BulkDeactivateFirmUsersCommand command, AuthenticatedEntraUser actor) {
         String firmCode = command.firmId();
@@ -50,7 +55,12 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
                     .userEntraObjectId(userId)
                     .deactivateReason(command.deactivateReason())
                     .build();
-            CommandResult result = deactivateUserHandler.handle(deactivateCommand, actor);
+            CommandResult result;
+            try {
+                result = deactivateUserHandler.handle(deactivateCommand, actor);
+            } catch (AccessDeniedException ex) {
+                result = CommandResult.failure("Not permitted to deactivate user");
+            }
             if (result.success()) {
                 deactivated++;
             } else {

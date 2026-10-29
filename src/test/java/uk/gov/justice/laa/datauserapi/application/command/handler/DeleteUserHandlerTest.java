@@ -10,7 +10,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.service.RoleChangeNotificationService;
-import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.DeleteUserReasonRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserAccountStatusAuditRepository;
@@ -28,7 +27,6 @@ import uk.gov.justice.laa.datauserapi.entity.App;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.entity.DeleteUserReasonEntity;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.Office;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
@@ -69,13 +67,9 @@ class DeleteUserHandlerTest {
     @Mock
     private DeleteUserMapper deleteUserMapper;
     @Mock
-    private UserCommandService userCommandService;
-    @Mock
     private RoleChangeNotificationService roleChangeNotificationService;
     @Mock
     private TechServicesClient techServicesClient;
-    @Mock
-    private ModelMapper modelMapper;
     @Mock
     private EntityManager entityManager;
 
@@ -87,25 +81,12 @@ class DeleteUserHandlerTest {
 
     @BeforeEach
     void setUp() {
-        modelMapper = new ModelMapper();
+        ModelMapper modelMapper = new ModelMapper();
         handler = new DeleteUserHandler(entraUserCommandRepository, userProfileCommandRepository,
-                auditRepository, deleteUserReasonRepository, deleteUserMapper, userCommandService,
+                auditRepository, deleteUserReasonRepository, deleteUserMapper,
                 roleChangeNotificationService, techServicesClient, modelMapper, entityManager);
     }
 
-    @Test
-    void rejectsSelfDeletion() {
-        final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
-                .id(targetId)
-                .entraOid(targetId.toString())
-                .email("actor@example.com")
-                .active(true)
-                .build();
-        CommandResult result = handler.handle(command, actorUser);
-
-        assertThat(result.success()).isFalse();
-        verifyNoInteractions(entraUserCommandRepository, userProfileCommandRepository, auditRepository);
-    }
 
     @Test
     void throwsWhenUserNotFound() {
@@ -117,47 +98,6 @@ class DeleteUserHandlerTest {
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
-    @Test
-    void rejectsInternalUser() {
-        final AuthenticatedEntraUser actorUser = internalActor();
-        when(entraUserCommandRepository.findByEntraOid(targetId.toString())).thenReturn(Optional.of(EntraUser.builder().build()));
-        when(userCommandService.isInternalUser(targetId)).thenReturn(true);
-        when(deleteUserReasonRepository.findByCode(DeleteUserReason.LeftFirm.name())).thenReturn(Optional.of(DeleteUserReasonEntity.builder().build()));
-
-        CommandResult result = handler.handle(command, actorUser);
-
-        assertThat(result.success()).isFalse();
-        verifyNoInteractions(userProfileCommandRepository, auditRepository);
-    }
-
-    @Test
-    void externalActorCannotDeleteUserFromDifferentFirm() {
-        final AuthenticatedEntraUser actorUser = externalActor(UUID.randomUUID());
-        when(entraUserCommandRepository.findByEntraOid(targetId.toString())).thenReturn(Optional.of(EntraUser.builder().build()));
-        when(userCommandService.isInternalUser(targetId)).thenReturn(false);
-        when(userCommandService.getActiveUserProfile(targetId)).thenReturn(profileInFirm(UUID.randomUUID()));
-        when(deleteUserReasonRepository.findByCode(DeleteUserReason.LeftFirm.name()))
-                .thenReturn(Optional.of(DeleteUserReasonEntity.builder().build()));
-
-        CommandResult result = handler.handle(command, actorUser);
-
-        assertThat(result.success()).isFalse();
-        verifyNoInteractions(userProfileCommandRepository, auditRepository);
-    }
-
-    @Test
-    void externalActorCannotDeleteMultiFirmUser() {
-        final AuthenticatedEntraUser actorUser = externalActor(UUID.randomUUID());
-        when(entraUserCommandRepository.findByEntraOid(targetId.toString()))
-                .thenReturn(Optional.of(EntraUser.builder().multiFirmUser(true).build()));
-        when(userCommandService.isInternalUser(targetId)).thenReturn(false);
-        when(deleteUserReasonRepository.findByCode(DeleteUserReason.LeftFirm.name())).thenReturn(Optional.of(DeleteUserReasonEntity.builder().build()));
-
-        CommandResult result = handler.handle(command, actorUser);
-
-        assertThat(result.success()).isFalse();
-        verifyNoInteractions(userProfileCommandRepository, auditRepository);
-    }
 
     @Test
     void deletesProfilesAndUserAndRecordsAudit() {
@@ -166,7 +106,6 @@ class DeleteUserHandlerTest {
         UserAccountStatusAudit audit = UserAccountStatusAudit.builder().build();
         CommandResult expected = CommandResult.success("deleted");
         when(entraUserCommandRepository.findByEntraOid(targetId.toString())).thenReturn(Optional.of(user));
-        when(userCommandService.isInternalUser(targetId)).thenReturn(false);
         when(userProfileCommandRepository.findAllByEntraUser(user)).thenReturn(List.of(profile));
         when(deleteUserMapper.toAuditEntity(user, command, actorId.toString())).thenReturn(audit);
         when(deleteUserMapper.toCommandResult(user)).thenReturn(expected);
@@ -267,21 +206,6 @@ class DeleteUserHandlerTest {
         verify(entraUserCommandRepository).delete(user);
     }
 
-    @Test
-    void externalActorCanDeleteUserInSameFirm() {
-        UUID firmId = UUID.randomUUID();
-        EntraUser user = EntraUser.builder().entraOid(targetId.toString()).build();
-        stubUser(user);
-        when(userCommandService.getActiveUserProfile(targetId)).thenReturn(profileInFirm(firmId));
-        when(userProfileCommandRepository.findAllByEntraUser(user)).thenReturn(List.of());
-        when(deleteUserMapper.toAuditEntity(any(), any(), anyString())).thenReturn(UserAccountStatusAudit.builder().build());
-
-        final AuthenticatedEntraUser actorUser = externalActor(firmId);
-
-        handler.handle(command, actorUser);
-
-        verify(entraUserCommandRepository).delete(user);
-    }
 
     @Test
     void handlesNullProfilesAndNullAssociations() {
@@ -337,7 +261,6 @@ class DeleteUserHandlerTest {
         when(deleteUserReasonRepository.findByCode(DeleteUserReason.LeftFirm.name()))
                 .thenReturn(Optional.of(DeleteUserReasonEntity.builder().code("LeftFirm").build()));
         when(entraUserCommandRepository.findByEntraOid(targetId.toString())).thenReturn(Optional.of(user));
-        when(userCommandService.isInternalUser(targetId)).thenReturn(false);
         lenient().when(techServicesClient.deactivateUser(any(), anyString()))
                 .thenReturn(TechServicesApiResponse.success(ChangeAccountReactivationResponse.builder().build()));
     }
@@ -358,9 +281,5 @@ class DeleteUserHandlerTest {
                 .active(true)
                 .activeProfile(AuthenticatedUserProfile.builder().userType(userType).firmId(firmId).build())
                 .build();
-    }
-
-    private UserProfile profileInFirm(UUID firmId) {
-        return UserProfile.builder().firm(Firm.builder().id(firmId).build()).build();
     }
 }

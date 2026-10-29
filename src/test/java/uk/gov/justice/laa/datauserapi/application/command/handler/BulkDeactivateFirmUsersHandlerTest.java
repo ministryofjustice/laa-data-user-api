@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.FirmCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.BulkDeactivateFirmUsersCommand;
@@ -102,6 +103,24 @@ class BulkDeactivateFirmUsersHandlerTest {
 
         assertThat(result.success()).isFalse();
         assertThat(result.message()).contains("failed to deactivate 1 users");
+    }
+
+    @Test
+    void handle_countsUsersTheActorIsNotPermittedToDeactivateAsFailures() {
+        String firmId = "123456";
+        final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder().id(UUID.randomUUID()).build();
+        when(firmCommandRepository.existsByCode(firmId)).thenReturn(true);
+        when(entraUserCommandRepository.findActiveSingleFirmUserIdsByFirmCode(firmId, UserAccountStatus.ACTIVE))
+                .thenReturn(List.of(UUID.randomUUID(), UUID.randomUUID()));
+        when(deactivateUserHandler.handle(any(DeactivateUserCommand.class), any(AuthenticatedEntraUser.class)))
+                .thenThrow(new AccessDeniedException("denied"))
+                .thenReturn(CommandResult.success("ok"));
+
+        CommandResult result = handler.handle(
+                new BulkDeactivateFirmUsersCommand(firmId, DeactivateUserReason.FirmClosureorMerger), actorUser);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.message()).contains("Deactivated 1 users; failed to deactivate 1 users");
     }
 
     @Test
