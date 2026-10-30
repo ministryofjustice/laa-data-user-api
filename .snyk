@@ -6,3 +6,12 @@ ignore:
   SNYK-CC-K8S-42:
      - '*':
         reason: "Low severity, mitigated elsewhere"
+
+  # org.glassfish.jaxb:jaxb-core 4.0.9 (XXE in XmlFactory), transitive via hibernate-core -> jaxb-runtime.
+  # No fixed release is published yet (fix merged upstream, unreleased) so it cannot be upgraded.
+  # Not exploitable here: the application does not parse untrusted XML; Hibernate only reads its own mapping files.
+  # Re-check for a jaxb-core release containing the fix and remove this ignore when it lands.
+  SNYK-JAVA-ORGGLASSFISHJAXB-20883142:
+    - '*':
+        reason: "No fix published; app does not unmarshal untrusted XML (Hibernate internal use only)"
+        expires: 2026-12-11T00:00:00.000Z
