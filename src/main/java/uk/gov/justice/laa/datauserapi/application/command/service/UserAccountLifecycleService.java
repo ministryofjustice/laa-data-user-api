@@ -16,7 +16,6 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.exception.UserAlreadyDeactivatedException;
 import uk.gov.justice.laa.datauserapi.exception.UserNotDeactivatedException;
 import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
@@ -58,11 +57,7 @@ public class UserAccountLifecycleService {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public EntraUserDto loadEntraUserDtoForDeactivation(UUID userEntraObjectId) {
-        EntraUser user = loadForUpdate(userEntraObjectId);
-        if (!user.isActive()) {
-            throw new UserAlreadyDeactivatedException(userEntraObjectId);
-        }
-        return modelMapper.map(user, EntraUserDto.class);
+        return modelMapper.map(loadForUpdate(userEntraObjectId), EntraUserDto.class);
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
@@ -78,9 +73,11 @@ public class UserAccountLifecycleService {
     @Transactional(propagation = Propagation.MANDATORY)
     public CommandResult deactivate(UUID userEntraObjectId, String actorEntraOid,
                                     DeactivationType deactivationType, DeactivateUserReason reason) {
-        EntraUser user = load(userEntraObjectId);
-        user.deactivate(actorEntraOid, deactivationType);
-        entraUserCommandRepository.save(user);
+        EntraUser user = loadForUpdate(userEntraObjectId);
+        if (user.isActive() || deactivationType.isAtLeastAsPrivilegedAs(user.getDeactivationType())) {
+            user.deactivate(actorEntraOid, deactivationType);
+            entraUserCommandRepository.save(user);
+        }
         auditRepository.save(deactivateUserMapper.toAuditEntity(user, reason, actorEntraOid));
         return deactivateUserMapper.toCommandResult(user);
     }

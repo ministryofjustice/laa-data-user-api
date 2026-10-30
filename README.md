@@ -111,9 +111,19 @@ Other reusable command-side policies in `application.command.policy` are:
 | `ExternalProfileTargetOnlyPolicy` | `TargetsUserProfile` | The target profile must not belong to an internal user.                                                   |
 
 For example, `DeactivateUserCommand` requires `DISABLE_EXTERNAL_USER`, cannot target the actor,
-must target an external user who is not already deactivated, and is subject to the global
+must target an external user, and is subject to the global
 same-firm rule. Office-update commands require `EDIT_USER_OFFICE`, apply the profile self/internal
 target policies, and are subject to the global profile firm-scope rule.
+
+Individual deactivation requests may repeat deactivation of an already disabled user. Each successful request
+calls Tech Services and creates an audit entry. The target is locked and refreshed before the external call,
+and the lock is held through the local update. For an already disabled user, the `entra_user` row is updated
+only when the actor's resolved deactivation type is equal to or higher than the stored type:
+`null/NONE < SYNC < FIRM < LAA < PRIVILEGED`. Lower privilege leaves the entire row unchanged.
+Bulk deactivation applies the same per-user handler and hierarchy to active and already disabled users.
+Each successful per-user operation calls Tech Services and creates an audit entry; an already disabled
+user's row changes only for an equal or higher deactivation type. Per-user permission and firm-scope
+checks still apply, and denied users are counted as failures without stopping the remaining users.
 
 ### Using existing permissions and policies
 
@@ -126,8 +136,7 @@ do not also add that global policy to the annotation.
 @RequiresPermission(value = Permission.DISABLE_EXTERNAL_USER,
         policies = {
             NotSelfTargetPolicy.class,
-            ExternalTargetOnlyPolicy.class,
-            TargetNotDeactivatedPolicy.class
+            ExternalTargetOnlyPolicy.class
         })
 public record DeactivateUserCommand(
         UUID userEntraObjectId,

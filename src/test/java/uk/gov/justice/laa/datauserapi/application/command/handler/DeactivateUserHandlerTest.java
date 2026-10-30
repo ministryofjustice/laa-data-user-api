@@ -4,6 +4,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -89,11 +91,12 @@ class DeactivateUserHandlerTest {
         verify(lifecycleService, never()).deactivate(any(), any(), any(), any());
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
     @DisplayName("Should call Tech Services, resolve the type from the actor, then deactivate locally")
-    void handle_WhenSuccessful_DeactivatesAfterTechServices() {
+    void handle_WhenSuccessful_DeactivatesAfterTechServices(boolean active) {
         DeactivateUserCommand command = command(DeactivateUserReason.Absence);
-        EntraUserDto userDto = EntraUserDto.builder().id(targetUserId.toString()).build();
+        EntraUserDto userDto = EntraUserDto.builder().id(targetUserId.toString()).active(active).build();
         CommandResult expected = CommandResult.success("User deactivated successfully");
         when(lifecycleService.loadEntraUserDtoForDeactivation(targetUserId)).thenReturn(userDto);
         when(deactivationTypeResolver.resolve(actor)).thenReturn(DeactivationType.LAA);

@@ -31,7 +31,6 @@ import uk.gov.justice.laa.datauserapi.application.command.shared.repository.User
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.exception.UserAlreadyDeactivatedException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 import javax.sql.DataSource;
@@ -39,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -198,7 +196,7 @@ class SilasStatusRefreshIntegrationTest {
                         await(allowCommit);
                         user.setUserAccountStatus(UserAccountStatus.DEACTIVATED);
                         user.setActive(false);
-                        user.setDeactivationType(DeactivationType.FIRM);
+                        user.setDeactivationType(DeactivationType.PRIVILEGED);
                         entraUserCommandRepository.save(user);
                     }));
 
@@ -208,7 +206,13 @@ class SilasStatusRefreshIntegrationTest {
                         EntraUser preloaded = entraUserCommandRepository.findByEntraOid(entraOid).orElseThrow();
                         assertThat(preloaded.getUserAccountStatus()).isEqualTo(UserAccountStatus.ACTIVE);
                         userPreloaded.countDown();
-                        return lifecycleService.loadEntraUserDtoForDeactivation(userId);
+                        lifecycleService.loadEntraUserDtoForDeactivation(userId);
+                        assertThat(preloaded.isActive()).isFalse();
+                        assertThat(preloaded.getDeactivationType()).isEqualTo(DeactivationType.PRIVILEGED);
+                        lifecycleService.deactivate(userId, UUID.randomUUID().toString(),
+                                DeactivationType.FIRM,
+                                uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason.Absence);
+                        return preloaded.getDeactivationType();
                     }));
 
             assertThat(userPreloaded.await(10, TimeUnit.SECONDS)).isTrue();
@@ -216,9 +220,9 @@ class SilasStatusRefreshIntegrationTest {
             allowCommit.countDown();
             updater.get(10, TimeUnit.SECONDS);
 
-            assertThatThrownBy(() -> lifecycleLoad.get(10, TimeUnit.SECONDS))
-                    .isInstanceOf(ExecutionException.class)
-                    .hasRootCauseInstanceOf(UserAlreadyDeactivatedException.class);
+            assertThat(lifecycleLoad.get(10, TimeUnit.SECONDS)).isEqualTo(DeactivationType.PRIVILEGED);
+            assertThat(jdbc.queryForObject("SELECT disable_type FROM entra_user WHERE id = ?", String.class, userId))
+                    .isEqualTo("PRIVILEGED");
         } finally {
             allowCommit.countDown();
             executor.shutdownNow();

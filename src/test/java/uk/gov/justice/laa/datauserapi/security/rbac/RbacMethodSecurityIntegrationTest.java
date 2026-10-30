@@ -2,6 +2,8 @@ package uk.gov.justice.laa.datauserapi.security.rbac;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.command.handler.BulkDeactivateFirmUsersHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeactivateUserHandler;
-import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ExternalProfileTargetOnlyPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ExternalTargetOnlyPolicy;
@@ -32,7 +33,6 @@ import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandSer
 import uk.gov.justice.laa.datauserapi.application.command.service.UserAccountLifecycleService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.FirmCommandRepository;
-import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserAccountStatusAuditRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.BulkDeactivateFirmUsersCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeleteUserCommand;
@@ -131,8 +131,7 @@ class RbacMethodSecurityIntegrationTest {
                 EntraUserCommandRepository entraUserCommandRepository,
                 DeactivateUserHandler deactivateUserHandler) {
             return new BulkDeactivateFirmUsersHandler(
-                    firmCommandRepository, entraUserCommandRepository, mock(UserAccountStatusAuditRepository.class),
-                    mock(DeactivateUserMapper.class), deactivateUserHandler);
+                    firmCommandRepository, entraUserCommandRepository, deactivateUserHandler);
         }
 
         @Bean
@@ -406,7 +405,7 @@ class RbacMethodSecurityIntegrationTest {
     }
 
     @Test
-    void deactivateDeniesSelfInternalAndAlreadyDeactivatedTargets() {
+    void deactivateDeniesSelfAndInternalTargetsButAllowsRepeatDeactivation() {
         authenticate();
         AuthenticatedEntraUser actor = RbacTestActors.actorWith(Permission.DISABLE_EXTERNAL_USER);
         DeactivateUserCommand self = DeactivateUserCommand.builder()
@@ -420,7 +419,7 @@ class RbacMethodSecurityIntegrationTest {
 
         when(userCommandService.isInternalUser(accountTargetId)).thenReturn(false);
         when(userCommandService.isDeactivated(accountTargetId)).thenReturn(true);
-        assertThatThrownBy(() -> deactivateHandler.handle(deactivateCommand(), actor)).isInstanceOf(AccessDeniedException.class);
+        assertThat(deactivateHandler.handle(deactivateCommand(), actor).success()).isTrue();
     }
 
     @Test
@@ -463,7 +462,7 @@ class RbacMethodSecurityIntegrationTest {
         UUID firmId = UUID.randomUUID();
         when(userCommandService.isMultiFirmUser(accountTargetId)).thenReturn(false);
         when(userCommandService.findActiveFirmId(accountTargetId)).thenReturn(Optional.of(firmId));
-        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(false, true);
+        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(true);
         when(userCommandService.findDeactivationType(accountTargetId)).thenReturn(Optional.of(DeactivationType.FIRM));
         AuthenticatedEntraUser actor = RbacTestActors.externalActorWithRole(firmId,
                 AuthzRole.FIRM_USER_MANAGER.getRoleName(),
@@ -478,7 +477,7 @@ class RbacMethodSecurityIntegrationTest {
         authenticate();
         when(userCommandService.isMultiFirmUser(accountTargetId)).thenReturn(false);
         when(userCommandService.findActiveFirmId(accountTargetId)).thenReturn(Optional.of(UUID.randomUUID()));
-        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(false, true);
+        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(true);
         when(userCommandService.findDeactivationType(accountTargetId)).thenReturn(Optional.of(DeactivationType.NONE));
         AuthenticatedEntraUser actor = RbacTestActors.externalActorWith(UUID.randomUUID(),
                 Permission.DISABLE_EXTERNAL_USER, Permission.ENABLE_EXTERNAL_USER);
@@ -493,7 +492,7 @@ class RbacMethodSecurityIntegrationTest {
         when(userCommandService.isMultiFirmUser(accountTargetId)).thenReturn(true);
         UUID firmId = UUID.randomUUID();
         when(userCommandService.findActiveFirmId(accountTargetId)).thenReturn(Optional.of(firmId));
-        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(false, true);
+        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(true);
         when(userCommandService.findDeactivationType(accountTargetId)).thenReturn(Optional.of(DeactivationType.NONE));
         AuthenticatedEntraUser actor = RbacTestActors.externalActorWithRole(firmId,
                 AuthzRole.FIRM_USER_MANAGER.getRoleName(),
@@ -548,8 +547,9 @@ class RbacMethodSecurityIntegrationTest {
                 .isTrue();
     }
 
-    @Test
-    void realBulkHandlerRequiresBothBulkAndPerUserPermissionsAndCountsDeniedUsers() {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void realBulkHandlerRequiresBothBulkAndPerUserPermissionsAndCountsDeniedUsers(boolean active) {
         authenticate();
         UUID userId = UUID.randomUUID();
         BulkDeactivateFirmUsersCommand bulk = new BulkDeactivateFirmUsersCommand(
@@ -557,7 +557,7 @@ class RbacMethodSecurityIntegrationTest {
         when(firmCommandRepository.existsByCode("FIRM1")).thenReturn(true);
         when(entraUserCommandRepository.findUsersByFirmCode("FIRM1"))
                 .thenReturn(List.of(EntraUser.builder()
-                        .id(UUID.randomUUID()).entraOid(userId.toString()).active(true).build()));
+                        .id(UUID.randomUUID()).entraOid(userId.toString()).active(active).build()));
 
         CommandResult bulkOnlyResult = realBulkHandler.handle(
                 bulk, RbacTestActors.actorWith(Permission.BULK_DISABLE_FIRM_USERS));

@@ -5,6 +5,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.Arguments;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -20,13 +23,13 @@ import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
-import uk.gov.justice.laa.datauserapi.exception.UserAlreadyDeactivatedException;
 import uk.gov.justice.laa.datauserapi.exception.UserNotDeactivatedException;
 import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -111,18 +114,17 @@ class UserAccountLifecycleServiceTest {
     }
 
     @Test
-    @DisplayName("refuses to call Tech Services when the locked user is already deactivated")
-    void loadEntraUserDtoForDeactivation_AlreadyDeactivated_Throws() {
+    @DisplayName("loads and locks already deactivated users for repeat deactivation")
+    void loadEntraUserDtoForDeactivation_AlreadyDeactivated_ReturnsDto() {
         EntraUser user = user();
         user.setActive(false);
         user.setUserAccountStatus(UserAccountStatus.DEACTIVATED);
         when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
+        EntraUserDto dto = EntraUserDto.builder().id(targetId.toString()).active(false).build();
+        when(modelMapper.map(user, EntraUserDto.class)).thenReturn(dto);
 
-        assertThatThrownBy(() -> service.loadEntraUserDtoForDeactivation(targetId))
-                .isInstanceOf(UserAlreadyDeactivatedException.class)
-                .hasMessage("User is already deactivated: " + targetId);
-
-        verifyNoInteractions(modelMapper);
+        assertThat(service.loadEntraUserDtoForDeactivation(targetId)).isSameAs(dto);
+        verify(entityManager).refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
     }
 
     @Test
@@ -161,7 +163,7 @@ class UserAccountLifecycleServiceTest {
         EntraUser user = user();
         UserAccountStatusAudit audit = UserAccountStatusAudit.builder().id(UUID.randomUUID()).build();
         CommandResult expected = CommandResult.success("deactivated");
-        when(entraUserCommandRepository.findByEntraOid(targetId.toString())).thenReturn(Optional.of(user));
+        when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
         when(deactivateUserMapper.toAuditEntity(user, DeactivateUserReason.Absence, ACTOR)).thenReturn(audit);
         when(deactivateUserMapper.toCommandResult(user)).thenReturn(expected);
 
@@ -179,7 +181,7 @@ class UserAccountLifecycleServiceTest {
     @Test
     @DisplayName("deactivate writes nothing when the user does not exist")
     void deactivate_WhenMissing_WritesNothing() {
-        givenNoUser();
+        when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.deactivate(
                 targetId, ACTOR, DeactivationType.LAA, DeactivateUserReason.Absence))
@@ -187,6 +189,43 @@ class UserAccountLifecycleServiceTest {
 
         verify(entraUserCommandRepository, never()).save(any());
         verifyNoInteractions(auditRepository);
+    }
+
+    static Stream<Arguments> repeatDeactivationCases() {
+        DeactivationType[] levels = {null, DeactivationType.NONE, DeactivationType.SYNC,
+            DeactivationType.FIRM, DeactivationType.LAA, DeactivationType.PRIVILEGED};
+        return java.util.stream.IntStream.range(0, levels.length).boxed().flatMap(previous ->
+                java.util.stream.IntStream.range(1, levels.length)
+                        .mapToObj(actor -> Arguments.of(levels[previous], levels[actor], actor >= Math.max(previous, 1))));
+    }
+
+    @ParameterizedTest
+    @MethodSource("repeatDeactivationCases")
+    void repeatedDeactivation_EqualOrHigherPrivilegeChangesUser(
+            DeactivationType previous, DeactivationType actorType, boolean shouldUpdate) {
+        EntraUser user = user();
+        String previousActor = UUID.randomUUID().toString();
+        user.deactivate(previousActor, previous);
+        final var previousModified = user.getLastModified();
+        UserAccountStatusAudit audit = UserAccountStatusAudit.builder().id(UUID.randomUUID()).build();
+        when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
+        when(deactivateUserMapper.toAuditEntity(user, DeactivateUserReason.Absence, ACTOR)).thenReturn(audit);
+        when(deactivateUserMapper.toCommandResult(user)).thenReturn(CommandResult.success("deactivated"));
+
+        assertThat(service.deactivate(targetId, ACTOR, actorType, DeactivateUserReason.Absence).success()).isTrue();
+
+        verify(auditRepository).save(audit);
+        if (shouldUpdate) {
+            verify(entraUserCommandRepository).save(user);
+            assertThat(user.getDeactivationType()).isEqualTo(actorType);
+            assertThat(user.getDeactivatedBy()).isEqualTo(UUID.fromString(ACTOR));
+        } else {
+            verify(entraUserCommandRepository, never()).save(any());
+            assertThat(user.getDeactivationType()).isEqualTo(previous);
+            assertThat(user.getDeactivatedBy()).isEqualTo(UUID.fromString(previousActor));
+            assertThat(user.getLastModified()).isEqualTo(previousModified);
+        }
+        assertThat(user.isActive()).isFalse();
     }
 
     @Test

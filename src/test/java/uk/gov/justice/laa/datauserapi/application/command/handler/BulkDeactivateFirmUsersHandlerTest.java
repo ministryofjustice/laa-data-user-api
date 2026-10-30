@@ -7,10 +7,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
-import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.FirmCommandRepository;
-import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserAccountStatusAuditRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.BulkDeactivateFirmUsersCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
@@ -18,7 +16,6 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 
 import java.util.List;
@@ -43,12 +40,6 @@ class BulkDeactivateFirmUsersHandlerTest {
     private EntraUserCommandRepository entraUserCommandRepository;
 
     @Mock
-    private UserAccountStatusAuditRepository auditRepository;
-
-    @Mock
-    private DeactivateUserMapper deactivateUserMapper;
-
-    @Mock
     private DeactivateUserHandler deactivateUserHandler;
 
     private BulkDeactivateFirmUsersHandler handler;
@@ -56,8 +47,7 @@ class BulkDeactivateFirmUsersHandlerTest {
     @BeforeEach
     void setUp() {
         handler = new BulkDeactivateFirmUsersHandler(
-                firmCommandRepository, entraUserCommandRepository, auditRepository,
-                deactivateUserMapper, deactivateUserHandler);
+                firmCommandRepository, entraUserCommandRepository, deactivateUserHandler);
     }
 
     @Test
@@ -132,7 +122,7 @@ class BulkDeactivateFirmUsersHandlerTest {
     }
 
     @Test
-    void handle_auditsAlreadyDeactivatedUsersWithoutCallingDeactivateHandler() {
+    void handle_repeatsDeactivationThroughSharedHandlerForAlreadyDeactivatedUsers() {
         String firmId = "123456";
         UUID userEntraOid = UUID.randomUUID();
         EntraUser alreadyDeactivatedUser = EntraUser.builder()
@@ -141,7 +131,6 @@ class BulkDeactivateFirmUsersHandlerTest {
                 .active(false)
                 .userAccountStatus(UserAccountStatus.DEACTIVATED)
                 .build();
-        UserAccountStatusAudit audit = UserAccountStatusAudit.builder().build();
         AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
                 .id(UUID.randomUUID())
                 .entraOid(UUID.randomUUID().toString())
@@ -153,15 +142,17 @@ class BulkDeactivateFirmUsersHandlerTest {
 
         when(firmCommandRepository.existsByCode(firmId)).thenReturn(true);
         when(entraUserCommandRepository.findUsersByFirmCode(firmId)).thenReturn(List.of(alreadyDeactivatedUser));
-        when(deactivateUserMapper.toAuditEntity(
-                alreadyDeactivatedUser, command.deactivateReason(), actorUser.entraOid())).thenReturn(audit);
+        when(deactivateUserHandler.handle(any(DeactivateUserCommand.class), eq(actorUser)))
+                .thenReturn(CommandResult.success("deactivated"));
 
         CommandResult result = handler.handle(command, actorUser);
 
         assertThat(result.success()).isTrue();
-        assertThat(result.message()).contains("audited 1 already-deactivated users");
-        verify(auditRepository).save(audit);
-        verifyNoInteractions(deactivateUserHandler);
+        assertThat(result.message()).contains("Deactivated 1 users");
+        ArgumentCaptor<DeactivateUserCommand> commandCaptor = ArgumentCaptor.forClass(DeactivateUserCommand.class);
+        verify(deactivateUserHandler).handle(commandCaptor.capture(), eq(actorUser));
+        assertThat(commandCaptor.getValue().userEntraObjectId()).isEqualTo(userEntraOid);
+        assertThat(commandCaptor.getValue().deactivateReason()).isEqualTo(command.deactivateReason());
     }
 
     @Test
@@ -199,6 +190,6 @@ class BulkDeactivateFirmUsersHandlerTest {
                 new BulkDeactivateFirmUsersCommand(firmId, DeactivateUserReason.FirmClosureorMerger), actorUser))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining(firmId);
-        verifyNoInteractions(entraUserCommandRepository, auditRepository, deactivateUserMapper, deactivateUserHandler);
+        verifyNoInteractions(entraUserCommandRepository, deactivateUserHandler);
     }
 }
