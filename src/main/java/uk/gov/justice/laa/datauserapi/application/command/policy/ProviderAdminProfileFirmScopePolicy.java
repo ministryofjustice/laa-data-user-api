@@ -36,7 +36,7 @@ public class ProviderAdminProfileFirmScopePolicy implements GlobalAuthorizationP
     public @NonNull PolicyDecision evaluate(TargetsUserProfile message, AuthenticatedEntraUser actor) {
         UUID actorFirmId = Optional.ofNullable(actor.activeProfile()).map(AuthenticatedUserProfile::firmId).orElse(null);
         if (actorFirmId == null) {
-            return PolicyDecision.deny("provider admin has no active firm");
+            return PolicyDecision.deny(PolicyMessages.PROVIDER_ADMIN_NO_ACTIVE_FIRM);
         }
         return userCommandService.findProfileFirmId(message.targetUserProfileId()).filter(actorFirmId::equals).isPresent()
                 ? PolicyDecision.allow()

@@ -31,7 +31,7 @@ public class ProviderAdminOwnFirmPolicy implements GlobalAuthorizationPolicy<Tar
                 .map(AuthenticatedUserProfile::firmCode)
                 .orElse(null);
         if (actorFirmCode == null) {
-            return PolicyDecision.deny("provider admin has no active firm");
+            return PolicyDecision.deny(PolicyMessages.PROVIDER_ADMIN_NO_ACTIVE_FIRM);
         }
         return actorFirmCode.equalsIgnoreCase(message.targetFirmCode())
                 ? PolicyDecision.allow()

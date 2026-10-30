@@ -19,6 +19,8 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 @Service
 public class UserCommandService {
 
+    private static final String USER_ACCOUNT_NOT_FOUND = "User account not found for oid: ";
+
     private final EntraUserCommandRepository entraUserCommandRepository;
 
     private final UserProfileCommandRepository userProfileCommandRepository;
@@ -50,7 +52,7 @@ public class UserCommandService {
     @Transactional(readOnly = true)
     public UserProfile getActiveUserProfile(UUID userEntraObjectId) {
         EntraUser entraUser = entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
-                .orElseThrow(() -> new ResourceNotFoundException("User account not found for oid: " + userEntraObjectId));
+                .orElseThrow(() -> new ResourceNotFoundException(USER_ACCOUNT_NOT_FOUND + userEntraObjectId));
         return entraUser.getUserProfiles().stream().filter(UserProfile::isActiveProfile).findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Active profile not found for user oid: " + userEntraObjectId));
     }
@@ -103,7 +105,7 @@ public class UserCommandService {
 
     private EntraUser findEntraUser(UUID userEntraObjectId) {
         return entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
-                .orElseThrow(() -> new ResourceNotFoundException("User account not found for oid: " + userEntraObjectId));
+                .orElseThrow(() -> new ResourceNotFoundException(USER_ACCOUNT_NOT_FOUND + userEntraObjectId));
     }
 
 }

@@ -37,6 +37,12 @@ import java.util.function.Supplier;
 @Slf4j
 public class RequiresPermissionAuthorizationManager implements AuthorizationManager<MethodInvocation> {
 
+    private static final String EVENT = "event";
+    private static final String AUTHORIZATION_DENIED = "authorization_denied";
+    private static final String OPERATION = "operation";
+    private static final String ACTOR_ENTRA_OID = "actorEntraOid";
+    private static final String POLICY = "policy";
+
     private static final AuthorizationDecision GRANTED = new AuthorizationDecision(true);
     private static final AuthorizationDecision DENIED = new AuthorizationDecision(false);
 
@@ -65,17 +71,17 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
         AuthenticatedEntraUser actor = resolveActor(invocation.getArguments(), authentication);
         if (actor == null) {
             log.info("RBAC authorization denied: no authenticated actor",
-                    kv("event", "authorization_denied"),
-                    kv("operation", operation));
+                    kv(EVENT, AUTHORIZATION_DENIED),
+                    kv(OPERATION, operation));
             return DENIED;
         }
 
         Requirement required = guarded.get().requirement();
         if (!hasRequiredPermissions(actor, required)) {
             log.info("RBAC authorization denied: required permissions not held",
-                    kv("event", "authorization_denied"),
-                    kv("actorEntraOid", actor.entraOid()),
-                    kv("operation", operation),
+                    kv(EVENT, AUTHORIZATION_DENIED),
+                    kv(ACTOR_ENTRA_OID, actor.entraOid()),
+                    kv(OPERATION, operation),
                     kv("permissionMatch", required.match()),
                     kv("requiredPermissions", Arrays.toString(required.permissions())));
             return DENIED;
@@ -102,9 +108,9 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
             boolean anyPolicies = required.policies().length > 0 || !globalPolicies.get().isEmpty();
             if (anyPolicies) {
                 log.info("RBAC authorization denied: object is null and policies cannot be evaluated",
-                        kv("event", "authorization_denied"),
-                        kv("actorEntraOid", actor.entraOid()),
-                        kv("operation", operation));
+                        kv(EVENT, AUTHORIZATION_DENIED),
+                        kv(ACTOR_ENTRA_OID, actor.entraOid()),
+                        kv(OPERATION, operation));
             }
             return !anyPolicies;
         }
@@ -130,9 +136,9 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
             AuthorizationPolicy policy = policyResolver.apply(policyType);
             if (!supports(policy, obj)) {
                 log.error("RBAC authorization misconfiguration: policy does not support object",
-                        kv("event", "authorization_configuration_error"),
-                        kv("operation", operation),
-                        kv("policy", policyType.getSimpleName()),
+                        kv(EVENT, "authorization_configuration_error"),
+                        kv(OPERATION, operation),
+                        kv(POLICY, policyType.getSimpleName()),
                         kv("objectType", obj.getClass().getSimpleName()));
                 return false;
             }
@@ -149,10 +155,10 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
         PolicyDecision decision = policy.evaluate(obj, actor);
         if (!decision.granted()) {
             log.info("RBAC authorization denied by policy",
-                    kv("event", "authorization_denied"),
-                    kv("actorEntraOid", actor.entraOid()),
-                    kv("operation", operation),
-                    kv("policy", AopUtils.getTargetClass(policy).getSimpleName()),
+                    kv(EVENT, AUTHORIZATION_DENIED),
+                    kv(ACTOR_ENTRA_OID, actor.entraOid()),
+                    kv(OPERATION, operation),
+                    kv(POLICY, AopUtils.getTargetClass(policy).getSimpleName()),
                     kv("reason", decision.reason()));
             return false;
         }

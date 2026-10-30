@@ -17,7 +17,7 @@ public class NotSelfTargetPolicy implements AuthorizationPolicy<TargetsUser> {
     public @NonNull PolicyDecision evaluate(TargetsUser targetsUser, AuthenticatedEntraUser actor) {
         UUID targetId = targetsUser.targetUserEntraObjectId();
         return targetId != null && targetId.toString().equalsIgnoreCase(actor.entraOid())
-                ? PolicyDecision.deny("actor cannot act on their own account")
+                ? PolicyDecision.deny(PolicyMessages.SELF_TARGET_NOT_ALLOWED)
                 : PolicyDecision.allow();
     }
 }

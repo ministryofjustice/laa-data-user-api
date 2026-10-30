@@ -23,7 +23,7 @@ public class NotSelfProfileTargetPolicy implements AuthorizationPolicy<TargetsUs
         return userCommandService.findProfileEntraOid(targetsUserProfile.targetUserProfileId())
                 .filter(oid -> oid.equalsIgnoreCase(actor.entraOid()))
                 .isPresent()
-                ? PolicyDecision.deny("actor cannot act on their own account")
+                ? PolicyDecision.deny(PolicyMessages.SELF_TARGET_NOT_ALLOWED)
                 : PolicyDecision.allow();
     }
 }
