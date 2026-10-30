@@ -36,6 +36,9 @@ repositories {
 }
 
 // Fix vulns - remove when upgrades resolve these
+// Snyk: netty-codec-http, http3, quic (high/medium) - overrides the Boot BOM so all io.netty modules stay aligned
+ext['netty.version'] = '4.2.18.Final'
+
 dependencyManagement {
     dependencies {
         // CVE-2026-76183
@@ -56,13 +59,6 @@ dependencyManagement {
         dependencySet(group: 'tools.jackson.core', version: '3.1.8') {
             entry 'jackson-databind'
             entry 'jackson-core'
-        }
-        // Snyk: netty-codec-http, http3, quic (high/medium)
-        dependencySet(group: 'io.netty', version: '4.2.18.Final') {
-            entry 'netty-codec-http'
-            entry 'netty-codec-http2'
-            entry 'netty-codec-http3'
-            entry 'netty-codec-classes-quic'
         }
         // Snyk: postgresql (high/medium)
         dependency 'org.postgresql:postgresql:42.7.14'
