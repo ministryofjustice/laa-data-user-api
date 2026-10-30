@@ -36,6 +36,9 @@ repositories {
 }
 
 // Fix vulns - remove when upgrades resolve these
+// Snyk: netty-codec-http, http3, quic (high/medium) - overrides the Boot BOM so all io.netty modules stay aligned
+ext['netty.version'] = '4.2.18.Final'
+
 dependencyManagement {
     dependencies {
         // CVE-2026-76183
@@ -47,6 +50,28 @@ dependencyManagement {
 
         // SNYK-JAVA-IONETTY-21755444
         dependency 'io.netty:netty-tcnative-boringssl-static:2.0.84.Final'
+
+        // Snyk: jackson-databind (critical/high/medium), jackson-core (high/medium)
+        dependencySet(group: 'com.fasterxml.jackson.core', version: '2.21.8') {
+            entry 'jackson-databind'
+            entry 'jackson-core'
+        }
+        dependencySet(group: 'tools.jackson.core', version: '3.1.8') {
+            entry 'jackson-databind'
+            entry 'jackson-core'
+        }
+        // Snyk: postgresql (high/medium)
+        dependency 'org.postgresql:postgresql:42.7.14'
+        // Snyk: proton-j (6 high)
+        dependency 'org.apache.qpid:proton-j:0.35.0'
+        // Snyk: hibernate-validator EL injection (medium)
+        dependency 'org.hibernate.validator:hibernate-validator:9.1.5.Final'
+        // Snyk: asm (5 medium)
+        dependency 'org.ow2.asm:asm:9.11'
+        // Snyk: guava (high), commons-compress (high/medium), plexus-utils (medium)
+        dependency 'com.google.guava:guava:33.7.2-jre'
+        dependency 'org.apache.commons:commons-compress:1.26.0'
+        dependency 'org.codehaus.plexus:plexus-utils:3.6.1'
     }
 }
 
