@@ -74,7 +74,7 @@ public class UserCommandService {
 
     @Transactional(readOnly = true)
     public boolean isDeactivated(UUID userEntraObjectId) {
-        return UserAccountStatus.DEACTIVATED.equals(findEntraUser(userEntraObjectId).getUserAccountStatus());
+        return findEntraUser(userEntraObjectId).getUserAccountStatus() == UserAccountStatus.DEACTIVATED;
     }
 
     @Transactional(readOnly = true)
