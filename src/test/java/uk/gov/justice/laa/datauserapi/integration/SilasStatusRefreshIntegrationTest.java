@@ -23,9 +23,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import uk.gov.justice.laa.datauserapi.application.command.service.SilasStatusRefreshBatchService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 
 import javax.sql.DataSource;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -50,6 +52,8 @@ class SilasStatusRefreshIntegrationTest {
     private JdbcTemplate jdbc;
     @Autowired
     private PlatformTransactionManager transactionManager;
+    @Autowired
+    private EntraUserCommandRepository entraUserCommandRepository;
 
     @BeforeEach
     void cleanDatabase() {
@@ -116,6 +120,25 @@ class SilasStatusRefreshIntegrationTest {
                 .containsExactly("COMPLETE", "COMPLETE", "COMPLETE");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_profile_app_role", Integer.class)).isEqualTo(4);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_profile_office", Integer.class)).isEqualTo(2);
+    }
+
+    @Test
+    void findsActiveAndDeactivatedUsersLinkedToFirm() {
+        insertUser(1, true, null);
+        insertUser(2, true, null);
+        jdbc.update("UPDATE entra_user SET status = 'ACTIVE' WHERE id = ?", id(1));
+        jdbc.update("UPDATE entra_user SET status = 'DEACTIVATED' WHERE id = ?", id(2));
+        jdbc.update("INSERT INTO firm (id, name, code, type, enabled) VALUES (?, 'Firm', '123456', 'CHAMBERS', TRUE)",
+                id(20));
+        insertProfile(1, 1, "EXTERNAL", false);
+        insertProfile(2, 2, "EXTERNAL", false);
+        jdbc.update("UPDATE user_profile SET firm_id = ? WHERE id IN (?, ?)", id(20), id(1), id(2));
+
+        List<EntraUser> users = entraUserCommandRepository.findUsersByFirmCode("123456");
+
+        assertThat(users)
+                .extracting(EntraUser::getUserAccountStatus)
+                .containsExactly(UserAccountStatus.ACTIVE, UserAccountStatus.DEACTIVATED);
     }
 
     @Test
