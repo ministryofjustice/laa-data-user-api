@@ -16,7 +16,6 @@ import java.util.UUID;
 @Repository
 public interface EntraUserCommandRepository extends JpaRepository<EntraUser, UUID> {
 
-    // Matches any profile linked to the firm, including profiles of multi-firm users and deactivated accounts.
     @Query("""
         SELECT DISTINCT u
         FROM EntraUser u
@@ -28,6 +27,10 @@ public interface EntraUserCommandRepository extends JpaRepository<EntraUser, UUI
     List<EntraUser> findUsersByFirmCode(@Param("firmCode") String firmCode);
 
     Optional<EntraUser> findByEntraOid(String entraOid);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM EntraUser u WHERE u.entraOid = :entraOid")
+    Optional<EntraUser> findByEntraOidForUpdate(@Param("entraOid") String entraOid);
 
     boolean existsByEmailIgnoreCaseAndIdNot(String email, UUID id);
 

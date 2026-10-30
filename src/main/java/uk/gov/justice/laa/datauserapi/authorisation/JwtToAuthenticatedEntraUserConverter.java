@@ -8,6 +8,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AuthenticatedEntraUserQueryRepository;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedApp;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
@@ -36,6 +37,7 @@ public class JwtToAuthenticatedEntraUserConverter implements Converter<Jwt, Abst
     private final AuthenticatedEntraUserQueryRepository entraUserQueryRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public AbstractAuthenticationToken convert(Jwt jwt) {
         String userEntraOid = jwt.getClaimAsString("oid");
         AuthenticatedEntraUser user = entraUserQueryRepository.findByEntraOid(userEntraOid)

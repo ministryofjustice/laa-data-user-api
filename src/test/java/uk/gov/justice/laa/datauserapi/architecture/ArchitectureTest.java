@@ -30,6 +30,9 @@ import uk.gov.justice.laa.datauserapi.security.RequiresSystemAdminScope;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyGuarded;
+import uk.gov.justice.laa.datauserapi.security.rbac.RequiresPermission;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
@@ -117,6 +120,41 @@ class ArchitectureTest {
             .should().dependOnClassesThat().resideInAPackage("org.modelmapper..")
             .because("Entity mapping belongs in query mappers, not services");
 
+    @ArchTest
+    static final ArchRule query_side_entity_access_is_confined_to_mappers_and_repositories = noClasses()
+            .that().resideInAPackage(QUERY_PACKAGE)
+            .and().resideOutsideOfPackages("..application.query.mapper..", "..application.query.shared.repository..")
+            .should().dependOnClassesThat().resideInAPackage(ENTITY_PACKAGE)
+            .because("Query handlers, services, controllers and view mappers must work on DTOs/views, not entities");
+
+    @ArchTest
+    static final ArchRule command_side_entity_access_is_confined_to_write_model_layers = noClasses()
+            .that().resideInAPackage(COMMAND_PACKAGE)
+            .and().resideOutsideOfPackages(
+                    "..application.command.handler..",
+                    "..application.command.service..",
+                    "..application.command.mapper..",
+                    "..application.command.shared.repository..")
+            .should().dependOnClassesThat().resideInAPackage(ENTITY_PACKAGE)
+            .because("Commands, controllers and policies must not couple to persistence entities");
+
+    @ArchTest
+    static final ArchRule command_handlers_must_declare_a_transaction_boundary = methods()
+            .that().areDeclaredInClassesThat().implement(CommandHandler.class)
+            .and().haveName("handle")
+            .and().arePublic()
+            .should().beAnnotatedWith(Transactional.class)
+            .orShould().beDeclaredInClassesThat().areAnnotatedWith(Transactional.class)
+            .because("Every write path must state its transaction boundary explicitly");
+
+    @ArchTest
+    static final ArchRule every_command_must_declare_its_authorisation = classes()
+            .that().resideInAPackage(COMMAND_PACKAGE)
+            .and().haveSimpleNameEndingWith("Command")
+            .should().beAnnotatedWith(RequiresPermission.class)
+            .orShould().beAnnotatedWith(PolicyGuarded.class)
+            .because("Every command must declare a required permission (or explicit policies) so RBAC cannot be skipped");
+
     // =========================================================================
     // 2. Layer & Access Boundary Rules
     // =========================================================================
@@ -199,6 +237,14 @@ class ArchitectureTest {
             .and().doNotHaveSimpleName("CommandHandler") // Exclude the interface itself
             .should().implement(CommandHandler.class)
             .andShould().beAnnotatedWith(Component.class);
+
+    @ArchTest
+    static final ArchRule authorization_policies_must_reside_in_policy_package = classes()
+            .that().implement(AuthorizationPolicy.class)
+            .should().resideInAPackage("..application..policy..")
+            .andShould().beAnnotatedWith(Component.class)
+            .andShould().haveSimpleNameEndingWith("Policy")
+            .because("Fine-grained authorisation policies belong to one side of CQRS and are resolved as Spring beans");
 
     @ArchTest
     static final ArchRule services_must_reside_in_service_package = classes()

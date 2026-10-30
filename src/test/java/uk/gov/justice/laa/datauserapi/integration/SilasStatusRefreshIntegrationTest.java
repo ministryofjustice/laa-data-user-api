@@ -1,8 +1,10 @@
 package uk.gov.justice.laa.datauserapi.integration;
 
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.modelmapper.ModelMapper;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -20,19 +22,30 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.service.SilasStatusRefreshBatchService;
+import uk.gov.justice.laa.datauserapi.application.command.service.UserAccountLifecycleService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
+import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserAccountStatusAuditRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
+import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 import javax.sql.DataSource;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 @SpringJUnitConfig(SilasStatusRefreshIntegrationTest.Config.class)
 @TestPropertySource(properties = "app.silas-status-refresh.batch-size=2")
@@ -54,6 +67,8 @@ class SilasStatusRefreshIntegrationTest {
     private PlatformTransactionManager transactionManager;
     @Autowired
     private EntraUserCommandRepository entraUserCommandRepository;
+    @Autowired
+    private UserAccountLifecycleService lifecycleService;
 
     @BeforeEach
     void cleanDatabase() {
@@ -162,6 +177,88 @@ class SilasStatusRefreshIntegrationTest {
     }
 
     @Test
+    void refreshesPreloadedUserAfterWaitingForLifecycleRowLock() throws Exception {
+        insertUser(1, true, null);
+        UUID userId = id(1);
+        String entraOid = userId.toString();
+        jdbc.update("UPDATE entra_user SET status = 'ACTIVE' WHERE id = ?", userId);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch lockAcquired = new CountDownLatch(1);
+        CountDownLatch allowCommit = new CountDownLatch(1);
+        CountDownLatch userPreloaded = new CountDownLatch(1);
+
+        try {
+            final Future<?> updater = executor.submit(() -> new TransactionTemplate(transactionManager)
+                    .executeWithoutResult(transaction -> {
+                        EntraUser user = entraUserCommandRepository.findByEntraOidForUpdate(entraOid).orElseThrow();
+                        lockAcquired.countDown();
+                        await(allowCommit);
+                        user.setUserAccountStatus(UserAccountStatus.DEACTIVATED);
+                        user.setActive(false);
+                        user.setDeactivationType(DeactivationType.PRIVILEGED);
+                        entraUserCommandRepository.save(user);
+                    }));
+
+            assertThat(lockAcquired.await(10, TimeUnit.SECONDS)).isTrue();
+            final Future<?> lifecycleLoad = executor.submit(() -> new TransactionTemplate(transactionManager)
+                    .execute(transaction -> {
+                        EntraUser preloaded = entraUserCommandRepository.findByEntraOid(entraOid).orElseThrow();
+                        assertThat(preloaded.getUserAccountStatus()).isEqualTo(UserAccountStatus.ACTIVE);
+                        userPreloaded.countDown();
+                        lifecycleService.loadEntraUserDtoForDeactivation(userId);
+                        assertThat(preloaded.isActive()).isFalse();
+                        assertThat(preloaded.getDeactivationType()).isEqualTo(DeactivationType.PRIVILEGED);
+                        lifecycleService.deactivate(userId, UUID.randomUUID().toString(),
+                                DeactivationType.FIRM,
+                                uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason.Absence);
+                        return preloaded.getDeactivationType();
+                    }));
+
+            assertThat(userPreloaded.await(10, TimeUnit.SECONDS)).isTrue();
+            awaitRowLockWait();
+            allowCommit.countDown();
+            updater.get(10, TimeUnit.SECONDS);
+
+            assertThat(lifecycleLoad.get(10, TimeUnit.SECONDS)).isEqualTo(DeactivationType.PRIVILEGED);
+            assertThat(jdbc.queryForObject("SELECT disable_type FROM entra_user WHERE id = ?", String.class, userId))
+                    .isEqualTo("PRIVILEGED");
+        } finally {
+            allowCommit.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    private void awaitRowLockWait() throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            Integer waiting = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM pg_stat_activity
+                WHERE wait_event_type = 'Lock'
+                  AND pid <> pg_backend_pid()
+                  AND query ILIKE '%from entra_user%'
+                """, Integer.class);
+            if (waiting != null && waiting > 0) {
+                return;
+            }
+            Thread.sleep(25);
+        }
+        throw new AssertionError("Lifecycle query did not wait for the user row lock");
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(10, TimeUnit.SECONDS)) {
+                throw new AssertionError("Timed out waiting for transaction coordination");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted while waiting for transaction coordination", exception);
+        }
+    }
+
+    @Test
     void rollsBackBothAccountAndProfileChangesInFailedBatchButPreservesEarlierBatch() {
         for (int i = 1; i <= 3; i++) {
             insertUser(i, true, null);
@@ -244,6 +341,19 @@ class SilasStatusRefreshIntegrationTest {
         @Bean
         JdbcTemplate jdbcTemplate(DataSource dataSource) {
             return new JdbcTemplate(dataSource);
+        }
+
+        @Bean
+        UserAccountLifecycleService userAccountLifecycleService(
+                EntraUserCommandRepository repository,
+                EntityManager entityManager) {
+            return new UserAccountLifecycleService(
+                    repository,
+                    mock(UserAccountStatusAuditRepository.class),
+                    mock(DeactivateUserMapper.class),
+                    mock(ReactivateUserMapper.class),
+                    mock(ModelMapper.class),
+                    entityManager);
         }
     }
 }

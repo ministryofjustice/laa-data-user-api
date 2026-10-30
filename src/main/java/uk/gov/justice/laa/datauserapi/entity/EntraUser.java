@@ -115,6 +115,7 @@ public class EntraUser extends AuditableEntity {
     private Set<UserProfile> userProfiles;
 
     public void reactivate(String actorId) {
+        this.active = true;
         this.userAccountStatus = UserAccountStatus.ACTIVE;
         setActive(true);
         setLastModified(LocalDateTime.now());
@@ -124,6 +125,7 @@ public class EntraUser extends AuditableEntity {
     }
 
     public void deactivate(String actorId, DeactivationType deactivationType) {
+        this.active = false;
         this.userAccountStatus = UserAccountStatus.DEACTIVATED;
         setActive(false);
         setLastModified(LocalDateTime.now());

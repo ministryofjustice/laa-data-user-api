@@ -220,6 +220,27 @@ public class GlobalExceptionHandler {
         return problemResponse(HttpStatus.FORBIDDEN, problem);
     }
 
+    @ExceptionHandler({UserAlreadyDeactivatedException.class, UserNotDeactivatedException.class})
+    public ResponseEntity<ProblemDetail> handleUserAccountStatusConflict(
+            RuntimeException ex,
+            HttpServletRequest request) {
+        log.info("User account status conflict",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
+
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/conflict"),
+                "Conflict",
+                HttpStatus.CONFLICT.value(),
+                ex.getMessage(),
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return problemResponse(HttpStatus.CONFLICT, problem);
+    }
+
     @ExceptionHandler(JwtException.class)
     public ResponseEntity<ProblemDetail> handleJwtException(
             JwtException ex,

@@ -16,8 +16,8 @@ import uk.gov.justice.laa.datauserapi.application.command.mapper.UpdateUserProfi
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.UpdateUserProfileOfficesCommand;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.UpdateUserProfileUnrestrictedOfficesCommand;
 import uk.gov.justice.laa.datauserapi.contracts.request.UpdateOfficesRequest;
-import uk.gov.justice.laa.datauserapi.contracts.request.UpdateOfficesUnrestrictedCommand;
 import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserProfileOfficesRequest;
+import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserProfileOfficesUnrestrictedRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
@@ -54,7 +54,7 @@ public class UserProfileCommandController {
             return ResponseEntity.ok(result);
         }
 
-        UpdateOfficesUnrestrictedCommand unrestrictedRequest = (UpdateOfficesUnrestrictedCommand) request;
+        UpdateUserProfileOfficesUnrestrictedRequest unrestrictedRequest = (UpdateUserProfileOfficesUnrestrictedRequest) request;
         log.info("Processing unrestricted office access update",
                 kv("userProfileId", unrestrictedRequest.userProfileId()),
                 kv("actorEntraOid", authenticatedUser.entraOid()));

@@ -3,8 +3,8 @@ package uk.gov.justice.laa.datauserapi.application.command.mapper;
 import org.junit.jupiter.api.Test;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.UpdateUserProfileOfficesCommand;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.UpdateUserProfileUnrestrictedOfficesCommand;
-import uk.gov.justice.laa.datauserapi.contracts.request.UpdateOfficesUnrestrictedCommand;
 import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserProfileOfficesRequest;
+import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserProfileOfficesUnrestrictedRequest;
 
 import java.util.Set;
 import java.util.UUID;
@@ -32,7 +32,7 @@ class UpdateUserProfileOfficesMapperTest {
         UUID profileId = UUID.randomUUID();
 
         UpdateUserProfileUnrestrictedOfficesCommand command = mapper.toUpdateUserProfileUnrestrictedOfficesCommand(
-                new UpdateOfficesUnrestrictedCommand(profileId, true));
+                new UpdateUserProfileOfficesUnrestrictedRequest(profileId, true));
 
         assertThat(command.userProfileId()).isEqualTo(profileId);
         assertThat(command.unrestrictedOfficeAccess()).isTrue();

@@ -4,8 +4,8 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 import uk.gov.justice.laa.datauserapi.contracts.request.UpdateOfficesRequest;
-import uk.gov.justice.laa.datauserapi.contracts.request.UpdateOfficesUnrestrictedCommand;
 import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserProfileOfficesRequest;
+import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserProfileOfficesUnrestrictedRequest;
 
 import java.util.Set;
 import java.util.UUID;
@@ -42,10 +42,10 @@ class UpdateOfficesRequestDeserializationTest {
 
         UpdateOfficesRequest request = objectMapper.readValue(json, UpdateOfficesRequest.class);
 
-        assertThat(request).isInstanceOf(UpdateOfficesUnrestrictedCommand.class);
-        UpdateOfficesUnrestrictedCommand unrestrictedCommand = (UpdateOfficesUnrestrictedCommand) request;
-        assertThat(unrestrictedCommand.userProfileId()).isEqualTo(profileId);
-        assertThat(unrestrictedCommand.unrestrictedOfficeAccess()).isTrue();
+        assertThat(request).isInstanceOf(UpdateUserProfileOfficesUnrestrictedRequest.class);
+        UpdateUserProfileOfficesUnrestrictedRequest unrestrictedRequest = (UpdateUserProfileOfficesUnrestrictedRequest) request;
+        assertThat(unrestrictedRequest.userProfileId()).isEqualTo(profileId);
+        assertThat(unrestrictedRequest.unrestrictedOfficeAccess()).isTrue();
     }
 
     @Test
