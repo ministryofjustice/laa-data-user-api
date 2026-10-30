@@ -45,14 +45,4 @@ class TargetPoliciesTest {
         assertThat(policy.evaluate(message, actor).granted()).isTrue();
     }
 
-    @Test
-    void targetNotDeactivatedPolicyDeniesAlreadyDeactivatedTargets() {
-        TargetNotDeactivatedPolicy policy = new TargetNotDeactivatedPolicy(userCommandService);
-
-        when(userCommandService.isDeactivated(targetId)).thenReturn(true);
-        assertThat(policy.evaluate(message, actor).granted()).isFalse();
-
-        when(userCommandService.isDeactivated(targetId)).thenReturn(false);
-        assertThat(policy.evaluate(message, actor).granted()).isTrue();
-    }
 }

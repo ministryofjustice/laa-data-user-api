@@ -28,7 +28,6 @@ import uk.gov.justice.laa.datauserapi.application.command.policy.ProviderAdminFi
 import uk.gov.justice.laa.datauserapi.application.command.policy.ProviderAdminOwnFirmPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ProviderAdminProfileFirmScopePolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ReactivationHierarchyPolicy;
-import uk.gov.justice.laa.datauserapi.application.command.policy.TargetNotDeactivatedPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserAccountLifecycleService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
@@ -147,11 +146,6 @@ class RbacMethodSecurityIntegrationTest {
         @Bean
         ExternalTargetOnlyPolicy externalTargetOnlyPolicy(UserCommandService userCommandService) {
             return new ExternalTargetOnlyPolicy(userCommandService);
-        }
-
-        @Bean
-        TargetNotDeactivatedPolicy targetNotDeactivatedPolicy(UserCommandService userCommandService) {
-            return new TargetNotDeactivatedPolicy(userCommandService);
         }
 
         @Bean

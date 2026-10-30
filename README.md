@@ -105,7 +105,6 @@ Other reusable command-side policies in `application.command.policy` are:
 |-----------------------------------|----------------------|-----------------------------------------------------------------------------------------------------------|
 | `NotSelfTargetPolicy`             | `TargetsUser`        | The actor cannot target their own Entra account.                                                          |
 | `ExternalTargetOnlyPolicy`        | `TargetsUser`        | The target user must not be an internal user.                                                             |
-| `TargetNotDeactivatedPolicy`      | `TargetsUser`        | The target user must not already be deactivated.                                                          |
 | `ReactivationHierarchyPolicy`     | `TargetsUser`        | The target must be deactivated, and the actor's roles must permit reactivation for its deactivation type. |
 | `NotSelfProfileTargetPolicy`      | `TargetsUserProfile` | The actor cannot target a profile belonging to their own account.                                         |
 | `ExternalProfileTargetOnlyPolicy` | `TargetsUserProfile` | The target profile must not belong to an internal user.                                                   |
