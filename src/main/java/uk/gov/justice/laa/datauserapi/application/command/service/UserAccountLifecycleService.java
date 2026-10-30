@@ -3,6 +3,7 @@ package uk.gov.justice.laa.datauserapi.application.command.service;
 import java.util.UUID;
 
 import org.modelmapper.ModelMapper;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +12,7 @@ import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserM
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserAccountStatusAuditRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
@@ -47,6 +49,17 @@ public class UserAccountLifecycleService {
     @Transactional(propagation = Propagation.MANDATORY)
     public EntraUserDto loadEntraUserDtoByEntraOid(UUID userEntraObjectId) {
         return modelMapper.map(load(userEntraObjectId), EntraUserDto.class);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public EntraUserDto loadEntraUserDtoForDeactivation(UUID userEntraObjectId) {
+        EntraUser user = entraUserCommandRepository.findByEntraOidForUpdate(String.valueOf(userEntraObjectId))
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User account not found for oid: " + userEntraObjectId));
+        if (user.getUserAccountStatus() == UserAccountStatus.DEACTIVATED) {
+            throw new AccessDeniedException("User account is already deactivated");
+        }
+        return modelMapper.map(user, EntraUserDto.class);
     }
 
     @Transactional(propagation = Propagation.MANDATORY)

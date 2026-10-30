@@ -8,6 +8,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
+import org.springframework.security.access.AccessDeniedException;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
@@ -86,6 +87,34 @@ class UserAccountLifecycleServiceTest {
         assertThatThrownBy(() -> service.loadEntraUserDtoByEntraOid(targetId))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("User account not found for oid: " + targetId);
+    }
+
+    @Test
+    @DisplayName("loads and locks an active user before deactivation")
+    void loadEntraUserDtoForDeactivation_LocksActiveUser() {
+        EntraUser user = user();
+        user.setUserAccountStatus(UserAccountStatus.ACTIVE);
+        EntraUserDto dto = EntraUserDto.builder().id(targetId.toString()).build();
+        when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
+        when(modelMapper.map(user, EntraUserDto.class)).thenReturn(dto);
+
+        assertThat(service.loadEntraUserDtoForDeactivation(targetId)).isSameAs(dto);
+
+        verify(entraUserCommandRepository).findByEntraOidForUpdate(targetId.toString());
+    }
+
+    @Test
+    @DisplayName("refuses to call Tech Services when the locked user is already deactivated")
+    void loadEntraUserDtoForDeactivation_AlreadyDeactivated_Throws() {
+        EntraUser user = user();
+        user.setUserAccountStatus(UserAccountStatus.DEACTIVATED);
+        when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> service.loadEntraUserDtoForDeactivation(targetId))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("User account is already deactivated");
+
+        verifyNoInteractions(modelMapper);
     }
 
     @Test

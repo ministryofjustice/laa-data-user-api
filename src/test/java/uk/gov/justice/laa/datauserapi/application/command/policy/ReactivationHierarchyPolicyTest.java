@@ -72,6 +72,20 @@ class ReactivationHierarchyPolicyTest {
         assertThat(policy().evaluate(message, actorWithRole(role)).granted()).isEqualTo(expected);
     }
 
+    @Test
+    void ignoresNonAuthorizationRoleWithPrivilegedRoleName() {
+        when(userCommandService.isDeactivated(targetId)).thenReturn(true);
+        when(userCommandService.findDeactivationType(targetId)).thenReturn(Optional.of(DeactivationType.PRIVILEGED));
+        AuthenticatedAppRole nonAuthorizationRole = new AuthenticatedAppRole(
+                UUID.randomUUID(), AuthzRole.GLOBAL_ADMIN.getRoleName(), 0, null, false,
+                null, null, "application role", false, null, Set.of());
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder()
+                .activeProfile(AuthenticatedUserProfile.builder().appRoles(Set.of(nonAuthorizationRole)).build())
+                .build();
+
+        assertThat(policy().evaluate(message, actor).granted()).isFalse();
+    }
+
     @ParameterizedTest
     @CsvSource({
         "INTERNAL_USER_MANAGER,true",

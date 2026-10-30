@@ -18,9 +18,9 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Registers the RBAC method interceptor. Any bean method that accepts a message annotated with
- * {@link RequiresPermission} is authorised before invocation. Ordered right after {@code @PreAuthorize}
- * so it runs before {@code @Transactional} opens a transaction.
+ * Registers the RBAC method interceptor for command-handler entry points. Annotated command messages
+ * are authorised before invocation. Ordered right after {@code @PreAuthorize} so it runs before
+ * {@code @Transactional} opens a transaction.
  */
 @Configuration(proxyBeanMethods = false)
 public class RbacMethodSecurityConfig {
@@ -42,8 +42,10 @@ public class RbacMethodSecurityConfig {
 
     static final class RequiresPermissionPointcut extends StaticMethodMatcherPointcut {
         @Override
-        public boolean matches(Method method, @NonNull Class<?> targetClass) {
-            return method.getParameterCount() > 0
+        public boolean matches(@NonNull Method method, @NonNull Class<?> targetClass) {
+            return AuthorizationEntryPoint.class.isAssignableFrom(targetClass)
+                    && method.getName().equals("handle")
+                    && method.getParameterCount() > 0
                     && RequiresPermissionAuthorizationManager.findRequirement(method, targetClass).isPresent();
         }
     }

@@ -77,6 +77,7 @@ public class ReactivationHierarchyPolicy implements AuthorizationPolicy<TargetsU
                 .stream()
                 .flatMap(Collection::stream)
                 .filter(Objects::nonNull)
+                .filter(AuthenticatedAppRole::authzRole)
                 .map(AuthenticatedAppRole::name)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());

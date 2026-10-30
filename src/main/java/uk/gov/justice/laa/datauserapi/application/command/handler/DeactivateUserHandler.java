@@ -44,7 +44,8 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
                 kv("actorEntraOid", actor.entraOid()));
 
         techServicesClient.deactivateUser(
-                lifecycleService.loadEntraUserDtoByEntraOid(command.userEntraObjectId()), command.deactivateReason().name());
+                lifecycleService.loadEntraUserDtoForDeactivation(command.userEntraObjectId()),
+                command.deactivateReason().name());
 
         DeactivationType deactivationType = deactivationTypeResolver.resolve(actor);
         CommandResult result = lifecycleService.deactivate(

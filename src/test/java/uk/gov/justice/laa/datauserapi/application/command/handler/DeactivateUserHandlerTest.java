@@ -64,7 +64,7 @@ class DeactivateUserHandlerTest {
     @Test
     @DisplayName("Should propagate ResourceNotFoundException and call nothing downstream when the user is missing")
     void handle_WhenTargetUserNotFound_ThrowsException() {
-        when(lifecycleService.loadEntraUserDtoByEntraOid(targetUserId))
+        when(lifecycleService.loadEntraUserDtoForDeactivation(targetUserId))
                 .thenThrow(new ResourceNotFoundException("User account not found for oid: " + targetUserId));
 
         assertThatThrownBy(() -> handler.handle(command(DeactivateUserReason.Absence), actor))
@@ -78,7 +78,7 @@ class DeactivateUserHandlerTest {
     @DisplayName("Should not change local state when the Tech Services call fails")
     void handle_WhenTechServicesClientFails_DoesNotDeactivateLocally() {
         EntraUserDto userDto = EntraUserDto.builder().id(targetUserId.toString()).build();
-        when(lifecycleService.loadEntraUserDtoByEntraOid(targetUserId)).thenReturn(userDto);
+        when(lifecycleService.loadEntraUserDtoForDeactivation(targetUserId)).thenReturn(userDto);
         doThrow(new TechServicesClientException("Downstream API timeout"))
                 .when(techServicesClient).deactivateUser(userDto, DeactivateUserReason.NotActive.name());
 
@@ -95,7 +95,7 @@ class DeactivateUserHandlerTest {
         DeactivateUserCommand command = command(DeactivateUserReason.Absence);
         EntraUserDto userDto = EntraUserDto.builder().id(targetUserId.toString()).build();
         CommandResult expected = CommandResult.success("User deactivated successfully");
-        when(lifecycleService.loadEntraUserDtoByEntraOid(targetUserId)).thenReturn(userDto);
+        when(lifecycleService.loadEntraUserDtoForDeactivation(targetUserId)).thenReturn(userDto);
         when(deactivationTypeResolver.resolve(actor)).thenReturn(DeactivationType.LAA);
         when(lifecycleService.deactivate(
                 targetUserId, actor.entraOid(), DeactivationType.LAA, DeactivateUserReason.Absence))
@@ -105,7 +105,7 @@ class DeactivateUserHandlerTest {
 
         assertThat(result).isSameAs(expected);
         InOrder inOrder = inOrder(lifecycleService, techServicesClient, deactivationTypeResolver);
-        inOrder.verify(lifecycleService).loadEntraUserDtoByEntraOid(targetUserId);
+        inOrder.verify(lifecycleService).loadEntraUserDtoForDeactivation(targetUserId);
         inOrder.verify(techServicesClient).deactivateUser(userDto, DeactivateUserReason.Absence.name());
         inOrder.verify(deactivationTypeResolver).resolve(actor);
         inOrder.verify(lifecycleService).deactivate(
