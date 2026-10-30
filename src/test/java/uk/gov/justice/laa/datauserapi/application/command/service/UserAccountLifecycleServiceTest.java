@@ -118,6 +118,36 @@ class UserAccountLifecycleServiceTest {
     }
 
     @Test
+    @DisplayName("locks and returns current status details for reactivation")
+    void loadUserForReactivation_LocksAndReturnsCurrentState() {
+        EntraUser user = user();
+        user.deactivate(ACTOR, DeactivationType.FIRM);
+        EntraUserDto dto = EntraUserDto.builder().id(targetId.toString()).build();
+        when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
+        when(modelMapper.map(user, EntraUserDto.class)).thenReturn(dto);
+
+        UserAccountLifecycleService.LockedUserForReactivation target = service.loadUserForReactivation(targetId);
+
+        assertThat(target.user()).isSameAs(dto);
+        assertThat(target.deactivationType()).isEqualTo(DeactivationType.FIRM);
+        verify(entraUserCommandRepository).findByEntraOidForUpdate(targetId.toString());
+    }
+
+    @Test
+    @DisplayName("rejects reactivation when the locked user is no longer deactivated")
+    void loadUserForReactivation_ActiveUser_Throws() {
+        EntraUser user = user();
+        user.setUserAccountStatus(UserAccountStatus.ACTIVE);
+        when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> service.loadUserForReactivation(targetId))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("User account is not deactivated");
+
+        verifyNoInteractions(modelMapper);
+    }
+
+    @Test
     @DisplayName("deactivate mutates the user, saves it, then audits and returns the mapped result")
     void deactivate_MutatesSavesAndAudits() {
         EntraUser user = user();

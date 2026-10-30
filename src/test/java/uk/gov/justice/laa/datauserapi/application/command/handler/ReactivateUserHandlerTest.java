@@ -15,6 +15,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
+import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 import java.util.UUID;
 
@@ -58,7 +59,7 @@ class ReactivateUserHandlerTest {
     void handle_WhenTargetUserNotFound_ThrowsException() {
         ReactivateUserCommand command = ReactivateUserCommand.builder()
                 .userEntraObjectId(targetUserId).comments("missing").build();
-        when(lifecycleService.loadEntraUserDtoByEntraOid(targetUserId))
+        when(lifecycleService.loadUserForReactivation(targetUserId))
                 .thenThrow(new ResourceNotFoundException("User account not found for oid: " + targetUserId));
 
         assertThatThrownBy(() -> handler.handle(command, actor))
@@ -75,7 +76,8 @@ class ReactivateUserHandlerTest {
         ReactivateUserCommand command = ReactivateUserCommand.builder()
                 .userEntraObjectId(targetUserId).comments("Reactivating user").build();
         EntraUserDto userDto = EntraUserDto.builder().id(targetUserId.toString()).build();
-        when(lifecycleService.loadEntraUserDtoByEntraOid(targetUserId)).thenReturn(userDto);
+        when(lifecycleService.loadUserForReactivation(targetUserId))
+                .thenReturn(new UserAccountLifecycleService.LockedUserForReactivation(userDto, DeactivationType.NONE));
         doThrow(new TechServicesClientException("Downstream TS error"))
                 .when(techServicesClient).reactivateUser(userDto);
 
@@ -94,15 +96,34 @@ class ReactivateUserHandlerTest {
                 .userEntraObjectId(targetUserId).comments(comments).build();
         EntraUserDto userDto = EntraUserDto.builder().id(targetUserId.toString()).build();
         CommandResult expected = CommandResult.success("User reactivated successfully");
-        when(lifecycleService.loadEntraUserDtoByEntraOid(targetUserId)).thenReturn(userDto);
+        when(lifecycleService.loadUserForReactivation(targetUserId))
+                .thenReturn(new UserAccountLifecycleService.LockedUserForReactivation(userDto, DeactivationType.NONE));
         when(lifecycleService.reactivate(targetUserId, actor.entraOid(), comments)).thenReturn(expected);
 
         CommandResult result = handler.handle(command, actor);
 
         assertThat(result).isSameAs(expected);
         InOrder inOrder = inOrder(lifecycleService, techServicesClient);
-        inOrder.verify(lifecycleService).loadEntraUserDtoByEntraOid(targetUserId);
+        inOrder.verify(lifecycleService).loadUserForReactivation(targetUserId);
         inOrder.verify(techServicesClient).reactivateUser(userDto);
         inOrder.verify(lifecycleService).reactivate(targetUserId, actor.entraOid(), comments);
+    }
+
+    @Test
+    @DisplayName("Rechecks hierarchy using the locked target before calling Tech Services")
+    void handle_WhenLockedTargetHasPrivilegedDeactivation_DeniesBeforeTechServices() {
+        ReactivateUserCommand command = ReactivateUserCommand.builder()
+                .userEntraObjectId(targetUserId).comments("Reactivating user").build();
+        EntraUserDto userDto = EntraUserDto.builder().id(targetUserId.toString()).build();
+        when(lifecycleService.loadUserForReactivation(targetUserId))
+                .thenReturn(new UserAccountLifecycleService.LockedUserForReactivation(
+                        userDto, DeactivationType.PRIVILEGED));
+
+        assertThatThrownBy(() -> handler.handle(command, actor))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("PRIVILEGED");
+
+        verifyNoInteractions(techServicesClient);
+        verify(lifecycleService, never()).reactivate(any(), anyString(), anyString());
     }
 }

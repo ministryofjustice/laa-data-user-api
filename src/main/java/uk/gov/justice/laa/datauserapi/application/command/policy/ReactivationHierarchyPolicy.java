@@ -46,12 +46,16 @@ public class ReactivationHierarchyPolicy implements AuthorizationPolicy<TargetsU
             return PolicyDecision.deny("target user is not deactivated");
         }
         DeactivationType type = userCommandService.findDeactivationType(message.targetUserEntraObjectId()).orElse(null);
-        return canReactivate(type, roleNames(actor))
+        return canReactivate(type, actor)
                 ? PolicyDecision.allow()
                 : PolicyDecision.deny("actor roles cannot reactivate a user deactivated with type " + type);
     }
 
-    static boolean canReactivate(DeactivationType type, Set<String> roles) {
+    public static boolean canReactivate(DeactivationType type, AuthenticatedEntraUser actor) {
+        return canReactivate(type, roleNames(actor));
+    }
+
+    private static boolean canReactivate(DeactivationType type, Set<String> roles) {
         boolean privileged = has(roles, AuthzRole.GLOBAL_ADMIN) || has(roles, AuthzRole.SECURITY_RESPONSE);
         boolean externalUserManagement = has(roles, AuthzRole.EXTERNAL_USER_ADMIN)
                 || has(roles, AuthzRole.EXTERNAL_USER_MANAGER)

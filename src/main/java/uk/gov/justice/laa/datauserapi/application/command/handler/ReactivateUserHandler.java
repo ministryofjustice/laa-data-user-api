@@ -5,6 +5,8 @@ import static net.logstash.logback.argument.StructuredArguments.kv;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
+import uk.gov.justice.laa.datauserapi.application.command.policy.ReactivationHierarchyPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserAccountLifecycleService;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
@@ -36,7 +38,15 @@ public class ReactivateUserHandler implements CommandHandler<ReactivateUserComma
                 kv("entraOid", command.userEntraObjectId()),
                 kv("actorEntraOid", actor.entraOid()));
 
-        techServicesClient.reactivateUser(lifecycleService.loadEntraUserDtoByEntraOid(command.userEntraObjectId()));
+        // Recheck under the row lock: the pre-handler policy may have raced with another deactivation.
+        UserAccountLifecycleService.LockedUserForReactivation target =
+                lifecycleService.loadUserForReactivation(command.userEntraObjectId());
+        if (!ReactivationHierarchyPolicy.canReactivate(target.deactivationType(), actor)) {
+            throw new AccessDeniedException(
+                    "Actor roles cannot reactivate a user deactivated with type " + target.deactivationType());
+        }
+
+        techServicesClient.reactivateUser(target.user());
         CommandResult result = lifecycleService.reactivate(
                 command.userEntraObjectId(), actor.entraOid(), command.comments());
 

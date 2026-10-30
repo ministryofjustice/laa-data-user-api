@@ -63,6 +63,18 @@ public class UserAccountLifecycleService {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
+    public LockedUserForReactivation loadUserForReactivation(UUID userEntraObjectId) {
+        EntraUser user = entraUserCommandRepository.findByEntraOidForUpdate(String.valueOf(userEntraObjectId))
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User account not found for oid: " + userEntraObjectId));
+        if (user.getUserAccountStatus() != UserAccountStatus.DEACTIVATED) {
+            throw new AccessDeniedException("User account is not deactivated");
+        }
+        return new LockedUserForReactivation(
+                modelMapper.map(user, EntraUserDto.class), user.getDeactivationType());
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
     public CommandResult deactivate(UUID userEntraObjectId, String actorEntraOid,
                                     DeactivationType deactivationType, DeactivateUserReason reason) {
         EntraUser user = load(userEntraObjectId);
@@ -85,5 +97,8 @@ public class UserAccountLifecycleService {
         return entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "User account not found for oid: " + userEntraObjectId));
+    }
+
+    public record LockedUserForReactivation(EntraUserDto user, DeactivationType deactivationType) {
     }
 }
