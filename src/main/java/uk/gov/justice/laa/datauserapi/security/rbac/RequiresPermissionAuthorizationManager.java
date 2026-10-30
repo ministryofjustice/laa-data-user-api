@@ -64,14 +64,16 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
         String operation = invocation.getMethod().getDeclaringClass().getSimpleName();
         AuthenticatedEntraUser actor = resolveActor(invocation.getArguments(), authentication);
         if (actor == null) {
-            log.warn("RBAC authorization denied: no authenticated actor",
+            log.info("RBAC authorization denied: no authenticated actor",
+                    kv("event", "authorization_denied"),
                     kv("operation", operation));
             return DENIED;
         }
 
         Requirement required = guarded.get().requirement();
         if (!hasRequiredPermissions(actor, required)) {
-            log.warn("RBAC authorization denied: required permissions not held",
+            log.info("RBAC authorization denied: required permissions not held",
+                    kv("event", "authorization_denied"),
                     kv("actorEntraOid", actor.entraOid()),
                     kv("operation", operation),
                     kv("permissionMatch", required.match()),
@@ -99,7 +101,8 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
         if (obj == null) {
             boolean anyPolicies = required.policies().length > 0 || !globalPolicies.get().isEmpty();
             if (anyPolicies) {
-                log.warn("RBAC authorization denied: object is null and policies cannot be evaluated",
+                log.info("RBAC authorization denied: object is null and policies cannot be evaluated",
+                        kv("event", "authorization_denied"),
                         kv("actorEntraOid", actor.entraOid()),
                         kv("operation", operation));
             }
@@ -127,6 +130,7 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
             AuthorizationPolicy policy = policyResolver.apply(policyType);
             if (!supports(policy, obj)) {
                 log.error("RBAC authorization misconfiguration: policy does not support object",
+                        kv("event", "authorization_configuration_error"),
                         kv("operation", operation),
                         kv("policy", policyType.getSimpleName()),
                         kv("objectType", obj.getClass().getSimpleName()));
@@ -143,12 +147,13 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
     private static boolean isGranted(AuthorizationPolicy policy, Class<?> policyType, Object obj,
                                      AuthenticatedEntraUser actor, String operation) {
         PolicyDecision decision = policy.evaluate(obj, actor);
-        if (decision == null || !decision.granted()) {
+        if (!decision.granted()) {
             log.info("RBAC authorization denied by policy",
+                    kv("event", "authorization_denied"),
                     kv("actorEntraOid", actor.entraOid()),
                     kv("operation", operation),
                     kv("policy", AopUtils.getTargetClass(policy).getSimpleName()),
-                    kv("reason", decision == null ? "no decision" : decision.reason()));
+                    kv("reason", decision.reason()));
             return false;
         }
         return true;
@@ -205,12 +210,12 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
             RequiresPermission permission = AnnotatedElementUtils.findMergedAnnotation(objType, RequiresPermission.class);
             PolicyGuarded policyGuarded = AnnotatedElementUtils.findMergedAnnotation(objType, PolicyGuarded.class);
             if (permission != null && policyGuarded != null) {
-                throw new IllegalStateException(objType.getName()
+                throw new InvalidAuthorizationConfigurationException(objType.getName()
                         + " must declare only one of @RequiresPermission or @PolicyGuarded");
             }
             if (permission != null) {
                 if (permission.value().length == 0) {
-                    throw new IllegalStateException(objType.getName()
+                    throw new InvalidAuthorizationConfigurationException(objType.getName()
                             + " declares @RequiresPermission without permissions; use @PolicyGuarded instead");
                 }
                 return Optional.of(new Requirement(permission.value(), permission.match(), permission.policies()));

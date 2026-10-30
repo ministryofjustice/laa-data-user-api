@@ -1,6 +1,7 @@
 package uk.gov.justice.laa.datauserapi.security.rbac;
 
 import org.aopalliance.intercept.MethodInvocation;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -48,7 +49,7 @@ class RequiresPermissionAuthorizationManagerTest {
         final AtomicInteger calls = new AtomicInteger();
 
         @Override
-        public PolicyDecision evaluate(Object message, AuthenticatedEntraUser actor) {
+        public @NonNull PolicyDecision evaluate(Object message, AuthenticatedEntraUser actor) {
             calls.incrementAndGet();
             return PolicyDecision.allow();
         }
@@ -58,7 +59,7 @@ class RequiresPermissionAuthorizationManagerTest {
         UUID allowedTarget;
 
         @Override
-        public PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
+        public @NonNull PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
             return message.targetUserEntraObjectId().equals(allowedTarget)
                     ? PolicyDecision.allow() : PolicyDecision.deny("not allowed");
         }
@@ -75,7 +76,7 @@ class RequiresPermissionAuthorizationManagerTest {
         }
 
         @Override
-        public PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
+        public @NonNull PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
             calls.incrementAndGet();
             return grant ? PolicyDecision.allow() : PolicyDecision.deny("global denied");
         }
@@ -299,7 +300,7 @@ class RequiresPermissionAuthorizationManagerTest {
     @Test
     void rejectsMessageDeclaringBothAnnotations() {
         assertThatThrownBy(() -> decide("conflicting", new Object[]{new ConflictingCommand(), RbacTestActors.actorWith()}, noAuth))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(InvalidAuthorizationConfigurationException.class)
                 .hasMessageContaining("only one of");
     }
 

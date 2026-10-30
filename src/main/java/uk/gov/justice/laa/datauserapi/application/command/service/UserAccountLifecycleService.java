@@ -1,9 +1,10 @@
 package uk.gov.justice.laa.datauserapi.application.command.service;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.util.UUID;
 
 import org.modelmapper.ModelMapper;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,7 +17,9 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserAlreadyDeactivatedException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotDeactivatedException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 /**
@@ -31,18 +34,21 @@ public class UserAccountLifecycleService {
     private final DeactivateUserMapper deactivateUserMapper;
     private final ReactivateUserMapper reactivateUserMapper;
     private final ModelMapper modelMapper;
+    private final EntityManager entityManager;
 
     public UserAccountLifecycleService(
             EntraUserCommandRepository entraUserCommandRepository,
             UserAccountStatusAuditRepository auditRepository,
             DeactivateUserMapper deactivateUserMapper,
             ReactivateUserMapper reactivateUserMapper,
-            ModelMapper modelMapper) {
+            ModelMapper modelMapper,
+            EntityManager entityManager) {
         this.entraUserCommandRepository = entraUserCommandRepository;
         this.auditRepository = auditRepository;
         this.deactivateUserMapper = deactivateUserMapper;
         this.reactivateUserMapper = reactivateUserMapper;
         this.modelMapper = modelMapper;
+        this.entityManager = entityManager;
     }
 
     /** Detached DTO used only as input for outbound calls made by the command being handled. */
@@ -53,22 +59,18 @@ public class UserAccountLifecycleService {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public EntraUserDto loadEntraUserDtoForDeactivation(UUID userEntraObjectId) {
-        EntraUser user = entraUserCommandRepository.findByEntraOidForUpdate(String.valueOf(userEntraObjectId))
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "User account not found for oid: " + userEntraObjectId));
+        EntraUser user = loadForUpdate(userEntraObjectId);
         if (user.getUserAccountStatus() == UserAccountStatus.DEACTIVATED) {
-            throw new AccessDeniedException("User account is already deactivated");
+            throw new UserAlreadyDeactivatedException(userEntraObjectId);
         }
         return modelMapper.map(user, EntraUserDto.class);
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
     public LockedUserForReactivation loadUserForReactivation(UUID userEntraObjectId) {
-        EntraUser user = entraUserCommandRepository.findByEntraOidForUpdate(String.valueOf(userEntraObjectId))
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "User account not found for oid: " + userEntraObjectId));
+        EntraUser user = loadForUpdate(userEntraObjectId);
         if (user.getUserAccountStatus() != UserAccountStatus.DEACTIVATED) {
-            throw new AccessDeniedException("User account is not deactivated");
+            throw new UserNotDeactivatedException(userEntraObjectId);
         }
         return new LockedUserForReactivation(
                 modelMapper.map(user, EntraUserDto.class), user.getDeactivationType());
@@ -95,8 +97,14 @@ public class UserAccountLifecycleService {
 
     private EntraUser load(UUID userEntraObjectId) {
         return entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "User account not found for oid: " + userEntraObjectId));
+                .orElseThrow(() -> new UserNotFoundException(userEntraObjectId));
+    }
+
+    private EntraUser loadForUpdate(UUID userEntraObjectId) {
+        EntraUser user = entraUserCommandRepository.findByEntraOidForUpdate(String.valueOf(userEntraObjectId))
+                .orElseThrow(() -> new UserNotFoundException(userEntraObjectId));
+        entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
+        return user;
     }
 
     public record LockedUserForReactivation(EntraUserDto user, DeactivationType deactivationType) {

@@ -1,5 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.command.policy;
 
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
@@ -13,7 +14,7 @@ import java.util.UUID;
 public class NotSelfTargetPolicy implements AuthorizationPolicy<TargetsUser> {
 
     @Override
-    public PolicyDecision evaluate(TargetsUser targetsUser, AuthenticatedEntraUser actor) {
+    public @NonNull PolicyDecision evaluate(TargetsUser targetsUser, AuthenticatedEntraUser actor) {
         UUID targetId = targetsUser.targetUserEntraObjectId();
         return targetId != null && targetId.toString().equalsIgnoreCase(actor.entraOid())
                 ? PolicyDecision.deny("actor cannot act on their own account")

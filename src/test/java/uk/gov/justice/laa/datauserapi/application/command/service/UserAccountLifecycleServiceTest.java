@@ -1,5 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.command.service;
 
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -8,7 +9,6 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
-import org.springframework.security.access.AccessDeniedException;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
@@ -20,6 +20,9 @@ import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserAlreadyDeactivatedException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotDeactivatedException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 import java.util.Optional;
@@ -51,13 +54,16 @@ class UserAccountLifecycleServiceTest {
     private ReactivateUserMapper reactivateUserMapper;
     @Mock
     private ModelMapper modelMapper;
+    @Mock
+    private EntityManager entityManager;
 
     private UserAccountLifecycleService service;
 
     @BeforeEach
     void setUp() {
         service = new UserAccountLifecycleService(
-                entraUserCommandRepository, auditRepository, deactivateUserMapper, reactivateUserMapper, modelMapper);
+                entraUserCommandRepository, auditRepository, deactivateUserMapper, reactivateUserMapper,
+                modelMapper, entityManager);
     }
 
     private EntraUser user() {
@@ -85,8 +91,8 @@ class UserAccountLifecycleServiceTest {
         givenNoUser();
 
         assertThatThrownBy(() -> service.loadEntraUserDtoByEntraOid(targetId))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("User account not found for oid: " + targetId);
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User not found with ID: " + targetId);
     }
 
     @Test
@@ -101,6 +107,7 @@ class UserAccountLifecycleServiceTest {
         assertThat(service.loadEntraUserDtoForDeactivation(targetId)).isSameAs(dto);
 
         verify(entraUserCommandRepository).findByEntraOidForUpdate(targetId.toString());
+        verify(entityManager).refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
     }
 
     @Test
@@ -111,8 +118,8 @@ class UserAccountLifecycleServiceTest {
         when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> service.loadEntraUserDtoForDeactivation(targetId))
-                .isInstanceOf(AccessDeniedException.class)
-                .hasMessage("User account is already deactivated");
+                .isInstanceOf(UserAlreadyDeactivatedException.class)
+                .hasMessage("User is already deactivated: " + targetId);
 
         verifyNoInteractions(modelMapper);
     }
@@ -141,8 +148,8 @@ class UserAccountLifecycleServiceTest {
         when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> service.loadUserForReactivation(targetId))
-                .isInstanceOf(AccessDeniedException.class)
-                .hasMessage("User account is not deactivated");
+                .isInstanceOf(UserNotDeactivatedException.class)
+                .hasMessage("User is not deactivated: " + targetId);
 
         verifyNoInteractions(modelMapper);
     }

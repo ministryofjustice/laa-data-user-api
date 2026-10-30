@@ -1,5 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.command.policy;
 
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -25,7 +26,7 @@ public class ProviderAdminOwnFirmPolicy implements GlobalAuthorizationPolicy<Tar
     }
 
     @Override
-    public PolicyDecision evaluate(TargetsFirm message, AuthenticatedEntraUser actor) {
+    public @NonNull PolicyDecision evaluate(TargetsFirm message, AuthenticatedEntraUser actor) {
         String actorFirmCode = Optional.ofNullable(actor.activeProfile())
                 .map(AuthenticatedUserProfile::firmCode)
                 .orElse(null);

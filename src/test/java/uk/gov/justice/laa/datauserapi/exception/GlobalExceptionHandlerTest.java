@@ -51,6 +51,20 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void handleUserAccountStatusConflict_shouldReturn409WithProblemDetail() {
+        UserAlreadyDeactivatedException ex = new UserAlreadyDeactivatedException(
+                java.util.UUID.fromString("11111111-1111-1111-1111-111111111111"));
+
+        ResponseEntity<ProblemDetail> response = handler.handleUserAccountStatusConflict(ex, request);
+
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals(409, response.getBody().status());
+        assertEquals("Conflict", response.getBody().title());
+    }
+
+    @Test
     void handleScopeMissing_shouldReturn403WithProblemDetail() {
         ScopeMissingException ex = new ScopeMissingException("Missing user.read or user.admin scope");
 

@@ -1,5 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.command.policy;
 
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
@@ -32,7 +33,7 @@ public class ProviderAdminProfileFirmScopePolicy implements GlobalAuthorizationP
     }
 
     @Override
-    public PolicyDecision evaluate(TargetsUserProfile message, AuthenticatedEntraUser actor) {
+    public @NonNull PolicyDecision evaluate(TargetsUserProfile message, AuthenticatedEntraUser actor) {
         UUID actorFirmId = Optional.ofNullable(actor.activeProfile()).map(AuthenticatedUserProfile::firmId).orElse(null);
         if (actorFirmId == null) {
             return PolicyDecision.deny("provider admin has no active firm");

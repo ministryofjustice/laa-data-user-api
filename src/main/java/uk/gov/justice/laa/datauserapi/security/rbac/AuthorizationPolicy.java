@@ -1,5 +1,6 @@
 package uk.gov.justice.laa.datauserapi.security.rbac;
 
+import org.jspecify.annotations.NonNull;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 /**
@@ -14,5 +15,5 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
  */
 public interface AuthorizationPolicy<M> {
 
-    PolicyDecision evaluate(M message, AuthenticatedEntraUser actor);
+    @NonNull PolicyDecision evaluate(M message, AuthenticatedEntraUser actor);
 }

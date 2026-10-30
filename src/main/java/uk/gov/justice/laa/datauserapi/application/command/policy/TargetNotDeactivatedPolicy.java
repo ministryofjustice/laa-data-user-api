@@ -1,5 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.command.policy;
 
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -18,7 +19,7 @@ public class TargetNotDeactivatedPolicy implements AuthorizationPolicy<TargetsUs
     }
 
     @Override
-    public PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
+    public @NonNull PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
         return userCommandService.isDeactivated(message.targetUserEntraObjectId())
                 ? PolicyDecision.deny("target user is already deactivated")
                 : PolicyDecision.allow();

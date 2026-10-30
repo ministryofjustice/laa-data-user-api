@@ -7,6 +7,7 @@ package uk.gov.justice.laa.datauserapi.security.rbac;
 public record PolicyDecision(boolean granted, String reason) {
 
     private static final PolicyDecision ALLOW = new PolicyDecision(true, null);
+    public static final PolicyDecision DENY = new PolicyDecision(false, "policy denied");
 
     public static PolicyDecision allow() {
         return ALLOW;

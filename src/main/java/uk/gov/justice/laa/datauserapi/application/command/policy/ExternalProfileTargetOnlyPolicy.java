@@ -1,5 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.command.policy;
 
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
@@ -19,7 +20,7 @@ public class ExternalProfileTargetOnlyPolicy implements AuthorizationPolicy<Targ
     }
 
     @Override
-    public PolicyDecision evaluate(TargetsUserProfile message, AuthenticatedEntraUser actor) {
+    public @NonNull PolicyDecision evaluate(TargetsUserProfile message, AuthenticatedEntraUser actor) {
         return userCommandService.findProfileUserType(message.targetUserProfileId())
                 .filter(UserType.INTERNAL::equals)
                 .isPresent()

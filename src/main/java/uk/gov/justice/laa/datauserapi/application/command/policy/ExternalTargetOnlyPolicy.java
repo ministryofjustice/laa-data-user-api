@@ -1,5 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.command.policy;
 
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -18,7 +19,7 @@ public class ExternalTargetOnlyPolicy implements AuthorizationPolicy<TargetsUser
     }
 
     @Override
-    public PolicyDecision evaluate(TargetsUser targetsUser, AuthenticatedEntraUser actor) {
+    public @NonNull PolicyDecision evaluate(TargetsUser targetsUser, AuthenticatedEntraUser actor) {
         return userCommandService.isInternalUser(targetsUser.targetUserEntraObjectId())
                 ? PolicyDecision.deny("target user is an internal user")
                 : PolicyDecision.allow();

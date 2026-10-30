@@ -1,5 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.command.policy;
 
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -18,7 +19,7 @@ public class NotSelfProfileTargetPolicy implements AuthorizationPolicy<TargetsUs
     }
 
     @Override
-    public PolicyDecision evaluate(TargetsUserProfile targetsUserProfile, AuthenticatedEntraUser actor) {
+    public @NonNull PolicyDecision evaluate(TargetsUserProfile targetsUserProfile, AuthenticatedEntraUser actor) {
         return userCommandService.findProfileEntraOid(targetsUserProfile.targetUserProfileId())
                 .filter(oid -> oid.equalsIgnoreCase(actor.entraOid()))
                 .isPresent()
