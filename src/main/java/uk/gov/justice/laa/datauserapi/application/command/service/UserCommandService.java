@@ -9,7 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
@@ -74,7 +73,7 @@ public class UserCommandService {
 
     @Transactional(readOnly = true)
     public boolean isDeactivated(UUID userEntraObjectId) {
-        return findEntraUser(userEntraObjectId).getUserAccountStatus() == UserAccountStatus.DEACTIVATED;
+        return !findEntraUser(userEntraObjectId).isActive();
     }
 
     @Transactional(readOnly = true)

@@ -114,6 +114,7 @@ class UserAccountLifecycleServiceTest {
     @DisplayName("refuses to call Tech Services when the locked user is already deactivated")
     void loadEntraUserDtoForDeactivation_AlreadyDeactivated_Throws() {
         EntraUser user = user();
+        user.setActive(false);
         user.setUserAccountStatus(UserAccountStatus.DEACTIVATED);
         when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
 
@@ -168,6 +169,7 @@ class UserAccountLifecycleServiceTest {
 
         assertThat(result).isSameAs(expected);
         assertThat(user.getUserAccountStatus()).isEqualTo(UserAccountStatus.DEACTIVATED);
+        assertThat(user.isActive()).isFalse();
         assertThat(user.getDeactivationType()).isEqualTo(DeactivationType.LAA);
         InOrder inOrder = inOrder(entraUserCommandRepository, auditRepository);
         inOrder.verify(entraUserCommandRepository).save(user);
@@ -202,6 +204,7 @@ class UserAccountLifecycleServiceTest {
 
         assertThat(result).isSameAs(expected);
         assertThat(user.getUserAccountStatus()).isNotEqualTo(UserAccountStatus.DEACTIVATED);
+        assertThat(user.isActive()).isTrue();
         InOrder inOrder = inOrder(entraUserCommandRepository, auditRepository);
         inOrder.verify(entraUserCommandRepository).save(user);
         inOrder.verify(auditRepository).save(audit);

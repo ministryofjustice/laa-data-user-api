@@ -9,7 +9,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
@@ -330,12 +329,12 @@ class UserCommandServiceTest {
         }
 
         @Test
-        void isDeactivated_ReflectsAccountStatus() {
-            EntraUser entraUser = EntraUser.builder().userAccountStatus(UserAccountStatus.DEACTIVATED).build();
+        void isDeactivated_ReflectsActiveFlag() {
+            EntraUser entraUser = EntraUser.builder().active(false).build();
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.of(entraUser));
             assertThat(userCommandService.isDeactivated(entraUserId)).isTrue();
 
-            entraUser.setUserAccountStatus(UserAccountStatus.ACTIVE);
+            entraUser.setActive(true);
             assertThat(userCommandService.isDeactivated(entraUserId)).isFalse();
         }
 

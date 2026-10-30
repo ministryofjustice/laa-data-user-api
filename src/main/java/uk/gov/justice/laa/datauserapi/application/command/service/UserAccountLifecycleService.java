@@ -13,7 +13,6 @@ import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserM
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserAccountStatusAuditRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
@@ -60,7 +59,7 @@ public class UserAccountLifecycleService {
     @Transactional(propagation = Propagation.MANDATORY)
     public EntraUserDto loadEntraUserDtoForDeactivation(UUID userEntraObjectId) {
         EntraUser user = loadForUpdate(userEntraObjectId);
-        if (user.getUserAccountStatus() == UserAccountStatus.DEACTIVATED) {
+        if (!user.isActive()) {
             throw new UserAlreadyDeactivatedException(userEntraObjectId);
         }
         return modelMapper.map(user, EntraUserDto.class);
@@ -69,7 +68,7 @@ public class UserAccountLifecycleService {
     @Transactional(propagation = Propagation.MANDATORY)
     public LockedUserForReactivation loadUserForReactivation(UUID userEntraObjectId) {
         EntraUser user = loadForUpdate(userEntraObjectId);
-        if (user.getUserAccountStatus() != UserAccountStatus.DEACTIVATED) {
+        if (user.isActive()) {
             throw new UserNotDeactivatedException(userEntraObjectId);
         }
         return new LockedUserForReactivation(

@@ -177,6 +177,7 @@ class SilasStatusRefreshIntegrationTest {
                         lockAcquired.countDown();
                         await(allowCommit);
                         user.setUserAccountStatus(UserAccountStatus.DEACTIVATED);
+                        user.setActive(false);
                         user.setDeactivationType(DeactivationType.FIRM);
                         entraUserCommandRepository.save(user);
                     }));
