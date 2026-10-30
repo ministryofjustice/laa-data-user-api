@@ -35,6 +35,7 @@ import uk.gov.justice.laa.datauserapi.exception.UserAlreadyDeactivatedException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 import javax.sql.DataSource;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -136,6 +137,25 @@ class SilasStatusRefreshIntegrationTest {
                 .containsExactly("COMPLETE", "COMPLETE", "COMPLETE");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_profile_app_role", Integer.class)).isEqualTo(4);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_profile_office", Integer.class)).isEqualTo(2);
+    }
+
+    @Test
+    void findsActiveAndDeactivatedUsersLinkedToFirm() {
+        insertUser(1, true, null);
+        insertUser(2, true, null);
+        jdbc.update("UPDATE entra_user SET status = 'ACTIVE' WHERE id = ?", id(1));
+        jdbc.update("UPDATE entra_user SET status = 'DEACTIVATED' WHERE id = ?", id(2));
+        jdbc.update("INSERT INTO firm (id, name, code, type, enabled) VALUES (?, 'Firm', '123456', 'CHAMBERS', TRUE)",
+                id(20));
+        insertProfile(1, 1, "EXTERNAL", false);
+        insertProfile(2, 2, "EXTERNAL", false);
+        jdbc.update("UPDATE user_profile SET firm_id = ? WHERE id IN (?, ?)", id(20), id(1), id(2));
+
+        List<EntraUser> users = entraUserCommandRepository.findUsersByFirmCode("123456");
+
+        assertThat(users)
+                .extracting(EntraUser::getUserAccountStatus)
+                .containsExactly(UserAccountStatus.ACTIVE, UserAccountStatus.DEACTIVATED);
     }
 
     @Test

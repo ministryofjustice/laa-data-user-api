@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.command.handler.BulkDeactivateFirmUsersHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeactivateUserHandler;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ExternalProfileTargetOnlyPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ExternalTargetOnlyPolicy;
@@ -31,6 +32,7 @@ import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandSer
 import uk.gov.justice.laa.datauserapi.application.command.service.UserAccountLifecycleService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.FirmCommandRepository;
+import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserAccountStatusAuditRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.BulkDeactivateFirmUsersCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeleteUserCommand;
@@ -41,7 +43,6 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
 import uk.gov.justice.laa.datauserapi.contracts.domain.DeleteUserReason;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
@@ -130,7 +131,8 @@ class RbacMethodSecurityIntegrationTest {
                 EntraUserCommandRepository entraUserCommandRepository,
                 DeactivateUserHandler deactivateUserHandler) {
             return new BulkDeactivateFirmUsersHandler(
-                    firmCommandRepository, entraUserCommandRepository, deactivateUserHandler);
+                    firmCommandRepository, entraUserCommandRepository, mock(UserAccountStatusAuditRepository.class),
+                    mock(DeactivateUserMapper.class), deactivateUserHandler);
         }
 
         @Bean
@@ -553,8 +555,9 @@ class RbacMethodSecurityIntegrationTest {
         BulkDeactivateFirmUsersCommand bulk = new BulkDeactivateFirmUsersCommand(
                 "FIRM1", DeactivateUserReason.values()[0]);
         when(firmCommandRepository.existsByCode("FIRM1")).thenReturn(true);
-        when(entraUserCommandRepository.findActiveSingleFirmUserIdsByFirmCode("FIRM1", UserAccountStatus.ACTIVE))
-                .thenReturn(List.of(userId));
+        when(entraUserCommandRepository.findUsersByFirmCode("FIRM1"))
+                .thenReturn(List.of(EntraUser.builder()
+                        .id(UUID.randomUUID()).entraOid(userId.toString()).active(true).build()));
 
         CommandResult bulkOnlyResult = realBulkHandler.handle(
                 bulk, RbacTestActors.actorWith(Permission.BULK_DISABLE_FIRM_USERS));
