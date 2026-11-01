@@ -106,4 +106,60 @@ test {
         showStandardStreams = true
         events "failed", "skipped", "standard_out", "standard_error"
     }
+
+}
+
+sourceSets {
+    pactTest {
+        java.srcDir 'src/pactTest/java'
+        resources.srcDir 'src/pactTest/resources'
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
+configurations {
+    pactTestImplementation.extendsFrom testImplementation
+    pactTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+
+dependencies {
+    pactTestImplementation 'au.com.dius.pact.provider:junit5:4.6.17'
+}
+
+tasks.register('pactTest', Test) {
+    description = 'Verifies consumer contracts against the API over HTTP.'
+    group = 'verification'
+    testClassesDirs = sourceSets.pactTest.output.classesDirs
+    classpath = sourceSets.pactTest.runtimeClasspath
+    useJUnitPlatform()
+
+    def pactFolder = providers.gradleProperty('pactFolder')
+    if (pactFolder.isPresent()) {
+        systemProperty 'pactFolder', file(pactFolder.get()).absolutePath
+        exclude '**/UserDataApiProviderPactTests.class'
+    } else {
+        exclude '**/UserDataApiLocalProviderPactTests.class'
+    }
+    [
+        'pactbroker.url': 'PACT_BROKER_URL',
+        'pactbroker.auth.username': 'PACT_BROKER_USERNAME',
+        'pactbroker.auth.password': 'PACT_BROKER_PASSWORD',
+        'pact.provider.version': 'GIT_SHA',
+        'pact.provider.branch': 'GIT_BRANCH'
+    ].each { property, variable ->
+        def value = providers.environmentVariable(variable)
+        if (value.isPresent()) {
+            systemProperty property, value.get()
+        }
+    }
+    def consumer = providers.environmentVariable('PACT_CONSUMER').orElse('').get()
+    def consumerBranch = providers.environmentVariable('PACT_CONSUMER_BRANCH').orElse('').get()
+    if (consumer && consumerBranch) {
+        systemProperty 'pactbroker.consumerversionselectors.rawjson',
+                groovy.json.JsonOutput.toJson([[consumer: consumer, branch: consumerBranch]])
+    }
+    systemProperty 'pact.verifier.publishResults',
+            !pactFolder.isPresent() && providers.environmentVariable('CI').orElse('false').get() == 'true'
+    outputs.upToDateWhen { false }
 }
