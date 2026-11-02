@@ -23,3 +23,17 @@ ignore:
     - '*':
         reason: "CVE-2026-113602; no fixed version; test-only via JsonPath; review by 2027-01-05"
         expires: 2027-01-05T00:00:00.000Z
+
+  # License-policy alerts pending review; these are build/test dependencies, not runtime application dependencies.
+  snyk:lic:maven:com.puppycrawl.tools:checkstyle:LGPL-2.1:
+    - '*':
+        reason: "LGPL-2.1 license review pending; Checkstyle is build-time only; review by 2027-01-05"
+        expires: 2027-01-05T00:00:00.000Z
+  snyk:lic:maven:junit:junit:EPL-1.0:
+    - '*':
+        reason: "EPL-1.0 license review pending; JUnit is test-only via Testcontainers; review by 2027-01-05"
+        expires: 2027-01-05T00:00:00.000Z
+  snyk:lic:maven:net.sf.saxon:Saxon-HE:MPL-2.0:
+    - '*':
+        reason: "MPL-2.0 license review pending; Saxon-HE is a Checkstyle build dependency; review by 2027-01-05"
+        expires: 2027-01-05T00:00:00.000Z
