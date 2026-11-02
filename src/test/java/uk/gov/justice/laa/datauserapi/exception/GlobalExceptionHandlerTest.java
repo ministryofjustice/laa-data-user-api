@@ -53,6 +53,34 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void handleUserNotFound_shouldReturn404WithProblemDetail() {
+        UserNotFoundException ex = new UserNotFoundException("User not found");
+
+        ResponseEntity<ProblemDetail> response = handler.handleUserNotFound(ex, request);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals(404, response.getBody().status());
+        assertEquals("Resource Not Found", response.getBody().title());
+        assertEquals("User not found", response.getBody().detail());
+    }
+
+    @Test
+    void handleUserProfileNotFound_shouldReturn404WithProblemDetail() {
+        UserProfileNotFoundException ex = new UserProfileNotFoundException("User profile not found");
+
+        ResponseEntity<ProblemDetail> response = handler.handleUserProfileNotFound(ex, request);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals(404, response.getBody().status());
+        assertEquals("Resource Not Found", response.getBody().title());
+        assertEquals("User profile not found", response.getBody().detail());
+    }
+
+    @Test
     void handleUserAccountStatusConflict_shouldReturn409WithProblemDetail() {
         UserAlreadyDeactivatedException ex = new UserAlreadyDeactivatedException(
                 java.util.UUID.fromString("11111111-1111-1111-1111-111111111111"));

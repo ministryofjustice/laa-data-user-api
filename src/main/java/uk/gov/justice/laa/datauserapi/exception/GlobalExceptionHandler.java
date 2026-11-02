@@ -50,6 +50,20 @@ public class GlobalExceptionHandler {
         return problemResponse(HttpStatus.NOT_FOUND, problem);
     }
 
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleUserNotFound(
+            UserNotFoundException ex,
+            HttpServletRequest request) {
+        return handleNotFound(ex, request);
+    }
+
+    @ExceptionHandler(UserProfileNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleUserProfileNotFound(
+            UserProfileNotFoundException ex,
+            HttpServletRequest request) {
+        return handleNotFound(ex, request);
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ProblemDetail> handleConflict(
             ConflictException ex,

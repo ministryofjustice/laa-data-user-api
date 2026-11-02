@@ -14,6 +14,8 @@ import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 import java.util.Collections;
@@ -115,8 +117,8 @@ class UserCommandServiceTest {
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> userCommandService.isExternalUser(entraUserId))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessage("Entra user not found for oid: " + entraUserId);
+                    .isInstanceOf(UserNotFoundException.class)
+                    .hasMessage("Entra user not found for user Entra OID: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }
@@ -193,8 +195,8 @@ class UserCommandServiceTest {
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> userCommandService.isInternalUser(entraUserId))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessage("Entra user not found for oid: " + entraUserId);
+                    .isInstanceOf(UserNotFoundException.class)
+                    .hasMessage("Entra user not found for user Entra OID: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }
@@ -257,8 +259,8 @@ class UserCommandServiceTest {
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.of(entraUser));
 
             assertThatThrownBy(() -> userCommandService.getActiveUserProfile(entraUserId))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessage("Active profile not found for user oid: " + entraUserId);
+                    .isInstanceOf(UserProfileNotFoundException.class)
+                    .hasMessage("Active profile not found for user Entra OID: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }
@@ -275,8 +277,8 @@ class UserCommandServiceTest {
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.of(entraUser));
 
             assertThatThrownBy(() -> userCommandService.getActiveUserProfile(entraUserId))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessage("Active profile not found for user oid: " + entraUserId);
+                    .isInstanceOf(UserProfileNotFoundException.class)
+                    .hasMessage("Active profile not found for user Entra OID: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }
@@ -287,7 +289,7 @@ class UserCommandServiceTest {
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> userCommandService.getActiveUserProfile(entraUserId))
-                    .isInstanceOf(ResourceNotFoundException.class)
+                    .isInstanceOf(UserNotFoundException.class)
                     .hasMessage("User account not found for oid: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));

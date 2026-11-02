@@ -7,4 +7,8 @@ public class UserNotFoundException extends ResourceNotFoundException {
     public UserNotFoundException(UUID userId) {
         super("User not found with ID: " + userId);
     }
+
+    public UserNotFoundException(String message) {
+        super(message);
+    }
 }

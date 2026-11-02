@@ -12,7 +12,8 @@ import uk.gov.justice.laa.datauserapi.application.command.shared.repository.User
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
@@ -45,16 +46,16 @@ public class UserCommandService {
 
     private UserType getUserType(UUID userEntraObjectId) {
         EntraUser entraUser = entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
-                .orElseThrow(() -> new RuntimeException("Entra user not found for oid: " + userEntraObjectId));
+                .orElseThrow(() -> new UserNotFoundException("Entra user not found for user Entra OID: " + userEntraObjectId));
         return entraUser.getUserProfiles().stream().map(UserProfile::getUserType).findFirst().orElse(null);
     }
 
     @Transactional(readOnly = true)
     public UserProfile getActiveUserProfile(UUID userEntraObjectId) {
         EntraUser entraUser = entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
-                .orElseThrow(() -> new ResourceNotFoundException(USER_ACCOUNT_NOT_FOUND + userEntraObjectId));
+                .orElseThrow(() -> new UserNotFoundException(USER_ACCOUNT_NOT_FOUND + userEntraObjectId));
         return entraUser.getUserProfiles().stream().filter(UserProfile::isActiveProfile).findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException("Active profile not found for user oid: " + userEntraObjectId));
+                .orElseThrow(() -> new UserProfileNotFoundException("Active profile not found for user Entra OID: " + userEntraObjectId));
     }
 
     @Transactional(readOnly = true)
@@ -100,12 +101,12 @@ public class UserCommandService {
 
     private UserProfile findProfile(UUID userProfileId) {
         return userProfileCommandRepository.findById(userProfileId)
-                .orElseThrow(() -> new ResourceNotFoundException("User profile not found with ID: " + userProfileId));
+                .orElseThrow(() -> new UserProfileNotFoundException("User profile not found with ID: " + userProfileId));
     }
 
     private EntraUser findEntraUser(UUID userEntraObjectId) {
         return entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
-                .orElseThrow(() -> new ResourceNotFoundException(USER_ACCOUNT_NOT_FOUND + userEntraObjectId));
+                .orElseThrow(() -> new UserNotFoundException(USER_ACCOUNT_NOT_FOUND + userEntraObjectId));
     }
 
 }
