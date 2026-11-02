@@ -93,12 +93,29 @@ public class SearchUsersHandler {
         if (sortValues == null || sortValues.isEmpty()) {
             return Sort.unsorted();
         }
-        return Sort.by(sortValues.stream().map(sortValue -> {
-            String[] parts = sortValue.split(",");
-            Sort.Direction direction = parts.length > 1
-                    ? Sort.Direction.fromString(parts[1])
-                    : Sort.Direction.ASC;
-            return new Sort.Order(direction, parts[0]);
-        }).toList());
+
+        if (sortValues.size() == 2
+                && !sortValues.get(0).contains(",")
+                && ("asc".equalsIgnoreCase(sortValues.get(1))
+                || "desc".equalsIgnoreCase(sortValues.get(1)))) {
+
+            sortValues = List.of(
+                    sortValues.get(0) + "," + sortValues.get(1));
+        }
+
+        return Sort.by(
+                sortValues.stream()
+                        .map(sortValue -> {
+                            String[] parts = sortValue.split(",");
+
+                            Sort.Direction direction =
+                                    parts.length > 1
+                                            ? Sort.Direction.fromString(parts[1])
+                                            : Sort.Direction.ASC;
+
+                            return new Sort.Order(direction, parts[0]);
+                        })
+                        .toList()
+        );
     }
 }
