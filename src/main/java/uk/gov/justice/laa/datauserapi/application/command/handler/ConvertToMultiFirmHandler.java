@@ -1,11 +1,12 @@
-package uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmultifirm;
+package uk.gov.justice.laa.datauserapi.application.command.handler;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandler;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.ConvertToMultiFirmDomainMapper;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmultifirm.ConvertToMultiFirmCommand;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;

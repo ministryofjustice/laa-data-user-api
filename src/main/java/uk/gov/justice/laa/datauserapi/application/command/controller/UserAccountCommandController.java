@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import uk.gov.justice.laa.datauserapi.application.command.handler.ConvertToMultiFirmHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeactivateUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeleteUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.ReactivateUserHandler;
@@ -20,7 +21,6 @@ import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMappe
 import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserDetailsHandler;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmultifirm.ConvertToMultiFirmCommand;
-import uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmultifirm.ConvertToMultiFirmHandler;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.UpdateUserDetailsMapper;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeleteUserCommand;
