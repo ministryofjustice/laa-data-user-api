@@ -124,6 +124,12 @@ public class EntraUser extends AuditableEntity {
         setDeactivationType(null);
     }
 
+    public void convertToMultiFirm(String actorId) {
+        this.multiFirmUser = true;
+        setLastModified(LocalDateTime.now());
+        setLastModifiedBy(actorId);
+    }
+
     public void deactivate(String actorId, DeactivationType deactivationType) {
         this.active = false;
         this.userAccountStatus = UserAccountStatus.DEACTIVATED;
