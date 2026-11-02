@@ -2,18 +2,21 @@ package uk.gov.justice.laa.datauserapi.controller;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.jwt.Jwt;
+import uk.gov.justice.laa.datauserapi.application.service.UserProfileService;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
-import java.time.Instant;
 import java.util.UUID;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ExampleControllerTest {
 
-    private final ExampleController controller = new ExampleController();
+    private final ExampleController controller = new ExampleController(new UserProfileService());
 
     @Test
     void me_returnsOidFromJwtClaim() {
@@ -44,5 +47,17 @@ class ExampleControllerTest {
 
         assertThat(response.getStatusCode().value()).isEqualTo(422);
         assertThat(response.getBody()).isNull();
+    }
+
+    @Test
+    void me_delegatesProfileLookupToApplicationService() {
+        UserProfileService service = mock(UserProfileService.class);
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder().entraOid("test-oid").build();
+        when(service.getProfile(user)).thenReturn(Optional.empty());
+
+        ResponseEntity<UserProfileDetailView> response = new ExampleController(service).me(user);
+
+        verify(service).getProfile(user);
+        assertThat(response.getStatusCode().value()).isEqualTo(422);
     }
 }

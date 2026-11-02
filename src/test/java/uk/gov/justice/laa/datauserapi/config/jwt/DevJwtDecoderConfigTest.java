@@ -136,4 +136,26 @@ class DevJwtDecoderConfigTest {
         assertThatThrownBy(() -> jwtDecoder.decode(null))
                 .isInstanceOf(JwtException.class);
     }
+
+    @Test
+    void shouldWrapMalformedJwtPayloadWithSpecificParsingCause() {
+        assertThatThrownBy(() -> jwtDecoder.decode("ey.invalid.jwt"))
+                .isInstanceOf(JwtException.class)
+                .hasMessageContaining("unable to parse token payload")
+                .hasCauseInstanceOf(java.text.ParseException.class);
+    }
+
+    @Test
+    void shouldWrapInvalidJwtTimestamps() throws Exception {
+        JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
+                .issueTime(new Date(2_000))
+                .expirationTime(new Date(1_000))
+                .build();
+        SignedJWT signedJwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claimsSet);
+        signedJwt.sign(new MACSigner("01234567890123456789012345678901"));
+
+        assertThatThrownBy(() -> jwtDecoder.decode(signedJwt.serialize()))
+                .isInstanceOf(JwtException.class)
+                .hasCauseInstanceOf(IllegalArgumentException.class);
+    }
 }

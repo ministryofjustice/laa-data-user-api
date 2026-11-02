@@ -43,20 +43,13 @@ public class JwtDecoderConfig {
                 kv("issuerUri", issuerUri),
                 kv("jwkSetUri", jwkSetUri),
                 kv("audience", audience));
-        try {
-            OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(audience);
-            OAuth2TokenValidator<Jwt> timestampValidator = new JwtTimestampValidator();
-            OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
+        OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(audience);
+        OAuth2TokenValidator<Jwt> timestampValidator = new JwtTimestampValidator();
+        OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
 
-            NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
-            jwtDecoder.setJwtValidator(
-                new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator, timestampValidator));
-            return jwtDecoder;
-        } catch (Exception e) {
-            log.error("JWT decoder creation failed",
-                    kv("exceptionMessage", e.getMessage()),
-                    e);
-            throw new RuntimeException("JWT Decoder configuration failed", e);
-        }
+        NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+        jwtDecoder.setJwtValidator(
+            new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator, timestampValidator));
+        return jwtDecoder;
     }
 }
