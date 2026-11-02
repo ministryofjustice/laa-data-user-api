@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -47,6 +48,23 @@ public class GlobalExceptionHandler {
         );
 
         return problemResponse(HttpStatus.NOT_FOUND, problem);
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ProblemDetail> handleConflict(
+            ConflictException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/conflict"),
+                "Conflict",
+                HttpStatus.CONFLICT.value(),
+                ex.getMessage(),
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return problemResponse(HttpStatus.CONFLICT, problem);
     }
 
     @ExceptionHandler(ReferenceDataNotFoundException.class)
@@ -115,6 +133,23 @@ public class GlobalExceptionHandler {
                 "One or more request parameters failed validation.",
                 URI.create(request.getRequestURI()),
                 fieldErrors
+        );
+
+        return problemResponse(HttpStatus.BAD_REQUEST, problem);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ProblemDetail> handleUnreadableBody(
+            HttpMessageNotReadableException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/validation-error"),
+                "Validation Error",
+                HttpStatus.BAD_REQUEST.value(),
+                "The request body is missing or malformed.",
+                URI.create(request.getRequestURI()),
+                null
         );
 
         return problemResponse(HttpStatus.BAD_REQUEST, problem);

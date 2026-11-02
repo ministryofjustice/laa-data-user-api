@@ -787,6 +787,9 @@ paths:
       operationId: commandUserAccountConvertMultiFirm
       tags: [User Account]
       summary: Convert user to multi-firm. This cannot be undone.
+      description: >
+        Requires the user_data.admin scope. The actor must be an internal user holding both the
+        EDIT_EXTERNAL_USER and CONVERT_USER_TO_MULTI_FIRM permissions.
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
