@@ -83,12 +83,12 @@ class TechServicesConfigTest {
                 "app.tech.services.req.read.timeout=45",
                 "app.tech.services.req.connect.timeout=10",
                 "app.tech.services.laa.business.unit=custom-unit").run(context -> {
-            assertThat(context).hasNotFailed();
-            HttpTimeoutProperties timeouts = context.getBean(HttpTimeoutProperties.class);
-            assertThat(timeouts.read().timeout()).isEqualTo(45);
-            assertThat(timeouts.connect().timeout()).isEqualTo(10);
-            assertThat(context.getBean(TechServicesClientProperties.class).unit()).isEqualTo("custom-unit");
-        });
+                    assertThat(context).hasNotFailed();
+                    HttpTimeoutProperties timeouts = context.getBean(HttpTimeoutProperties.class);
+                    assertThat(timeouts.read().timeout()).isEqualTo(45);
+                    assertThat(timeouts.connect().timeout()).isEqualTo(10);
+                    assertThat(context.getBean(TechServicesClientProperties.class).unit()).isEqualTo("custom-unit");
+                });
     }
 
     @Test
