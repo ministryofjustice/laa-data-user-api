@@ -95,8 +95,8 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
                 values (?, ?, ?, 'AUTHZ', 0, ?, true, ?)
                 """, app, "App " + app, "Description " + app, "https://example.com/" + app, app.toString());
         jdbc.update("""
-                insert into app_role (id, name, description, ordinal, legacy_sync, authz_role, app_id)
-                values (?, 'Internal admin', 'Internal admin', 0, false, true, ?)
+                insert into app_role (id, name, description, ordinal, role_identifier, legacy_sync, authz_role, app_id)
+                values (?, 'Internal admin', 'Internal admin', 0, 'internal-admin', false, true, ?)
                 """, role, app);
         jdbc.update("""
                 insert into entra_user (id, entra_oid, email, first_name, last_name, status, multi_firm_user,
@@ -241,6 +241,16 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
         verifyNoInteractions(client);
         assertNoLocalUser();
+    }
+
+    @Test
+    void allowsEligibleInternalActorWithFirmScopedProfile() throws Exception {
+        jdbc.update("update user_profile set firm_id=? where id=?", firm, actorProfile);
+        when(client.createUser(any())).thenReturn(new EntraUserClient.Identity(identity, true));
+
+        mvc.perform(authorizedPost(body())).andExpect(status().isCreated());
+
+        verify(client).createUser(any());
     }
 
     @Test

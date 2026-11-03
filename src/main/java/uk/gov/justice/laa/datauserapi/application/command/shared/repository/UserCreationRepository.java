@@ -26,7 +26,7 @@ public class UserCreationRepository {
                     join role_permission rp on rp.app_role_id = ar.id
                     where eu.entra_oid = ? and eu.enabled = true
                       and up.active_profile = true and up.user_type = 'INTERNAL'
-                      and up.firm_id is null and ar.authz_role = true
+                      and ar.authz_role = true
                       and rp.permission = 'CREATE_EXTERNAL_USER'
                 )
                 """, Boolean.class, actorOid));

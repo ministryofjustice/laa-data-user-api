@@ -30,8 +30,8 @@ CREATE TABLE app_role (
     name VARCHAR(255) NOT NULL,
     description VARCHAR(255) NOT NULL,
     ordinal INTEGER NOT NULL DEFAULT 0,
+    role_identifier VARCHAR(255) NOT NULL,
     legacy_sync BOOLEAN NOT NULL DEFAULT FALSE,
-    ccms_code VARCHAR(30) UNIQUE,
     authz_role BOOLEAN NOT NULL DEFAULT FALSE,
     firm_type_restriction firm_type_enum[],
     user_type_restriction TEXT[]
