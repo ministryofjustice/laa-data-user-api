@@ -56,27 +56,10 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
         int failed = 0;
 
         for (EntraUser user : users) {
-            UUID userEntraObjectId = UUID.fromString(user.getEntraOid());
-            if (user.getUserAccountStatus() == UserAccountStatus.DEACTIVATED) {
-                UserAccountStatusAudit audit = deactivateUserMapper.toAuditEntity(
-                        user, command.deactivateReason(), actor.entraOid());
-                auditRepository.save(audit);
-                alreadyDeactivated++;
-                continue;
-            }
-
-            DeactivateUserCommand deactivateCommand = DeactivateUserCommand.builder()
-                    .userEntraObjectId(userEntraObjectId)
-                    .deactivateReason(command.deactivateReason())
-                    .build();
-            CommandResult result = deactivateUserHandler.handle(deactivateCommand, actor);
-            if (result.success()) {
-                deactivated++;
-            } else {
-                failed++;
-                log.warn("Could not bulk-deactivate user",
-                        kv("entraOid", userEntraObjectId),
-                        kv("firmCode", firmCode));
+            switch (processUser(user, command, actor, firmCode)) {
+                case DEACTIVATED -> deactivated++;
+                case ALREADY_DEACTIVATED -> alreadyDeactivated++;
+                default -> failed++;
             }
         }
 
@@ -89,5 +72,44 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
         return CommandResult.success(String.format(
                 "Deactivated %d users; audited %d already-deactivated users for firm '%s'",
                 deactivated, alreadyDeactivated, firmCode));
+    }
+
+    private UserOutcome processUser(EntraUser user, BulkDeactivateFirmUsersCommand command,
+                                    AuthenticatedEntraUser actor, String firmCode) {
+        // Isolate failures per user so one bad user cannot abort the rest of the batch
+        try {
+            UUID userEntraObjectId = UUID.fromString(user.getEntraOid());
+            if (user.getUserAccountStatus() == UserAccountStatus.DEACTIVATED) {
+                UserAccountStatusAudit audit = deactivateUserMapper.toAuditEntity(
+                        user, command.deactivateReason(), actor.entraOid());
+                auditRepository.save(audit);
+                return UserOutcome.ALREADY_DEACTIVATED;
+            }
+
+            DeactivateUserCommand deactivateCommand = DeactivateUserCommand.builder()
+                    .userEntraObjectId(userEntraObjectId)
+                    .deactivateReason(command.deactivateReason())
+                    .build();
+            CommandResult result = deactivateUserHandler.handle(deactivateCommand, actor);
+            if (result.success()) {
+                return UserOutcome.DEACTIVATED;
+            }
+            log.warn("Could not bulk-deactivate user",
+                    kv("entraOid", user.getEntraOid()),
+                    kv("firmCode", firmCode),
+                    kv("reason", result.message()));
+        } catch (Exception ex) {
+            log.error("Exception occurred while deactivating user",
+                    kv("entraOid", user.getEntraOid()),
+                    kv("firmCode", firmCode),
+                    ex);
+        }
+        return UserOutcome.FAILED;
+    }
+
+    private enum UserOutcome {
+        DEACTIVATED,
+        ALREADY_DEACTIVATED,
+        FAILED
     }
 }

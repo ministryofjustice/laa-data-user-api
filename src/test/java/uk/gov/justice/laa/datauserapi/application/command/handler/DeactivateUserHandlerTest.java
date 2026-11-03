@@ -111,7 +111,7 @@ class DeactivateUserHandlerTest {
 
             assertThat(result).isNotNull();
             assertThat(result.success()).isFalse();
-            assertThat(result.message()).isEqualTo("User can not reactive self");
+            assertThat(result.message()).isEqualTo("User can not deactivate self");
 
             verifyNoInteractions(userCommandService, entraUserCommandRepository, techServicesClient, auditRepository);
         }

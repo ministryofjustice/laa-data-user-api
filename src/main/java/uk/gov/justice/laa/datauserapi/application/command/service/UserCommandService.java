@@ -31,7 +31,7 @@ public class UserCommandService {
 
     private UserType getUserType(UUID userEntraObjectId) {
         EntraUser entraUser = entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
-                .orElseThrow(() -> new RuntimeException("Entra user not found for oid: " + userEntraObjectId));
+                .orElseThrow(() -> new ResourceNotFoundException("Entra user not found for oid: " + userEntraObjectId));
         return entraUser.getUserProfiles().stream().map(UserProfile::getUserType).findFirst().orElse(null);
     }
 

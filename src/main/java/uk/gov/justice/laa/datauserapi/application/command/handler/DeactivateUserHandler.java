@@ -66,7 +66,7 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
         if (Objects.equals(UUID.fromString(actor.entraOid()), command.userEntraObjectId())) {
             log.warn("User cannot deactivate their own account",
                     kv("actorEntraOid", actor.entraOid()));
-            return CommandResult.failure("User can not reactive self");
+            return CommandResult.failure("User can not deactivate self");
         }
 
         boolean isInternalUser = userCommandService.isInternalUser(command.userEntraObjectId());
