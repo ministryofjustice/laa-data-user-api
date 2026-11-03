@@ -42,6 +42,24 @@ To run the full suite of unit and integration tests:
 ./gradlew test
 ```
 
+### CQRS-lite boundaries
+
+Commands and queries share a database but use separate application packages and
+repository interfaces. Entity-to-DTO mapping for user-account queries belongs in
+`UserAccountQueryMapper`; query services expose DTOs rather than persistence entities.
+Shared DTOs remain supported, but their nested fields and accessor results must
+also be entity-free.
+
+ArchUnit enforces read-only transactions on query services and handlers and rejects
+writable method-level overrides. Query repository methods must use read-operation
+names and SELECT queries; write methods, `@Modifying`, stored procedures, and named
+queries that cannot be inspected by the rule are prohibited. Regression tests
+exercise both allowed and rejected architecture examples.
+
+Query service, handler, and controller results are checked recursively for entity
+leakage through collections, wrappers, DTO fields, and projection accessors.
+Tech Services calls intentionally precede database updates; this ordering is unchanged.
+
 ---
 
 ## Docker
@@ -83,25 +101,25 @@ The application relies on several environment variables for configuration. Below
 <details>
 <summary>Click to expand</summary>
 
-| Variable Name                       | Description                                           | Default Value | Source |
-|-------------------------------------|-------------------------------------------------------|---------------|--------|
-| `POSTGRES_DB_ADDRESS`               | The host address for the Postgres database.           | `localhost`   | K8s Secret `rds-postgresql-instance-app-output` |
-| `POSTGRES_DB_NAME`                  | The name of the Postgres database.                    |               | K8s Secret `rds-postgresql-instance-app-output` |
-| `POSTGRES_USERNAME`                 | The username to authenticate with Postgres.           | `postgres`    | K8s Secret `rds-postgresql-instance-app-output` |
-| `POSTGRES_PASSWORD`                 | The password to authenticate with Postgres.           | `postgres`    | K8s Secret `rds-postgresql-instance-app-output` |
-| `AZURE_TENANT_ID`                   | The Azure AD tenant ID, used to validate inbound JWTs. | None          | K8s Secret `laa-data-user-api-azure-tenant-secret-k8s` |
-| `AZURE_CLIENT_ID`                   | The Azure AD client (app) ID (UUID). Used for outbound auth only; not used for audience validation. | None | K8s Secret `laa-data-user-api-azure-client-id-k8s` |
-| `AZURE_APP_URI`                     | The App URI configured in the Entra app registration. Must match the `aud` claim in inbound OBO tokens. | `api://laa-user-data-api` | Helm value |
-| `TECH_SERVICES_AZURE_SCOPE`         | The Azure AD scope for the Tech Services API.         | None          | Helm value (GitHub Actions var) |
-| `TECH_SERVICES_AZURE_CLIENT_ID`     | The Azure AD client ID for the Tech Services API.     | None          | GitHub Actions secret |
-| `TECH_SERVICES_AZURE_CLIENT_SECRET` | The Azure AD client secret for the Tech Services API. | None          | GitHub Actions secret |
-| `TECH_SERVICES_TENANT_ID`           | The Azure AD tenant ID for the Tech Services API.     | None          | GitHub Actions secret |
-| `TECH_SERVICES_BASE_URL`            | The base URL for the Tech Services API.               | None          | GitHub Actions secret |
-| `SLACK_WEBHOOK_URL`                 | Slack Incoming Webhook URL the `laa-data-user-api-uptime-check` CronJob posts to on a failed external health check. Not consumed by the main app. | None | K8s Secret `slack-alert-webhook-secret` |
-| `TECH_SERVICES_CALLS_ENABLED`       | Whether to enable calls to the Tech Services API.     | `false`       | Not yet wired into the Helm chart (`application.yml` default only) |
-| `TECH_SERVICES_LAA_BUSINESS_UNIT`   | The business unit for the Tech Services API.          | `laa`         | Not yet wired into the Helm chart (`application.yml` default only) |
-| `TECH_SERVICES_REQ_READ_TIMEOUT`    | The read timeout for the Tech Services API.           | `30`          | Not yet wired into the Helm chart (`application.yml` default only) |
-| `TECH_SERVICES_REQ_CONNECT_TIMEOUT` | The connect timeout for the Tech Services API.        | `30`          | Not yet wired into the Helm chart (`application.yml` default only) |
+| Variable Name                       | Description                                                                                                                                       | Default Value             | Source                                                             |
+|-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------|--------------------------------------------------------------------|
+| `POSTGRES_DB_ADDRESS`               | The host address for the Postgres database.                                                                                                       | `localhost`               | K8s Secret `rds-postgresql-instance-app-output`                    |
+| `POSTGRES_DB_NAME`                  | The name of the Postgres database.                                                                                                                |                           | K8s Secret `rds-postgresql-instance-app-output`                    |
+| `POSTGRES_USERNAME`                 | The username to authenticate with Postgres.                                                                                                       | `postgres`                | K8s Secret `rds-postgresql-instance-app-output`                    |
+| `POSTGRES_PASSWORD`                 | The password to authenticate with Postgres.                                                                                                       | `postgres`                | K8s Secret `rds-postgresql-instance-app-output`                    |
+| `AZURE_TENANT_ID`                   | The Azure AD tenant ID, used to validate inbound JWTs.                                                                                            | None                      | K8s Secret `laa-data-user-api-azure-tenant-secret-k8s`             |
+| `AZURE_CLIENT_ID`                   | The Azure AD client (app) ID (UUID). Used for outbound auth only; not used for audience validation.                                               | None                      | K8s Secret `laa-data-user-api-azure-client-id-k8s`                 |
+| `AZURE_APP_URI`                     | The App URI configured in the Entra app registration. Must match the `aud` claim in inbound OBO tokens.                                           | `api://laa-user-data-api` | Helm value                                                         |
+| `TECH_SERVICES_AZURE_SCOPE`         | The Azure AD scope for the Tech Services API.                                                                                                     | None                      | Helm value (GitHub Actions var)                                    |
+| `TECH_SERVICES_AZURE_CLIENT_ID`     | The Azure AD client ID for the Tech Services API.                                                                                                 | None                      | GitHub Actions secret                                              |
+| `TECH_SERVICES_AZURE_CLIENT_SECRET` | The Azure AD client secret for the Tech Services API.                                                                                             | None                      | GitHub Actions secret                                              |
+| `TECH_SERVICES_TENANT_ID`           | The Azure AD tenant ID for the Tech Services API.                                                                                                 | None                      | GitHub Actions secret                                              |
+| `TECH_SERVICES_BASE_URL`            | The base URL for the Tech Services API.                                                                                                           | None                      | GitHub Actions secret                                              |
+| `SLACK_WEBHOOK_URL`                 | Slack Incoming Webhook URL the `laa-data-user-api-uptime-check` CronJob posts to on a failed external health check. Not consumed by the main app. | None                      | K8s Secret `slack-alert-webhook-secret`                            |
+| `TECH_SERVICES_CALLS_ENABLED`       | Whether to enable calls to the Tech Services API.                                                                                                 | `false`                   | Not yet wired into the Helm chart (`application.yml` default only) |
+| `TECH_SERVICES_LAA_BUSINESS_UNIT`   | The business unit for the Tech Services API.                                                                                                      | `laa`                     | Not yet wired into the Helm chart (`application.yml` default only) |
+| `TECH_SERVICES_REQ_READ_TIMEOUT`    | The read timeout for the Tech Services API.                                                                                                       | `30`                      | Not yet wired into the Helm chart (`application.yml` default only) |
+| `TECH_SERVICES_REQ_CONNECT_TIMEOUT` | The connect timeout for the Tech Services API.                                                                                                    | `30`                      | Not yet wired into the Helm chart (`application.yml` default only) |
 
 Note there are two distinct Azure AD app registrations in play here, each with its own credentials: the values under `AZURE_*` validate JWTs presented *to* this API (inbound), while `TECH_SERVICES_AZURE_*`/`TECH_SERVICES_TENANT_ID` authenticate this API's outbound calls *to* the Tech Services API. There's currently no `AZURE_CLIENT_SECRET` — the inbound-validation app registration only needs the tenant and client ID.
 

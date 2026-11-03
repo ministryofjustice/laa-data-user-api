@@ -57,8 +57,13 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
                     OR :#{#criteria.user} = ''
                     OR LOWER(u.email) LIKE LOWER(CONCAT('%', :#{#criteria.user}, '%'))
                     OR LOWER(CONCAT(u.firstName, ' ', u.lastName)) LIKE LOWER(CONCAT('%', :#{#criteria.user}, '%')))
+                
+                AND (:#{#criteria.emailQuery} IS NULL
+                    OR :#{#criteria.emailQuery} = ''
+                    OR LOWER(u.email) LIKE LOWER(
+                    CONCAT('%', :#{#criteria.emailQuery}, '%')))
 
-                AND (:#{#criteria.firmId} IS NULL OR up.firm.id = :#{#criteria.firmId})
+                AND (:#{#criteria.firmId} IS NULL OR up.firm.code = :#{#criteria.firmId})
 
                 AND (:#{#criteria.firm} IS NULL OR :#{#criteria.firm} = '' OR LOWER(f.name) LIKE LOWER(CONCAT('%', :#{#criteria.firm}, '%'))
                                 OR CAST(f.id AS STRING) LIKE CONCAT('%', :#{#criteria.firm}, '%'))
@@ -68,6 +73,8 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
                 AND (:#{#criteria.userAccountStatus} IS NULL OR u.userAccountStatus = :#{#criteria.userAccountStatus})
 
                 AND (:#{#criteria.appId} IS NULL OR ar.app.id = :#{#criteria.appId})
+
+                AND (:#{#criteria.appEntraClientId} IS NULL OR ar.app.entraAppId = :#{#criteria.appEntraClientId})
 
                 AND( :#{#criteria.neverActivatedFilter} IS NULL OR :#{#criteria.neverActivatedFilter} = FALSE
                                 OR u.userAccountStatus = UserAccountStatus.ACTIVATION_REQUIRED)
@@ -97,8 +104,12 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
                         LIKE LOWER(CONCAT('%', :#{#criteria.user}, '%'))
                     OR LOWER(CONCAT(u.firstName, ' ', u.lastName))
                         LIKE LOWER(CONCAT('%', :#{#criteria.user}, '%')))
+               
+                AND (:#{#criteria.emailQuery} IS NULL
+                    OR :#{#criteria.emailQuery} = ''
+                    OR LOWER(u.email) LIKE LOWER(CONCAT('%', :#{#criteria.emailQuery}, '%')))
 
-                AND (:#{#criteria.firmId} IS NULL OR up.firm.id = :#{#criteria.firmId})
+                AND (:#{#criteria.firmId} IS NULL OR up.firm.code = :#{#criteria.firmId})
 
                 AND (:#{#criteria.firm} IS NULL OR :#{#criteria.firm} = '' OR LOWER(f.name) LIKE LOWER(CONCAT('%', :#{#criteria.firm}, '%'))
                                  OR CAST(f.id AS STRING) LIKE CONCAT('%', :#{#criteria.firm}, '%'))
@@ -108,6 +119,8 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
                 AND (:#{#criteria.userAccountStatus} IS NULL OR u.userAccountStatus = :#{#criteria.userAccountStatus})
 
                 AND (:#{#criteria.appId} IS NULL OR ar.app.id = :#{#criteria.appId})
+
+                AND (:#{#criteria.appEntraClientId} IS NULL OR ar.app.entraAppId = :#{#criteria.appEntraClientId})
 
                 AND( :#{#criteria.neverActivatedFilter} IS NULL OR :#{#criteria.neverActivatedFilter} = FALSE OR u.userAccountStatus = UserAccountStatus.ACTIVATION_REQUIRED)
 

@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
@@ -8,6 +10,7 @@ import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -41,7 +44,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleNotFound(
             ResourceNotFoundException ex,
             HttpServletRequest request) {
-        log.warn(ex.getMessage(), ex);
+        log.warn("Resource not found",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/not-found"),
                 "Resource Not Found",
@@ -54,11 +60,51 @@ public class GlobalExceptionHandler {
         return problemResponse(HttpStatus.NOT_FOUND, problem);
     }
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ProblemDetail> handleConflict(
+            ConflictException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/conflict"),
+                "Conflict",
+                HttpStatus.CONFLICT.value(),
+                ex.getMessage(),
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return problemResponse(HttpStatus.CONFLICT, problem);
+    }
+
+    @ExceptionHandler(ReferenceDataNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleReferenceDataNotFound(
+            ReferenceDataNotFoundException ex,
+            HttpServletRequest request) {
+        log.warn("Reference data not found",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/server-error"),
+                "Reference Data Not Found",
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                ex.getMessage(),
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return problemResponse(HttpStatus.INTERNAL_SERVER_ERROR, problem);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ProblemDetail> handleValidationErrors(
             MethodArgumentNotValidException ex,
             HttpServletRequest request) {
-        log.warn(ex.getMessage(), ex);
+        log.warn("Request body validation failed",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
         List<FieldErrorDetail> fieldErrors = ex.getBindingResult()
                 .getFieldErrors()
                 .stream()
@@ -81,7 +127,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleConstraintViolation(
             ConstraintViolationException ex,
             HttpServletRequest request) {
-        log.warn(ex.getMessage(), ex);
+        log.warn("Request constraint validation failed",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
         List<FieldErrorDetail> fieldErrors = ex.getConstraintViolations()
                 .stream()
                 .map(this::toFieldErrorDetail)
@@ -99,11 +148,31 @@ public class GlobalExceptionHandler {
         return problemResponse(HttpStatus.BAD_REQUEST, problem);
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ProblemDetail> handleUnreadableBody(
+            HttpMessageNotReadableException ex,
+            HttpServletRequest request) {
+        log.warn(ex.getMessage(), ex);
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/validation-error"),
+                "Validation Error",
+                HttpStatus.BAD_REQUEST.value(),
+                "The request body is missing or malformed.",
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return problemResponse(HttpStatus.BAD_REQUEST, problem);
+    }
+
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ProblemDetail> handleMissingRequestParameter(
             MissingServletRequestParameterException ex,
             HttpServletRequest request) {
-        log.warn(ex.getMessage(), ex);
+        log.warn("Required request parameter is missing",
+                kv("parameterName", ex.getParameterName()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
                 "Validation Error",
@@ -120,7 +189,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleInvalidUuidFormat(
             InvalidUuidFormatException ex,
             HttpServletRequest request) {
-        log.warn(ex.getMessage(), ex);
+        log.warn("UUID format validation failed",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
 
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
@@ -138,7 +210,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleTypeMismatch(
             MethodArgumentTypeMismatchException ex,
             HttpServletRequest request) {
-        log.warn(ex.getMessage(), ex);
+        log.warn("Request parameter type validation failed",
+                kv("parameterName", ex.getName()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
 
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
@@ -173,7 +248,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleForbidden(
             AccessDeniedException ex,
             HttpServletRequest request) {
-        log.warn(ex.getMessage(), ex);
+        log.warn("Request access denied",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
 
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/forbidden"),
@@ -191,7 +269,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleJwtException(
             JwtException ex,
             HttpServletRequest request) {
-        log.warn(ex.getMessage(), ex);
+        log.warn("JWT validation failed",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
 
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/unauthorized"),
@@ -209,7 +290,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleScopeMissing(
             ScopeMissingException ex,
             HttpServletRequest request) {
-        log.warn(ex.getMessage(), ex);
+        log.warn("Required scope is missing",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
 
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/forbidden"),
@@ -227,7 +311,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleInvalidActorContext(
             InvalidActorContextException ex,
             HttpServletRequest request) {
-        log.warn(ex.getMessage(), ex);
+        log.warn("Actor context is invalid",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
 
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/forbidden"),
@@ -246,7 +333,10 @@ public class GlobalExceptionHandler {
             Exception ex,
             HttpServletRequest request) {
 
-        log.error(ex.getMessage(), ex);
+        log.error("Unhandled request error",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/internal-server-error"),
                 "Internal Server Error",

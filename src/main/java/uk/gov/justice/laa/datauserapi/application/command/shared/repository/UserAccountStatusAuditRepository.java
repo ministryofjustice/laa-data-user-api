@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 
 @Repository
-public interface UserAccountStatusAuditRepository extends JpaRepository<UserAccountStatusAudit, Long> {}
+public interface UserAccountStatusAuditRepository extends JpaRepository<UserAccountStatusAudit, Long> {
+}

@@ -5,7 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus;
 import uk.gov.justice.laa.datauserapi.contracts.request.ReactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
@@ -56,7 +56,7 @@ class ReactivateUserMapperTest {
             assertThat(audit.getEntraUserId()).isSameAs(user.getId());
             assertThat(audit.getUserEmail()).isEqualTo("john.doe@justice.gov.uk");
             assertThat(audit.getUserName()).isEqualTo("John Doe");
-            assertThat(audit.getUserAccountStatus()).isEqualTo(UserAccountStatus.ACTIVE);
+            assertThat(audit.getUserAccountAuditStatus()).isEqualTo(UserAccountAuditStatus.ACTIVATED);
             assertThat(audit.getStatusChangedBy()).isEqualTo(actorId);
             assertThat(audit.getComments()).isEqualTo(comments);
             assertThat(audit.getDeactivateUserReasonLookup()).isNull();
@@ -84,7 +84,7 @@ class ReactivateUserMapperTest {
             assertThat(audit).isNotNull();
             assertThat(audit.getComments()).isNull();
             assertThat(audit.getUserName()).isEqualTo("Jane Smith");
-            assertThat(audit.getUserAccountStatus()).isEqualTo(UserAccountStatus.ACTIVE);
+            assertThat(audit.getUserAccountAuditStatus()).isEqualTo(UserAccountAuditStatus.ACTIVATED);
         }
     }
 

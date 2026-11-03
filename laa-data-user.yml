@@ -166,7 +166,7 @@ paths:
         - $ref: '#/components/parameters/Size'
         - $ref: '#/components/parameters/Sort'
         - $ref: '#/components/parameters/UserType'
-        - $ref: '#/components/parameters/UserProfileStatus'
+        - $ref: '#/components/parameters/UserProfileSilasStatus'
         - $ref: '#/components/parameters/AppIdFilter'
         - $ref: '#/components/parameters/AppRoleIdFilter'
         - $ref: '#/components/parameters/OfficeIdFilter'
@@ -812,6 +812,9 @@ paths:
       operationId: commandUserAccountConvertMultiFirm
       tags: [User Account]
       summary: Convert user to multi-firm. This cannot be undone.
+      description: >
+        Requires the user_data.admin scope. The actor must be an internal user holding both the
+        EDIT_EXTERNAL_USER and CONVERT_USER_TO_MULTI_FIRM permissions.
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
@@ -1551,11 +1554,11 @@ components:
       in: query
       schema:
         $ref: '#/components/schemas/UserAccountStatus'
-    UserProfileStatus:
+    UserProfileSilasStatus:
       name: user_profile_status
       in: query
       schema:
-        $ref: '#/components/schemas/UserProfileStatus'
+        $ref: '#/components/schemas/UserProfileSilasStatus'
 
   responses:
     BadRequest:
@@ -1677,9 +1680,9 @@ components:
       type: string
       enum: ["ACTIVE", "DEACTIVATED", "ACTIVATION_REQUIRED"]
 
-    UserProfileStatus:
+    UserProfileSilasStatus:
       type: string
-      enum: ["COMPLETE", "NO_ROLES_ASSIGNED", "ACTIVATION_REQUIRED"]
+      enum: ["COMPLETE", "NO_ACCESS_ASSIGNED", "ACTIVATION_REQUIRED", "NO_FIRMS_LINKED", "UNKNOWN"]
 
     FirmType:
       type: string
@@ -1776,7 +1779,7 @@ components:
         accountStatus:
           $ref: '#/components/schemas/UserAccountStatus'
         profileStatus:
-          $ref: '#/components/schemas/UserProfileStatus'
+            $ref: '#/components/schemas/UserProfileSilasStatus'
         hasAppRoles:
           type: boolean
 
@@ -1968,7 +1971,7 @@ components:
     AppRoleView:
       type: object
       description: Read model for app_role
-      required: [ appRoleId, appId, name, description, authzRole, legacySync, ordinal, appRoleUserTypeRestriction ]
+      required: [ appRoleId, appId, name, description, authzRole, roleIdentifier, legacySync, ordinal, appRoleUserTypeRestriction ]
       properties:
         appRoleId:
           type: string
@@ -1984,7 +1987,7 @@ components:
           type: string
         authzRole:
           type: boolean
-        ccmsCode:
+        roleIdentifier:
           type: string
         legacySync:
           type: boolean
@@ -2476,7 +2479,7 @@ components:
 
     CreateAppRoleCommand:
       type: object
-      required: [appId, name, description, appRoleUserTypeRestriction]
+      required: [appId, name, description, roleIdentifier, appRoleUserTypeRestriction]
       properties:
         appId:
           type: string
@@ -2485,8 +2488,10 @@ components:
           type: string
         description:
           type: string
-        ccmsCode:
+        roleIdentifier:
           type: string
+          minLength: 1
+          maxLength: 255
         legacySync:
           type: boolean
           default: false

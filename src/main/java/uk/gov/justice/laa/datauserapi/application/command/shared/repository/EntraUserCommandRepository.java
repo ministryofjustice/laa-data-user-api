@@ -1,10 +1,12 @@
 package uk.gov.justice.laa.datauserapi.application.command.shared.repository;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 
 import java.util.List;
@@ -14,20 +16,32 @@ import java.util.UUID;
 @Repository
 public interface EntraUserCommandRepository extends JpaRepository<EntraUser, UUID> {
 
+    // Matches any profile linked to the firm, including profiles of multi-firm users and deactivated accounts.
     @Query("""
-        SELECT DISTINCT u.id
+        SELECT DISTINCT u
         FROM EntraUser u
         JOIN u.userProfiles p
         WHERE p.firm is not null
           AND p.firm.code = :firmCode
-          AND p.activeProfile = true
-          AND u.userAccountStatus = :status
-          AND u.multiFirmUser = false
         ORDER BY u.id
         """)
-    List<UUID> findActiveSingleFirmUserIdsByFirmCode(
-            @Param("firmCode") String firmCode,
-            @Param("status") UserAccountStatus status);
+    List<EntraUser> findUsersByFirmCode(@Param("firmCode") String firmCode);
 
     Optional<EntraUser> findByEntraOid(String entraOid);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM EntraUser u WHERE u.entraOid = :entraOid")
+    Optional<EntraUser> findByEntraOidForUpdate(@Param("entraOid") String entraOid);
+
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, UUID id);
+
+    @Query("SELECT u.id FROM EntraUser u ORDER BY u.id")
+    List<UUID> findRefreshUserIds(Pageable pageable);
+
+    @Query("SELECT u.id FROM EntraUser u WHERE u.id > :afterId ORDER BY u.id")
+    List<UUID> findRefreshUserIdsAfter(@Param("afterId") UUID afterId, Pageable pageable);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM EntraUser u WHERE u.id IN :ids ORDER BY u.id")
+    List<EntraUser> findRefreshUsersForUpdate(@Param("ids") List<UUID> ids);
 }

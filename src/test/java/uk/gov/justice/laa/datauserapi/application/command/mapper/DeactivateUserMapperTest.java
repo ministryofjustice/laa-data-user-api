@@ -10,7 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.DeactivateUserReasonRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus;
 import uk.gov.justice.laa.datauserapi.contracts.request.DeactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.entity.DeactivateUserReasonLookup;
@@ -76,12 +76,12 @@ class DeactivateUserMapperTest {
             LocalDateTime beforeCall = LocalDateTime.now();
 
             // Act
-            UserAccountStatusAudit audit = mapper.toAuditEntity(entraUser, command, actorId);
+            UserAccountStatusAudit audit = mapper.toAuditEntity(entraUser, command.deactivateReason(), actorId);
 
             // Assert
             assertThat(audit).isNotNull();
             assertThat(audit.getEntraUserId()).isSameAs(entraUser.getId());
-            assertThat(audit.getUserAccountStatus()).isEqualTo(UserAccountStatus.DEACTIVATED);
+            assertThat(audit.getUserAccountAuditStatus()).isEqualTo(UserAccountAuditStatus.DEACTIVATED);
             assertThat(audit.getStatusChangedBy()).isEqualTo(actorId);
             assertThat(audit.getDeactivateUserReasonLookup()).isSameAs(lookupEntity);
             assertThat(audit.getStatusChangedDate())
@@ -112,7 +112,7 @@ class DeactivateUserMapperTest {
                     .thenReturn(Optional.empty());
 
             // Act & Assert
-            assertThatThrownBy(() -> mapper.toAuditEntity(entraUser, command, actorId))
+            assertThatThrownBy(() -> mapper.toAuditEntity(entraUser, command.deactivateReason(), actorId))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("Deactivate reason not found: " + reasonEnum.name());
 

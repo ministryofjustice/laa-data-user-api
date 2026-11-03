@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
+import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
@@ -45,4 +46,13 @@ public class DoNothingTestServiceClientTest {
         assertThat(response.getData().getMessage()).isEqualTo("Successfully deactivated user.");
     }
 
+    @Test
+    void testUpdateUserDetails() {
+        TechServicesApiResponse<ChangeAccountEnabledResponse> response =
+                techServicesClient.updateUserDetails("oid", "John", "Doe", "j@d.com");
+
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getData().isSuccess()).isTrue();
+        assertThat(response.getData().getMessage()).isEqualTo("Successfully Update user details.");
+    }
 }

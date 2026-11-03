@@ -7,7 +7,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.jwt.Jwt;
 import uk.gov.justice.laa.datauserapi.application.command.handler.BulkDeactivateFirmUsersHandler;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.BulkDeactivateFirmUsersMapper;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.BulkDeactivateFirmUsersCommand;
@@ -41,23 +40,29 @@ class FirmCommandControllerTest {
     @Test
     void bulkDeactivateUsers_usesAuthenticatedActorAndReturnsResult() {
         String firmId = "123456";
-        String actorId = UUID.randomUUID().toString();
+        UUID actorId = UUID.randomUUID();
+        final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                .id(actorId)
+                .email("actor@example.com")
+                .active(true)
+                .build();
         BulkDeactivateFirmUsersRequest request =
                 new BulkDeactivateFirmUsersRequest(firmId, DeactivateUserReason.FirmClosureorMerger);
         BulkDeactivateFirmUsersCommand command =
                 new BulkDeactivateFirmUsersCommand(firmId, DeactivateUserReason.FirmClosureorMerger);
         CommandResult expected = CommandResult.success("Deactivated 1 users");
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
-                .entraOid(actorId)
+                .id(actorId)
+                .entraOid(actorId.toString())
                 .build();
         when(mapper.toCommand(request)).thenReturn(command);
-        when(handler.handle(command, actorId)).thenReturn(expected);
+        when(handler.handle(command, user)).thenReturn(expected);
 
         ResponseEntity<CommandResult> response = controller.bulkDeactivateUsers(request, user);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isSameAs(expected);
         verify(mapper).toCommand(request);
-        verify(handler).handle(command, actorId);
+        verify(handler).handle(command, user);
     }
 }

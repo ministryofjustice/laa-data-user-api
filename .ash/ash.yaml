@@ -51,6 +51,8 @@ scanners:
     options:
       frameworks:
         - all
+      skip_frameworks:
+        - helm # runner has helm, whose temp-rendered files crash checkov's CycloneDX output; container mode never scanned the chart
   detect-secrets:
     enabled: false
   grype:

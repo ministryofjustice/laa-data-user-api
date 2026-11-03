@@ -39,8 +39,7 @@ import java.util.UUID;
     @Index(name = "UserEntraOidIdx", columnList = "entra_oid"),
     @Index(name = "UserCreatedByIdx", columnList = "created_by"),
     @Index(name = "UserCreatedDateIdx", columnList = "created_date"),
-    @Index(name = "UserLastModifiedDateIdx", columnList = "last_modified_date"),
-    @Index(name = "UserLastModifiedByIdx", columnList = "last_modified_by"),
+    @Index(name = "UserLastModifiedDateIdx", columnList = "last_modified_date"), @Index(name = "UserLastModifiedByIdx", columnList = "last_modified_by"),
 })
 @Getter
 @Setter
@@ -117,14 +116,22 @@ public class EntraUser extends AuditableEntity {
 
     public void reactivate(String actorId) {
         this.userAccountStatus = UserAccountStatus.ACTIVE;
+        setActive(true);
         setLastModified(LocalDateTime.now());
         setLastModifiedBy(actorId);
         setDeactivatedBy(null);
         setDeactivationType(null);
     }
 
+    public void convertToMultiFirm(String actorId) {
+        this.multiFirmUser = true;
+        setLastModified(LocalDateTime.now());
+        setLastModifiedBy(actorId);
+    }
+
     public void deactivate(String actorId, DeactivationType deactivationType) {
         this.userAccountStatus = UserAccountStatus.DEACTIVATED;
+        setActive(false);
         setLastModified(LocalDateTime.now());
         setDeactivatedBy(UUID.fromString(actorId));
         setDeactivationType(deactivationType);

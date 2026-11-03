@@ -15,7 +15,7 @@ public interface UserAccountQueryRepository extends Repository<UserAccountStatus
         SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.AccountStatusHistoryView(
             eu.id,
             eu.entraOid,
-            a.userAccountStatus,
+            a.userAccountAuditStatus,
             a.statusChangedDate,
             a.statusChangedBy,
             a.deactivateUserReasonLookup.name

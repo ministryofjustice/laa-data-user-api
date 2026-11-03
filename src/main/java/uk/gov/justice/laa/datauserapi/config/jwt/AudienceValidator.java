@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.config.jwt;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
@@ -21,15 +23,16 @@ public class AudienceValidator implements OAuth2TokenValidator<Jwt> {
 
     @Override
     public OAuth2TokenValidatorResult validate(Jwt jwt) {
-        log.debug("Expected audience: {}", audience);
-        log.debug("JWT audiences: {}", jwt.getAudience());
-
         if (jwt.getAudience().contains(audience)) {
-            log.debug("Audience validation successful");
+            log.debug("JWT audience validation succeeded",
+                    kv("expectedAudience", audience),
+                    kv("tokenAudiences", jwt.getAudience()));
             return OAuth2TokenValidatorResult.success();
         }
 
-        log.debug("Audience validation failed - expected: {} | found: {}", audience, jwt.getAudience());
+        log.debug("JWT audience validation failed",
+                kv("expectedAudience", audience),
+                kv("tokenAudiences", jwt.getAudience()));
         return OAuth2TokenValidatorResult.failure(
             new OAuth2Error("invalid_token",
                 "The required audience " + audience + " is missing", null));
