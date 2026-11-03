@@ -16,7 +16,6 @@ import java.util.UUID;
 @Repository
 public interface EntraUserCommandRepository extends JpaRepository<EntraUser, UUID> {
 
-    // Matches any profile linked to the firm, including profiles of multi-firm users and deactivated accounts.
     @Query("""
         SELECT DISTINCT u
         FROM EntraUser u

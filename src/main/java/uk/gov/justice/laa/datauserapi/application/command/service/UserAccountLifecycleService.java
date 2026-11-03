@@ -1,0 +1,108 @@
+package uk.gov.justice.laa.datauserapi.application.command.service;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import java.util.UUID;
+
+import org.modelmapper.ModelMapper;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
+import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
+import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserAccountStatusAuditRepository;
+import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
+import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
+import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
+import uk.gov.justice.laa.datauserapi.entity.EntraUser;
+import uk.gov.justice.laa.datauserapi.exception.UserNotDeactivatedException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
+import uk.gov.justice.laa.datauserapi.model.DeactivationType;
+
+/**
+ * Write-side owner of the user account status lifecycle. Handlers orchestrate and call this service so they never
+ * touch persistence entities; every method joins the handler's transaction.
+ */
+@Service
+public class UserAccountLifecycleService {
+
+    private final EntraUserCommandRepository entraUserCommandRepository;
+    private final UserAccountStatusAuditRepository auditRepository;
+    private final DeactivateUserMapper deactivateUserMapper;
+    private final ReactivateUserMapper reactivateUserMapper;
+    private final ModelMapper modelMapper;
+    private final EntityManager entityManager;
+
+    public UserAccountLifecycleService(
+            EntraUserCommandRepository entraUserCommandRepository,
+            UserAccountStatusAuditRepository auditRepository,
+            DeactivateUserMapper deactivateUserMapper,
+            ReactivateUserMapper reactivateUserMapper,
+            ModelMapper modelMapper,
+            EntityManager entityManager) {
+        this.entraUserCommandRepository = entraUserCommandRepository;
+        this.auditRepository = auditRepository;
+        this.deactivateUserMapper = deactivateUserMapper;
+        this.reactivateUserMapper = reactivateUserMapper;
+        this.modelMapper = modelMapper;
+        this.entityManager = entityManager;
+    }
+
+    /** Detached DTO used only as input for outbound calls made by the command being handled. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public EntraUserDto loadEntraUserDtoByEntraOid(UUID userEntraObjectId) {
+        return modelMapper.map(load(userEntraObjectId), EntraUserDto.class);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public EntraUserDto loadEntraUserDtoForDeactivation(UUID userEntraObjectId) {
+        return modelMapper.map(loadForUpdate(userEntraObjectId), EntraUserDto.class);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public LockedUserForReactivation loadUserForReactivation(UUID userEntraObjectId) {
+        EntraUser user = loadForUpdate(userEntraObjectId);
+        if (user.isActive()) {
+            throw new UserNotDeactivatedException(userEntraObjectId);
+        }
+        return new LockedUserForReactivation(
+                modelMapper.map(user, EntraUserDto.class), user.getDeactivationType());
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public CommandResult deactivate(UUID userEntraObjectId, String actorEntraOid,
+                                    DeactivationType deactivationType, DeactivateUserReason reason) {
+        EntraUser user = loadForUpdate(userEntraObjectId);
+        if (user.isActive() || deactivationType.isAtLeastAsPrivilegedAs(user.getDeactivationType())) {
+            user.deactivate(actorEntraOid, deactivationType);
+            entraUserCommandRepository.save(user);
+        }
+        auditRepository.save(deactivateUserMapper.toAuditEntity(user, reason, actorEntraOid));
+        return deactivateUserMapper.toCommandResult(user);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public CommandResult reactivate(UUID userEntraObjectId, String actorEntraOid, String comments) {
+        EntraUser user = load(userEntraObjectId);
+        user.reactivate(actorEntraOid);
+        entraUserCommandRepository.save(user);
+        auditRepository.save(reactivateUserMapper.toAuditEntity(user, actorEntraOid, comments));
+        return reactivateUserMapper.toCommandResult(user);
+    }
+
+    private EntraUser load(UUID userEntraObjectId) {
+        return entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
+                .orElseThrow(() -> new UserNotFoundException(userEntraObjectId));
+    }
+
+    private EntraUser loadForUpdate(UUID userEntraObjectId) {
+        EntraUser user = entraUserCommandRepository.findByEntraOidForUpdate(String.valueOf(userEntraObjectId))
+                .orElseThrow(() -> new UserNotFoundException(userEntraObjectId));
+        entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
+        return user;
+    }
+
+    public record LockedUserForReactivation(EntraUserDto user, DeactivationType deactivationType) {
+    }
+}
