@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.service.RoleChangeNotificationService;
-import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.DeleteUserReasonRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserAccountStatusAuditRepository;
@@ -34,11 +33,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Permission ({@code DELETE_EXTERNAL_USER}), self/internal-target rules and firm scoping are enforced declaratively on
+ * {@link DeleteUserCommand} via {@code @RequiresPermission} and its policies before this handler runs.
+ */
 @Slf4j
 @Component
 public class DeleteUserHandler implements CommandHandler<DeleteUserCommand> {
@@ -48,7 +49,6 @@ public class DeleteUserHandler implements CommandHandler<DeleteUserCommand> {
     private final UserAccountStatusAuditRepository auditRepository;
     private final DeleteUserReasonRepository deleteUserReasonRepository;
     private final DeleteUserMapper deleteUserMapper;
-    private final UserCommandService userCommandService;
     private final RoleChangeNotificationService roleChangeNotificationService;
     private final TechServicesClient techServicesClient;
     private final ModelMapper modelMapper;
@@ -60,7 +60,6 @@ public class DeleteUserHandler implements CommandHandler<DeleteUserCommand> {
             UserAccountStatusAuditRepository auditRepository,
             DeleteUserReasonRepository deleteUserReasonRepository,
             DeleteUserMapper deleteUserMapper,
-            UserCommandService userCommandService,
             RoleChangeNotificationService roleChangeNotificationService,
             TechServicesClient techServicesClient,
             ModelMapper modelMapper,
@@ -71,7 +70,6 @@ public class DeleteUserHandler implements CommandHandler<DeleteUserCommand> {
         this.deleteUserReasonRepository = deleteUserReasonRepository;
         this.deleteUserMapper = deleteUserMapper;
         this.modelMapper = modelMapper;
-        this.userCommandService = userCommandService;
         this.roleChangeNotificationService = roleChangeNotificationService;
         this.techServicesClient = techServicesClient;
         this.entityManager = entityManager;
@@ -85,42 +83,11 @@ public class DeleteUserHandler implements CommandHandler<DeleteUserCommand> {
                 kv("actorEntraOid", actor.entraOid()));
         entityManager.clear();
 
-        UUID actorId = UUID.fromString(actor.entraOid());
-        if (Objects.equals(actorId, command.userEntraObjectId())) {
-            log.warn("User cannot delete their own account",
-                    kv("actorEntraOid", actor.entraOid()));
-            return CommandResult.failure("User can not delete self");
-        }
-
         DeleteUserReasonEntity deleteUserReasonEntity = deleteUserReasonRepository.findByCode(command.deleteReason().name())
                 .orElseThrow(() -> new ReferenceDataNotFoundException("Unknown delete reason code: " + command.deleteReason()));
 
         EntraUser entraUser = entraUserCommandRepository.findByEntraOid(String.valueOf(command.userEntraObjectId()))
                 .orElseThrow(() -> new ResourceNotFoundException("User account not found for oid: " + command.userEntraObjectId()));
-
-        if (userCommandService.isInternalUser(command.userEntraObjectId())) {
-            log.warn("Internal user cannot be deleted",
-                    kv("entraOid", command.userEntraObjectId()),
-                    kv("actorEntraOid", actor.entraOid()));
-            return CommandResult.failure("User can not delete internal user");
-        }
-
-        if (actor.isExternalUser()) {
-            if (entraUser.isMultiFirmUser()) {
-                log.warn("Actor cannot delete a multi-firm user",
-                        kv("actorEntraOid", actor.entraOid()),
-                        kv("entraOid", command.userEntraObjectId()));
-                return CommandResult.failure("User can not delete multi-firm user");
-            }
-            UUID actorFirmId = actor.activeProfile().firmId();
-            UUID targetFirmId = userCommandService.getActiveUserProfile(command.userEntraObjectId()).getFirm().getId();
-            if (!targetFirmId.equals(actorFirmId)) {
-                log.warn("Actor cannot delete a user from a different firm",
-                        kv("actorEntraOid", actor.entraOid()),
-                        kv("entraOid", command.userEntraObjectId()));
-                return CommandResult.failure("User can not delete user from different firm");
-            }
-        }
 
         log.info("Deleting external user",
                 kv("actorEntraOid", actor.entraOid()),

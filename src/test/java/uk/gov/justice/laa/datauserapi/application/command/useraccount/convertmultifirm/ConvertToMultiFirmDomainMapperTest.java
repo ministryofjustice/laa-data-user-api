@@ -1,6 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmultifirm;
 
 import org.junit.jupiter.api.Test;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.ConvertToMultiFirmDomainMapper;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 
