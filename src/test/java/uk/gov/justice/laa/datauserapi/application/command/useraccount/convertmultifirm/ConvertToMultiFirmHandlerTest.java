@@ -6,6 +6,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
+import uk.gov.justice.laa.datauserapi.application.command.handler.ConvertToMultiFirmHandler;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.ConvertToMultiFirmDomainMapper;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;

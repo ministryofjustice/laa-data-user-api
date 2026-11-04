@@ -5,6 +5,8 @@ import static net.logstash.logback.argument.StructuredArguments.kv;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.command.service.SilasStatusRefreshService;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.RefreshSilasStatusCommand;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
@@ -20,6 +22,8 @@ public class RefreshSilasStatusHandler implements CommandHandler<RefreshSilasSta
         this.refreshService = refreshService;
     }
 
+    // Only schedules async work; the batch service owns its own transactions.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @Override
     public CommandResult handle(RefreshSilasStatusCommand command, AuthenticatedEntraUser actor) {
         try {
