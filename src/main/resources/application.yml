@@ -54,6 +54,12 @@ management:
         enabled: true
 
 app:
+  laa:
+    default:
+      user:
+        access:
+          security:
+            group: ${APP_DEFAULT_USER_ACC_SEC_GROUP:}
   silas-status-refresh:
     batch-size: ${SILAS_STATUS_REFRESH_BATCH_SIZE:500}
   enable:

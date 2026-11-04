@@ -5,16 +5,25 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.cache.CacheManager;
+import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.core.env.SystemEnvironmentPropertySource;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.web.client.RestClient;
 import uk.gov.justice.laa.datauserapi.client.ts.DoNothingTechServicesClient;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
+
+import java.io.IOException;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -41,6 +50,18 @@ public class TechServicesConfigTest {
     void techServicesConfig_shouldCreateRestClientInstance() {
         RestClient client = techServicesConfig.restClient("http://localhost");
         assertThat(client).isNotNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "22222222-2222-2222-2222-222222222222"})
+    void defaultAccessGroupResolvesDeploymentEnvironmentVariableOrDefaultsToEmpty(String group) throws IOException {
+        MockEnvironment environment = new MockEnvironment();
+        environment.getPropertySources().addFirst(new SystemEnvironmentPropertySource("deployment",
+                group.isEmpty() ? Map.of() : Map.of("APP_DEFAULT_USER_ACC_SEC_GROUP", group)));
+        new YamlPropertySourceLoader().load("application", new ClassPathResource("application.yml"))
+                .forEach(source -> environment.getPropertySources().addLast(source));
+
+        assertThat(environment.getRequiredProperty("app.laa.default.user.access.security.group")).isEqualTo(group);
     }
 
     @Test
