@@ -37,7 +37,7 @@ public class GetActiveProfileQueryMapper {
                 activeProfile.getFirm() != null ? activeProfile.getFirm().getId().toString() : "",
                 user.isMultiFirmUser(),
                 user.getUserAccountStatus(),
-                activeProfile.getSilasStatus(),
+                activeProfile.getUserProfileStatus(),
                 !roles.isEmpty(),
                 UUID.fromString(user.getEntraOid()),
                 activeProfile.isUnrestrictedOfficeAccess(),

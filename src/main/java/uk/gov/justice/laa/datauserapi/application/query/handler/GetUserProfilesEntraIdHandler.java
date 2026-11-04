@@ -15,13 +15,13 @@ import java.util.stream.Collectors;
 
 @Component
 @Transactional(readOnly = true)
-public class GetUserProfilesHandler {
+public class GetUserProfilesEntraIdHandler {
 
     private final UserProfileQueryRepository userProfileQueryRepository;
     private final QueryAuthorisationService authorizationHandler;
 
-    public GetUserProfilesHandler(UserProfileQueryRepository userProfileQueryRepository,
-                                   QueryAuthorisationService authorizationHandler) {
+    public GetUserProfilesEntraIdHandler(UserProfileQueryRepository userProfileQueryRepository,
+                                         QueryAuthorisationService authorizationHandler) {
         this.userProfileQueryRepository = userProfileQueryRepository;
         this.authorizationHandler = authorizationHandler;
     }

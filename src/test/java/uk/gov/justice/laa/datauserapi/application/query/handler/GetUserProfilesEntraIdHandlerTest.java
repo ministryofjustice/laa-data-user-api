@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class GetUserProfilesHandlerTest {
+class GetUserProfilesEntraIdHandlerTest {
 
     @Mock
     private UserProfileQueryRepository userProfileQueryRepository;
@@ -57,7 +57,7 @@ class GetUserProfilesHandlerTest {
         when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(userEntraObjectId))
                 .thenReturn(Optional.of(List.of()));
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, authorizationService);
+        GetUserProfilesEntraIdHandler handler = new GetUserProfilesEntraIdHandler(userProfileQueryRepository, authorizationService);
         List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).isEmpty();
@@ -79,7 +79,7 @@ class GetUserProfilesHandlerTest {
                 .thenReturn(Optional.of(List.of(profile)));
         when(authorizationService.canViewProfile(actorProfile, profile.userType(), profile.firmId())).thenReturn(true);
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, authorizationService);
+        GetUserProfilesEntraIdHandler handler = new GetUserProfilesEntraIdHandler(userProfileQueryRepository, authorizationService);
         List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).hasSize(1);
@@ -107,7 +107,7 @@ class GetUserProfilesHandlerTest {
                 .thenReturn(Optional.of(List.of(profile)));
         when(authorizationService.canViewProfile(actorProfile, profile.userType(), profile.firmId())).thenReturn(false);
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, authorizationService);
+        GetUserProfilesEntraIdHandler handler = new GetUserProfilesEntraIdHandler(userProfileQueryRepository, authorizationService);
         List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).isEmpty();
@@ -129,7 +129,7 @@ class GetUserProfilesHandlerTest {
                 .thenReturn(Optional.of(List.of(profile)));
         when(authorizationService.canViewProfile(actorProfile, profile.userType(), profile.firmId())).thenReturn(true);
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, authorizationService);
+        GetUserProfilesEntraIdHandler handler = new GetUserProfilesEntraIdHandler(userProfileQueryRepository, authorizationService);
         List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).hasSize(1);
@@ -138,7 +138,7 @@ class GetUserProfilesHandlerTest {
 
     @Test
     void throwsExceptionWhenActorHasNoActiveProfile() {
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, authorizationService);
+        GetUserProfilesEntraIdHandler handler = new GetUserProfilesEntraIdHandler(userProfileQueryRepository, authorizationService);
 
         assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser(null)))
                 .isInstanceOf(InvalidActorContextException.class)
