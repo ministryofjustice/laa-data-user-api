@@ -2,6 +2,7 @@ package uk.gov.justice.laa.datauserapi.util;
 
 import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileSilasStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.entity.App;
@@ -12,7 +13,6 @@ import uk.gov.justice.laa.datauserapi.entity.Office;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.model.AppType;
 import uk.gov.justice.laa.datauserapi.model.Permission;
-import uk.gov.justice.laa.datauserapi.model.UserProfileSilasStatus;
 
 import java.util.Set;
 import java.util.UUID;
@@ -82,7 +82,7 @@ public class TestObjectUtil {
                 .authzRole(false)
                 .legacySync(true)
                 .permissions(Set.of(Permission.VIEW_EXTERNAL_USER))
-                .ccmsCode("CCMS CODE")
+                .roleIdentifier("CCMS CODE")
                 .firmTypeRestriction(new FirmType[]{FirmType.ADVOCATE})
                 .userTypeRestriction(new UserType[]{UserType.EXTERNAL})
                 .app(app)

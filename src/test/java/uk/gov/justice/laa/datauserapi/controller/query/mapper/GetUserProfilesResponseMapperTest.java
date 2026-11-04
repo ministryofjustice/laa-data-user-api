@@ -6,12 +6,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 import uk.gov.justice.laa.datauserapi.application.query.getuserprofiles.readmodel.GetUserProfilesReadModel;
 import uk.gov.justice.laa.datauserapi.application.query.shared.PagedReadModel;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
 import uk.gov.justice.laa.datauserapi.contracts.response.PagedView;
 import uk.gov.justice.laa.datauserapi.contracts.response.PagedViewMetadata;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
 
 import java.util.List;
+import java.util.UUID;
 
 public class GetUserProfilesResponseMapperTest {
 
@@ -24,7 +28,6 @@ public class GetUserProfilesResponseMapperTest {
 
     @Test
     public void testMapShouldReturnOkResponseWithEmptyItemsAndPageMetadata() {
-        // Given
         PageMetadata pageMetadata = PageMetadata.builder()
                 .pageNumber(0)
                 .pageSize(10)
@@ -36,10 +39,8 @@ public class GetUserProfilesResponseMapperTest {
                 .page(pageMetadata)
                 .build();
 
-        // When
         ResponseEntity<PagedView<UserProfileSummaryView>> response = mapper.map(readModel);
 
-        // Then
         Assertions.assertEquals(200, response.getStatusCode().value());
         Assertions.assertNotNull(response.getBody());
         Assertions.assertTrue(response.getBody().items().isEmpty());
@@ -48,18 +49,18 @@ public class GetUserProfilesResponseMapperTest {
 
     @Test
     public void testMapShouldConvertSingleReadModelToUserProfileSummaryView() {
-        // Given
+        UUID userProfileId = UUID.fromString("11111111-1111-4111-8111-111111111111");
         GetUserProfilesReadModel readModel = GetUserProfilesReadModel.builder()
-                .userProfileId("profile-123")
+                .userProfileId(userProfileId)
                 .activeProfile(Boolean.TRUE)
-                .userType("INTERNAL")
+                .userType(UserType.INTERNAL)
                 .email("user@example.com")
                 .fullName("Test User")
                 .firmName("Test Firm")
                 .firmId("firm-123")
                 .multiFirmUser(Boolean.FALSE)
-                .accountStatus("ACTIVE")
-                .profileStatus("COMPLETE")
+                .accountStatus(UserAccountStatus.ACTIVE)
+                .profileStatus(UserProfileStatus.COMPLETE)
                 .hasAppRoles(Boolean.TRUE)
                 .build();
         PageMetadata pageMetadata = PageMetadata.builder()
@@ -73,25 +74,23 @@ public class GetUserProfilesResponseMapperTest {
                 .page(pageMetadata)
                 .build();
 
-        // When
         ResponseEntity<PagedView<UserProfileSummaryView>> response = mapper.map(pagedReadModel);
 
-        // Then
         Assertions.assertNotNull(response.getBody());
         Assertions.assertEquals(1, response.getBody().items().size());
         UserProfileSummaryView view = response.getBody().items().iterator().next();
 
         Assertions.assertAll(
-                () -> Assertions.assertEquals("profile-123", view.userProfileId()),
+                () -> Assertions.assertEquals(userProfileId, view.userProfileId()),
                 () -> Assertions.assertEquals(Boolean.TRUE, view.activeProfile()),
-                () -> Assertions.assertEquals("INTERNAL", view.userType()),
+                () -> Assertions.assertEquals(UserType.INTERNAL, view.userType()),
                 () -> Assertions.assertEquals("user@example.com", view.email()),
                 () -> Assertions.assertEquals("Test User", view.fullName()),
                 () -> Assertions.assertEquals("Test Firm", view.firmName()),
                 () -> Assertions.assertEquals("firm-123", view.firmId()),
                 () -> Assertions.assertEquals(Boolean.FALSE, view.multiFirmUser()),
-                () -> Assertions.assertEquals("ACTIVE", view.accountStatus()),
-                () -> Assertions.assertEquals("COMPLETE", view.profileStatus()),
+                () -> Assertions.assertEquals(UserAccountStatus.ACTIVE, view.accountStatus()),
+                () -> Assertions.assertEquals(UserProfileStatus.COMPLETE, view.profileStatus()),
                 () -> Assertions.assertEquals(Boolean.TRUE, view.hasAppRoles()),
                 () -> Assertions.assertEquals(new PagedViewMetadata(1, 20, 1, 1), response.getBody().page())
         );
@@ -99,31 +98,33 @@ public class GetUserProfilesResponseMapperTest {
 
     @Test
     public void testMapShouldPreserveNullBooleanFieldsAndMapMultipleItems() {
-        // Given
+        UUID userProfileId1 = UUID.fromString("22222222-2222-4222-8222-222222222222");
+        UUID userProfileId2 = UUID.fromString("33333333-3333-4333-8333-333333333333");
+
         GetUserProfilesReadModel firstReadModel = GetUserProfilesReadModel.builder()
-                .userProfileId("profile-1")
+                .userProfileId(userProfileId1)
                 .activeProfile(null)
-                .userType("EXTERNAL")
+                .userType(UserType.EXTERNAL)
                 .email("first@example.com")
                 .fullName("First User")
                 .firmName("First Firm")
                 .firmId("firm-1")
                 .multiFirmUser(null)
-                .accountStatus("ACTIVE")
-                .profileStatus("COMPLETE")
+                .accountStatus(UserAccountStatus.ACTIVE)
+                .profileStatus(UserProfileStatus.COMPLETE)
                 .hasAppRoles(null)
                 .build();
         GetUserProfilesReadModel secondReadModel = GetUserProfilesReadModel.builder()
-                .userProfileId("profile-2")
+                .userProfileId(userProfileId2)
                 .activeProfile(Boolean.FALSE)
-                .userType("INTERNAL")
+                .userType(UserType.EXTERNAL)
                 .email("second@example.com")
                 .fullName("Second User")
                 .firmName("Second Firm")
                 .firmId("firm-2")
                 .multiFirmUser(Boolean.TRUE)
-                .accountStatus("LOCKED")
-                .profileStatus("PENDING")
+                .accountStatus(UserAccountStatus.DEACTIVATED)
+                .profileStatus(UserProfileStatus.PENDING)
                 .hasAppRoles(Boolean.FALSE)
                 .build();
         PageMetadata pageMetadata = PageMetadata.builder()
@@ -137,19 +138,17 @@ public class GetUserProfilesResponseMapperTest {
                 .page(pageMetadata)
                 .build();
 
-        // When
         ResponseEntity<PagedView<UserProfileSummaryView>> response = mapper.map(pagedReadModel);
 
-        // Then
         Assertions.assertNotNull(response.getBody());
         List<UserProfileSummaryView> views = response.getBody().items().stream().toList();
         Assertions.assertEquals(2, views.size());
         Assertions.assertAll(
-                () -> Assertions.assertEquals("profile-1", views.getFirst().userProfileId()),
-                () -> Assertions.assertNull(views.getFirst().activeProfile()),
-                () -> Assertions.assertNull(views.getFirst().multiFirmUser()),
-                () -> Assertions.assertNull(views.getFirst().hasAppRoles()),
-                () -> Assertions.assertEquals("profile-2", views.get(1).userProfileId()),
+                () -> Assertions.assertEquals(userProfileId1, views.getFirst().userProfileId()),
+                () -> Assertions.assertFalse(views.getFirst().activeProfile()),
+                () -> Assertions.assertFalse(views.getFirst().multiFirmUser()),
+                () -> Assertions.assertFalse(views.getFirst().hasAppRoles()),
+                () -> Assertions.assertEquals(userProfileId2, views.get(1).userProfileId()),
                 () -> Assertions.assertEquals(Boolean.FALSE, views.get(1).activeProfile()),
                 () -> Assertions.assertEquals(Boolean.TRUE, views.get(1).multiFirmUser()),
                 () -> Assertions.assertEquals(Boolean.FALSE, views.get(1).hasAppRoles()),

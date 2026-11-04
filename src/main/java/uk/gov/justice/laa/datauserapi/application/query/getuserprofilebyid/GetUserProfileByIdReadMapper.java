@@ -46,16 +46,16 @@ public class GetUserProfileByIdReadMapper implements ReadMapper<UserProfile, Get
         String firmName = firm.map(Firm::getName).orElse(null);
         String firmId = firm.map(Firm::getId).map(UUID::toString).orElse(null);
         Boolean multiFirmUser = entraUser.map(EntraUser::isMultiFirmUser).orElse(null);
-        String accountStatus = entraUser.map(EntraUser::getUserAccountStatus).map(UserAccountStatus::name).orElse(null);
-        String profileStatus = Optional.ofNullable(userProfile.getUserProfileStatus()).map(UserProfileStatus::toString).orElse(null);
+        UserAccountStatus accountStatus = entraUser.map(EntraUser::getUserAccountStatus).orElse(null);
+        UserProfileStatus profileStatus = Optional.ofNullable(userProfile.getUserProfileStatus()).orElse(null);
         Boolean hasAppRoles = userProfile.getAppRoles() != null && !userProfile.getAppRoles().isEmpty();
         String userEntraObjectId = entraUser.map(EntraUser::getEntraOid).orElse(null);
         Boolean unrestrictedOfficeAccess = userProfile.isUnrestrictedOfficeAccess();
         Boolean lastSyncSuccessful = userProfile.isLastCcmsSyncSuccessful();
         return new GetUserProfileByIdReadModel(
-                userProfile.getId().toString(),
+                userProfile.getId(),
                 userProfile.isActiveProfile(),
-                userProfile.getUserType().name(),
+                userProfile.getUserType(),
                 email,
                 fullName,
                 firmName,
@@ -74,32 +74,20 @@ public class GetUserProfileByIdReadMapper implements ReadMapper<UserProfile, Get
 
     private static GetUserProfileByIdAppRoleReadModel mapAppRoleToReadModel(AppRole appRole) {
         Optional<App> app = Optional.of(appRole.getApp());
-        String appId = app.map(App::getId).map(UUID::toString).orElse(null);
+        UUID appId = app.map(App::getId).orElse(null);
         String appName = app.map(App::getName).orElse(null);
-        String[] userTypeRestrictions = null;
-        if (appRole.getUserTypeRestriction() != null) {
-            userTypeRestrictions = Arrays.stream(appRole.getUserTypeRestriction())
-                    .map(Enum::name)
-                    .toArray(String[]::new);
-        }
-        String[] firmTypeRestrictions = null;
-        if (appRole.getFirmTypeRestriction() != null) {
-            firmTypeRestrictions = Arrays.stream(appRole.getFirmTypeRestriction())
-                    .map(Enum::name)
-                    .toArray(String[]::new);
-        }
         return new GetUserProfileByIdAppRoleReadModel(
-                appRole.getId().toString(),
+                appRole.getId(),
                 appId,
                 appName,
                 appRole.getName(),
                 appRole.getDescription(),
                 appRole.isAuthzRole(),
-                appRole.getCcmsCode(),
+                appRole.getRoleIdentifier(),
                 appRole.isLegacySync(),
                 appRole.getOrdinal(),
-                userTypeRestrictions,
-                firmTypeRestrictions
+                appRole.getUserTypeRestriction(),
+                appRole.getFirmTypeRestriction()
         );
     }
 

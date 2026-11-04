@@ -42,13 +42,13 @@ public class GetUserProfilesReadMapper implements ReadMapper<Page<UserProfile>, 
         String firmName = firm.map(Firm::getName).orElse(null);
         String firmId = firm.map(Firm::getId).map(UUID::toString).orElse(null);
         Boolean multiFirmUser = entraUser.map(EntraUser::isMultiFirmUser).orElse(null);
-        String accountStatus = entraUser.map(EntraUser::getUserAccountStatus).map(UserAccountStatus::name).orElse(null);
-        String profileStatus = Optional.ofNullable(userProfile.getUserProfileStatus()).map(UserProfileStatus::toString).orElse(null);
+        UserAccountStatus accountStatus = entraUser.map(EntraUser::getUserAccountStatus).orElse(null);
+        UserProfileStatus profileStatus = Optional.ofNullable(userProfile.getUserProfileStatus()).orElse(null);
         Boolean hasAppRoles = userProfile.getAppRoles() != null && !userProfile.getAppRoles().isEmpty();
         return new GetUserProfilesReadModel(
-                userProfile.getId().toString(),
+                userProfile.getId(),
                 userProfile.isActiveProfile(),
-                userProfile.getUserType().toString(),
+                userProfile.getUserType(),
                 email,
                 fullName,
                 firmName,

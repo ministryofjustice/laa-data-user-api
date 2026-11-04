@@ -42,11 +42,11 @@ public class GetUserProfilesReadMapperTest {
         PageMetadata pageMetadata = pagedReadModel.page();
 
         // User Profile assertions
-        Assertions.assertEquals(userProfile.getId().toString(), readModel.userProfileId());
+        Assertions.assertEquals(userProfile.getId(), readModel.userProfileId());
         Assertions.assertEquals(userProfile.isActiveProfile(), readModel.activeProfile());
-        Assertions.assertEquals(userProfile.getUserType().name(), readModel.userType());
-        Assertions.assertEquals(userProfile.getUserProfileStatus().name(), readModel.profileStatus());
-        Assertions.assertEquals(userProfile.getEntraUser().getUserAccountStatus().name(), readModel.accountStatus());
+        Assertions.assertEquals(userProfile.getUserType(), readModel.userType());
+        Assertions.assertEquals(userProfile.getUserProfileStatus(), readModel.profileStatus());
+        Assertions.assertEquals(userProfile.getEntraUser().getUserAccountStatus(), readModel.accountStatus());
         Assertions.assertEquals(userProfile.getEntraUser().getFirstName() + " " + userProfile.getEntraUser().getLastName(), readModel.fullName());
 
         // Page metadata assertions
@@ -75,11 +75,11 @@ public class GetUserProfilesReadMapperTest {
         PageMetadata pageMetadata = pagedReadModel.page();
 
         // User Profile assertions
-        Assertions.assertEquals(userProfile.getId().toString(), readModel.userProfileId());
+        Assertions.assertEquals(userProfile.getId(), readModel.userProfileId());
         Assertions.assertEquals(userProfile.isActiveProfile(), readModel.activeProfile());
-        Assertions.assertEquals(userProfile.getUserType().name(), readModel.userType());
-        Assertions.assertEquals(userProfile.getUserProfileStatus().name(), readModel.profileStatus());
-        Assertions.assertEquals(userProfile.getEntraUser().getUserAccountStatus().name(), readModel.accountStatus());
+        Assertions.assertEquals(userProfile.getUserType(), readModel.userType());
+        Assertions.assertEquals(userProfile.getUserProfileStatus(), readModel.profileStatus());
+        Assertions.assertEquals(userProfile.getEntraUser().getUserAccountStatus(), readModel.accountStatus());
         Assertions.assertEquals(userProfile.getEntraUser().getFirstName() + " " + userProfile.getEntraUser().getLastName(), readModel.fullName());
         Assertions.assertFalse(readModel.hasAppRoles());
 
@@ -109,11 +109,11 @@ public class GetUserProfilesReadMapperTest {
         PageMetadata pageMetadata = pagedReadModel.page();
 
         // User Profile assertions
-        Assertions.assertEquals(userProfile.getId().toString(), readModel.userProfileId());
+        Assertions.assertEquals(userProfile.getId(), readModel.userProfileId());
         Assertions.assertEquals(userProfile.isActiveProfile(), readModel.activeProfile());
-        Assertions.assertEquals(userProfile.getUserType().name(), readModel.userType());
-        Assertions.assertEquals(userProfile.getUserProfileStatus().name(), readModel.profileStatus());
-        Assertions.assertEquals(userProfile.getEntraUser().getUserAccountStatus().name(), readModel.accountStatus());
+        Assertions.assertEquals(userProfile.getUserType(), readModel.userType());
+        Assertions.assertEquals(userProfile.getUserProfileStatus(), readModel.profileStatus());
+        Assertions.assertEquals(userProfile.getEntraUser().getUserAccountStatus(), readModel.accountStatus());
         Assertions.assertEquals(userProfile.getEntraUser().getFirstName() + " " + userProfile.getEntraUser().getLastName(), readModel.fullName());
         Assertions.assertFalse(readModel.hasAppRoles());
 
@@ -143,11 +143,11 @@ public class GetUserProfilesReadMapperTest {
         PageMetadata pageMetadata = pagedReadModel.page();
 
         // User Profile assertions
-        Assertions.assertEquals(userProfile.getId().toString(), readModel.userProfileId());
+        Assertions.assertEquals(userProfile.getId(), readModel.userProfileId());
         Assertions.assertEquals(userProfile.isActiveProfile(), readModel.activeProfile());
-        Assertions.assertEquals(userProfile.getUserType().name(), readModel.userType());
-        Assertions.assertEquals(userProfile.getUserProfileStatus().name(), readModel.profileStatus());
-        Assertions.assertEquals(userProfile.getEntraUser().getUserAccountStatus().name(), readModel.accountStatus());
+        Assertions.assertEquals(userProfile.getUserType(), readModel.userType());
+        Assertions.assertEquals(userProfile.getUserProfileStatus(), readModel.profileStatus());
+        Assertions.assertEquals(userProfile.getEntraUser().getUserAccountStatus(), readModel.accountStatus());
         Assertions.assertEquals(userProfile.getEntraUser().getFirstName() + " " + userProfile.getEntraUser().getLastName(), readModel.fullName());
 
         // Page metadata assertions
@@ -176,10 +176,10 @@ public class GetUserProfilesReadMapperTest {
         PageMetadata pageMetadata = pagedReadModel.page();
 
         // User Profile assertions
-        Assertions.assertEquals(userProfile.getId().toString(), readModel.userProfileId());
+        Assertions.assertEquals(userProfile.getId(), readModel.userProfileId());
         Assertions.assertEquals(userProfile.isActiveProfile(), readModel.activeProfile());
-        Assertions.assertEquals(userProfile.getUserType().name(), readModel.userType());
-        Assertions.assertEquals(userProfile.getUserProfileStatus().name(), readModel.profileStatus());
+        Assertions.assertEquals(userProfile.getUserType(), readModel.userType());
+        Assertions.assertEquals(userProfile.getUserProfileStatus(), readModel.profileStatus());
         Assertions.assertNull(readModel.accountStatus());
         Assertions.assertNull(readModel.fullName());
 

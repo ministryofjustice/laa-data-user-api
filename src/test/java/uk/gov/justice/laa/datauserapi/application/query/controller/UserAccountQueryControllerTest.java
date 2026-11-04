@@ -9,7 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetActiveProfileHandler;
-import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfilesHandler;
+import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfilesEntraIdHandler;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
@@ -44,7 +44,7 @@ class UserAccountQueryControllerTest {
     private GetUserAccountHandler getUserAccountHandler;
 
     @Mock
-    private GetUserProfilesHandler getUserProfilesHandler;
+    private GetUserProfilesEntraIdHandler getUserProfilesEntraIdHandler;
 
     @Mock
     private GetActiveProfileHandler getActiveProfileHandler;
@@ -58,7 +58,7 @@ class UserAccountQueryControllerTest {
                 queryService,
                 searchUsersHandler,
                 getUserAccountHandler,
-                getUserProfilesHandler,
+                getUserProfilesEntraIdHandler,
                 getActiveProfileHandler);
 
     }
@@ -122,11 +122,11 @@ class UserAccountQueryControllerTest {
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .entraOid(ACTOR_OID)
                 .build();
-        when(getUserProfilesHandler.handle(any(), any()))
+        when(getUserProfilesEntraIdHandler.handle(any(), any()))
                 .thenReturn(null);
 
         ResponseEntity<?> result = controller.getUserProfiles(USER_ENTRA_OBJECT_ID, user);
-        verify(getUserProfilesHandler).handle(any(), any());
+        verify(getUserProfilesEntraIdHandler).handle(any(), any());
         assertEquals(HttpStatus.OK, result.getStatusCode());
     }
 

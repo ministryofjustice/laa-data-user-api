@@ -42,16 +42,16 @@ public class GetUserProfileByIdReadMapperTest {
         List<GetUserProfileByIdOfficeReadModel> offices = List.copyOf(readModel.offices());
 
         Assertions.assertAll(
-                () -> Assertions.assertEquals(userProfile.getId().toString(), readModel.userProfileId()),
+                () -> Assertions.assertEquals(userProfile.getId(), readModel.userProfileId()),
                 () -> Assertions.assertEquals(userProfile.isActiveProfile(), readModel.activeProfile()),
-                () -> Assertions.assertEquals(userProfile.getUserType().name(), readModel.userType()),
+                () -> Assertions.assertEquals(userProfile.getUserType(), readModel.userType()),
                 () -> Assertions.assertEquals(userProfile.getEntraUser().getEmail(), readModel.email()),
                 () -> Assertions.assertEquals(userProfile.getEntraUser().getFirstName() + " " + userProfile.getEntraUser().getLastName(), readModel.fullName()),
                 () -> Assertions.assertEquals(userProfile.getFirm().getName(), readModel.firmName()),
                 () -> Assertions.assertEquals(userProfile.getFirm().getId().toString(), readModel.firmId()),
                 () -> Assertions.assertEquals(userProfile.getEntraUser().isMultiFirmUser(), readModel.multiFirmUser()),
-                () -> Assertions.assertEquals(userProfile.getEntraUser().getUserAccountStatus().name(), readModel.accountStatus()),
-                () -> Assertions.assertEquals(userProfile.getUserProfileStatus().toString(), readModel.profileStatus()),
+                () -> Assertions.assertEquals(userProfile.getEntraUser().getUserAccountStatus(), readModel.accountStatus()),
+                () -> Assertions.assertEquals(userProfile.getUserProfileStatus(), readModel.profileStatus()),
                 () -> Assertions.assertTrue(readModel.hasAppRoles()),
                 () -> Assertions.assertEquals(userProfile.getEntraUser().getEntraOid(), readModel.userEntraObjectId()),
                 () -> Assertions.assertEquals(userProfile.isUnrestrictedOfficeAccess(), readModel.unrestrictedOfficeAccess()),
@@ -61,18 +61,18 @@ public class GetUserProfileByIdReadMapperTest {
         );
 
         Assertions.assertAll(
-                () -> Assertions.assertEquals(userProfile.getAppRoles().stream().toList().get(0).getId().toString(), roles.get(0).appRoleId()),
-                () -> Assertions.assertEquals(userProfile.getAppRoles().stream().toList().get(0).getApp().getId().toString(), roles.get(0).appId()),
+                () -> Assertions.assertEquals(userProfile.getAppRoles().stream().toList().get(0).getId(), roles.get(0).appRoleId()),
+                () -> Assertions.assertEquals(userProfile.getAppRoles().stream().toList().get(0).getApp().getId(), roles.get(0).appId()),
                 () -> Assertions.assertEquals(userProfile.getAppRoles().stream().toList().get(0).getApp().getName(), roles.get(0).appName()),
                 () -> Assertions.assertEquals(userProfile.getAppRoles().stream().toList().get(0).getName(), roles.get(0).name()),
                 () -> Assertions.assertEquals(userProfile.getAppRoles().stream().toList().get(0).getDescription(), roles.get(0).description()),
                 () -> Assertions.assertEquals(userProfile.getAppRoles().stream().toList().get(0).isAuthzRole(), roles.get(0).authzRole()),
-                () -> Assertions.assertEquals(userProfile.getAppRoles().stream().toList().get(0).getCcmsCode(), roles.get(0).ccmsCode()),
+                () -> Assertions.assertEquals(userProfile.getAppRoles().stream().toList().get(0).getRoleIdentifier(), roles.get(0).ccmsCode()),
                 () -> Assertions.assertEquals(userProfile.getAppRoles().stream().toList().get(0).isLegacySync(), roles.get(0).legacySync()),
                 () -> Assertions.assertEquals(userProfile.getAppRoles().stream().toList().get(0).getOrdinal(), roles.get(0).ordinal()),
-                () -> Assertions.assertArrayEquals(new String[]{"EXTERNAL", "INTERNAL"}, roles.get(0).appRoleUserTypeRestriction()),
-                () -> Assertions.assertArrayEquals(new String[]{FirmType.ADVOCATE.name()}, roles.get(0).firmTypeRestriction()),
-                () -> Assertions.assertEquals(userProfile.getAppRoles().stream().toList().get(1).getId().toString(), roles.get(1).appRoleId()),
+                () -> Assertions.assertArrayEquals(new UserType[]{UserType.EXTERNAL, UserType.INTERNAL}, roles.get(0).appRoleUserTypeRestriction()),
+                () -> Assertions.assertArrayEquals(new FirmType[]{FirmType.ADVOCATE}, roles.get(0).firmTypeRestriction()),
+                () -> Assertions.assertEquals(userProfile.getAppRoles().stream().toList().get(1).getId(), roles.get(1).appRoleId()),
                 () -> Assertions.assertNull(roles.get(1).appRoleUserTypeRestriction()),
                 () -> Assertions.assertNull(roles.get(1).firmTypeRestriction()),
                 () -> Assertions.assertEquals(userProfile.getOffices().stream().toList().get(0).getId().toString(), offices.get(0).officeId()),
@@ -109,9 +109,9 @@ public class GetUserProfileByIdReadMapperTest {
 
         // Then
         Assertions.assertAll(
-                () -> Assertions.assertEquals(userProfile.getId().toString(), readModel.userProfileId()),
+                () -> Assertions.assertEquals(userProfile.getId(), readModel.userProfileId()),
                 () -> Assertions.assertFalse(readModel.activeProfile()),
-                () -> Assertions.assertEquals(UserType.INTERNAL.name(), readModel.userType()),
+                () -> Assertions.assertEquals(UserType.INTERNAL, readModel.userType()),
                 () -> Assertions.assertNull(readModel.email()),
                 () -> Assertions.assertNull(readModel.fullName()),
                 () -> Assertions.assertNull(readModel.firmName()),

@@ -71,7 +71,19 @@ public class UserProfileQueryControllerTest {
         PagedReadModel<GetUserProfilesReadModel> pagedReadModel = PagedReadModel.<GetUserProfilesReadModel>builder()
                 .items(List.of(readModel))
                 .build();
-        UserProfileSummaryView view = UserProfileSummaryView.builder().build();
+        UserProfileSummaryView view = new UserProfileSummaryView(
+                null,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                null,
+                false
+        );
         PagedView<UserProfileSummaryView> pagedView = PagedView.<UserProfileSummaryView>builder()
                 .items(List.of(view))
                 .build();
@@ -98,7 +110,24 @@ public class UserProfileQueryControllerTest {
                 .id(profileId)
                 .build();
         GetUserProfileByIdReadModel readModel = GetUserProfileByIdReadModel.builder().build();
-        UserProfileDetailView view = UserProfileDetailView.builder().build();
+        UserProfileDetailView view = new UserProfileDetailView(
+                null,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                null,
+                false,
+                null,
+                false,
+                false,
+                List.of(),
+                List.of()
+        );
         ResponseEntity<UserProfileDetailView> mockResponse = ResponseEntity.ok(view);
         when(getUserProfileByIdQueryMapper.map(profileId.toString(), authenticatedUser)).thenReturn(query);
         when(getUserProfileByIdHandler.handle(query)).thenReturn(readModel);

@@ -32,16 +32,16 @@ public class GetUserProfilesResponseMapper implements ResponseMapper<PagedReadMo
     private UserProfileSummaryView mapGetUserProfilesReadModelToUserProfileSummaryView(GetUserProfilesReadModel getUserProfilesReadModel) {
         return new UserProfileSummaryView(
                 getUserProfilesReadModel.userProfileId(),
-                getUserProfilesReadModel.activeProfile(),
+                getUserProfilesReadModel.activeProfile() != null && getUserProfilesReadModel.activeProfile(),
                 getUserProfilesReadModel.userType(),
                 getUserProfilesReadModel.email(),
                 getUserProfilesReadModel.fullName(),
                 getUserProfilesReadModel.firmName(),
                 getUserProfilesReadModel.firmId(),
-                getUserProfilesReadModel.multiFirmUser(),
+                getUserProfilesReadModel.multiFirmUser() != null && getUserProfilesReadModel.multiFirmUser(),
                 getUserProfilesReadModel.accountStatus(),
                 getUserProfilesReadModel.profileStatus(),
-                getUserProfilesReadModel.hasAppRoles()
+                getUserProfilesReadModel.hasAppRoles() != null && getUserProfilesReadModel.hasAppRoles()
         );
     }
 }

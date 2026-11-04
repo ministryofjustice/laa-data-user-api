@@ -1,20 +1,25 @@
 package uk.gov.justice.laa.datauserapi.application.query.getuserprofiles.readmodel;
 
 import lombok.Builder;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+
+import java.util.UUID;
 
 @Builder
 public record GetUserProfilesReadModel(
 
-        String userProfileId,
+        UUID userProfileId,
         Boolean activeProfile,
-        String userType,
+        UserType userType,
         String email,
         String fullName,
         String firmName,
         String firmId,
         Boolean multiFirmUser,
-        String accountStatus,
-        String profileStatus,
+        UserAccountStatus accountStatus,
+        UserProfileStatus profileStatus,
         Boolean hasAppRoles
 
 ){}
