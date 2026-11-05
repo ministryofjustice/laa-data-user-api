@@ -64,6 +64,8 @@ class ConvertToMultiFirmIntegrationTest {
     private JdbcTemplate jdbc;
     @Autowired
     private PlatformTransactionManager transactionManager;
+    @Autowired
+    private EntraUserCommandRepository repository;
 
     @BeforeEach
     void seed() {
@@ -98,7 +100,7 @@ class ConvertToMultiFirmIntegrationTest {
 
     @Test
     void secondConversionBlocksUntilFirstCommitsThenIsRejected() throws Exception {
-        OverlappingConversions run = convertOverlapping(false);
+        OverlappingConversions run = convertOverlapping(false, false);
 
         assertThat(run.first().success()).isTrue();
         assertThat(run.secondFailure()).isInstanceOf(ConflictException.class);
@@ -109,7 +111,7 @@ class ConvertToMultiFirmIntegrationTest {
 
     @Test
     void secondConversionSucceedsWhenFirstRollsBack() throws Exception {
-        OverlappingConversions run = convertOverlapping(true);
+        OverlappingConversions run = convertOverlapping(true, false);
 
         assertThat(run.secondFailure()).isNull();
         assertThat(run.second().success()).isTrue();
@@ -118,16 +120,29 @@ class ConvertToMultiFirmIntegrationTest {
                 .containsEntry("last_modified_by", "actor-2");
     }
 
+    @Test
+    void refreshesPreloadedTargetAfterWaitingForConcurrentConversion() throws Exception {
+        OverlappingConversions run = convertOverlapping(false, true);
+
+        assertThat(run.first().success()).isTrue();
+        assertThat(run.secondFailure()).isInstanceOf(ConflictException.class);
+        assertThat(jdbc.queryForMap("SELECT multi_firm_user, last_modified_by FROM entra_user WHERE id = ?", TARGET_ID))
+                .containsEntry("multi_firm_user", true)
+                .containsEntry("last_modified_by", "actor-1");
+    }
+
     /**
      * Holds the first transaction open until PostgreSQL reports another session waiting on a lock,
      * which proves the second conversion genuinely overlapped the first before it is released.
      */
-    private OverlappingConversions convertOverlapping(boolean rollbackFirst) throws Exception {
+    private OverlappingConversions convertOverlapping(boolean rollbackFirst, boolean preloadSecond) throws Exception {
         CountDownLatch firstHandled = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch secondPreloaded = new CountDownLatch(preloadSecond ? 1 : 0);
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
             Future<CommandResult> first = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+                awaitLatch(secondPreloaded);
                 final CommandResult result = handler.handle(command(), actor("actor-1"));
                 firstHandled.countDown();
                 awaitLatch(releaseFirst);
@@ -136,10 +151,14 @@ class ConvertToMultiFirmIntegrationTest {
                 }
                 return result;
             }));
-            Future<CommandResult> second = executor.submit(() -> {
+            Future<CommandResult> second = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+                if (preloadSecond) {
+                    assertThat(repository.findByEntraOid(TARGET_ID.toString()).orElseThrow().isMultiFirmUser()).isFalse();
+                    secondPreloaded.countDown();
+                }
                 awaitLatch(firstHandled);
                 return handler.handle(command(), actor("actor-2"));
-            });
+            }));
 
             try {
                 awaitSessionWaitingOnLock();

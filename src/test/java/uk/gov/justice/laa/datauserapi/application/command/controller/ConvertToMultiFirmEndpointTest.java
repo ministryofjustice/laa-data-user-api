@@ -81,6 +81,8 @@ class ConvertToMultiFirmEndpointTest {
     @MockitoBean
     private EntraUserCommandRepository repository;
     @MockitoBean
+    private jakarta.persistence.EntityManager entityManager;
+    @MockitoBean
     private JwtToAuthenticatedEntraUserConverter converter;
     @MockitoBean
     private JwtDecoder jwtDecoder;

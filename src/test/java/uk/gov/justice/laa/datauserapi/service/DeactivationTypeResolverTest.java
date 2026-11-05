@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -40,7 +42,9 @@ class DeactivationTypeResolverTest {
     @ParameterizedTest
     @MethodSource("roleCases")
     void resolveFromRolesReturnsHighestDelegation(List<String> roles, DeactivationType expected) {
-        assertThat(resolver.resolveFromRoles(roles)).isEqualTo(expected);
+        Set<AuthzRole> authorizationRoles = roles.stream().map(AuthzRole::fromRoleName)
+                .flatMap(Optional::stream).collect(Collectors.toSet());
+        assertThat(resolver.resolveFromRoles(authorizationRoles)).isEqualTo(expected);
     }
 
     @ParameterizedTest
@@ -52,7 +56,29 @@ class DeactivationTypeResolverTest {
     @Test
     void resolveFromRolesReturnsNoneForNullOrEmpty() {
         assertThat(resolver.resolveFromRoles(null)).isEqualTo(DeactivationType.NONE);
-        assertThat(resolver.resolveFromRoles(List.of())).isEqualTo(DeactivationType.NONE);
+        assertThat(resolver.resolveFromRoles(Set.of())).isEqualTo(DeactivationType.NONE);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = AuthzRole.class, names = {"GLOBAL_ADMIN", "SECURITY_RESPONSE",
+        "EXTERNAL_USER_MANAGER", "EXTERNAL_USER_ADMIN", "FIRM_USER_MANAGER"})
+    void ordinaryApplicationRoleDoesNotInfluenceDeactivationType(AuthzRole name) {
+        AuthenticatedAppRole ordinaryRole = new AuthenticatedAppRole(UUID.randomUUID(), name.getRoleName(), 0,
+                null, false, null, null, null, false, null, Set.of());
+        AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder().appRoles(Set.of(ordinaryRole)).build();
+
+        assertThat(resolver.resolve(actor(profile))).isEqualTo(DeactivationType.NONE);
+    }
+
+    @Test
+    void ordinaryPrivilegedRoleDoesNotOverrideFirmAuthorizationRole() {
+        AuthenticatedAppRole ordinaryRole = new AuthenticatedAppRole(UUID.randomUUID(),
+                AuthzRole.GLOBAL_ADMIN.getRoleName(), 0, null, false, null, null, null, false, null, Set.of());
+        Set<AuthenticatedAppRole> roles = new java.util.HashSet<>(profile(AuthzRole.FIRM_USER_MANAGER.getRoleName()).appRoles());
+        roles.add(ordinaryRole);
+
+        assertThat(resolver.resolve(actor(AuthenticatedUserProfile.builder().appRoles(roles).build())))
+                .isEqualTo(DeactivationType.FIRM);
     }
 
     @Test

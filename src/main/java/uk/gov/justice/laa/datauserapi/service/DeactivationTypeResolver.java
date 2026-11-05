@@ -9,7 +9,10 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.model.AuthzRole;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
-import java.util.List;
+import java.util.Set;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Resolves the {@link DeactivationType} that should be recorded when an external user is deactivated.
@@ -51,36 +54,40 @@ public class DeactivationTypeResolver {
             return DeactivationType.NONE;
         }
 
-        List<String> roleNames = actor.activeProfile().appRoles().stream()
+        Set<AuthzRole> roles = actor.activeProfile().appRoles().stream()
+                .filter(Objects::nonNull)
+                .filter(AuthenticatedAppRole::authzRole)
                 .map(AuthenticatedAppRole::name)
-                .toList();
+                .map(AuthzRole::fromRoleName)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toSet());
 
-        return resolveFromRoles(roleNames);
+        return resolveFromRoles(roles);
     }
 
     /**
      * Pure, stateless form of the resolver — suitable for direct testing.
      *
-     * @param roleNames the role names the disabling user currently holds
+     * @param roles the authorization roles the disabling user currently holds
      * @return the appropriate {@link DeactivationType} (never {@code null})
      */
-    public DeactivationType resolveFromRoles(List<String> roleNames) {
-        if (roleNames == null || roleNames.isEmpty()) {
+    public DeactivationType resolveFromRoles(Set<AuthzRole> roles) {
+        if (roles == null || roles.isEmpty()) {
             return DeactivationType.NONE;
         }
 
         // Check from highest to lowest delegation
-        if (roleNames.contains(AuthzRole.GLOBAL_ADMIN.getRoleName())
-                || roleNames.contains(AuthzRole.SECURITY_RESPONSE.getRoleName())) {
+        if (roles.contains(AuthzRole.GLOBAL_ADMIN)
+                || roles.contains(AuthzRole.SECURITY_RESPONSE)) {
             return DeactivationType.PRIVILEGED;
         }
 
-        if (roleNames.contains(AuthzRole.EXTERNAL_USER_MANAGER.getRoleName())
-                || roleNames.contains(AuthzRole.EXTERNAL_USER_ADMIN.getRoleName())) {
+        if (roles.contains(AuthzRole.EXTERNAL_USER_MANAGER)
+                || roles.contains(AuthzRole.EXTERNAL_USER_ADMIN)) {
             return DeactivationType.LAA;
         }
 
-        if (roleNames.contains(AuthzRole.FIRM_USER_MANAGER.getRoleName())) {
+        if (roles.contains(AuthzRole.FIRM_USER_MANAGER)) {
             return DeactivationType.FIRM;
         }
 

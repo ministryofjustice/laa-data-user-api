@@ -29,6 +29,7 @@ import uk.gov.justice.laa.datauserapi.application.command.policy.ProviderAdminOw
 import uk.gov.justice.laa.datauserapi.application.command.policy.ProviderAdminProfileFirmScopePolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ReactivationHierarchyPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
+import uk.gov.justice.laa.datauserapi.application.command.dto.UserDeactivationContext;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserAccountLifecycleService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.FirmCommandRepository;
@@ -419,8 +420,8 @@ class RbacMethodSecurityIntegrationTest {
     @Test
     void reactivateRequiresEnableExternalUserPermission() {
         authenticate();
-        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(true);
-        when(userCommandService.findDeactivationType(accountTargetId)).thenReturn(Optional.of(DeactivationType.NONE));
+        when(userCommandService.getDeactivationContext(accountTargetId))
+                .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.NONE)));
 
         assertThatThrownBy(() -> reactivateHandler.handle(reactivateCommand(),
                 RbacTestActors.actorWith(Permission.DISABLE_EXTERNAL_USER))).isInstanceOf(AccessDeniedException.class);
@@ -431,6 +432,8 @@ class RbacMethodSecurityIntegrationTest {
     @Test
     void reactivateDeniesTargetThatIsNotDeactivated() {
         authenticate();
+        when(userCommandService.getDeactivationContext(accountTargetId))
+                .thenReturn(new UserDeactivationContext(false, Optional.of(DeactivationType.NONE)));
         AuthenticatedEntraUser actor = RbacTestActors.actorWith(Permission.ENABLE_EXTERNAL_USER);
 
         assertThatThrownBy(() -> reactivateHandler.handle(reactivateCommand(), actor)).isInstanceOf(AccessDeniedException.class);
@@ -439,8 +442,8 @@ class RbacMethodSecurityIntegrationTest {
     @Test
     void reactivateAppliesDeactivationHierarchy() {
         authenticate();
-        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(true);
-        when(userCommandService.findDeactivationType(accountTargetId)).thenReturn(Optional.of(DeactivationType.PRIVILEGED));
+        when(userCommandService.getDeactivationContext(accountTargetId))
+                .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.PRIVILEGED)));
         AuthenticatedEntraUser eua = RbacTestActors.actorWithRole(AuthzRole.EXTERNAL_USER_ADMIN.getRoleName(),
                 Permission.ENABLE_EXTERNAL_USER);
         AuthenticatedEntraUser globalAdmin = RbacTestActors.actorWithRole(AuthzRole.GLOBAL_ADMIN.getRoleName(),
@@ -456,8 +459,8 @@ class RbacMethodSecurityIntegrationTest {
         UUID firmId = UUID.randomUUID();
         when(userCommandService.isMultiFirmUser(accountTargetId)).thenReturn(false);
         when(userCommandService.findActiveFirmId(accountTargetId)).thenReturn(Optional.of(firmId));
-        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(true);
-        when(userCommandService.findDeactivationType(accountTargetId)).thenReturn(Optional.of(DeactivationType.FIRM));
+        when(userCommandService.getDeactivationContext(accountTargetId))
+                .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.FIRM)));
         AuthenticatedEntraUser actor = RbacTestActors.externalActorWithRole(firmId,
                 AuthzRole.FIRM_USER_MANAGER.getRoleName(),
                 Permission.DISABLE_EXTERNAL_USER, Permission.ENABLE_EXTERNAL_USER);
@@ -471,8 +474,8 @@ class RbacMethodSecurityIntegrationTest {
         authenticate();
         when(userCommandService.isMultiFirmUser(accountTargetId)).thenReturn(false);
         when(userCommandService.findActiveFirmId(accountTargetId)).thenReturn(Optional.of(UUID.randomUUID()));
-        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(true);
-        when(userCommandService.findDeactivationType(accountTargetId)).thenReturn(Optional.of(DeactivationType.NONE));
+        when(userCommandService.getDeactivationContext(accountTargetId))
+                .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.NONE)));
         AuthenticatedEntraUser actor = RbacTestActors.externalActorWith(UUID.randomUUID(),
                 Permission.DISABLE_EXTERNAL_USER, Permission.ENABLE_EXTERNAL_USER);
 
@@ -486,8 +489,8 @@ class RbacMethodSecurityIntegrationTest {
         when(userCommandService.isMultiFirmUser(accountTargetId)).thenReturn(true);
         UUID firmId = UUID.randomUUID();
         when(userCommandService.findActiveFirmId(accountTargetId)).thenReturn(Optional.of(firmId));
-        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(true);
-        when(userCommandService.findDeactivationType(accountTargetId)).thenReturn(Optional.of(DeactivationType.NONE));
+        when(userCommandService.getDeactivationContext(accountTargetId))
+                .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.NONE)));
         AuthenticatedEntraUser actor = RbacTestActors.externalActorWithRole(firmId,
                 AuthzRole.FIRM_USER_MANAGER.getRoleName(),
                 Permission.DISABLE_EXTERNAL_USER, Permission.ENABLE_EXTERNAL_USER);
