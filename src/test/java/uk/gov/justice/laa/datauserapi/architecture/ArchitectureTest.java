@@ -175,10 +175,11 @@ class ArchitectureTest {
                     "..application.command.useraccount..",
                     "..application.query.service..",
                     "..application.query.handler..",
+                    "..application.query.policy..",
                     "..repository..",
                     "..authorisation.."
             )
-            .because("Repositories should only be accessed by application services, handlers, or mappers");
+            .because("Repositories should only be accessed by application services, handlers, mappers, or policies");
 
     @ArchTest
     static final ArchRule contracts_must_not_depend_on_persistence_entities = noClasses()
@@ -216,7 +217,7 @@ class ArchitectureTest {
             .layer("QueryService").definedBy("..application.query.service..")
             .layer("QueryRepository").definedBy("..application.query.shared.repository..")
             .layer("QueryHandler").definedBy("..application.query.handler..")
-            .layer("Authorisation").definedBy("..authorisation..")
+            .layer("Authorisation").definedBy("..authorisation..", "..application.query.policy..")
 
             .whereLayer("QueryController").mayNotBeAccessedByAnyLayer()
             .whereLayer("QueryService").mayOnlyBeAccessedByLayers("QueryController", "QueryHandler")

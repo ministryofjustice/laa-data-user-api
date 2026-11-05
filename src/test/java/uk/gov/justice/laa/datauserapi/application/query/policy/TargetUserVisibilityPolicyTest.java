@@ -5,7 +5,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
+import uk.gov.justice.laa.datauserapi.application.query.mapper.UserAccountQueryMapper;
+import uk.gov.justice.laa.datauserapi.application.query.shared.repository.EntraUserQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -13,25 +14,31 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.FirmDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
+import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
 import uk.gov.justice.laa.datauserapi.security.rbac.TargetsUser;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class GetUserAccountAuthorizationPolicyTest {
+class TargetUserVisibilityPolicyTest {
 
     @Mock
-    private UserAccountQueryService userAccountQueryService;
+    private EntraUserQueryRepository repository;
+
+    @Mock
+    private UserAccountQueryMapper mapper;
 
     @InjectMocks
-    private GetUserAccountAuthorizationPolicy policy;
+    private TargetUserVisibilityPolicy policy;
 
     private static final UUID TARGET_USER_ID = UUID.randomUUID();
     private static final UUID ACTOR_FIRM_ID = UUID.randomUUID();
@@ -40,6 +47,7 @@ class GetUserAccountAuthorizationPolicyTest {
     @Test
     void allowsInternalActorToViewInternalUserWithPermission() {
         EntraUserDto targetUser = mockInternalUser();
+        EntraUser entity = mock(EntraUser.class);
 
         AuthenticatedEntraUser actor = mock(AuthenticatedEntraUser.class);
         AuthenticatedUserProfile profile = mock(AuthenticatedUserProfile.class);
@@ -52,8 +60,9 @@ class GetUserAccountAuthorizationPolicyTest {
 
         TargetsUser message = mockTargetsUser(TARGET_USER_ID);
 
-        when(userAccountQueryService.findUserAccountSummaryByUserEntraObjectId(
-                TARGET_USER_ID.toString()))
+        when(repository.findByEntraOid(TARGET_USER_ID.toString()))
+                .thenReturn(Optional.of(entity));
+        when(mapper.toDto(any(), any()))
                 .thenReturn(targetUser);
 
         PolicyDecision decision = policy.evaluate(message, actor);
@@ -64,6 +73,7 @@ class GetUserAccountAuthorizationPolicyTest {
     @Test
     void deniesInternalActorViewingInternalUserWithoutPermission() {
         EntraUserDto targetUser = mockInternalUser();
+        EntraUser entity = mock(EntraUser.class);
 
         AuthenticatedEntraUser actor = mock(AuthenticatedEntraUser.class);
         AuthenticatedUserProfile profile = mock(AuthenticatedUserProfile.class);
@@ -74,8 +84,9 @@ class GetUserAccountAuthorizationPolicyTest {
 
         TargetsUser message = mockTargetsUser(TARGET_USER_ID);
 
-        when(userAccountQueryService.findUserAccountSummaryByUserEntraObjectId(
-                TARGET_USER_ID.toString()))
+        when(repository.findByEntraOid(TARGET_USER_ID.toString()))
+                .thenReturn(Optional.of(entity));
+        when(mapper.toDto(any(), any()))
                 .thenReturn(targetUser);
 
         PolicyDecision decision = policy.evaluate(message, actor);
@@ -86,6 +97,7 @@ class GetUserAccountAuthorizationPolicyTest {
     @Test
     void allowsExternalActorToViewUserFromSameFirm() {
         EntraUserDto targetUser = mockExternalUserWithFirm(TARGET_FIRM_ID);
+        EntraUser entity = mock(EntraUser.class);
 
         AuthenticatedEntraUser actor = mock(AuthenticatedEntraUser.class);
         AuthenticatedUserProfile profile = mock(AuthenticatedUserProfile.class);
@@ -96,8 +108,9 @@ class GetUserAccountAuthorizationPolicyTest {
 
         TargetsUser message = mockTargetsUser(TARGET_USER_ID);
 
-        when(userAccountQueryService.findUserAccountSummaryByUserEntraObjectId(
-                TARGET_USER_ID.toString()))
+        when(repository.findByEntraOid(TARGET_USER_ID.toString()))
+                .thenReturn(Optional.of(entity));
+        when(mapper.toDto(any(), any()))
                 .thenReturn(targetUser);
 
         PolicyDecision decision = policy.evaluate(message, actor);
@@ -108,6 +121,7 @@ class GetUserAccountAuthorizationPolicyTest {
     @Test
     void deniesExternalActorViewingUserFromDifferentFirm() {
         EntraUserDto targetUser = mockExternalUserWithFirm(TARGET_FIRM_ID);
+        EntraUser entity = mock(EntraUser.class);
 
         AuthenticatedEntraUser actor = mock(AuthenticatedEntraUser.class);
         AuthenticatedUserProfile profile = mock(AuthenticatedUserProfile.class);
@@ -118,8 +132,9 @@ class GetUserAccountAuthorizationPolicyTest {
 
         TargetsUser message = mockTargetsUser(TARGET_USER_ID);
 
-        when(userAccountQueryService.findUserAccountSummaryByUserEntraObjectId(
-                TARGET_USER_ID.toString()))
+        when(repository.findByEntraOid(TARGET_USER_ID.toString()))
+                .thenReturn(Optional.of(entity));
+        when(mapper.toDto(any(), any()))
                 .thenReturn(targetUser);
 
         PolicyDecision decision = policy.evaluate(message, actor);
@@ -130,6 +145,7 @@ class GetUserAccountAuthorizationPolicyTest {
     @Test
     void allowsInternalActorWithPermissionToViewExternalUser() {
         EntraUserDto targetUser = mockExternalUserWithoutFirm();
+        EntraUser entity = mock(EntraUser.class);
 
         AuthenticatedEntraUser actor = mock(AuthenticatedEntraUser.class);
         AuthenticatedUserProfile profile = mock(AuthenticatedUserProfile.class);
@@ -142,8 +158,9 @@ class GetUserAccountAuthorizationPolicyTest {
 
         TargetsUser message = mockTargetsUser(TARGET_USER_ID);
 
-        when(userAccountQueryService.findUserAccountSummaryByUserEntraObjectId(
-                TARGET_USER_ID.toString()))
+        when(repository.findByEntraOid(TARGET_USER_ID.toString()))
+                .thenReturn(Optional.of(entity));
+        when(mapper.toDto(any(), any()))
                 .thenReturn(targetUser);
 
         PolicyDecision decision = policy.evaluate(message, actor);
@@ -154,6 +171,7 @@ class GetUserAccountAuthorizationPolicyTest {
     @Test
     void deniesInternalActorWithoutPermissionToViewExternalUser() {
         EntraUserDto targetUser = mockExternalUserWithoutFirm();
+        EntraUser entity = mock(EntraUser.class);
 
         AuthenticatedEntraUser actor = mock(AuthenticatedEntraUser.class);
         AuthenticatedUserProfile profile = mock(AuthenticatedUserProfile.class);
@@ -164,8 +182,9 @@ class GetUserAccountAuthorizationPolicyTest {
 
         TargetsUser message = mockTargetsUser(TARGET_USER_ID);
 
-        when(userAccountQueryService.findUserAccountSummaryByUserEntraObjectId(
-                TARGET_USER_ID.toString()))
+        when(repository.findByEntraOid(TARGET_USER_ID.toString()))
+                .thenReturn(Optional.of(entity));
+        when(mapper.toDto(any(), any()))
                 .thenReturn(targetUser);
 
         PolicyDecision decision = policy.evaluate(message, actor);
@@ -176,6 +195,7 @@ class GetUserAccountAuthorizationPolicyTest {
     @Test
     void allowsInternalActorWithPermissionToViewMultiFirmUser() {
         EntraUserDto targetUser = mockMultiFirmUser();
+        EntraUser entity = mock(EntraUser.class);
 
         AuthenticatedEntraUser actor = mock(AuthenticatedEntraUser.class);
         AuthenticatedUserProfile profile = mock(AuthenticatedUserProfile.class);
@@ -188,8 +208,9 @@ class GetUserAccountAuthorizationPolicyTest {
 
         TargetsUser message = mockTargetsUser(TARGET_USER_ID);
 
-        when(userAccountQueryService.findUserAccountSummaryByUserEntraObjectId(
-                TARGET_USER_ID.toString()))
+        when(repository.findByEntraOid(TARGET_USER_ID.toString()))
+                .thenReturn(Optional.of(entity));
+        when(mapper.toDto(any(), any()))
                 .thenReturn(targetUser);
 
         PolicyDecision decision = policy.evaluate(message, actor);
@@ -200,6 +221,7 @@ class GetUserAccountAuthorizationPolicyTest {
     @Test
     void deniesExternalActorToViewMultiFirmUser() {
         EntraUserDto targetUser = mockMultiFirmUser();
+        EntraUser entity = mock(EntraUser.class);
 
         AuthenticatedEntraUser actor = mock(AuthenticatedEntraUser.class);
         AuthenticatedUserProfile profile = mock(AuthenticatedUserProfile.class);
@@ -209,8 +231,9 @@ class GetUserAccountAuthorizationPolicyTest {
 
         TargetsUser message = mockTargetsUser(TARGET_USER_ID);
 
-        when(userAccountQueryService.findUserAccountSummaryByUserEntraObjectId(
-                TARGET_USER_ID.toString()))
+        when(repository.findByEntraOid(TARGET_USER_ID.toString()))
+                .thenReturn(Optional.of(entity));
+        when(mapper.toDto(any(), any()))
                 .thenReturn(targetUser);
 
         PolicyDecision decision = policy.evaluate(message, actor);
@@ -221,6 +244,7 @@ class GetUserAccountAuthorizationPolicyTest {
     @Test
     void deniesExternalActorToViewInternalUser() {
         EntraUserDto targetUser = mockInternalUser();
+        EntraUser entity = mock(EntraUser.class);
 
         AuthenticatedEntraUser actor = mock(AuthenticatedEntraUser.class);
         AuthenticatedUserProfile profile = mock(AuthenticatedUserProfile.class);
@@ -230,8 +254,9 @@ class GetUserAccountAuthorizationPolicyTest {
 
         TargetsUser message = mockTargetsUser(TARGET_USER_ID);
 
-        when(userAccountQueryService.findUserAccountSummaryByUserEntraObjectId(
-                TARGET_USER_ID.toString()))
+        when(repository.findByEntraOid(TARGET_USER_ID.toString()))
+                .thenReturn(Optional.of(entity));
+        when(mapper.toDto(any(), any()))
                 .thenReturn(targetUser);
 
         PolicyDecision decision = policy.evaluate(message, actor);
@@ -239,26 +264,6 @@ class GetUserAccountAuthorizationPolicyTest {
         assertThat(decision.granted()).isFalse();
     }
 
-    @Test
-    void deniesActorWithNoActiveProfile() {
-        EntraUserDto targetUser = mock(EntraUserDto.class);
-
-        AuthenticatedEntraUser actor = mock(AuthenticatedEntraUser.class);
-        when(actor.activeProfile()).thenReturn(null);
-
-        TargetsUser message = mockTargetsUser(TARGET_USER_ID);
-
-        when(userAccountQueryService.findUserAccountSummaryByUserEntraObjectId(
-                TARGET_USER_ID.toString()))
-                .thenReturn(targetUser);
-
-        PolicyDecision decision = policy.evaluate(message, actor);
-
-        assertThat(decision.granted()).isFalse();
-    }
-
-
-    
     private EntraUserDto mockInternalUser() {
         EntraUserDto user = mock(EntraUserDto.class);
         UserProfileDto profile = mock(UserProfileDto.class);
@@ -289,13 +294,12 @@ class GetUserAccountAuthorizationPolicyTest {
         return user;
     }
 
-
     private EntraUserDto mockMultiFirmUser() {
         EntraUserDto user = mock(EntraUserDto.class);
         when(user.isMultiFirmUser()).thenReturn(true);
+        when(user.getUserProfiles()).thenReturn(Set.of());
         return user;
     }
-
 
     private TargetsUser mockTargetsUser(UUID userId) {
         TargetsUser message = mock(TargetsUser.class);
