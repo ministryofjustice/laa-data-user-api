@@ -1,16 +1,11 @@
 package uk.gov.justice.laa.datauserapi.config.jwt;
 
-import static net.logstash.logback.argument.StructuredArguments.kv;
-
 import java.text.ParseException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,15 +20,12 @@ import org.springframework.security.oauth2.jwt.JwtException;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
-import lombok.extern.slf4j.Slf4j;
-
 /**
  * JWT decoder for development, local, and test environments.
  * Parses OID and scope from a synthetic bearer value or decodes claims directly
  * from an unverified JWT (e.g. from laa-landing-page OBO/access tokens).
  * Does not validate cryptographic signatures and must not be used in production.
  */
-@Slf4j
 @Configuration
 @Profile({ "dev", "local", "test" })
 public class DevJwtDecoderConfig {
@@ -82,22 +74,6 @@ public class DevJwtDecoderConfig {
         final Map<String, Object> headers = new LinkedHashMap<>(signedJwt.getHeader().toJSONObject());
         Map<String, Object> claims = new LinkedHashMap<>(claimsSet.getClaims());
 
-        // In local dev, add the read scope for upstream tokens that only carry Microsoft Graph scopes.
-        Object scpClaim = claims.get("scp");
-        Object scopeClaim = claims.get("scope");
-        String existingScopes = "";
-        if (scpClaim != null) {
-            existingScopes = scpClaim.toString();
-        } else if (scopeClaim != null) {
-            existingScopes = scopeClaim.toString();
-        }
-
-        Set<String> scopes = new LinkedHashSet<>(Arrays.asList(existingScopes.split("\\s+")));
-        scopes.removeIf(String::isBlank);
-        scopes.add("user_data.read");
-
-        claims.put("scp", String.join(" ", scopes));
-
         Instant issuedAt = claimsSet.getIssueTime() != null
                 ? claimsSet.getIssueTime().toInstant()
                 : Instant.now();
@@ -129,8 +105,6 @@ public class DevJwtDecoderConfig {
     }
 
     private JwtException payloadException(Exception cause) {
-        log.warn("Failed to parse JWT payload in development decoder",
-                kv("exceptionMessage", cause.getMessage()), cause);
         return new JwtException("Dev JWT decoder failed - unable to parse token payload", cause);
     }
 }

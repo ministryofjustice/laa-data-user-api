@@ -62,7 +62,7 @@ class DevJwtDecoderConfigTest {
     }
 
     @Test
-    void shouldAppendApiScopesWhenTokenHasGraphScopes() throws Exception {
+    void shouldPreserveGraphScopesWithoutAddingApplicationScopes() throws Exception {
         String oid = UUID.randomUUID().toString();
         JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
                 .subject("test-user")
@@ -80,12 +80,11 @@ class DevJwtDecoderConfigTest {
 
         assertThat(jwt).isNotNull();
         assertThat(jwt.getClaimAsString("oid")).isEqualTo(oid);
-        assertThat(jwt.getClaimAsString("scp")).contains("Directory.Read.All", "User.Read", "user_data.read");
-        assertThat(jwt.getClaimAsString("scp")).doesNotContain("user_data.admin");
+        assertThat(jwt.getClaimAsString("scp")).isEqualTo("Directory.Read.All User.Read");
     }
 
     @Test
-    void shouldDefaultToReadScopeWhenJwtLacksScpOrScopeClaim() throws Exception {
+    void shouldLeaveScopesAbsentWhenJwtLacksScpOrScopeClaim() throws Exception {
         String oid = UUID.randomUUID().toString();
         JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
                 .subject("test-user")
@@ -102,7 +101,7 @@ class DevJwtDecoderConfigTest {
 
         assertThat(jwt).isNotNull();
         assertThat(jwt.getClaimAsString("oid")).isEqualTo(oid);
-        assertThat(jwt.getClaimAsString("scp")).isEqualTo("user_data.read");
+        assertThat(jwt.getClaims()).doesNotContainKey("scp");
     }
 
     @Test

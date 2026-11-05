@@ -1,31 +1,25 @@
 package uk.gov.justice.laa.datauserapi.application.service;
 
-import static net.logstash.logback.argument.StructuredArguments.kv;
-
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.exception.MissingOidException;
 
-@Slf4j
 @Service
 public class UserProfileService {
 
-    public Optional<UserProfileDetailView> getProfile(AuthenticatedEntraUser authenticatedUser) {
+    public UserProfileDetailView getProfile(AuthenticatedEntraUser authenticatedUser) {
         String oid = authenticatedUser == null ? null : authenticatedUser.entraOid();
         if (oid == null || oid.isBlank()) {
-            log.warn("Cannot build caller profile without an Entra OID", kv("entraOid", oid));
-            return Optional.empty();
+            throw new MissingOidException();
         }
 
-        log.info("Building caller profile", kv("entraOid", oid));
         String email = authenticatedUser.email();
         String name = authenticatedUser.firstName();
-        return Optional.of(new UserProfileDetailView(
+        return new UserProfileDetailView(
                 UUID.randomUUID(),
                 false,
                 UserType.EXTERNAL,
@@ -42,6 +36,6 @@ public class UserProfileService {
                 true,
                 List.of(),
                 List.of()
-        ));
+        );
     }
 }

@@ -26,8 +26,6 @@ public class ExampleController {
      */
     @GetMapping("/me")
     public ResponseEntity<UserProfileDetailView> me(@AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        return userProfileService.getProfile(authenticatedUser)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.unprocessableContent().build());
+        return ResponseEntity.ok(userProfileService.getProfile(authenticatedUser));
     }
 }

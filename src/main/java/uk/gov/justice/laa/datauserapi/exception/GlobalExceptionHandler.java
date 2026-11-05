@@ -311,6 +311,25 @@ public class GlobalExceptionHandler {
         return problemResponse(HttpStatus.UNAUTHORIZED, problem);
     }
 
+    @ExceptionHandler(MissingOidException.class)
+    public ResponseEntity<ProblemDetail> handleMissingOid(
+            MissingOidException ex,
+            HttpServletRequest request) {
+        log.warn("Authenticated user is missing the required OID claim",
+                kv("requestUri", request.getRequestURI()),
+                ex);
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/unauthorized"),
+                "Unauthorized",
+                HttpStatus.UNAUTHORIZED.value(),
+                ex.getMessage(),
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return problemResponse(HttpStatus.UNAUTHORIZED, problem);
+    }
+
     @ExceptionHandler(ScopeMissingException.class)
     public ResponseEntity<ProblemDetail> handleScopeMissing(
             ScopeMissingException ex,

@@ -11,6 +11,7 @@ import uk.gov.justice.laa.datauserapi.application.command.useraccount.UpdateUser
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
+import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorCode;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -123,7 +124,8 @@ class UpdateUserDetailsHandlerTest {
     void throwsAndDoesNotSaveWhenTechServicesFails() {
         when(repository.findByEntraOid(target)).thenReturn(Optional.of(user));
         when(techServicesClient.updateUserDetails(target, "New", null, null)).thenReturn(TechServicesApiResponse.error(
-                TechServicesErrorResponse.builder().success(false).code("ERR").message("failed").build()));
+                TechServicesErrorResponse.builder().success(false)
+                        .code(new TechServicesErrorCode("ERR")).message("failed").build()));
 
         assertThatThrownBy(() -> handler.handle(new UpdateUserDetailsCommand(targetId, "New", null, null), actor))
                 .isInstanceOf(RuntimeException.class)

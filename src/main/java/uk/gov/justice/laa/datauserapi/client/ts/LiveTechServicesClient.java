@@ -12,10 +12,12 @@ import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateUserDetailsRequest
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
+import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorCode;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.UpdateSecurityGroupsResponse;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
+import uk.gov.justice.laa.datauserapi.exception.TechServicesResponseMappingException;
 
 @Slf4j
 public class LiveTechServicesClient implements TechServicesClient {
@@ -24,14 +26,14 @@ public class LiveTechServicesClient implements TechServicesClient {
     private final AccessTokenProvider accessTokenProvider;
     private final TechServicesApi techServicesApi;
     private final TechServicesResultMapper resultMapper;
-    private final UserCommandValidator validator;
+    private final EntraOidValidator validator;
     private final String laaBusinessUnit;
 
     public LiveTechServicesClient(
             AccessTokenProvider accessTokenProvider,
             TechServicesApi techServicesApi,
             TechServicesResultMapper resultMapper,
-            UserCommandValidator validator,
+            EntraOidValidator validator,
             String laaBusinessUnit) {
         this.accessTokenProvider = accessTokenProvider;
         this.techServicesApi = techServicesApi;
@@ -62,7 +64,10 @@ public class LiveTechServicesClient implements TechServicesClient {
 
         log.info("Sending user {} request to Tech Services", operation, kv("entraOid", entraOid));
         ResponseEntity<String> response = techServicesApi.patch(endpoint, request, accessTokenProvider.getAccessToken());
-        TechServicesApiResponse<ChangeAccountReactivationResponse> result = resultMapper.mapAccountChange(response);
+        TechServicesApiResponse<ChangeAccountReactivationResponse> result = response.getStatusCode().is2xxSuccessful()
+                ? TechServicesApiResponse.success(resultMapper.mapSuccessBody(
+                        response.getBody(), ChangeAccountReactivationResponse.class))
+                : TechServicesApiResponse.error(resultMapper.mapErrorBody(response.getBody()));
 
         if (response.getStatusCode().is2xxSuccessful()) {
             log.info(active ? "Tech Services reactivated user" : "Tech Services deactivated user",
@@ -113,7 +118,7 @@ public class LiveTechServicesClient implements TechServicesClient {
                             + " with error code " + response.getStatusCode());
         }
 
-        UpdateSecurityGroupsResponse result = resultMapper.mapSecurityGroups(response);
+        UpdateSecurityGroupsResponse result = resultMapper.mapSecurityGroups(response.getBody());
         log.info("Tech Services removed user security groups",
                 kv("userId", entraUser.getId()), kv("entraOid", entraUser.getEntraOid()),
                 kv("groupsRemoved", result.getGroupsRemoved()));
@@ -129,7 +134,19 @@ public class LiveTechServicesClient implements TechServicesClient {
         log.info("Sending user details update request to Tech Services", kv("entraOid", entraOid));
         ResponseEntity<String> response =
                 techServicesApi.patch(endpoint, request, accessTokenProvider.getAccessToken());
-        TechServicesApiResponse<ChangeAccountEnabledResponse> result = resultMapper.mapUserDetails(response);
+        TechServicesApiResponse<ChangeAccountEnabledResponse> result;
+        if (response.getStatusCode() == HttpStatus.OK) {
+            result = TechServicesApiResponse.success(resultMapper.mapSuccessBody(
+                    response.getBody(), ChangeAccountEnabledResponse.class));
+        } else if (response.getStatusCode().is4xxClientError() || response.getStatusCode().is5xxServerError()) {
+            TechServicesErrorResponse error = response.getBody() == null || response.getBody().isBlank()
+                    ? errorForStatus(response)
+                    : resultMapper.mapErrorBody(response.getBody());
+            result = TechServicesApiResponse.error(error);
+        } else {
+            throw new TechServicesResponseMappingException(
+                    "Tech Services returned an unexpected response status: " + response.getStatusCode());
+        }
 
         if (result.isSuccess()) {
             log.info("Tech Services updated user details",
@@ -151,5 +168,14 @@ public class LiveTechServicesClient implements TechServicesClient {
 
     private String userEndpoint(String entraOid) {
         return String.format(USER_ENDPOINT, laaBusinessUnit, entraOid);
+    }
+
+    private TechServicesErrorResponse errorForStatus(ResponseEntity<String> response) {
+        HttpStatus status = HttpStatus.resolve(response.getStatusCode().value());
+        return TechServicesErrorResponse.builder()
+                .success(false)
+                .code(new TechServicesErrorCode(response.getStatusCode().toString()))
+                .message(status == null ? response.getStatusCode().toString() : status.getReasonPhrase())
+                .build();
     }
 }

@@ -10,21 +10,21 @@ import uk.gov.justice.laa.datauserapi.client.ts.LiveTechServicesClient;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesApi;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesResultMapper;
-import uk.gov.justice.laa.datauserapi.client.ts.UserCommandValidator;
+import uk.gov.justice.laa.datauserapi.client.ts.EntraOidValidator;
 
 @Configuration
 @EnableConfigurationProperties(TechServicesClientProperties.class)
 public class TechServicesClientConfig {
 
     @Bean
-    public UserCommandValidator techServicesUserCommandValidator() {
-        return new UserCommandValidator();
+    public EntraOidValidator techServicesEntraOidValidator() {
+        return new EntraOidValidator();
     }
 
     @Bean
     @ConditionalOnProperty(value = "app.enable.tech.services.call", havingValue = "true", matchIfMissing = true)
     public TechServicesClient liveTechServicesClient(AccessTokenProvider tokenProvider, TechServicesApi api,
-                                                    TechServicesResultMapper mapper, UserCommandValidator validator,
+                                                    TechServicesResultMapper mapper, EntraOidValidator validator,
                                                     TechServicesClientProperties properties) {
         return new LiveTechServicesClient(tokenProvider, api, mapper, validator, properties.unit());
     }

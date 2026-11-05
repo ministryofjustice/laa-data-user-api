@@ -26,7 +26,9 @@ import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateUserDetailsRequest
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
+import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorCode;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
+import uk.gov.justice.laa.datauserapi.exception.MissingEntraOidException;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 
 @ExtendWith(MockitoExtension.class)
@@ -42,7 +44,7 @@ class LiveTechServicesClientTest {
     @BeforeEach
     void setUp() {
         client = new LiveTechServicesClient(accessTokenProvider, techServicesApi,
-                new TechServicesResultMapper(new ObjectMapper()), new UserCommandValidator(), "test-unit");
+                new TechServicesResultMapper(new ObjectMapper()), new EntraOidValidator(), "test-unit");
         user = new EntraUserDto();
         user.setId("local-id");
         user.setEntraOid("user-123");
@@ -70,7 +72,7 @@ class LiveTechServicesClientTest {
         TechServicesApiResponse<ChangeAccountReactivationResponse> response = client.deactivateUser(user, null);
 
         assertThat(response.isSuccess()).isFalse();
-        assertThat(response.getError().getCode()).isEqualTo("TOO_EARLY");
+        assertThat(response.getError().getCode()).isEqualTo(new TechServicesErrorCode("TOO_EARLY"));
         verify(techServicesApi).patch(eq("test-unit/users/user-123"), any(ChangeAccountReactivationRequest.class), eq("test-token"));
     }
 
@@ -109,13 +111,38 @@ class LiveTechServicesClientTest {
     }
 
     @Test
+    void updateUserDetailsMapsHttpErrorAndUsesStatusFallbackWhenBodyIsEmpty() {
+        when(accessTokenProvider.getAccessToken()).thenReturn("test-token");
+        when(techServicesApi.patch(eq("test-unit/users/user-123"), any(UpdateUserDetailsRequest.class), eq("test-token")))
+                .thenReturn(ResponseEntity.status(HttpStatus.NOT_FOUND).body(""));
+
+        TechServicesApiResponse<ChangeAccountEnabledResponse> response =
+                client.updateUserDetails("user-123", "A", "B", "a@b.test");
+
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getError().getCode().value()).isEqualTo("404 NOT_FOUND");
+        assertThat(response.getError().getMessage()).isEqualTo("Not Found");
+    }
+
+    @Test
+    void updateUserDetailsRejectsUnexpectedHttpStatus() {
+        when(accessTokenProvider.getAccessToken()).thenReturn("test-token");
+        when(techServicesApi.patch(eq("test-unit/users/user-123"), any(UpdateUserDetailsRequest.class), eq("test-token")))
+                .thenReturn(ResponseEntity.status(HttpStatus.ACCEPTED).body("{\"success\":true}"));
+
+        assertThatThrownBy(() -> client.updateUserDetails("user-123", "A", "B", "a@b.test"))
+                .isInstanceOf(TechServicesClientException.class)
+                .hasMessageContaining("unexpected response status");
+    }
+
+    @Test
     void rejectsNullOrBlankOidWithoutCallingApi() {
         assertThatThrownBy(() -> client.updateUserDetails(null, "A", "B", "a@b.test"))
-                .isInstanceOf(TechServicesClientException.class);
+                .isInstanceOf(MissingEntraOidException.class);
         assertThatThrownBy(() -> client.reactivateUser(userWithOid("  ")))
-                .isInstanceOf(TechServicesClientException.class);
+                .isInstanceOf(MissingEntraOidException.class);
         assertThatThrownBy(() -> client.deactivateUser(null, null))
-                .isInstanceOf(TechServicesClientException.class);
+                .isInstanceOf(MissingEntraOidException.class);
         verifyNoInteractions(accessTokenProvider, techServicesApi);
     }
 

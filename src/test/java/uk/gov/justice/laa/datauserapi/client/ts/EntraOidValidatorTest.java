@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
-import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
+import uk.gov.justice.laa.datauserapi.exception.MissingEntraOidException;
 
-class UserCommandValidatorTest {
-    private final UserCommandValidator validator = new UserCommandValidator();
+class EntraOidValidatorTest {
+    private final EntraOidValidator validator = new EntraOidValidator();
 
     @Test
     void acceptsNonUuidEntraIdentifiers() {
@@ -17,8 +17,10 @@ class UserCommandValidatorTest {
     @Test
     void rejectsNullOrBlankIdentifiers() {
         assertThatThrownBy(() -> validator.validateEntraOid(null, "test"))
-                .isInstanceOf(TechServicesClientException.class);
+                .isInstanceOf(MissingEntraOidException.class)
+                .hasMessage("Entra OID is required for test.");
         assertThatThrownBy(() -> validator.validateEntraOid("  ", "test"))
-                .isInstanceOf(TechServicesClientException.class);
+                .isInstanceOf(MissingEntraOidException.class)
+                .hasMessage("Entra OID is required for test.");
     }
 }
