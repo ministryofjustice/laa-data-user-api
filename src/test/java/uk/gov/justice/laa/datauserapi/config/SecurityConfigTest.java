@@ -22,8 +22,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(useDefaultFilters = false)
 @Import({
+    JacksonConfig.class,
     SecurityConfig.class,
-    TechServicesSerializationConfig.class,
     SecurityConfigTest.JwtDecoderConfiguration.class,
     JwtToAuthenticatedEntraUserConverter.class,
     AuthenticatedEntraUserQueryRepository.class

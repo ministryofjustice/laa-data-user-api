@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import uk.gov.justice.laa.datauserapi.application.command.handler.RefreshSilasStatusHandler;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.RefreshSilasStatusCommand;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
+import uk.gov.justice.laa.datauserapi.config.JacksonConfig;
 import uk.gov.justice.laa.datauserapi.config.SecurityConfig;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -32,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(UserProfileSystemAdminCommandController.class)
-@Import({SecurityConfig.class, UserProfileSystemAdminCommandController.class})
+@Import({JacksonConfig.class, SecurityConfig.class, UserProfileSystemAdminCommandController.class})
 @ActiveProfiles("test")
 class UserProfileSystemAdminCommandControllerTest {
 

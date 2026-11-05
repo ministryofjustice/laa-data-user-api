@@ -24,7 +24,7 @@ class TechServicesConfigTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(TechServicesClientConfig.class, TechServicesAuthConfig.class,
-                    TechServicesHttpConfig.class, TechServicesSerializationConfig.class)
+                    TechServicesHttpConfig.class, TechServicesSerializationConfig.class, JacksonConfig.class)
             .withBean(CacheManager.class, ConcurrentMapCacheManager::new)
             .withPropertyValues(
                     "spring.security.tech.services.credentials.scope=test-scope",
