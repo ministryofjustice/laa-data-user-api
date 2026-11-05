@@ -9,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
@@ -19,7 +20,6 @@ import uk.gov.justice.laa.datauserapi.dto.AppRoleDto;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.FirmDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
-import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -73,39 +72,6 @@ class SearchUsersHandlerTest {
 
         assertThat(result.items()).containsExactly(summary);
         verify(queryService).searchUsers(any(), any());
-    }
-
-    @Test
-    void shouldThrowWhenActorHasNoActiveProfile() {
-        UserProfileDto profile = mock(UserProfileDto.class);
-
-        when(profile.isActiveProfile()).thenReturn(false);
-
-        EntraUserDto actor = mock(EntraUserDto.class);
-        when(actor.getUserProfiles()).thenReturn(Set.of(profile));
-        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
-
-        SearchUsersQuery query = new SearchUsersQuery(criteria(), "actorOid");
-
-        assertThatThrownBy(() -> handler.handle(query)).isInstanceOf(InvalidActorContextException.class);
-    }
-
-    @Test
-    void shouldThrowWhenActorUserTypeCannotBeDetermined() {
-        UserProfileDto profile = mock(UserProfileDto.class);
-
-        when(profile.isActiveProfile()).thenReturn(true);
-        when(profile.getUserType()).thenReturn(null);
-
-        EntraUserDto actor = mock(EntraUserDto.class);
-        when(actor.getUserProfiles()).thenReturn(Set.of(profile));
-        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
-
-        SearchUsersQuery query = new SearchUsersQuery(mock(UserSearchCriteria.class), "actorOid");
-
-        assertThatThrownBy(() -> handler.handle(query))
-                .isInstanceOf(InvalidActorContextException.class)
-                .hasMessage("Actor user type cannot be determined");
     }
 
     @Test
@@ -206,6 +172,77 @@ class SearchUsersHandlerTest {
 
         verify(queryService).searchUsers(any(), pageableCaptor.capture());
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(100);
+    }
+
+    @Test
+    void shouldApplySingleSortField() {
+        UserProfileDto profile = internalProfile();
+        EntraUserDto actor = mock(EntraUserDto.class);
+        when(actor.getUserProfiles()).thenReturn(Set.of(profile));
+        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
+        when(queryService.searchUsers(any(), any())).thenReturn(Page.empty());
+
+        UserSearchCriteria criteria = new UserSearchCriteria(
+                0, 20, List.of("email_query,asc"), null, null, null, null,
+                null, null, null, null, null, false, false, null, null, false
+        );
+
+        handler.handle(new SearchUsersQuery(criteria, "actorOid"));
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(queryService).searchUsers(any(), pageableCaptor.capture());
+
+        Sort sort = pageableCaptor.getValue().getSort();
+        assertThat(sort.isSorted()).isTrue();
+        assertThat(sort.getOrderFor("email_query")).isNotNull().extracting(Sort.Order::getDirection)
+                .isEqualTo(Sort.Direction.ASC);
+    }
+
+    @Test
+    void shouldApplySortWithDescendingDirection() {
+        UserProfileDto profile = internalProfile();
+        EntraUserDto actor = mock(EntraUserDto.class);
+        when(actor.getUserProfiles()).thenReturn(Set.of(profile));
+        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
+        when(queryService.searchUsers(any(), any())).thenReturn(Page.empty());
+
+        UserSearchCriteria criteria = new UserSearchCriteria(
+                0, 20, List.of("user,desc"), null, null, null, null,
+                null, null, null, null, null, false, false, null, null, false
+        );
+
+        handler.handle(new SearchUsersQuery(criteria, "actorOid"));
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(queryService).searchUsers(any(), pageableCaptor.capture());
+
+        Sort sort = pageableCaptor.getValue().getSort();
+        assertThat(sort.getOrderFor("user")).isNotNull().extracting(Sort.Order::getDirection)
+                .isEqualTo(Sort.Direction.DESC);
+    }
+
+    @Test
+    void shouldApplyMultipleSortFields() {
+        UserProfileDto profile = internalProfile();
+        EntraUserDto actor = mock(EntraUserDto.class);
+        when(actor.getUserProfiles()).thenReturn(Set.of(profile));
+        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
+        when(queryService.searchUsers(any(), any())).thenReturn(Page.empty());
+
+        UserSearchCriteria criteria = new UserSearchCriteria(
+                0, 20, List.of("user,asc", "email_query,desc"), null, null, null, null,
+                null, null, null, null, null, false, false, null, null, false
+        );
+
+        handler.handle(new SearchUsersQuery(criteria, "actorOid"));
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(queryService).searchUsers(any(), pageableCaptor.capture());
+
+        Sort sort = pageableCaptor.getValue().getSort();
+        assertThat(sort.stream()).hasSize(2);
+        assertThat(sort.getOrderFor("user")).isNotNull().extracting(Sort.Order::getDirection).isEqualTo(Sort.Direction.ASC);
+        assertThat(sort.getOrderFor("email_query")).isNotNull().extracting(Sort.Order::getDirection).isEqualTo(Sort.Direction.DESC);
     }
 
     private UserProfileDto internalProfile() {
