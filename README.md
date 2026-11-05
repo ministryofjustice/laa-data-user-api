@@ -126,6 +126,14 @@ checks still apply, and denied users are counted as failures without stopping th
 
 ### Using existing permissions and policies
 
+Reactivation reads active state and deactivation type together through `UserDeactivationContext`,
+then rechecks the current hierarchy under the lifecycle write lock before calling Tech Services.
+An empty type represents legacy, unattributed deactivation and remains distinct from `NONE`.
+Reactivation and deactivation-type resolution map only roles marked `authzRole` to `AuthzRole` enums;
+ordinary application roles with matching names cannot influence the hierarchy.
+Multi-firm conversion refreshes the target after acquiring its write lock so pre-handler cached state
+cannot bypass the already-converted check.
+
 Put `@RequiresPermission` on the message and include any applicable message-specific policies.
 The global firm-scope policy is automatic when the message implements its target capability;
 do not also add that global policy to the annotation.

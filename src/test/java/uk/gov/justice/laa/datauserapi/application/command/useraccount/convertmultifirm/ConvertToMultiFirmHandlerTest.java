@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmultifirm;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,12 +32,16 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 
 @ExtendWith(MockitoExtension.class)
 class ConvertToMultiFirmHandlerTest {
 
     @Mock
     private EntraUserCommandRepository repository;
+    @Mock
+    private EntityManager entityManager;
 
     private ConvertToMultiFirmHandler handler;
 
@@ -45,7 +51,7 @@ class ConvertToMultiFirmHandlerTest {
 
     @BeforeEach
     void setUp() {
-        handler = new ConvertToMultiFirmHandler(repository, new ConvertToMultiFirmDomainMapper());
+        handler = new ConvertToMultiFirmHandler(repository, new ConvertToMultiFirmDomainMapper(), entityManager);
     }
 
     @Test
@@ -60,6 +66,25 @@ class ConvertToMultiFirmHandlerTest {
         assertThat(target.isMultiFirmUser()).isTrue();
         assertThat(target.getLastModifiedBy()).isEqualTo(actorId.toString());
         verify(repository).save(target);
+        var order = inOrder(repository, entityManager);
+        order.verify(repository).findByEntraOidForUpdate(targetId.toString());
+        order.verify(entityManager).refresh(target, LockModeType.PESSIMISTIC_WRITE);
+        order.verify(repository).save(target);
+    }
+
+    @Test
+    void handle_refreshesCachedTargetBeforeCheckingAlreadyConvertedState() {
+        EntraUser target = EntraUser.builder().entraOid(targetId.toString()).multiFirmUser(false).build();
+        when(repository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(target));
+        doAnswer(invocation -> {
+            target.setMultiFirmUser(true);
+            return null;
+        }).when(entityManager).refresh(target, LockModeType.PESSIMISTIC_WRITE);
+
+        assertThatThrownBy(() -> handler.handle(command,
+                actor(UserType.INTERNAL, true, Permission.EDIT_EXTERNAL_USER, Permission.CONVERT_USER_TO_MULTI_FIRM)))
+                .isInstanceOf(ConflictException.class);
+        verify(repository, never()).save(any());
     }
 
     @Test

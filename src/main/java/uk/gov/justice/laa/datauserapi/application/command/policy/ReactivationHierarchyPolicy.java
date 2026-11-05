@@ -3,6 +3,7 @@ package uk.gov.justice.laa.datauserapi.application.command.policy;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
+import uk.gov.justice.laa.datauserapi.application.command.dto.UserDeactivationContext;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
@@ -43,20 +44,21 @@ public class ReactivationHierarchyPolicy implements AuthorizationPolicy<TargetsU
 
     @Override
     public @NonNull PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
-        if (!userCommandService.isDeactivated(message.targetUserEntraObjectId())) {
+        UserDeactivationContext context = userCommandService.getDeactivationContext(message.targetUserEntraObjectId());
+        if (!context.deactivated()) {
             return PolicyDecision.deny("target user is not deactivated");
         }
-        DeactivationType type = userCommandService.findDeactivationType(message.targetUserEntraObjectId()).orElse(null);
+        DeactivationType type = context.deactivationType().orElse(null);
         return canReactivate(type, actor)
                 ? PolicyDecision.allow()
                 : PolicyDecision.deny("actor roles cannot reactivate a user deactivated with type " + type);
     }
 
     public static boolean canReactivate(DeactivationType type, AuthenticatedEntraUser actor) {
-        return canReactivate(type, roleNames(actor));
+        return canReactivate(type, roles(actor));
     }
 
-    private static boolean canReactivate(DeactivationType type, Set<String> roles) {
+    private static boolean canReactivate(DeactivationType type, Set<AuthzRole> roles) {
         boolean privileged = has(roles, AuthzRole.GLOBAL_ADMIN) || has(roles, AuthzRole.SECURITY_RESPONSE);
         boolean externalUserManagement = has(roles, AuthzRole.EXTERNAL_USER_ADMIN)
                 || has(roles, AuthzRole.EXTERNAL_USER_MANAGER)
@@ -72,11 +74,11 @@ public class ReactivationHierarchyPolicy implements AuthorizationPolicy<TargetsU
         };
     }
 
-    private static boolean has(Set<String> roles, AuthzRole role) {
-        return roles.contains(role.getRoleName());
+    private static boolean has(Set<AuthzRole> roles, AuthzRole role) {
+        return roles.contains(role);
     }
 
-    private static Set<String> roleNames(AuthenticatedEntraUser actor) {
+    private static Set<AuthzRole> roles(AuthenticatedEntraUser actor) {
         return Optional.ofNullable(actor.activeProfile())
                 .map(AuthenticatedUserProfile::appRoles)
                 .stream()
@@ -85,6 +87,8 @@ public class ReactivationHierarchyPolicy implements AuthorizationPolicy<TargetsU
                 .filter(AuthenticatedAppRole::authzRole)
                 .map(AuthenticatedAppRole::name)
                 .filter(Objects::nonNull)
+                .map(AuthzRole::fromRoleName)
+                .flatMap(Optional::stream)
                 .collect(Collectors.toSet());
     }
 }

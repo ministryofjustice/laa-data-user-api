@@ -5,6 +5,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullSource;
+import uk.gov.justice.laa.datauserapi.application.command.dto.UserDeactivationContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
@@ -26,6 +30,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,6 +49,35 @@ class UserCommandServiceTest {
     @BeforeEach
     void setUp() {
         userCommandService = new UserCommandService(entraUserCommandRepository, userProfileCommandRepository);
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @EnumSource(DeactivationType.class)
+    void loadsDeactivationFactsInOneLookupIncludingLegacyState(DeactivationType type) {
+        EntraUser user = EntraUser.builder().active(false).deactivationType(type).build();
+        when(entraUserCommandRepository.findByEntraOid(entraUserId.toString())).thenReturn(Optional.of(user));
+
+        UserDeactivationContext context = userCommandService.getDeactivationContext(entraUserId);
+
+        assertThat(context.deactivated()).isTrue();
+        assertThat(context.deactivationType()).isEqualTo(Optional.ofNullable(type));
+        verify(entraUserCommandRepository).findByEntraOid(entraUserId.toString());
+        verifyNoMoreInteractions(entraUserCommandRepository);
+    }
+
+    @Test
+    void deactivationContextReportsActiveUser() {
+        when(entraUserCommandRepository.findByEntraOid(entraUserId.toString()))
+                .thenReturn(Optional.of(EntraUser.builder().active(true).build()));
+
+        assertThat(userCommandService.getDeactivationContext(entraUserId).deactivated()).isFalse();
+    }
+
+    @Test
+    void deactivationContextPropagatesTypedNotFound() {
+        assertThatThrownBy(() -> userCommandService.getDeactivationContext(entraUserId))
+                .isInstanceOf(UserNotFoundException.class);
     }
 
     @Nested
