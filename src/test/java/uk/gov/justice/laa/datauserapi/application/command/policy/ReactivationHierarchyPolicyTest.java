@@ -1,55 +1,37 @@
 package uk.gov.justice.laa.datauserapi.application.command.policy;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.application.command.dto.UserDeactivationContext;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.model.AuthzRole;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
-import uk.gov.justice.laa.datauserapi.security.rbac.TargetsUser;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-@ExtendWith(MockitoExtension.class)
 class ReactivationHierarchyPolicyTest {
-
-    @Mock
-    private UserCommandService userCommandService;
-
-    private final UUID targetId = UUID.randomUUID();
-    private final TargetsUser message = () -> targetId;
 
     @Test
     void deniesTargetThatIsNotDeactivated() {
-        when(userCommandService.getDeactivationContext(targetId))
-                .thenReturn(new UserDeactivationContext(false, Optional.of(DeactivationType.NONE)));
-
-        assertThat(policy().evaluate(message, actorWithRole(AuthzRole.GLOBAL_ADMIN)).granted()).isFalse();
+        assertThat(policy().evaluate(new UserDeactivationContext(false, Optional.empty()),
+                actorWithRole(AuthzRole.GLOBAL_ADMIN)).reason()).isEqualTo(PolicyDenialReason.TARGET_USER_NOT_DEACTIVATED);
     }
 
     @Test
     void deniesActorWithoutActiveProfile() {
-        when(userCommandService.getDeactivationContext(targetId))
-                .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.NONE)));
-
-        assertThat(policy().evaluate(message, AuthenticatedEntraUser.builder().build()).granted()).isTrue();
-        when(userCommandService.getDeactivationContext(targetId))
-                .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.LAA)));
-        assertThat(policy().evaluate(message, AuthenticatedEntraUser.builder().build()).granted()).isFalse();
+        assertThat(policy().evaluate(context(DeactivationType.NONE),
+                AuthenticatedEntraUser.builder().build()).granted()).isTrue();
+        assertThat(policy().evaluate(context(DeactivationType.LAA),
+                AuthenticatedEntraUser.builder().build()).reason())
+                .isEqualTo(PolicyDenialReason.REACTIVATION_NOT_ALLOWED_FOR_DEACTIVATION_TYPE);
     }
 
     @ParameterizedTest
@@ -71,18 +53,12 @@ class ReactivationHierarchyPolicyTest {
         "SYNC,EXTERNAL_USER_ADMIN,true"
     })
     void appliesHierarchyByDeactivationType(DeactivationType type, AuthzRole role, boolean expected) {
-        when(userCommandService.getDeactivationContext(targetId))
-                .thenReturn(new UserDeactivationContext(true, Optional.of(type)));
-
-        assertThat(policy().evaluate(message, actorWithRole(role)).granted()).isEqualTo(expected);
-        verify(userCommandService).getDeactivationContext(targetId);
-        verifyNoMoreInteractions(userCommandService);
+        assertThat(policy().evaluate(context(type), actorWithRole(role)).granted()).isEqualTo(expected);
+        assertThat(ReactivationHierarchyPolicy.canReactivate(type, actorWithRole(role))).isEqualTo(expected);
     }
 
     @Test
     void ignoresNonAuthorizationRoleWithPrivilegedRoleName() {
-        when(userCommandService.getDeactivationContext(targetId))
-                .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.PRIVILEGED)));
         AuthenticatedAppRole nonAuthorizationRole = new AuthenticatedAppRole(
                 UUID.randomUUID(), AuthzRole.GLOBAL_ADMIN.getRoleName(), 0, null, false,
                 null, null, "application role", false, null, Set.of());
@@ -90,7 +66,7 @@ class ReactivationHierarchyPolicyTest {
                 .activeProfile(AuthenticatedUserProfile.builder().appRoles(Set.of(nonAuthorizationRole)).build())
                 .build();
 
-        assertThat(policy().evaluate(message, actor).granted()).isFalse();
+        assertThat(policy().evaluate(context(DeactivationType.PRIVILEGED), actor).granted()).isFalse();
     }
 
     @ParameterizedTest
@@ -103,14 +79,16 @@ class ReactivationHierarchyPolicyTest {
         "INTERNAL_USER_VIEWER,false"
     })
     void legacyDeactivationsOnlyAllowInternalOrExternalManagement(AuthzRole role, boolean expected) {
-        when(userCommandService.getDeactivationContext(targetId))
-                .thenReturn(new UserDeactivationContext(true, Optional.empty()));
-
-        assertThat(policy().evaluate(message, actorWithRole(role)).granted()).isEqualTo(expected);
+        assertThat(policy().evaluate(context(null), actorWithRole(role)).granted()).isEqualTo(expected);
+        assertThat(ReactivationHierarchyPolicy.canReactivate(null, actorWithRole(role))).isEqualTo(expected);
     }
 
     private ReactivationHierarchyPolicy policy() {
-        return new ReactivationHierarchyPolicy(userCommandService);
+        return new ReactivationHierarchyPolicy();
+    }
+
+    private static UserDeactivationContext context(DeactivationType type) {
+        return new UserDeactivationContext(true, Optional.ofNullable(type));
     }
 
     private static AuthenticatedEntraUser actorWithRole(AuthzRole authzRole) {

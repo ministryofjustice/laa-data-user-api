@@ -49,13 +49,23 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
     @SuppressWarnings("rawtypes")
     private final Function<Class<? extends AuthorizationPolicy>, AuthorizationPolicy<?>> policyResolver;
     private final Supplier<List<GlobalAuthorizationPolicy<?>>> globalPolicies;
+    private final Supplier<List<AuthorizationPolicyInputResolver<?, ?>>> inputResolvers;
 
     @SuppressWarnings("rawtypes")
     public RequiresPermissionAuthorizationManager(
             Function<Class<? extends AuthorizationPolicy>, AuthorizationPolicy<?>> policyResolver,
             Supplier<List<GlobalAuthorizationPolicy<?>>> globalPolicies) {
+        this(policyResolver, globalPolicies, List::of);
+    }
+
+    @SuppressWarnings("rawtypes")
+    public RequiresPermissionAuthorizationManager(
+            Function<Class<? extends AuthorizationPolicy>, AuthorizationPolicy<?>> policyResolver,
+            Supplier<List<GlobalAuthorizationPolicy<?>>> globalPolicies,
+            Supplier<List<AuthorizationPolicyInputResolver<?, ?>>> inputResolvers) {
         this.policyResolver = policyResolver;
         this.globalPolicies = globalPolicies;
+        this.inputResolvers = inputResolvers;
     }
 
     @Override
@@ -134,7 +144,8 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
                                              AuthenticatedEntraUser actor, String operation) {
         for (Class<? extends AuthorizationPolicy> policyType : required.policies()) {
             AuthorizationPolicy policy = policyResolver.apply(policyType);
-            if (!supports(policy, obj)) {
+            Object input = resolveInput(policyType, obj);
+            if (input == null || !supports(policy, input)) {
                 log.error("RBAC authorization misconfiguration: policy does not support object",
                         kv(EVENT, "authorization_configuration_error"),
                         kv(OPERATION, operation),
@@ -142,11 +153,30 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
                         kv("objectType", obj.getClass().getSimpleName()));
                 return false;
             }
-            if (!isGranted(policy, policyType, obj, actor, operation)) {
+            if (!isGranted(policy, policyType, input, actor, operation)) {
                 return false;
             }
         }
         return true;
+    }
+
+    @SuppressWarnings("rawtypes")
+    private Object resolveInput(Class<? extends AuthorizationPolicy> policyType, Object message) {
+        List<AuthorizationPolicyInputResolver<?, ?>> matching = inputResolvers.get().stream()
+                .filter(resolver -> resolver.policyType().equals(policyType))
+                .toList();
+        if (matching.size() > 1) {
+            throw new InvalidAuthorizationConfigurationException("Multiple input resolvers for " + policyType.getName());
+        }
+        return matching.isEmpty() ? message : resolveInput(matching.getFirst(), message);
+    }
+
+    private static <M, C> C resolveInput(AuthorizationPolicyInputResolver<M, C> resolver, Object message) {
+        if (!resolver.messageType().isInstance(message)) {
+            throw new InvalidAuthorizationConfigurationException(
+                    "Unsupported message type for " + resolver.policyType().getName());
+        }
+        return resolver.resolve(resolver.messageType().cast(message));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -159,7 +189,8 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
                     kv(ACTOR_ENTRA_OID, actor.entraOid()),
                     kv(OPERATION, operation),
                     kv(POLICY, AopUtils.getTargetClass(policy).getSimpleName()),
-                    kv("reason", decision.reason()));
+                    kv("reasonCode", decision.reason()),
+                    kv("reason", decision.reason().getDescription()));
             return false;
         }
         return true;
