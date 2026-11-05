@@ -2,7 +2,6 @@ package uk.gov.justice.laa.datauserapi.application.command.policy;
 
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
-import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.application.command.dto.UserDeactivationContext;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -11,7 +10,7 @@ import uk.gov.justice.laa.datauserapi.model.AuthzRole;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
-import uk.gov.justice.laa.datauserapi.security.rbac.TargetsUser;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
 import java.util.Collection;
 import java.util.Objects;
@@ -34,39 +33,31 @@ import java.util.stream.Collectors;
  * </table>
  */
 @Component
-public class ReactivationHierarchyPolicy implements AuthorizationPolicy<TargetsUser> {
-
-    private final UserCommandService userCommandService;
-
-    public ReactivationHierarchyPolicy(UserCommandService userCommandService) {
-        this.userCommandService = userCommandService;
-    }
+public class ReactivationHierarchyPolicy implements AuthorizationPolicy<UserDeactivationContext> {
 
     @Override
-    public @NonNull PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
-        UserDeactivationContext context = userCommandService.getDeactivationContext(message.targetUserEntraObjectId());
+    public @NonNull PolicyDecision evaluate(UserDeactivationContext context, AuthenticatedEntraUser actor) {
         if (!context.deactivated()) {
-            return PolicyDecision.deny("target user is not deactivated");
+            return PolicyDecision.deny(PolicyDenialReason.TARGET_USER_NOT_DEACTIVATED);
         }
-        DeactivationType type = context.deactivationType().orElse(null);
-        return canReactivate(type, actor)
+        return canReactivate(context.deactivationType(), roles(actor))
                 ? PolicyDecision.allow()
-                : PolicyDecision.deny("actor roles cannot reactivate a user deactivated with type " + type);
+                : PolicyDecision.deny(PolicyDenialReason.REACTIVATION_NOT_ALLOWED_FOR_DEACTIVATION_TYPE);
     }
 
     public static boolean canReactivate(DeactivationType type, AuthenticatedEntraUser actor) {
-        return canReactivate(type, roles(actor));
+        return canReactivate(Optional.ofNullable(type), roles(actor));
     }
 
-    private static boolean canReactivate(DeactivationType type, Set<AuthzRole> roles) {
+    private static boolean canReactivate(Optional<DeactivationType> type, Set<AuthzRole> roles) {
         boolean privileged = has(roles, AuthzRole.GLOBAL_ADMIN) || has(roles, AuthzRole.SECURITY_RESPONSE);
         boolean externalUserManagement = has(roles, AuthzRole.EXTERNAL_USER_ADMIN)
                 || has(roles, AuthzRole.EXTERNAL_USER_MANAGER)
                 || has(roles, AuthzRole.EXTERNAL_USER_SUPPORT);
-        if (type == null) {
+        if (type.isEmpty()) {
             return privileged || externalUserManagement || has(roles, AuthzRole.INTERNAL_USER_MANAGER);
         }
-        return switch (type) {
+        return switch (type.orElseThrow()) {
             case NONE -> true;
             case SYNC, LAA -> privileged || externalUserManagement;
             case FIRM -> privileged || externalUserManagement || has(roles, AuthzRole.FIRM_USER_MANAGER);

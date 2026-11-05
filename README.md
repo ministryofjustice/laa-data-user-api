@@ -66,7 +66,8 @@ Tech Services calls intentionally precede database updates; this ordering is unc
 
 Command and query handlers use message-level RBAC. Declare the requirement on the command or
 query type, not on an individual handler or controller. The `RequiresPermissionAuthorizationManager`
-intercepts handler methods whose message parameter has `@RequiresPermission` or `@PolicyGuarded`;
+intercepts `handle` methods on `AuthorizationEntryPoint` implementations whose message parameter
+has `@RequiresPermission` or `@PolicyGuarded`;
 it runs before the handler, including before a handler's transaction is opened. A denial raises
 Spring Security's `AccessDeniedException` and is returned as HTTP 403 by the security/exception
 handling layer.
@@ -80,7 +81,8 @@ policies run in this order:
 2. Policies explicitly listed on the message, which enforce rules specific to that action.
 
 Every applicable policy must allow. Policies return `PolicyDecision.allow()` or
-`PolicyDecision.deny("reason")`; denials are logged as structured `INFO` events and the reason is
+`PolicyDecision.deny(PolicyDenialReason.REASON_CODE)`; denials are logged as structured `INFO`
+events containing a stable `reasonCode` and a human-readable `reason`. The reason is
 not sent to the caller. Missing actors, missing permissions, null messages when policies are
 required, and incompatible declared policy/message types fail closed.
 
@@ -105,7 +107,7 @@ Other reusable command-side policies in `application.command.policy` are:
 |-----------------------------------|----------------------|-----------------------------------------------------------------------------------------------------------|
 | `NotSelfTargetPolicy`             | `TargetsUser`        | The actor cannot target their own Entra account.                                                          |
 | `ExternalTargetOnlyPolicy`        | `TargetsUser`        | The target user must not be an internal user.                                                             |
-| `ReactivationHierarchyPolicy`     | `TargetsUser`        | The target must be deactivated, and the actor's roles must permit reactivation for its deactivation type. |
+| `ReactivationHierarchyPolicy`     | `UserDeactivationContext` (resolved from `TargetsUser`) | The target must be deactivated, and the actor's authorization roles must permit reactivation for its deactivation type. |
 | `NotSelfProfileTargetPolicy`      | `TargetsUserProfile` | The actor cannot target a profile belonging to their own account.                                         |
 | `ExternalProfileTargetOnlyPolicy` | `TargetsUserProfile` | The target profile must not belong to an internal user.                                                   |
 
@@ -126,8 +128,10 @@ checks still apply, and denied users are counted as failures without stopping th
 
 ### Using existing permissions and policies
 
-Reactivation reads active state and deactivation type together through `UserDeactivationContext`,
-then rechecks the current hierarchy under the lifecycle write lock before calling Tech Services.
+`ReactivationPolicyInputResolver` loads active state and the recorded deactivation type with one
+lookup after permission and global-policy checks. `ReactivationHierarchyPolicy` evaluates that
+immutable `UserDeactivationContext` without persistence access. Reactivation then rechecks the
+current hierarchy under the lifecycle write lock before calling Tech Services.
 An empty type represents legacy, unattributed deactivation and remains distinct from `NONE`.
 Reactivation and deactivation-type resolution map only roles marked `authzRole` to `AuthzRole` enums;
 ordinary application roles with matching names cannot influence the hierarchy.
@@ -191,7 +195,10 @@ Implement `AuthorizationPolicy<M>` as a Spring bean, normally under
 `application.command.policy` or `application.query.policy` for the relevant CQRS side. The
 message type (or a target capability such as `TargetsUser`) is the generic parameter. Use the
 side's service/repository boundary to read the facts required for the decision, and return a
-specific denial reason without logging sensitive request data.
+specific `PolicyDenialReason` without logging sensitive request data. For policies requiring
+multiple related facts, register an `AuthorizationPolicyInputResolver<M, C>` in the service
+boundary and evaluate the immutable context `C` instead. The resolver declares the policy class,
+accepted message type, and trusted lookup; contexts must not be supplied by callers.
 
 ```java
 @Component
@@ -209,13 +216,13 @@ public class TargetBelongsToActorPolicy implements AuthorizationPolicy<TargetsUs
                 .map(AuthenticatedUserProfile::firmId)
                 .orElse(null);
         if (actorFirmId == null) {
-            return PolicyDecision.deny("actor has no active firm");
+            return PolicyDecision.deny(PolicyDenialReason.PROVIDER_ADMIN_NO_ACTIVE_FIRM);
         }
         return userCommandService.findActiveFirmId(message.targetUserEntraObjectId())
                 .filter(actorFirmId::equals)
                 .isPresent()
                 ? PolicyDecision.allow()
-                : PolicyDecision.deny("target user is outside the actor's firm");
+                : PolicyDecision.deny(PolicyDenialReason.TARGET_USER_OUTSIDE_ACTOR_FIRM);
     }
 }
 ```

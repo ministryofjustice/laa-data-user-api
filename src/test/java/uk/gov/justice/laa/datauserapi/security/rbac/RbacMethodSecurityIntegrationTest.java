@@ -28,6 +28,7 @@ import uk.gov.justice.laa.datauserapi.application.command.policy.ProviderAdminFi
 import uk.gov.justice.laa.datauserapi.application.command.policy.ProviderAdminOwnFirmPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ProviderAdminProfileFirmScopePolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ReactivationHierarchyPolicy;
+import uk.gov.justice.laa.datauserapi.application.command.service.ReactivationPolicyInputResolver;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.application.command.dto.UserDeactivationContext;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserAccountLifecycleService;
@@ -150,8 +151,13 @@ class RbacMethodSecurityIntegrationTest {
         }
 
         @Bean
-        ReactivationHierarchyPolicy reactivationHierarchyPolicy(UserCommandService userCommandService) {
-            return new ReactivationHierarchyPolicy(userCommandService);
+        ReactivationHierarchyPolicy reactivationHierarchyPolicy() {
+            return new ReactivationHierarchyPolicy();
+        }
+
+        @Bean
+        ReactivationPolicyInputResolver reactivationPolicyInputResolver(UserCommandService userCommandService) {
+            return new ReactivationPolicyInputResolver(userCommandService);
         }
 
         @Bean

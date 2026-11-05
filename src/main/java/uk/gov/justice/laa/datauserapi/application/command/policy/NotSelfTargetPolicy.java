@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.security.rbac.TargetsUser;
 
 import java.util.UUID;
@@ -17,7 +18,7 @@ public class NotSelfTargetPolicy implements AuthorizationPolicy<TargetsUser> {
     public @NonNull PolicyDecision evaluate(TargetsUser targetsUser, AuthenticatedEntraUser actor) {
         UUID targetId = targetsUser.targetUserEntraObjectId();
         return targetId != null && targetId.toString().equalsIgnoreCase(actor.entraOid())
-                ? PolicyDecision.deny(PolicyMessages.SELF_TARGET_NOT_ALLOWED)
+                ? PolicyDecision.deny(PolicyDenialReason.SELF_TARGET_NOT_ALLOWED)
                 : PolicyDecision.allow();
     }
 }
