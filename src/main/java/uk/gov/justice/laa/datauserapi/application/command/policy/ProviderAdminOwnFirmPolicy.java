@@ -7,6 +7,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.security.rbac.GlobalAuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.security.rbac.TargetsFirm;
 
 import java.util.Optional;
@@ -31,10 +32,10 @@ public class ProviderAdminOwnFirmPolicy implements GlobalAuthorizationPolicy<Tar
                 .map(AuthenticatedUserProfile::firmCode)
                 .orElse(null);
         if (actorFirmCode == null) {
-            return PolicyDecision.deny(PolicyMessages.PROVIDER_ADMIN_NO_ACTIVE_FIRM);
+            return PolicyDecision.deny(PolicyDenialReason.PROVIDER_ADMIN_NO_ACTIVE_FIRM);
         }
         return actorFirmCode.equalsIgnoreCase(message.targetFirmCode())
                 ? PolicyDecision.allow()
-                : PolicyDecision.deny("target firm is not the provider admin's firm");
+                : PolicyDecision.deny(PolicyDenialReason.TARGET_FIRM_OUTSIDE_ACTOR_FIRM);
     }
 }

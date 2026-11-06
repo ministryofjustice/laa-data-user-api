@@ -2,6 +2,9 @@ package uk.gov.justice.laa.datauserapi.model;
 
 import lombok.Getter;
 
+import java.util.Arrays;
+import java.util.Optional;
+
 /**
  * Enumeration of Authorization Role names used in the system.
  * These correspond to role names in the app_role table where authz_role = true.
@@ -33,5 +36,9 @@ public enum AuthzRole {
     @Override
     public String toString() {
         return roleName;
+    }
+
+    public static Optional<AuthzRole> fromRoleName(String roleName) {
+        return Arrays.stream(values()).filter(role -> role.roleName.equals(roleName)).findFirst();
     }
 }

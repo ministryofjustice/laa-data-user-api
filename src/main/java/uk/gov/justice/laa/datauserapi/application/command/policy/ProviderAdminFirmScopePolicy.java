@@ -8,6 +8,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.security.rbac.GlobalAuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.security.rbac.TargetsUser;
 
 import java.util.Optional;
@@ -41,16 +42,16 @@ public class ProviderAdminFirmScopePolicy implements GlobalAuthorizationPolicy<T
     public @NonNull PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
         UUID actorFirmId = Optional.ofNullable(actor.activeProfile()).map(AuthenticatedUserProfile::firmId).orElse(null);
         if (actorFirmId == null) {
-            return PolicyDecision.deny(PolicyMessages.PROVIDER_ADMIN_NO_ACTIVE_FIRM);
+            return PolicyDecision.deny(PolicyDenialReason.PROVIDER_ADMIN_NO_ACTIVE_FIRM);
         }
 
         UUID targetId = message.targetUserEntraObjectId();
         if (userCommandService.isMultiFirmUser(targetId)) {
-            return PolicyDecision.deny("provider admin cannot act on multi-firm user");
+            return PolicyDecision.deny(PolicyDenialReason.PROVIDER_ADMIN_MULTI_FIRM_TARGET);
         }
         return userCommandService.findActiveFirmId(targetId).filter(actorFirmId::equals).isPresent()
                 ? PolicyDecision.allow()
-                : PolicyDecision.deny("target user is not in provider admin's firm");
+                : PolicyDecision.deny(PolicyDenialReason.TARGET_USER_OUTSIDE_ACTOR_FIRM);
     }
 
     private static boolean isInternal(AuthenticatedEntraUser actor) {

@@ -3,6 +3,7 @@ package uk.gov.justice.laa.datauserapi.application.command.service;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.util.UUID;
+import java.util.function.Function;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
@@ -56,11 +57,6 @@ public class UserAccountLifecycleService {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
-    public EntraUserDto loadEntraUserDtoForDeactivation(UUID userEntraObjectId) {
-        return modelMapper.map(loadForUpdate(userEntraObjectId), EntraUserDto.class);
-    }
-
-    @Transactional(propagation = Propagation.MANDATORY)
     public LockedUserForReactivation loadUserForReactivation(UUID userEntraObjectId) {
         EntraUser user = loadForUpdate(userEntraObjectId);
         if (user.isActive()) {
@@ -70,10 +66,13 @@ public class UserAccountLifecycleService {
                 modelMapper.map(user, EntraUserDto.class), user.getDeactivationType());
     }
 
+    /** Runs the outbound step under the row lock before mutating the same managed entity. */
     @Transactional(propagation = Propagation.MANDATORY)
     public CommandResult deactivate(UUID userEntraObjectId, String actorEntraOid,
-                                    DeactivationType deactivationType, DeactivateUserReason reason) {
+                                    DeactivateUserReason reason,
+                                    Function<EntraUserDto, DeactivationType> beforeUpdate) {
         EntraUser user = loadForUpdate(userEntraObjectId);
+        DeactivationType deactivationType = beforeUpdate.apply(modelMapper.map(user, EntraUserDto.class));
         if (user.isActive() || deactivationType.isAtLeastAsPrivilegedAs(user.getDeactivationType())) {
             user.deactivate(actorEntraOid, deactivationType);
             entraUserCommandRepository.save(user);
