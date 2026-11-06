@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Pattern;
 
-public record CreateUserAccountCommand(
+public record CreateUserAccountRequest(
         @NotBlank @Email @Size(max = 255) String email,
         @NotBlank @Size(max = 255) String firstName,
         @NotBlank @Size(max = 255) String lastName,

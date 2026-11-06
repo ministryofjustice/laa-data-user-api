@@ -21,7 +21,7 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-public class UpdateUserProfileOfficesHandler implements CommandHandler<UpdateUserProfileOfficesCommand> {
+public class UpdateUserProfileOfficesHandler implements CommandHandler<UpdateUserProfileOfficesCommand, CommandResult> {
 
     private final UserProfileCommandRepository userProfileCommandRepository;
     private final OfficeCommandRepository officeCommandRepository;

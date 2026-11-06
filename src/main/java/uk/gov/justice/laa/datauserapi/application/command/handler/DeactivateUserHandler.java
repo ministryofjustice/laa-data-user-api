@@ -21,7 +21,7 @@ import uk.gov.justice.laa.datauserapi.service.DeactivationTypeResolver;
  */
 @Slf4j
 @Component
-public class DeactivateUserHandler implements CommandHandler<DeactivateUserCommand> {
+public class DeactivateUserHandler implements CommandHandler<DeactivateUserCommand, CommandResult> {
 
     private final UserAccountLifecycleService lifecycleService;
     private final DeactivationTypeResolver deactivationTypeResolver;

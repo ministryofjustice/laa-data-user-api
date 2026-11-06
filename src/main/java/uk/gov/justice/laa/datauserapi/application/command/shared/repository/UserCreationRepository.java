@@ -2,8 +2,8 @@ package uk.gov.justice.laa.datauserapi.application.command.shared.repository;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
-import uk.gov.justice.laa.datauserapi.contracts.request.CreateUserAccountCommand;
-import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResult;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.CreateUserAccountCommand;
+import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResponse;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -16,35 +16,19 @@ public class UserCreationRepository {
         this.jdbc = jdbc;
     }
 
-    public boolean canCreateExternalUser(String actorOid) {
-        return Boolean.TRUE.equals(jdbc.queryForObject("""
-                select exists (
-                    select 1 from entra_user eu
-                    join user_profile up on up.entra_user_id = eu.id
-                    join user_profile_app_role ur on ur.user_profile_id = up.id
-                    join app_role ar on ar.id = ur.app_role_id
-                    join role_permission rp on rp.app_role_id = ar.id
-                    where eu.entra_oid = ? and eu.enabled = true
-                      and up.active_profile = true and up.user_type = 'INTERNAL'
-                      and ar.authz_role = true
-                      and rp.permission = 'CREATE_EXTERNAL_USER'
-                )
-                """, Boolean.class, actorOid));
-    }
-
     public boolean firmExists(UUID firmId) {
         return Boolean.TRUE.equals(jdbc.queryForObject(
                 "select exists (select 1 from firm where id = ? and enabled = true)", Boolean.class, firmId));
     }
 
-    public Optional<CreateUserAccountResult> findExisting(String email) {
+    public Optional<CreateUserAccountResponse> findExisting(String email) {
         return jdbc.query("""
                 select eu.entra_oid, up.id as profile_id
                 from entra_user eu left join user_profile up on up.entra_user_id = eu.id
                 where lower(eu.email) = lower(?)
                 order by up.active_profile desc nulls last, up.id
                 limit 1
-                """, (rs, row) -> new CreateUserAccountResult(false, "User already exists",
+                """, (rs, row) -> new CreateUserAccountResponse(false, "User already exists",
                 rs.getString("entra_oid"), rs.getObject("profile_id", UUID.class)), email).stream().findFirst();
     }
 
@@ -54,7 +38,7 @@ public class UserCreationRepository {
                 rs -> { }, email);
     }
 
-    public CreateUserAccountResult insert(CreateUserAccountCommand command, UUID entraOid, String actorOid) {
+    public CreateUserAccountResponse insert(CreateUserAccountCommand command, UUID entraOid, String actorOid) {
         UUID userId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
         jdbc.update("""
@@ -71,6 +55,6 @@ public class UserCreationRepository {
                 values (?, current_timestamp, ?, true, ?, ?, ?, 'PENDING', 'EXTERNAL',
                         'ACTIVATION_REQUIRED', false, false)
                 """, profileId, actorOid, userId, UUID.fromString(command.firmId()), UUID.randomUUID());
-        return new CreateUserAccountResult(true, "User created", entraOid.toString(), profileId);
+        return new CreateUserAccountResponse(true, "User created", entraOid.toString(), profileId);
     }
 }

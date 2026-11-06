@@ -22,7 +22,7 @@ import java.util.Set;
 
 @Slf4j
 @Component
-public class ConvertToMultiFirmHandler implements CommandHandler<ConvertToMultiFirmCommand> {
+public class ConvertToMultiFirmHandler implements CommandHandler<ConvertToMultiFirmCommand, CommandResult> {
 
     private final EntraUserCommandRepository entraUserCommandRepository;
     private final ConvertToMultiFirmDomainMapper mapper;

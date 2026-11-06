@@ -22,22 +22,29 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import uk.gov.justice.laa.datauserapi.application.command.service.UserAccountCreationService;
+import org.springframework.security.access.AccessDeniedException;
+import uk.gov.justice.laa.datauserapi.application.command.handler.CreateUserAccountHandler;
+import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.client.ts.EntraUserClient;
 import uk.gov.justice.laa.datauserapi.config.CorrelationIdFilter;
-import uk.gov.justice.laa.datauserapi.contracts.request.CreateUserAccountCommand;
-import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResult;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.CreateUserAccountCommand;
+import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResponse;
 import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 import uk.gov.justice.laa.datauserapi.exception.UserAlreadyExistsException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -64,7 +71,8 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
     @Autowired private WebApplicationContext context;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private ObjectMapper mapper;
-    @Autowired private UserAccountCreationService service;
+    @Autowired private CreateUserAccountHandler handler;
+    @Autowired private JwtToAuthenticatedEntraUserConverter converter;
     @MockitoBean private EntraUserClient client;
     @MockitoBean(name = "jwtDecoder") private JwtDecoder decoder;
     private MockMvc mvc;
@@ -221,7 +229,17 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
     void malformedJsonIsBadRequestRatherThanInternalError() throws Exception {
         mvc.perform(authorizedPost(body()).content("{")).andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.errors[0].field").value("body"));
+                .andExpect(jsonPath("$.detail").value("The request body is missing or malformed."))
+                .andExpect(jsonPath("$.errors").doesNotExist());
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void unsupportedContentTypeReturnsProblemDetail() throws Exception {
+        mvc.perform(authorizedPost(body()).contentType(MediaType.TEXT_PLAIN))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value("Request Content-Type must be application/json"));
         verifyNoInteractions(client);
     }
 
@@ -251,6 +269,27 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
         mvc.perform(authorizedPost(body())).andExpect(status().isCreated());
 
         verify(client).createUser(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"noPermission", "external", "disabled", "inactive", "noProfile"})
+    void sharedRbacRejectsIneligiblePrincipalEvenWhenDatabaseActorIsEligible(String mode) {
+        var authenticated = (AuthenticatedEntraUser) converter.convert(decoder.decode(stubToken("user_data.admin"))).getPrincipal();
+        var profile = authenticated.activeProfile();
+        var changedProfile = mode.equals("noProfile") ? null : AuthenticatedUserProfile.builder()
+                .id(profile.id())
+                .activeProfile(!mode.equals("inactive"))
+                .userType(mode.equals("external") ? UserType.EXTERNAL : UserType.INTERNAL)
+                .appRoles(mode.equals("noPermission") ? Set.of() : profile.appRoles())
+                .build();
+        var actor = AuthenticatedEntraUser.builder()
+                .id(actorId).entraOid(actorOid.toString())
+                .active(!mode.equals("disabled")).activeProfile(changedProfile).build();
+
+        assertThatThrownBy(() -> handler.handle(command(), actor)).isInstanceOf(AccessDeniedException.class);
+
+        verifyNoInteractions(client);
+        assertNoLocalUser();
     }
 
     @Test
@@ -390,17 +429,18 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
     @Test
     void concurrentCaseInsensitiveCreatesCommitOnlyOneLocalUserAndProfile() throws Exception {
         var barrier = new CyclicBarrier(2);
+        var actor = (AuthenticatedEntraUser) converter.convert(decoder.decode(stubToken("user_data.admin"))).getPrincipal();
         when(client.createUser(any())).thenAnswer(invocation -> {
             barrier.await(10, TimeUnit.SECONDS);
             return new EntraUserClient.Identity(UUID.randomUUID(), true);
         });
         try (var executor = Executors.newFixedThreadPool(2)) {
-            var first = executor.submit(() -> createOrConflict(command()));
+            var first = executor.submit(() -> createOrConflict(command(), actor));
             var secondCommand = new CreateUserAccountCommand(email.toUpperCase(java.util.Locale.ROOT),
                     "First", "Last", "EXTERNAL", true, firm.toString());
-            var second = executor.submit(() -> createOrConflict(secondCommand));
+            var second = executor.submit(() -> createOrConflict(secondCommand, actor));
             var results = java.util.List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS));
-            assertThat(results).extracting(CreateUserAccountResult::success).containsExactlyInAnyOrder(true, false);
+            assertThat(results).extracting(CreateUserAccountResponse::success).containsExactlyInAnyOrder(true, false);
             assertThat(results.getFirst().userEntraObjectId()).isEqualTo(results.getLast().userEntraObjectId());
         }
         assertThat(jdbc.queryForObject("select count(*) from entra_user where lower(email)=?", Integer.class, email)).isEqualTo(1);
@@ -410,9 +450,9 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
                 """, Integer.class, email)).isEqualTo(1);
     }
 
-    private CreateUserAccountResult createOrConflict(CreateUserAccountCommand request) {
+    private CreateUserAccountResponse createOrConflict(CreateUserAccountCommand request, AuthenticatedEntraUser actor) {
         try {
-            return service.create(request, actorOid.toString());
+            return handler.handle(request, actor);
         } catch (UserAlreadyExistsException ex) {
             return ex.result();
         }

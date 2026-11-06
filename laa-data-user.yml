@@ -625,7 +625,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateUserAccountCommand'
+              $ref: '#/components/schemas/CreateUserAccountRequest'
       responses:
         '201':
           description: User created
@@ -633,7 +633,7 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/CreateUserAccountResult'
+                  - $ref: '#/components/schemas/CreateUserAccountResponse'
                   - type: object
                     required: [userProfileId]
         '400':
@@ -644,13 +644,13 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           description: |
-            A known duplicate returns CreateUserAccountResult with success false and the existing IDs.
+            A known duplicate returns CreateUserAccountResponse with success false and the existing IDs.
             userProfileId is omitted when only the identity exists. A raw downstream conflict without
             identity details returns ProblemDetail instead.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CreateUserAccountResult'
+                $ref: '#/components/schemas/CreateUserAccountResponse'
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
@@ -2125,7 +2125,7 @@ components:
           $ref: '#/components/schemas/PageMetadata'
 
     # --- Commands ---
-    CreateUserAccountCommand:
+    CreateUserAccountRequest:
       type: object
       required: [email, firstName, lastName, userType, multiFirmUser, firmId]
       description: This command creates EXTERNAL users only. Roles and offices are assigned separately.
@@ -2153,7 +2153,7 @@ components:
         multiFirmUser:
           type: boolean
 
-    CreateUserAccountResult:
+    CreateUserAccountResponse:
       allOf:
         - $ref: '#/components/schemas/CommandResult'
         - type: object

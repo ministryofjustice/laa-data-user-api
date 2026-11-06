@@ -6,14 +6,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionSystemException;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserCreationRepository;
 import uk.gov.justice.laa.datauserapi.client.ts.EntraUserClient;
-import uk.gov.justice.laa.datauserapi.contracts.request.CreateUserAccountCommand;
-import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResult;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.CreateUserAccountCommand;
+import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResponse;
 import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 import uk.gov.justice.laa.datauserapi.exception.UserAlreadyExistsException;
 
@@ -48,33 +47,14 @@ class UserAccountCreationServiceTest {
         service = new UserAccountCreationService(repository, client, manager);
     }
 
-    private void permit() {
-        when(repository.canCreateExternalUser(actor)).thenReturn(true);
-    }
-
     private void provision() {
-        permit();
         when(repository.firmExists(firm)).thenReturn(true);
         when(client.createUser(any())).thenReturn(new EntraUserClient.Identity(identity, true));
         when(manager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
     }
 
     @Test
-    void deniesUnknownActorBeforeProvisioning() {
-        assertThatThrownBy(() -> service.create(command, actor)).isInstanceOf(AccessDeniedException.class);
-        verifyNoInteractions(client, manager);
-        verify(repository, never()).findExisting(any());
-    }
-
-    @Test
-    void deniesMissingOidWithoutUsingSubjectOrClaims() {
-        assertThatThrownBy(() -> service.create(command, null)).isInstanceOf(AccessDeniedException.class);
-        verifyNoInteractions(repository, client, manager);
-    }
-
-    @Test
     void rejectsUnknownFirmWithoutCallingDownstream() {
-        permit();
         assertThatThrownBy(() -> service.create(command, actor)).isInstanceOfSatisfying(CreateUserException.class,
                 ex -> {
                     assertThat(ex.status().value()).isEqualTo(400);
@@ -85,8 +65,7 @@ class UserAccountCreationServiceTest {
 
     @Test
     void returnsExistingLocalIdsWithoutCallingDownstream() {
-        permit();
-        var existing = new CreateUserAccountResult(false, "Already exists", identity.toString(), UUID.randomUUID());
+        var existing = new CreateUserAccountResponse(false, "Already exists", identity.toString(), UUID.randomUUID());
         when(repository.findExisting("person@example.com")).thenReturn(Optional.of(existing));
         assertThatThrownBy(() -> service.create(command, actor))
                 .isInstanceOfSatisfying(UserAlreadyExistsException.class, ex -> assertThat(ex.result()).isEqualTo(existing));
@@ -97,12 +76,12 @@ class UserAccountCreationServiceTest {
     void normalizesEmailAndCommitsBothLocalRecords() {
         provision();
         var normalized = new CreateUserAccountCommand("person@example.com", "First", "Last", "EXTERNAL", true, firm.toString());
-        var expected = new CreateUserAccountResult(true, "Created", identity.toString(), UUID.randomUUID());
+        var expected = new CreateUserAccountResponse(true, "Created", identity.toString(), UUID.randomUUID());
         when(repository.insert(normalized, identity, actor)).thenReturn(expected);
 
         assertThat(service.create(command, actor)).isEqualTo(expected);
         var order = inOrder(client, manager, repository);
-        order.verify(client).createUser(normalized);
+        order.verify(client).createUser(new EntraUserClient.Registration("person@example.com", "First", "Last"));
         order.verify(manager).getTransaction(any());
         order.verify(repository).lockEmail(normalized.email());
         order.verify(repository).findExisting(normalized.email());
@@ -112,7 +91,6 @@ class UserAccountCreationServiceTest {
 
     @Test
     void existingDownstreamIdentityProducesConflictWithoutLocalWrites() {
-        permit();
         when(repository.firmExists(firm)).thenReturn(true);
         when(client.createUser(any())).thenReturn(new EntraUserClient.Identity(identity, false));
         assertThatThrownBy(() -> service.create(command, actor))
@@ -128,7 +106,7 @@ class UserAccountCreationServiceTest {
     @Test
     void rollsBackLateConflictAndRetainsProvisionedIdentity() {
         provision();
-        var existing = new CreateUserAccountResult(false, "Already exists", UUID.randomUUID().toString(), UUID.randomUUID());
+        var existing = new CreateUserAccountResponse(false, "Already exists", UUID.randomUUID().toString(), UUID.randomUUID());
         when(repository.findExisting(any())).thenReturn(Optional.empty(), Optional.of(existing));
         assertThatThrownBy(() -> service.create(command, actor)).isInstanceOf(UserAlreadyExistsException.class);
         verify(manager).rollback(any());

@@ -16,4 +16,8 @@ public record PolicyDecision(boolean granted, String reason) {
     public static PolicyDecision deny(String reason) {
         return new PolicyDecision(false, reason);
     }
+
+    public static PolicyDecision deny(PolicyDenialReason reason) {
+        return deny(reason.name());
+    }
 }

@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @Slf4j
 @Component
 public class UpdateUserProfileUnrestrictedOfficesHandler
-        implements CommandHandler<UpdateUserProfileUnrestrictedOfficesCommand> {
+        implements CommandHandler<UpdateUserProfileUnrestrictedOfficesCommand, CommandResult> {
 
     private final UserProfileCommandRepository userProfileCommandRepository;
 

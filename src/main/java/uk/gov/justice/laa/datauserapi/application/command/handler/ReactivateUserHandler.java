@@ -21,7 +21,7 @@ import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
  */
 @Slf4j
 @Component
-public class ReactivateUserHandler implements CommandHandler<ReactivateUserCommand> {
+public class ReactivateUserHandler implements CommandHandler<ReactivateUserCommand, CommandResult> {
 
     private final UserAccountLifecycleService lifecycleService;
     private final TechServicesClient techServicesClient;

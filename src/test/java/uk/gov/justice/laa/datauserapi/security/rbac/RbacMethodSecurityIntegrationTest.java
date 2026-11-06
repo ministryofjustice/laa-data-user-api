@@ -204,42 +204,42 @@ class RbacMethodSecurityIntegrationTest {
         }
     }
 
-    static class FakeDeactivateUserHandler implements CommandHandler<DeactivateUserCommand> {
+    static class FakeDeactivateUserHandler implements CommandHandler<DeactivateUserCommand, CommandResult> {
         @Override
         public CommandResult handle(DeactivateUserCommand command, AuthenticatedEntraUser actor) {
             return CommandResult.success("deactivated");
         }
     }
 
-    static class FakeBulkDeactivateHandler implements CommandHandler<BulkDeactivateFirmUsersCommand> {
+    static class FakeBulkDeactivateHandler implements CommandHandler<BulkDeactivateFirmUsersCommand, CommandResult> {
         @Override
         public CommandResult handle(BulkDeactivateFirmUsersCommand command, AuthenticatedEntraUser actor) {
             return CommandResult.success("bulk");
         }
     }
 
-    static class FakeRefreshHandler implements CommandHandler<RefreshSilasStatusCommand> {
+    static class FakeRefreshHandler implements CommandHandler<RefreshSilasStatusCommand, CommandResult> {
         @Override
         public CommandResult handle(RefreshSilasStatusCommand command, AuthenticatedEntraUser actor) {
             return CommandResult.success("refresh");
         }
     }
 
-    static class FakeUpdateOfficesHandler implements CommandHandler<UpdateUserProfileOfficesCommand> {
+    static class FakeUpdateOfficesHandler implements CommandHandler<UpdateUserProfileOfficesCommand, CommandResult> {
         @Override
         public CommandResult handle(UpdateUserProfileOfficesCommand command, AuthenticatedEntraUser actor) {
             return CommandResult.success("offices");
         }
     }
 
-    static class FakeReactivateUserHandler implements CommandHandler<ReactivateUserCommand> {
+    static class FakeReactivateUserHandler implements CommandHandler<ReactivateUserCommand, CommandResult> {
         @Override
         public CommandResult handle(ReactivateUserCommand command, AuthenticatedEntraUser actor) {
             return CommandResult.success("reactivated");
         }
     }
 
-    static class FakeDeleteUserHandler implements CommandHandler<DeleteUserCommand> {
+    static class FakeDeleteUserHandler implements CommandHandler<DeleteUserCommand, CommandResult> {
         private final AtomicInteger invocations = new AtomicInteger();
 
         AtomicInteger invocations() {

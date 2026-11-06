@@ -2,6 +2,7 @@ package uk.gov.justice.laa.datauserapi.exception;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,11 +22,13 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import jakarta.servlet.http.HttpServletRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class GlobalExceptionHandlerTest {
 
     private GlobalExceptionHandler handler;
@@ -37,6 +40,25 @@ class GlobalExceptionHandlerTest {
     void setUp() {
         handler = new GlobalExceptionHandler();
         when(request.getRequestURI()).thenReturn("/api/v1/queries/users");
+    }
+
+    @Test
+    void createUserBusinessFailureIsLoggedAtWarn(CapturedOutput output) {
+        var response = handler.handleCreateUser(
+                new CreateUserException(HttpStatus.BAD_REQUEST, "Invalid firm", "firmId"), request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("firmId", response.getBody().errors().getFirst().field());
+        assertThat(output.getOut()).containsPattern("WARN[^\\r\\n]*User creation rejected");
+    }
+
+    @Test
+    void createUserSystemFailureIsLoggedAtError(CapturedOutput output) {
+        var response = handler.handleCreateUser(
+                new CreateUserException(HttpStatus.BAD_GATEWAY, "Identity provider failed"), request);
+
+        assertEquals(HttpStatus.BAD_GATEWAY, response.getStatusCode());
+        assertThat(output.getOut()).containsPattern("ERROR[^\\r\\n]*User creation failed");
     }
 
     @Test
@@ -121,6 +143,7 @@ class GlobalExceptionHandlerTest {
         assertEquals(400, response.getBody().status());
         assertEquals("Validation Error", response.getBody().title());
         assertEquals("The request body is missing or malformed.", response.getBody().detail());
+        assertThat(response.getBody().errors()).isNull();
     }
 
     @Test

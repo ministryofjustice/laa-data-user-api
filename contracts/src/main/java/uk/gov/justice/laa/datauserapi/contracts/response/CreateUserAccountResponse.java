@@ -4,7 +4,7 @@ import java.util.UUID;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record CreateUserAccountResult(
+public record CreateUserAccountResponse(
         boolean success,
         String message,
         String userEntraObjectId,

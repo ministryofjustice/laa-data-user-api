@@ -10,7 +10,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
-import uk.gov.justice.laa.datauserapi.contracts.request.CreateUserAccountCommand;
 import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 
 import java.net.ConnectException;
@@ -34,8 +33,8 @@ class TechServicesEntraUserClientTest {
     private RestClient restClient;
     private TechServicesEntraUserClient client;
     private final UUID id = UUID.randomUUID();
-    private final CreateUserAccountCommand command = new CreateUserAccountCommand(
-            "person@example.com", "First", "Last", "EXTERNAL", true, UUID.randomUUID().toString());
+    private final EntraUserClient.Registration command = new EntraUserClient.Registration(
+            "person@example.com", "First", "Last");
 
     @BeforeEach
     void setUp() {

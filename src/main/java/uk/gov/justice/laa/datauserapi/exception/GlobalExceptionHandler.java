@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.oauth2.jwt.JwtException;
@@ -26,10 +27,60 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import uk.gov.justice.laa.datauserapi.contracts.response.FieldErrorDetail;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
+import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResponse;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(CreateUserException.class)
+    public ResponseEntity<ProblemDetail> handleCreateUser(
+            CreateUserException ex,
+            HttpServletRequest request) {
+        if (ex.status().is5xxServerError()) {
+            log.error("User creation failed",
+                    kv("status", ex.status().value()), kv("requestUri", request.getRequestURI()), ex);
+        } else {
+            log.warn("User creation rejected",
+                    kv("status", ex.status().value()), kv("requestUri", request.getRequestURI()), ex);
+        }
+        List<FieldErrorDetail> errors = ex.field() == null
+                ? null
+                : List.of(new FieldErrorDetail(ex.field(), ex.getMessage()));
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://laa.gov.uk/problems/" + ex.status().value()),
+                ex.status().getReasonPhrase(),
+                ex.status().value(),
+                ex.getMessage(),
+                URI.create(request.getRequestURI()),
+                errors
+        );
+        return problemResponse(ex.status(), problem);
+    }
+
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    public ResponseEntity<CreateUserAccountResponse> handleUserAlreadyExists(UserAlreadyExistsException ex) {
+        log.warn("User creation rejected: user already exists");
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(ex.result());
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ProblemDetail> handleUnsupportedMediaType(
+            HttpMediaTypeNotSupportedException ex,
+            HttpServletRequest request) {
+        log.warn("Request content type is not supported", kv("requestUri", request.getRequestURI()));
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://laa.gov.uk/errors/validation-error"),
+                "Unsupported Media Type",
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE.value(),
+                "Request Content-Type must be application/json",
+                URI.create(request.getRequestURI()),
+                null
+        );
+        return problemResponse(HttpStatus.UNSUPPORTED_MEDIA_TYPE, problem);
+    }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ProblemDetail> handleMethodNotAllowed(

@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
 
 @Slf4j
 @Component
-public class UpdateUserDetailsHandler implements CommandHandler<UpdateUserDetailsCommand> {
+public class UpdateUserDetailsHandler implements CommandHandler<UpdateUserDetailsCommand, CommandResult> {
 
     private final EntraUserCommandRepository entraUserCommandRepository;
     private final UpdateUserDetailsMapper updateUserDetailsMapper;

@@ -10,7 +10,6 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
-import uk.gov.justice.laa.datauserapi.contracts.request.CreateUserAccountCommand;
 import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 
 import java.net.SocketTimeoutException;
@@ -43,7 +42,7 @@ public class TechServicesEntraUserClient implements EntraUserClient {
     }
 
     @Override
-    public Identity createUser(CreateUserAccountCommand command) {
+    public Identity createUser(Registration command) {
         if (!enabled) {
             throw new CreateUserException(HttpStatus.SERVICE_UNAVAILABLE, "Identity provisioning is disabled");
         }

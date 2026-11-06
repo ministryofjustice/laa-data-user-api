@@ -5,15 +5,14 @@ import org.slf4j.MDC;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionException;
 import org.springframework.transaction.support.TransactionTemplate;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserCreationRepository;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.CreateUserAccountCommand;
 import uk.gov.justice.laa.datauserapi.client.ts.EntraUserClient;
-import uk.gov.justice.laa.datauserapi.contracts.request.CreateUserAccountCommand;
-import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResult;
+import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResponse;
 import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 import uk.gov.justice.laa.datauserapi.exception.UserAlreadyExistsException;
 
@@ -34,11 +33,7 @@ public class UserAccountCreationService {
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
-    public CreateUserAccountResult create(CreateUserAccountCommand request, String actorOid) {
-        if (actorOid == null || actorOid.isBlank() || !repository.canCreateExternalUser(actorOid)) {
-            log.warn("User creation denied correlationId={} step=actor_authorization", MDC.get("correlationId"));
-            throw new AccessDeniedException("An internal actor with CREATE_EXTERNAL_USER permission is required");
-        }
+    public CreateUserAccountResponse create(CreateUserAccountCommand request, String actorOid) {
         CreateUserAccountCommand command = new CreateUserAccountCommand(request.email().strip().toLowerCase(Locale.ROOT),
                 request.firstName(), request.lastName(), request.userType(), request.multiFirmUser(), request.firmId());
         repository.findExisting(command.email()).ifPresent(existing -> {
@@ -50,23 +45,28 @@ public class UserAccountCreationService {
 
         final EntraUserClient.Identity identity;
         try {
-            identity = client.createUser(command);
+            identity = client.createUser(new EntraUserClient.Registration(command.email(), command.firstName(), command.lastName()));
         } catch (CreateUserException ex) {
-            log.error("User creation failed correlationId={} step=identity_registration system=TechServices/Entra status={}",
-                    MDC.get("correlationId"), ex.status().value());
+            if (ex.status().is5xxServerError()) {
+                log.error("User creation failed correlationId={} step=identity_registration system=TechServices/Entra status={}",
+                        MDC.get("correlationId"), ex.status().value());
+            } else {
+                log.warn("User creation rejected correlationId={} step=identity_registration system=TechServices/Entra status={}",
+                        MDC.get("correlationId"), ex.status().value());
+            }
             throw ex;
         }
         if (!identity.created()) {
             log.info("Existing identity detected correlationId={} step=identity_registration system=TechServices/Entra identityId={}",
                     MDC.get("correlationId"), identity.id());
-            CreateUserAccountResult existing = repository.findExisting(command.email()).orElse(
-                    new CreateUserAccountResult(false, "Identity already exists; no local profile was created",
+            CreateUserAccountResponse existing = repository.findExisting(command.email()).orElse(
+                    new CreateUserAccountResponse(false, "Identity already exists; no local profile was created",
                             identity.id().toString(), null));
             throw new UserAlreadyExistsException(existing);
         }
         try {
             // The downstream operation is intentionally outside the local transaction and is never compensated.
-            CreateUserAccountResult result = transaction.execute(status -> {
+            CreateUserAccountResponse result = transaction.execute(status -> {
                 repository.lockEmail(command.email());
                 repository.findExisting(command.email()).ifPresent(existing -> {
                     throw new UserAlreadyExistsException(existing);
