@@ -19,6 +19,7 @@ import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationEntryPoint;
 
 
 import java.util.List;
@@ -27,7 +28,7 @@ import java.util.UUID;
 @Component
 @Transactional(readOnly = true)
 @Slf4j
-public class SearchUsersHandler {
+public class SearchUsersHandler implements AuthorizationEntryPoint {
 
     private final UserAccountQueryService queryService;
     private final UserViewMapper userViewMapper;
@@ -41,17 +42,11 @@ public class SearchUsersHandler {
 
     public UserAccountSummaryPage handle(SearchUsersQuery query) {
         EntraUserDto actor = queryService.findByEntraOid(query.actorOid());
-
         UserProfileDto actorProfile = actor.getUserProfiles().stream()
                 .filter(UserProfileDto::isActiveProfile)
                 .findFirst()
                 .orElseThrow(() -> new InvalidActorContextException(
                         "Actor has no active profile: " + query.actorOid()));
-
-        if (actorProfile.getUserType() == null) {
-            throw new InvalidActorContextException(
-                    "Actor user type cannot be determined");
-        }
 
         boolean canViewExternalUsers = actorProfile.getAppRoles().stream()
                 .flatMap(role -> role.getPermissions().stream())

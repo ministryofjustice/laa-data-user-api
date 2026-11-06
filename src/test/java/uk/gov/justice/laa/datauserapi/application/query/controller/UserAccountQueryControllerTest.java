@@ -18,6 +18,8 @@ import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserAccountHa
 import uk.gov.justice.laa.datauserapi.application.query.handler.SearchUsersHandler;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
+import uk.gov.justice.laa.datauserapi.application.query.queryprofile.GetActiveProfileQuery;
+import uk.gov.justice.laa.datauserapi.application.query.queryprofile.GetUserProfilesQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -122,11 +124,11 @@ class UserAccountQueryControllerTest {
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .entraOid(ACTOR_OID)
                 .build();
-        when(getUserProfilesHandler.handle(any(), any()))
+        when(getUserProfilesHandler.handle(any(GetUserProfilesQuery.class)))
                 .thenReturn(null);
 
         ResponseEntity<?> result = controller.getUserProfiles(USER_ENTRA_OBJECT_ID, user);
-        verify(getUserProfilesHandler).handle(any(), any());
+        verify(getUserProfilesHandler).handle(any(GetUserProfilesQuery.class));
         assertEquals(HttpStatus.OK, result.getStatusCode());
     }
 
@@ -135,11 +137,11 @@ class UserAccountQueryControllerTest {
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .entraOid(ACTOR_OID)
                 .build();
-        when(getActiveProfileHandler.handle(any(), any()))
+        when(getActiveProfileHandler.handle(any(GetActiveProfileQuery.class)))
                 .thenReturn(null);
 
         ResponseEntity<?> result = controller.getActiveProfile(USER_ENTRA_OBJECT_ID, user);
-        verify(getActiveProfileHandler).handle(any(), any());
+        verify(getActiveProfileHandler).handle(any(GetActiveProfileQuery.class));
         assertEquals(HttpStatus.OK, result.getStatusCode());
     }
 }

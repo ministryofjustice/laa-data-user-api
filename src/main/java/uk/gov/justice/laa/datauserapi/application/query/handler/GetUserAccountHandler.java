@@ -7,18 +7,14 @@ import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
-import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.exception.InvalidUuidFormatException;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
-import uk.gov.justice.laa.datauserapi.model.Permission;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationEntryPoint;
 
 import java.util.UUID;
 
 @Component
 @Transactional(readOnly = true)
-public class GetUserAccountHandler {
+public class GetUserAccountHandler implements AuthorizationEntryPoint {
 
     private final UserAccountQueryService queryService;
     private final UserViewMapper userViewMapper;
@@ -31,54 +27,11 @@ public class GetUserAccountHandler {
     }
 
     public UserView handle(GetUserAccountQuery query) {
-        EntraUserDto actor = queryService.findByEntraOid(query.actorOid());
-
-        UserProfileDto actorProfile = actor.getUserProfiles().stream()
-                .filter(UserProfileDto::isActiveProfile)
-                .findFirst()
-                .orElseThrow(() -> new InvalidActorContextException(
-                        "Actor has no active profile: " + query.actorOid()));
-
-        if (actorProfile.getUserType() == null) {
-            throw new InvalidActorContextException(
-                    "Actor user type cannot be determined");
-        }
-
         validateUuidFormat(query.userEntraObjectId(), "userEntraObjectId");
         EntraUserDto target = queryService.findUserAccountSummaryByUserEntraObjectId(
                         query.userEntraObjectId());
 
-        if (!canView(actorProfile, target)) {
-            throw new ResourceNotFoundException(
-                    "User not found: " + query.userEntraObjectId());
-        }
-
         return userViewMapper.mapToUserView(target);
-    }
-
-    private boolean canView(UserProfileDto actorProfile, EntraUserDto target) {
-        if (actorProfile.getUserType() == UserType.INTERNAL
-                && target.getUserProfiles().stream()
-                .anyMatch(profile -> profile.getUserType() == UserType.INTERNAL)) {
-            return true;
-        }
-
-        if (actorProfile.getUserType() == UserType.EXTERNAL
-                && actorProfile.getFirm() != null
-                && target.getUserProfiles().stream().anyMatch(profile ->
-                profile.getFirm() != null
-                        && profile.getFirm().getId().equals(actorProfile.getFirm().getId()))) {
-            return true;
-        }
-
-        boolean canViewExternalUsers = actorProfile.getAppRoles().stream()
-                .flatMap(role -> role.getPermissions().stream())
-                .anyMatch(permission -> permission == Permission.VIEW_EXTERNAL_USER);
-
-        return actorProfile.getUserType() == UserType.INTERNAL
-                && canViewExternalUsers
-                && target.getUserProfiles().stream()
-                .anyMatch(profile -> profile.getUserType() == UserType.EXTERNAL);
     }
 
     private void validateUuidFormat(String value, String fieldName) {

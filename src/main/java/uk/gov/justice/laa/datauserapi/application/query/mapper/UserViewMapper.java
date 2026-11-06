@@ -11,7 +11,6 @@ import uk.gov.justice.laa.datauserapi.dto.AppRoleDto;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.OfficeDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
-import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.AppRoleUserType;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
@@ -27,8 +26,7 @@ public class UserViewMapper {
         UserProfileDto activeProfile = user.getUserProfiles().stream()
                 .filter(UserProfileDto::isActiveProfile)
                 .findFirst()
-                .orElseThrow(() -> new InvalidActorContextException(
-                        "No active profile found for user: " + user.getEntraOid()));
+                .orElse(null);
 
         UserAccountSummaryView userAccount = new UserAccountSummaryView(
                 user.getEntraOid(),
@@ -44,7 +42,7 @@ public class UserViewMapper {
                 user.getUserProfiles().size()
         );
 
-        UserProfileDetailView profile = mapProfile(activeProfile);
+        UserProfileDetailView profile = activeProfile != null ? mapProfile(activeProfile) : null;
 
         return new UserView(userAccount, profile);
     }
