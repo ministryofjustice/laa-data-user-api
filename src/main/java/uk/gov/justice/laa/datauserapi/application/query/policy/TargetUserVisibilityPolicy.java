@@ -11,7 +11,7 @@ import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.security.rbac.ActorPermissions;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
-import uk.gov.justice.laa.datauserapi.security.rbac.TargetsUser;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
 import java.util.Set;
 import java.util.UUID;
@@ -29,26 +29,18 @@ import java.util.UUID;
  * Uses TargetUserResolver to load target user facts (pure policy, no direct repository access).
  */
 @Component
-public class TargetUserVisibilityPolicy implements AuthorizationPolicy<TargetsUser> {
-
-    private final TargetUserResolver targetUserResolver;
-
-    public TargetUserVisibilityPolicy(TargetUserResolver targetUserResolver) {
-        this.targetUserResolver = targetUserResolver;
-    }
+public class TargetUserVisibilityPolicy implements AuthorizationPolicy<EntraUserDto> {
 
     @Override
-    public @NonNull PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
-        EntraUserDto targetUser = targetUserResolver.resolveFor(message);
-
+    public @NonNull PolicyDecision evaluate(EntraUserDto targetUser, AuthenticatedEntraUser actor) {
         if (targetUser == null) {
-            return PolicyDecision.deny("target user not found");
+            return PolicyDecision.deny(PolicyDenialReason.TARGET_USER_NOT_FOUND);
         }
 
         // Determine target user type
         UserType targetType = determineTargetUserType(targetUser);
         if (targetType == null) {
-            return PolicyDecision.deny("target user has no valid profiles");
+            return PolicyDecision.deny(PolicyDenialReason.TARGET_USER_NO_VALID_PROFILES);
         }
 
         // Check visibility based on actor and target types
@@ -60,14 +52,14 @@ public class TargetUserVisibilityPolicy implements AuthorizationPolicy<TargetsUs
         if (targetType == UserType.INTERNAL && actorType == UserType.INTERNAL) {
             return actorPermissions.contains(Permission.VIEW_INTERNAL_USER)
                     ? PolicyDecision.allow()
-                    : PolicyDecision.deny("actor lacks VIEW_INTERNAL_USER permission");
+                    : PolicyDecision.deny(PolicyDenialReason.ACTOR_LACKS_PERMISSION);
         }
 
         // Internal actor viewing external or multi-firm user
         if ((targetType == UserType.EXTERNAL || targetUser.isMultiFirmUser()) && actorType == UserType.INTERNAL) {
             return actorPermissions.contains(Permission.VIEW_EXTERNAL_USER)
                     ? PolicyDecision.allow()
-                    : PolicyDecision.deny("actor lacks VIEW_EXTERNAL_USER permission");
+                    : PolicyDecision.deny(PolicyDenialReason.ACTOR_LACKS_PERMISSION);
         }
 
         // External actor viewing external user from same firm
@@ -81,15 +73,15 @@ public class TargetUserVisibilityPolicy implements AuthorizationPolicy<TargetsUs
 
             return actorFirmId != null && actorFirmId.equals(targetFirmId)
                     ? PolicyDecision.allow()
-                    : PolicyDecision.deny("external actor cannot view user from different firm");
+                    : PolicyDecision.deny(PolicyDenialReason.TARGET_USER_OUTSIDE_ACTOR_FIRM);
         }
 
         // External actor cannot view internal or multi-firm users
         if (actorType == UserType.EXTERNAL) {
-            return PolicyDecision.deny("external actor can only view external users from their firm");
+            return PolicyDecision.deny(PolicyDenialReason.POLICY_DENIED);
         }
 
-        return PolicyDecision.deny("cannot determine visibility");
+        return PolicyDecision.deny(PolicyDenialReason.POLICY_DENIED);
     }
 
     private UserType determineTargetUserType(EntraUserDto targetUser) {
