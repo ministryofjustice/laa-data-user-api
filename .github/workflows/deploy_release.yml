@@ -30,4 +30,5 @@ jobs:
       environment: ${{ inputs.environment }}
       helm_values_env: ${{ inputs.environment }}
       image_tag: ${{ inputs.version }}
+      policy_bundle_ref: ${{ inputs.version }}
       wait_for_rollout: true

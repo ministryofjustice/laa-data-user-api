@@ -16,4 +16,8 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 public interface AuthorizationPolicy<M> {
 
     @NonNull PolicyDecision evaluate(M message, AuthenticatedEntraUser actor);
+
+    default AuthorizationPolicyFeature feature() {
+        return AuthorizationPolicyFeature.LEGACY;
+    }
 }

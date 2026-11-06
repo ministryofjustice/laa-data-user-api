@@ -138,6 +138,19 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void handleOpaUnavailable_shouldReturn503WithProblemDetail() {
+        OpaUnavailableException ex = new OpaUnavailableException("OPA authorization request failed");
+
+        ResponseEntity<ProblemDetail> response = handler.handleOpaUnavailable(ex, request);
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals(503, response.getBody().status());
+        assertEquals("Service Unavailable", response.getBody().title());
+    }
+
+    @Test
     void handleInvalidActorContext_shouldReturn403WithProblemDetail() {
         InvalidActorContextException ex = new InvalidActorContextException(
                 "Actor has no active profile");

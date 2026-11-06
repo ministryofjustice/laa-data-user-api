@@ -6,6 +6,7 @@ import org.springframework.aop.support.StaticMethodMatcherPointcut;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Role;
@@ -29,7 +30,11 @@ public class RbacMethodSecurityConfig {
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
     static Advisor requiresPermissionAdvisor(BeanFactory beanFactory,
                                              ObjectProvider<GlobalAuthorizationPolicy<?>> globalPolicies,
-                                             ObjectProvider<AuthorizationPolicyInputResolver<?, ?>> inputResolvers) {
+                                             ObjectProvider<AuthorizationPolicyInputResolver<?, ?>> inputResolvers,
+                                             @Value("${app.authorization.legacy-policies-enabled:true}")
+                                             boolean legacyPoliciesEnabled,
+                                             @Value("${app.authorization.opa-enabled:true}")
+                                             boolean opaEnabled) {
         // Policies are resolved lazily (on first use) so this infrastructure bean doesn't eagerly
         // initialise application beans.
         Supplier<List<GlobalAuthorizationPolicy<?>>> globals =
@@ -37,7 +42,8 @@ public class RbacMethodSecurityConfig {
         AuthorizationManagerBeforeMethodInterceptor interceptor = new AuthorizationManagerBeforeMethodInterceptor(
                 new RequiresPermissionPointcut(),
                 new RequiresPermissionAuthorizationManager(beanFactory::getBean, globals,
-                        SingletonSupplier.of(() -> inputResolvers.orderedStream().toList())));
+                        SingletonSupplier.of(() -> inputResolvers.orderedStream().toList()),
+                        legacyPoliciesEnabled, opaEnabled));
         interceptor.setOrder(AuthorizationInterceptorsOrder.PRE_AUTHORIZE.getOrder() + 1);
         return interceptor;
     }

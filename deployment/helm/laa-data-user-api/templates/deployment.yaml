@@ -71,6 +71,12 @@ spec:
               value: {{ .Values.sentryEnabled | quote }}
             - name: SENTRY_SAMPLE_RATE
               value: {{ .Values.sentrySampleRate | quote }}
+            - name: OPA_URL
+              value: {{ .Values.opa.url | quote }}
+            - name: APP_AUTHORIZATION_LEGACY_POLICIES_ENABLED
+              value: {{ .Values.authorization.legacyPoliciesEnabled | quote }}
+            - name: APP_AUTHORIZATION_OPA_ENABLED
+              value: {{ .Values.authorization.opaEnabled | quote }}
             - name: POSTGRES_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -116,3 +122,35 @@ spec:
               port: 8080
             failureThreshold: 15
             periodSeconds: 10
+        - name: opa
+          image: "{{ .Values.opa.image }}"
+          imagePullPolicy: IfNotPresent
+          args:
+            - run
+            - --server
+            - --addr=127.0.0.1:8181
+            - --bundle
+            - {{ .Values.opa.bundleUrl | quote }}
+            - --log-format=json
+          securityContext:
+            runAsUser: 10000
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              memory: "{{ .Values.opa.resources.requests.memory }}"
+              cpu: "{{ .Values.opa.resources.requests.cpu }}"
+            limits:
+              memory: "{{ .Values.opa.resources.limits.memory }}"
+              cpu: "{{ .Values.opa.resources.limits.cpu }}"
+          volumeMounts:
+            - name: opa-tmp
+              mountPath: /tmp
+      volumes:
+        - name: opa-tmp
+          emptyDir: {}

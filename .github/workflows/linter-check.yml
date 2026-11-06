@@ -41,6 +41,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Run OPA policy tests
+        run: docker run --rm --volume "$PWD/opa:/opa:ro" openpolicyagent/opa:0.68.0-rootless test /opa/policies /opa/tests -v
+
       - name: Upload Checkstyle Report
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

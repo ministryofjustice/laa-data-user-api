@@ -103,13 +103,13 @@ scoped and fail closed if they have no firm.
 
 Other reusable command-side policies in `application.command.policy` are:
 
-| Policy                            | Capability           | Rule                                                                                                      |
-|-----------------------------------|----------------------|-----------------------------------------------------------------------------------------------------------|
-| `NotSelfTargetPolicy`             | `TargetsUser`        | The actor cannot target their own Entra account.                                                          |
-| `ExternalTargetOnlyPolicy`        | `TargetsUser`        | The target user must not be an internal user.                                                             |
+| Policy                            | Capability                                              | Rule                                                                                                                    |
+|-----------------------------------|---------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `NotSelfTargetPolicy`             | `TargetsUser`                                           | The actor cannot target their own Entra account.                                                                        |
+| `ExternalTargetOnlyPolicy`        | `TargetsUser`                                           | The target user must not be an internal user.                                                                           |
 | `ReactivationHierarchyPolicy`     | `UserDeactivationContext` (resolved from `TargetsUser`) | The target must be deactivated, and the actor's authorization roles must permit reactivation for its deactivation type. |
-| `NotSelfProfileTargetPolicy`      | `TargetsUserProfile` | The actor cannot target a profile belonging to their own account.                                         |
-| `ExternalProfileTargetOnlyPolicy` | `TargetsUserProfile` | The target profile must not belong to an internal user.                                                   |
+| `NotSelfProfileTargetPolicy`      | `TargetsUserProfile`                                    | The actor cannot target a profile belonging to their own account.                                                       |
+| `ExternalProfileTargetOnlyPolicy` | `TargetsUserProfile`                                    | The target profile must not belong to an internal user.                                                                 |
 
 For example, `DeactivateUserCommand` requires `DISABLE_EXTERNAL_USER`, cannot target the actor,
 must target an external user, and is subject to the global
@@ -125,6 +125,31 @@ Bulk deactivation applies the same per-user handler and hierarchy to active and 
 Each successful per-user operation calls Tech Services and creates an audit entry; an already disabled
 user's row changes only for an equal or higher deactivation type. Per-user permission and firm-scope
 checks still apply, and denied users are counted as failures without stopping the remaining users.
+
+### OPA lifecycle trial
+
+Deactivate and reactivate commands additionally send the actor's role and permission context and the target's
+account, firm, and deactivation facts to the OPA sidecar. OPA applies the same-firm, self-target, external-user,
+and reactivation-hierarchy rules in `opa/policies/authz/lifecycle.rego`. The existing Java RBAC checks remain
+in place during this trial; OPA is an additional enforcing gate, and an unavailable or malformed OPA response
+fails closed with HTTP 503.
+
+Enforcement can be controlled independently with `APP_AUTHORIZATION_OPA_ENABLED` and
+`APP_AUTHORIZATION_LEGACY_POLICIES_ENABLED` (or the matching `authorization.opaEnabled` and
+`authorization.legacyPoliciesEnabled` Helm values). Both default to `true` to preserve current behavior.
+Disabling legacy policies skips the fine-grained Java policies, including global firm-scope policies, when OPA
+is enabled. If OPA is disabled, legacy policies are automatically enabled as a fallback. Declared permissions
+and OAuth scope checks remain active whichever policy engine is enabled.
+
+Locally, start OPA with the policy directory before running the API:
+
+```bash
+opa run --server --addr=127.0.0.1:8181 opa/policies
+```
+
+The `OPA_URL` environment variable can override the default `http://localhost:8181`. Policy tests run with
+`opa test opa/policies opa/tests -v`. Deployments build and publish the policy bundle to
+`s3://laa-opa-bundles/laa-data-user-api/bundle.tar.gz`, which the OPA sidecar loads.
 
 ### Using existing permissions and policies
 
@@ -313,6 +338,7 @@ The application relies on several environment variables for configuration. Below
 | `TECH_SERVICES_AZURE_CLIENT_SECRET` | The Azure AD client secret for the Tech Services API.                                                                                             | None                      | GitHub Actions secret                                              |
 | `TECH_SERVICES_TENANT_ID`           | The Azure AD tenant ID for the Tech Services API.                                                                                                 | None                      | GitHub Actions secret                                              |
 | `TECH_SERVICES_BASE_URL`            | The base URL for the Tech Services API.                                                                                                           | None                      | GitHub Actions secret                                              |
+| `OPA_URL`                           | Base URL for the local OPA sidecar used by lifecycle authorization.                                                                               | `http://localhost:8181`   | Helm value / environment variable                                  |
 | `SLACK_WEBHOOK_URL`                 | Slack Incoming Webhook URL the `laa-data-user-api-uptime-check` CronJob posts to on a failed external health check. Not consumed by the main app. | None                      | K8s Secret `slack-alert-webhook-secret`                            |
 | `TECH_SERVICES_CALLS_ENABLED`       | Whether to enable calls to the Tech Services API.                                                                                                 | `false`                   | Not yet wired into the Helm chart (`application.yml` default only) |
 | `TECH_SERVICES_LAA_BUSINESS_UNIT`   | The business unit for the Tech Services API.                                                                                                      | `laa`                     | Not yet wired into the Helm chart (`application.yml` default only) |
@@ -437,11 +463,11 @@ gpr.token=your-classic-token-with-read:packages-scope
 
 ### Versioning policy
 
-| Change type | Version bump | Example |
-|---|---|---|
-| Bug fix, no API surface change | Patch | `1.0.0` → `1.0.1` |
-| New optional field added to a record | Minor | `1.0.0` → `1.1.0` |
-| Field removed, renamed, or type changed | **Major** | `1.0.0` → `2.0.0` |
+| Change type                             | Version bump | Example           |
+|-----------------------------------------|--------------|-------------------|
+| Bug fix, no API surface change          | Patch        | `1.0.0` → `1.0.1` |
+| New optional field added to a record    | Minor        | `1.0.0` → `1.1.0` |
+| Field removed, renamed, or type changed | **Major**    | `1.0.0` → `2.0.0` |
 
 Breaking changes (major bumps) require coordinating with all consumers before merging.
 

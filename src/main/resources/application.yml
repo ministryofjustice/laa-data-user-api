@@ -54,6 +54,11 @@ management:
         enabled: true
 
 app:
+  authorization:
+    legacy-policies-enabled: ${APP_AUTHORIZATION_LEGACY_POLICIES_ENABLED:true}
+    opa-enabled: ${APP_AUTHORIZATION_OPA_ENABLED:true}
+  opa:
+    base-url: ${OPA_URL:http://localhost:8181}
   silas-status-refresh:
     batch-size: ${SILAS_STATUS_REFRESH_BATCH_SIZE:500}
   enable:

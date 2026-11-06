@@ -24,6 +24,7 @@ import uk.gov.justice.laa.datauserapi.application.command.policy.ExternalProfile
 import uk.gov.justice.laa.datauserapi.application.command.policy.ExternalTargetOnlyPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.NotSelfProfileTargetPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.NotSelfTargetPolicy;
+import uk.gov.justice.laa.datauserapi.application.command.policy.OpaLifecycleAuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ProviderAdminFirmScopePolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ProviderAdminOwnFirmPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ProviderAdminProfileFirmScopePolicy;
@@ -69,6 +70,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.any;
 
 /**
  * Verifies the advisor is wired into the Spring proxy chain and gates the real user account commands
@@ -153,6 +155,14 @@ class RbacMethodSecurityIntegrationTest {
         @Bean
         ReactivationHierarchyPolicy reactivationHierarchyPolicy() {
             return new ReactivationHierarchyPolicy();
+        }
+
+        @Bean
+        OpaLifecycleAuthorizationPolicy opaLifecycleAuthorizationPolicy() {
+            OpaLifecycleAuthorizationPolicy policy = mock(OpaLifecycleAuthorizationPolicy.class);
+            when(policy.feature()).thenReturn(AuthorizationPolicyFeature.OPA);
+            when(policy.evaluate(any(), any())).thenReturn(PolicyDecision.allow());
+            return policy;
         }
 
         @Bean

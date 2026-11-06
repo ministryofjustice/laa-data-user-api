@@ -118,4 +118,5 @@ jobs:
       environment: development
       helm_values_env: dev
       image_tag: ${{ github.sha }}
+      policy_bundle_ref: ${{ github.sha }}
       allowlist_cidr: ${{ needs.get-allowlist.outputs.allowlist }}

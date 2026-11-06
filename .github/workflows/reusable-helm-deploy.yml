@@ -18,6 +18,10 @@ on:
         description: 'Image tag to deploy (commit sha for dev, release version for release)'
         type: string
         required: true
+      policy_bundle_ref:
+        description: 'Git ref containing the OPA policies to bundle and deploy'
+        type: string
+        required: true
       allowlist_cidr:
         description: 'Precomputed allowlist CIDR list (dev only; empty elsewhere)'
         type: string
@@ -44,6 +48,8 @@ jobs:
       contents: read # This is required for actions/checkout
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.policy_bundle_ref }}
 
       # Assume role in Cloud Platform
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
@@ -54,6 +60,17 @@ jobs:
       # Login to container repository
       - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
         id: login-ecr
+
+      - name: Build OPA policy bundle
+        run: |
+          mkdir -p "$RUNNER_TEMP/opa-bundle"
+          docker run --rm --user 0:0 \
+            --volume "$GITHUB_WORKSPACE/opa:/opa:ro" \
+            --volume "$RUNNER_TEMP/opa-bundle:/bundle" \
+            openpolicyagent/opa:0.68.0 build -b -o /bundle/bundle.tar.gz /opa/policies
+
+      - name: Publish OPA policy bundle
+        run: aws s3 cp "$RUNNER_TEMP/opa-bundle/bundle.tar.gz" s3://laa-opa-bundles/laa-data-user-api/bundle.tar.gz
 
       - name: Configure kubectl
         uses: ./.github/actions/configure-kubectl

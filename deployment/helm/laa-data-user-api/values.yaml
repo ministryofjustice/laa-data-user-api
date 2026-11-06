@@ -1,5 +1,19 @@
 replicaCount: 3
 springProfile: "local"
+opa:
+  url: "http://localhost:8181"
+  image: "openpolicyagent/opa:0.68.0-rootless"
+  bundleUrl: "s3://laa-opa-bundles/laa-data-user-api/bundle.tar.gz"
+  resources:
+    requests:
+      memory: "100Mi"
+      cpu: "50m"
+    limits:
+      memory: "250Mi"
+      cpu: "250m"
+authorization:
+  legacyPoliciesEnabled: true
+  opaEnabled: true
 azureAppUri: ""
 techServicesAzureScope: ""
 techServicesAzureClientId: ""
