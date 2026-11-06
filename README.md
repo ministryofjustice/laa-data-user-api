@@ -135,6 +135,34 @@ invalid identifiers, denied access, missing users, downstream failures, rejected
 unexpected system failures; the HTTP response retains its aggregate counts. Expected failures
 are logged at `WARN`, unexpected runtime failures at `ERROR`, and remaining users still run.
 
+Deletion delegates to `DeleteUserService`, with outbound account removal isolated in
+`DeleteUserTechServicesService`. The service resolves the delete reason once and passes it to
+`DeleteUserMapper`; the mapper no longer accesses persistence.
+User-details updates delegate to `UpdateUserDetailsService`, preserving email validation and the
+Tech Services call before local changes. Assigned-office and unrestricted-office commands use
+separate methods on `UserProfileOfficeService`, sharing profile lookup and modification metadata.
+Their handlers retain message-level authorization and transaction boundaries.
+Reactivation delegates to `ReactivateUserService`; locked target loading, the hierarchy recheck,
+Tech Services, and the local update remain in one transaction. The lifecycle service loads and
+refreshes the target once, invokes the outbound step using a DTO, then updates the same locked
+entity without another lookup.
+`UserSearchService` owns trusted search criteria and pagination preparation, and
+`UserAccountDetailsService` coordinates account retrieval. Both query services are read-only and
+use `QueryAuthorisationService` for active actor context. Existing visibility rules and not-found
+responses are unchanged.
+Multi-firm conversion requires both `EDIT_EXTERNAL_USER` and `CONVERT_USER_TO_MULTI_FIRM` through
+the command's `@RequiresPermission(match = ALL)` declaration. `InternalActorOnlyPolicy` requires an
+active internal actor profile; the existing self-target and external-target policies also apply.
+These checks run at the handler boundary before the write transaction opens.
+`ConvertToMultiFirmService` owns the lock-refresh-check-update sequence, including the
+already-converted conflict check under the row lock. Active-profile retrieval and profile-list filtering
+delegate to the read-only `UserProfileDetailsService`, with shared actor-context validation in
+`QueryAuthorisationService` and entity mapping confined to `UserProfileQueryMapper`.
+`RefreshSilasStatusHandler` retains scheduling-rejection handling at the submission boundary:
+rejected work returns a failure result, while unexpected submission failures propagate.
+Failures after asynchronous work starts are logged by the configured uncaught-exception handler;
+previously committed batches remain updated.
+
 ### Using existing permissions and policies
 
 `ReactivationPolicyInputResolver` loads active state and the recorded deactivation type with one

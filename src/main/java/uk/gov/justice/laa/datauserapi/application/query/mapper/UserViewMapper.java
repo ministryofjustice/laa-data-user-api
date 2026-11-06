@@ -1,6 +1,9 @@
 package uk.gov.justice.laa.datauserapi.application.query.mapper;
 
 import org.springframework.stereotype.Component;
+import org.springframework.data.domain.Page;
+import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryView;
@@ -22,6 +25,12 @@ import java.util.UUID;
 
 @Component
 public class UserViewMapper {
+
+    public UserAccountSummaryPage mapToSummaryPage(Page<EntraUserDto> page) {
+        return new UserAccountSummaryPage(
+                page.getContent().stream().map(this::mapToUserAccountSummaryView).toList(),
+                new PageMetadata(page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages()));
+    }
 
     public UserView mapToUserView(EntraUserDto user) {
         UserProfileDto activeProfile = user.getUserProfiles().stream()
