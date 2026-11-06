@@ -121,10 +121,19 @@ calls Tech Services and creates an audit entry. The target is locked and refresh
 and the lock is held through the local update. For an already disabled user, the `entra_user` row is updated
 only when the actor's resolved deactivation type is equal to or higher than the stored type:
 `null/NONE < SYNC < FIRM < LAA < PRIVILEGED`. Lower privilege leaves the entire row unchanged.
-Bulk deactivation applies the same per-user handler and hierarchy to active and already disabled users.
+Bulk and individual deactivation delegate to the shared transactional `DeactivateUserService` workflow
+using a target ID, reason, and actor, not another command. Bulk never invokes another handler
+or constructs `DeactivateUserCommand`.
 Each successful per-user operation calls Tech Services and creates an audit entry; an already disabled
-user's row changes only for an equal or higher deactivation type. Per-user permission and firm-scope
-checks still apply, and denied users are counted as failures without stopping the remaining users.
+user's row changes only for an equal or higher deactivation type. Bulk authorization checks
+`BULK_DISABLE_FIRM_USERS` and the target firm scope once at the bulk handler. It does not require
+`DISABLE_EXTERNAL_USER` or apply individual self-target, internal-target, multi-firm, or active-profile
+firm-scope policies. Only users returned by the target firm's membership query are processed.
+Individual deactivation retains its own permission and target policies at `DeactivateUserHandler`.
+Each user is processed in an independent transaction. Internal per-user outcomes distinguish
+invalid identifiers, denied access, missing users, downstream failures, rejected operations, and
+unexpected system failures; the HTTP response retains its aggregate counts. Expected failures
+are logged at `WARN`, unexpected runtime failures at `ERROR`, and remaining users still run.
 
 ### Using existing permissions and policies
 

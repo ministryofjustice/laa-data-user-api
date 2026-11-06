@@ -26,6 +26,16 @@ public interface EntraUserCommandRepository extends JpaRepository<EntraUser, UUI
         """)
     List<EntraUser> findUsersByFirmCode(@Param("firmCode") String firmCode);
 
+    @Query("""
+        SELECT u.entraOid FROM EntraUser u
+        WHERE EXISTS (
+            SELECT p.id FROM UserProfile p
+            WHERE p.entraUser = u AND p.firm.code = :firmCode
+        )
+        ORDER BY u.id
+        """)
+    List<String> findUserEntraOidsByFirmCode(@Param("firmCode") String firmCode);
+
     // Entra OIDs are matched case-insensitively because UUID.toString() always yields lowercase.
     @Query("SELECT u FROM EntraUser u WHERE lower(u.entraOid) = lower(:entraOid)")
     Optional<EntraUser> findByEntraOid(@Param("entraOid") String entraOid);
