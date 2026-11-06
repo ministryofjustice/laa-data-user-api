@@ -17,6 +17,8 @@ import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserAccountHa
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.handler.SearchUsersHandler;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
+import uk.gov.justice.laa.datauserapi.application.query.queryprofile.GetActiveProfileQuery;
+import uk.gov.justice.laa.datauserapi.application.query.queryprofile.GetUserProfilesQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
@@ -78,14 +80,14 @@ public class UserAccountQueryController {
     @GetMapping("/users/{userEntraObjectId}/profiles")
     public ResponseEntity<UserProfileSummaryList> getUserProfiles(@PathVariable String userEntraObjectId,
                                                                           @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        List<UserProfileSummaryView> readModel = getUserProfilesHandler.handle(userEntraObjectId, authenticatedUser);
+        List<UserProfileSummaryView> readModel = getUserProfilesHandler.handle(new GetUserProfilesQuery(userEntraObjectId));
         return ResponseEntity.ok(new UserProfileSummaryList(readModel));
     }
 
     @GetMapping("/users/{userEntraObjectId}/active-profile")
     public ResponseEntity<UserProfileDetailView> getActiveProfile(@PathVariable String userEntraObjectId,
                                                                    @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        UserProfileDetailView readModel = getActiveProfileHandler.handle(userEntraObjectId, authenticatedUser);
+        UserProfileDetailView readModel = getActiveProfileHandler.handle(new GetActiveProfileQuery(userEntraObjectId));
         return ResponseEntity.ok(readModel);
     }
 }

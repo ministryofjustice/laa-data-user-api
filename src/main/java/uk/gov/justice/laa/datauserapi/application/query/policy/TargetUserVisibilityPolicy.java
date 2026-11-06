@@ -2,8 +2,6 @@ package uk.gov.justice.laa.datauserapi.application.query.policy;
 
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
-import uk.gov.justice.laa.datauserapi.application.query.mapper.UserAccountQueryMapper;
-import uk.gov.justice.laa.datauserapi.application.query.shared.repository.EntraUserQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
@@ -27,24 +25,21 @@ import java.util.UUID;
  * - Multi-firm users (no profiles) are treated as external
  *
  * This policy is reusable for any query message that targets a specific user (implements TargetsUser).
+ * 
+ * Uses TargetUserResolver to load target user facts (pure policy, no direct repository access).
  */
 @Component
 public class TargetUserVisibilityPolicy implements AuthorizationPolicy<TargetsUser> {
 
-    private final EntraUserQueryRepository repository;
-    private final UserAccountQueryMapper mapper;
+    private final TargetUserResolver targetUserResolver;
 
-    public TargetUserVisibilityPolicy(EntraUserQueryRepository repository, UserAccountQueryMapper mapper) {
-        this.repository = repository;
-        this.mapper = mapper;
+    public TargetUserVisibilityPolicy(TargetUserResolver targetUserResolver) {
+        this.targetUserResolver = targetUserResolver;
     }
 
     @Override
     public @NonNull PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
-        String targetOid = message.targetUserEntraObjectId().toString();
-        EntraUserDto targetUser = repository.findByEntraOid(targetOid)
-                .map(entity -> mapper.toDto(java.util.Optional.of(entity), targetOid))
-                .orElse(null);
+        EntraUserDto targetUser = targetUserResolver.resolveFor(message);
 
         if (targetUser == null) {
             return PolicyDecision.deny("target user not found");
