@@ -6,6 +6,7 @@ import lombok.Getter;
 @Getter
 public enum PolicyDenialReason {
     POLICY_DENIED("policy denied"),
+    ACTOR_NOT_ACTIVE_INTERNAL_USER("actor must have an active internal profile"),
     SELF_TARGET_NOT_ALLOWED("actor cannot act on their own account"),
     PROVIDER_ADMIN_NO_ACTIVE_FIRM("provider admin has no active firm"),
     TARGET_USER_INTERNAL("target user is an internal user"),
