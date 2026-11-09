@@ -23,7 +23,4 @@ public record PolicyDecision(boolean granted, PolicyDenialReason reason) {
         return new PolicyDecision(false, reason);
     }
 
-    public static PolicyDecision deny(PolicyDenialReason reason) {
-        return deny(reason.name());
-    }
 }

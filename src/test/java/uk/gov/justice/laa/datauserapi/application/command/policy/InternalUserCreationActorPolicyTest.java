@@ -23,7 +23,7 @@ class InternalUserCreationActorPolicyTest {
         var decision = policy.evaluate(mock(CreateUserAccountCommand.class), null);
 
         assertThat(decision.granted()).isFalse();
-        assertThat(decision.reason()).isEqualTo(PolicyDenialReason.CREATE_EXTERNAL_USER_ACTOR_NOT_ELIGIBLE.name());
+        assertThat(decision.reason()).isEqualTo(PolicyDenialReason.CREATE_EXTERNAL_USER_ACTOR_NOT_ELIGIBLE);
     }
 
     @Test
