@@ -7,6 +7,7 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.security.rbac.TargetsUserProfile;
 
 /** The guarded action is only permitted on external user profiles; internal (LAA) profiles are never a valid target. */
@@ -24,7 +25,7 @@ public class ExternalProfileTargetOnlyPolicy implements AuthorizationPolicy<Targ
         return userCommandService.findProfileUserType(message.targetUserProfileId())
                 .filter(UserType.INTERNAL::equals)
                 .isPresent()
-                ? PolicyDecision.deny("target profile belongs to an internal user")
+                ? PolicyDecision.deny(PolicyDenialReason.TARGET_PROFILE_INTERNAL)
                 : PolicyDecision.allow();
     }
 }

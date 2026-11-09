@@ -6,6 +6,7 @@ import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandSer
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.security.rbac.TargetsUserProfile;
 
 /** An actor may not perform the guarded action on any profile belonging to their own account. */
@@ -23,7 +24,7 @@ public class NotSelfProfileTargetPolicy implements AuthorizationPolicy<TargetsUs
         return userCommandService.findProfileEntraOid(targetsUserProfile.targetUserProfileId())
                 .filter(oid -> oid.equalsIgnoreCase(actor.entraOid()))
                 .isPresent()
-                ? PolicyDecision.deny(PolicyMessages.SELF_TARGET_NOT_ALLOWED)
+                ? PolicyDecision.deny(PolicyDenialReason.SELF_TARGET_NOT_ALLOWED)
                 : PolicyDecision.allow();
     }
 }

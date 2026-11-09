@@ -100,14 +100,18 @@ class UserAccountLifecycleServiceTest {
 
     @Test
     @DisplayName("loads and locks an active user before deactivation")
-    void loadEntraUserDtoForDeactivation_LocksActiveUser() {
+    void deactivate_LocksActiveUserBeforeOutboundStep() {
         EntraUser user = user();
         user.setUserAccountStatus(UserAccountStatus.ACTIVE);
         EntraUserDto dto = EntraUserDto.builder().id(targetId.toString()).build();
         when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
         when(modelMapper.map(user, EntraUserDto.class)).thenReturn(dto);
 
-        assertThat(service.loadEntraUserDtoForDeactivation(targetId)).isSameAs(dto);
+        service.deactivate(targetId, ACTOR, DeactivateUserReason.Absence, target -> {
+            assertThat(target).isSameAs(dto);
+            assertThat(user.isActive()).isTrue();
+            return DeactivationType.LAA;
+        });
 
         verify(entraUserCommandRepository).findByEntraOidForUpdate(targetId.toString());
         verify(entityManager).refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
@@ -115,7 +119,7 @@ class UserAccountLifecycleServiceTest {
 
     @Test
     @DisplayName("loads and locks already deactivated users for repeat deactivation")
-    void loadEntraUserDtoForDeactivation_AlreadyDeactivated_ReturnsDto() {
+    void deactivate_AlreadyDeactivated_ProvidesDtoToOutboundStep() {
         EntraUser user = user();
         user.setActive(false);
         user.setUserAccountStatus(UserAccountStatus.DEACTIVATED);
@@ -123,7 +127,10 @@ class UserAccountLifecycleServiceTest {
         EntraUserDto dto = EntraUserDto.builder().id(targetId.toString()).active(false).build();
         when(modelMapper.map(user, EntraUserDto.class)).thenReturn(dto);
 
-        assertThat(service.loadEntraUserDtoForDeactivation(targetId)).isSameAs(dto);
+        service.deactivate(targetId, ACTOR, DeactivateUserReason.Absence, target -> {
+            assertThat(target).isSameAs(dto);
+            return DeactivationType.LAA;
+        });
         verify(entityManager).refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
     }
 
@@ -167,7 +174,8 @@ class UserAccountLifecycleServiceTest {
         when(deactivateUserMapper.toAuditEntity(user, DeactivateUserReason.Absence, ACTOR)).thenReturn(audit);
         when(deactivateUserMapper.toCommandResult(user)).thenReturn(expected);
 
-        CommandResult result = service.deactivate(targetId, ACTOR, DeactivationType.LAA, DeactivateUserReason.Absence);
+        CommandResult result = service.deactivate(targetId, ACTOR, DeactivateUserReason.Absence,
+                target -> DeactivationType.LAA);
 
         assertThat(result).isSameAs(expected);
         assertThat(user.getUserAccountStatus()).isEqualTo(UserAccountStatus.DEACTIVATED);
@@ -176,6 +184,9 @@ class UserAccountLifecycleServiceTest {
         InOrder inOrder = inOrder(entraUserCommandRepository, auditRepository);
         inOrder.verify(entraUserCommandRepository).save(user);
         inOrder.verify(auditRepository).save(audit);
+        verify(entraUserCommandRepository).findByEntraOidForUpdate(targetId.toString());
+        verify(entityManager).refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        verify(entraUserCommandRepository, never()).findByEntraOid(any());
     }
 
     @Test
@@ -184,7 +195,7 @@ class UserAccountLifecycleServiceTest {
         when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.deactivate(
-                targetId, ACTOR, DeactivationType.LAA, DeactivateUserReason.Absence))
+                targetId, ACTOR, DeactivateUserReason.Absence, target -> DeactivationType.LAA))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verify(entraUserCommandRepository, never()).save(any());
@@ -212,7 +223,7 @@ class UserAccountLifecycleServiceTest {
         when(deactivateUserMapper.toAuditEntity(user, DeactivateUserReason.Absence, ACTOR)).thenReturn(audit);
         when(deactivateUserMapper.toCommandResult(user)).thenReturn(CommandResult.success("deactivated"));
 
-        assertThat(service.deactivate(targetId, ACTOR, actorType, DeactivateUserReason.Absence).success()).isTrue();
+        assertThat(service.deactivate(targetId, ACTOR, DeactivateUserReason.Absence, target -> actorType).success()).isTrue();
 
         verify(auditRepository).save(audit);
         if (shouldUpdate) {

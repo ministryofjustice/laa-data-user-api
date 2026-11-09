@@ -1,6 +1,8 @@
 package uk.gov.justice.laa.datauserapi.application.command.handler;
 
 import lombok.extern.slf4j.Slf4j;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,11 +28,13 @@ public class ConvertToMultiFirmHandler implements CommandHandler<ConvertToMultiF
 
     private final EntraUserCommandRepository entraUserCommandRepository;
     private final ConvertToMultiFirmDomainMapper mapper;
+    private final EntityManager entityManager;
 
     public ConvertToMultiFirmHandler(EntraUserCommandRepository entraUserCommandRepository,
-                                     ConvertToMultiFirmDomainMapper mapper) {
+                                     ConvertToMultiFirmDomainMapper mapper, EntityManager entityManager) {
         this.entraUserCommandRepository = entraUserCommandRepository;
         this.mapper = mapper;
+        this.entityManager = entityManager;
     }
 
     @Override
@@ -40,10 +44,11 @@ public class ConvertToMultiFirmHandler implements CommandHandler<ConvertToMultiF
 
         requireAuthorisedActor(actor);
 
-        // Locks the row so concurrent conversions serialise and the loser sees the converted state
+        // Refresh a target cached by pre-handler policies after acquiring the row lock.
         EntraUser user = entraUserCommandRepository.findByEntraOidForUpdate(mapper.toEntraOid(command))
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "User account not found for oid: " + command.userEntraObjectId()));
+        entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
 
         if (user.isMultiFirmUser()) {
             log.warn("User {} is already multi-firm", command.userEntraObjectId());
