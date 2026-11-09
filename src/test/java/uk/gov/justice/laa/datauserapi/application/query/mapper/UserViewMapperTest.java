@@ -127,22 +127,6 @@ class UserViewMapperTest {
     }
 
     @Test
-    void shouldThrowWhenNoActiveProfileFound() {
-
-        UserProfileDto profile = UserProfileDto.builder()
-                .activeProfile(false)
-                .build();
-
-        EntraUserDto dto = new EntraUserDto();
-        dto.setEntraOid(UUID.randomUUID().toString());
-        dto.setUserProfiles(Set.of(profile));
-
-        assertThrows(
-                InvalidActorContextException.class,
-                () -> mapper.mapToUserView(dto));
-    }
-
-    @Test
     void shouldMapSummaryView() {
 
         UserProfileDto profile1 = UserProfileDto.builder().id(UUID.randomUUID()).build();

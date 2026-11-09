@@ -1,13 +1,14 @@
-package uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyentrauser;
+package uk.gov.justice.laa.datauserapi.application.query.mapper;
 
+import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
-import uk.gov.justice.laa.datauserapi.dto.AppRoleDto;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.dto.OfficeDto;
-import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
+import uk.gov.justice.laa.datauserapi.entity.AppRole;
+import uk.gov.justice.laa.datauserapi.entity.Office;
+import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 
 import java.util.Arrays;
 import java.util.List;
@@ -16,8 +17,15 @@ import java.util.UUID;
 @Component
 public class GetActiveProfileQueryMapper {
 
-    public UserProfileDetailView mapProfileToDetailView(UserProfileDto activeProfile) {
-        EntraUserDto user = activeProfile.getEntraUser();
+    private final ModelMapper modelMapper;
+
+    public GetActiveProfileQueryMapper(ModelMapper modelMapper) {
+        this.modelMapper = modelMapper;
+    }
+
+    public UserProfileDetailView mapProfileToDetailView(UserProfile activeProfile) {
+
+        EntraUserDto user = modelMapper.map(activeProfile.getEntraUser(), EntraUserDto.class);
 
         List<AppRoleView> roles = activeProfile.getAppRoles().stream()
                 .map(this::mapAppRole)
@@ -47,10 +55,10 @@ public class GetActiveProfileQueryMapper {
         );
     }
 
-    private AppRoleView mapAppRole(AppRoleDto role) {
+    private AppRoleView mapAppRole(AppRole role) {
         return new AppRoleView(
-                role.getId(),
-                role.getApp().getId(),
+                role.getId().toString(),
+                role.getApp().getId().toString(),
                 role.getApp().getName(),
                 role.getApp().getEntraAppId(),
                 role.getName(),
@@ -66,10 +74,10 @@ public class GetActiveProfileQueryMapper {
         );
     }
 
-    private OfficeView mapOffice(OfficeDto office) {
+    private OfficeView mapOffice(Office office) {
         return new OfficeView(
                 office.getId().toString(),
-                office.getFirmId(),
+                office.getFirm().getId().toString(),
                 office.getAddress().getPostcode(),
                 office.getAddress().getAddressLine1(),
                 office.getAddress().getAddressLine2(),
