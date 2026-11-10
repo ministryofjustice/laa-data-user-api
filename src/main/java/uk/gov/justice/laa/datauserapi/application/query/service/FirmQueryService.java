@@ -22,7 +22,7 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.FirmQueryRepository;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.OfficeQueryRepository;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.FirmNotFoundException;
 
 @Service
 @Transactional(readOnly = true)
@@ -83,7 +83,7 @@ public class FirmQueryService {
     public FirmView getFirmById(AuthenticatedEntraUser authenticatedUser, String firmId) {
         authorisationService.requireFirmDirectoryAccess(authenticatedUser);
         return firmQueryRepository.findViewByCode(firmId)
-                .orElseThrow(() -> new ResourceNotFoundException("Firm not found: " + firmId));
+                .orElseThrow(() -> new FirmNotFoundException(firmId));
     }
 
     public FirmSearchViewList searchFirms(AuthenticatedEntraUser authenticatedUser, String query, int limit) {
@@ -98,7 +98,7 @@ public class FirmQueryService {
     public OfficeViewList getFirmOffices(AuthenticatedEntraUser authenticatedUser, String firmId) {
         authorisationService.requireFirmDirectoryAccess(authenticatedUser);
         if (!firmQueryRepository.existsByCode(firmId)) {
-            throw new ResourceNotFoundException("Firm not found: " + firmId);
+            throw new FirmNotFoundException(firmId);
         }
         List<OfficeView> offices = officeQueryRepository.findByFirmCode(firmId);
         return new OfficeViewList(offices);

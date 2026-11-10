@@ -17,7 +17,7 @@ import uk.gov.justice.laa.datauserapi.application.command.useraccount.BulkDeacti
 import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.FirmNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
@@ -137,8 +137,40 @@ class BulkDeactivateFirmUsersServiceTest {
     @Test
     void rejectsMissingFirmBeforeLookingUpUsers() {
         assertThatThrownBy(() -> service.deactivate(command, actor))
-                .isInstanceOf(ResourceNotFoundException.class)
+                .isInstanceOf(FirmNotFoundException.class)
                 .hasMessage("Firm not found with ID: " + command.firmId());
         verifyNoInteractions(userRepository, deactivateService);
+    }
+
+    @Test
+    void asyncRunProcessesUsersAndNeverPropagatesFailures() {
+        when(firmRepository.existsByCode(command.firmId())).thenReturn(true);
+        when(userRepository.findUserEntraOidsByFirmCode(command.firmId()))
+                .thenThrow(new IllegalStateException("database unavailable"));
+
+        service.deactivateAsync(command, actor);
+
+        verifyNoInteractions(deactivateService);
+    }
+
+    @Test
+    void asyncRunDeactivatesListedUsers() {
+        UUID id = UUID.randomUUID();
+        when(firmRepository.existsByCode(command.firmId())).thenReturn(true);
+        when(userRepository.findUserEntraOidsByFirmCode(command.firmId())).thenReturn(List.of(id.toString()));
+        when(deactivateService.deactivate(id, command.deactivateReason(), actor))
+                .thenReturn(CommandResult.success("done"));
+
+        service.deactivateAsync(command, actor);
+
+        verify(deactivateService).deactivate(id, command.deactivateReason(), actor);
+    }
+
+    @Test
+    void asyncMethodRunsOnTheBulkExecutor() throws NoSuchMethodException {
+        org.springframework.scheduling.annotation.Async async = BulkDeactivateFirmUsersService.class
+                .getMethod("deactivateAsync", BulkDeactivateFirmUsersCommand.class, AuthenticatedEntraUser.class)
+                .getAnnotation(org.springframework.scheduling.annotation.Async.class);
+        assertThat(async.value()).isEqualTo("bulkDeactivationExecutor");
     }
 }

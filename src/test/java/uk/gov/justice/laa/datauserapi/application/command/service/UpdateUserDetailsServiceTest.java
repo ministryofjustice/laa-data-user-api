@@ -15,7 +15,7 @@ import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorRespon
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -62,8 +62,7 @@ class UpdateUserDetailsServiceTest {
         when(repository.findByEntraOid(target)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.update(new UpdateUserDetailsCommand(targetId, "A", null, null), actor))
-                .isExactlyInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("User account not found for oid: " + targetId);
+                .isInstanceOf(UserNotFoundException.class);
         verifyNoInteractions(techServicesClient);
     }
 

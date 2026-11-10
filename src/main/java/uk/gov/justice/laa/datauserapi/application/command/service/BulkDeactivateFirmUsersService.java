@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,8 @@ import uk.gov.justice.laa.datauserapi.application.command.shared.repository.Firm
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.BulkDeactivateFirmUsersCommand;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.exception.FirmNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.InvalidUuidFormatException;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 
@@ -37,20 +40,44 @@ public class BulkDeactivateFirmUsersService {
         this.deactivateUserService = deactivateUserService;
     }
 
+    public void requireFirmExists(String firmCode) {
+        if (!firmRepository.existsByCode(firmCode)) {
+            throw new FirmNotFoundException(firmCode);
+        }
+    }
+
+    /**
+     * Runs the bulk deactivation off the request thread. Failures are only observable through logs, so nothing
+     * may escape: every per-user failure is recorded and a summary is logged at the end.
+     */
+    @Async("bulkDeactivationExecutor")
+    public void deactivateAsync(BulkDeactivateFirmUsersCommand command, AuthenticatedEntraUser actor) {
+        try {
+            BulkDeactivationResult result = deactivate(command, actor);
+            log.info("Bulk deactivation completed",
+                    kv("firmCode", command.firmId()), kv("actorEntraOid", actor.entraOid()),
+                    kv("deactivated", result.deactivated()), kv("failed", result.failed()));
+        } catch (Exception ex) {
+            log.error("Bulk deactivation aborted",
+                    kv("firmCode", command.firmId()), kv("actorEntraOid", actor.entraOid()), ex);
+        }
+    }
+
     // Firm-level authorization is enforced by the bulk handler; each user gets an independent transaction.
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public BulkDeactivationResult deactivate(BulkDeactivateFirmUsersCommand command, AuthenticatedEntraUser actor) {
-        if (!firmRepository.existsByCode(command.firmId())) {
-            throw new ResourceNotFoundException("Firm not found with ID: " + command.firmId());
-        }
+        requireFirmExists(command.firmId());
         List<UserOutcome> outcomes = new ArrayList<>();
         for (String entraOid : userRepository.findUserEntraOidsByFirmCode(command.firmId())) {
             UUID targetId;
             try {
                 if (entraOid == null) {
-                    throw new IllegalArgumentException("Missing user Entra object ID");
+                    throw new InvalidUuidFormatException("Missing user Entra object ID");
                 }
                 targetId = UUID.fromString(entraOid);
+            } catch (InvalidUuidFormatException ex) {
+                recordFailure(outcomes, entraOid, command.firmId(), Status.INVALID_USER_ID, ex);
+                continue;
             } catch (IllegalArgumentException ex) {
                 recordFailure(outcomes, entraOid, command.firmId(), Status.INVALID_USER_ID, ex);
                 continue;

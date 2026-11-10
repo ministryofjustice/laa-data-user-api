@@ -5,10 +5,10 @@ import java.util.UUID;
 public class UserNotFoundException extends ResourceNotFoundException {
 
     public UserNotFoundException(UUID userId) {
-        super("User not found with ID: " + userId);
+        this(userId.toString());
     }
 
-    public UserNotFoundException(String message) {
-        super(message);
+    public UserNotFoundException(String userId) {
+        super("User not found with ID: " + userId);
     }
 }

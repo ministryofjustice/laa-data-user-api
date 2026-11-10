@@ -54,7 +54,7 @@ class UserCommandServiceTest {
     @ParameterizedTest
     @NullSource
     @EnumSource(DeactivationType.class)
-    void loadsDeactivationFactsInOneLookupIncludingLegacyState(DeactivationType type) {
+    void loadsDeactivationFactsInOneRepositoryLookupIncludingLegacyState(DeactivationType type) {
         EntraUser user = EntraUser.builder().active(false).deactivationType(type).build();
         when(entraUserCommandRepository.findByEntraOid(entraUserId.toString())).thenReturn(Optional.of(user));
 
@@ -152,7 +152,7 @@ class UserCommandServiceTest {
 
             assertThatThrownBy(() -> userCommandService.isExternalUser(entraUserId))
                     .isInstanceOf(UserNotFoundException.class)
-                    .hasMessage("Entra user not found for user Entra OID: " + entraUserId);
+                    .hasMessage("User not found with ID: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }
@@ -230,7 +230,7 @@ class UserCommandServiceTest {
 
             assertThatThrownBy(() -> userCommandService.isInternalUser(entraUserId))
                     .isInstanceOf(UserNotFoundException.class)
-                    .hasMessage("Entra user not found for user Entra OID: " + entraUserId);
+                    .hasMessage("User not found with ID: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }
@@ -294,7 +294,7 @@ class UserCommandServiceTest {
 
             assertThatThrownBy(() -> userCommandService.getActiveUserProfile(entraUserId))
                     .isInstanceOf(UserProfileNotFoundException.class)
-                    .hasMessage("Active profile not found for user Entra OID: " + entraUserId);
+                    .hasMessage("Active profile not found for user: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }
@@ -312,7 +312,7 @@ class UserCommandServiceTest {
 
             assertThatThrownBy(() -> userCommandService.getActiveUserProfile(entraUserId))
                     .isInstanceOf(UserProfileNotFoundException.class)
-                    .hasMessage("Active profile not found for user Entra OID: " + entraUserId);
+                    .hasMessage("Active profile not found for user: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }
@@ -324,7 +324,7 @@ class UserCommandServiceTest {
 
             assertThatThrownBy(() -> userCommandService.getActiveUserProfile(entraUserId))
                     .isInstanceOf(UserNotFoundException.class)
-                    .hasMessage("User account not found for oid: " + entraUserId);
+                    .hasMessage("User not found with ID: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }

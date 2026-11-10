@@ -53,31 +53,54 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void handleUserNotFound_shouldReturn404WithProblemDetail() {
-        UserNotFoundException ex = new UserNotFoundException("User not found");
+    void handleUserNotFound_shouldReturnGeneric403WithProblemDetail() {
+        UserNotFoundException ex = new UserNotFoundException("user-id");
 
         ResponseEntity<ProblemDetail> response = handler.handleUserNotFound(ex, request);
 
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
         assertProblemContentType(response);
         assertNotNull(response.getBody());
-        assertEquals(404, response.getBody().status());
-        assertEquals("Resource Not Found", response.getBody().title());
-        assertEquals("User not found", response.getBody().detail());
+        assertEquals(403, response.getBody().status());
+        assertEquals("Forbidden", response.getBody().title());
+        assertEquals("You do not possess the required scopes or permissions to perform this operation.",
+                response.getBody().detail());
+        assertEquals(handler.handleForbidden(new org.springframework.security.access.AccessDeniedException("Access denied"),
+                request).getBody(), response.getBody());
     }
 
     @Test
-    void handleUserProfileNotFound_shouldReturn404WithProblemDetail() {
-        UserProfileNotFoundException ex = new UserProfileNotFoundException("User profile not found");
+    void handleUserProfileNotFound_shouldReturnGeneric403WithProblemDetail() {
+        UserProfileNotFoundException ex = new UserProfileNotFoundException(
+                java.util.UUID.fromString("11111111-1111-1111-1111-111111111111"));
 
         ResponseEntity<ProblemDetail> response = handler.handleUserProfileNotFound(ex, request);
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals(403, response.getBody().status());
+        assertEquals("Forbidden", response.getBody().title());
+        assertEquals("You do not possess the required scopes or permissions to perform this operation.",
+                response.getBody().detail());
+        assertEquals(handler.handleForbidden(new org.springframework.security.access.AccessDeniedException("Access denied"),
+                request).getBody(), response.getBody());
+    }
+
+    @Test
+    void handleFirmNotFound_shouldReturn404WithProblemDetail() {
+        when(request.getRequestURI()).thenReturn("/api/v1/queries/firms/999999");
+        FirmNotFoundException ex = new FirmNotFoundException("999999");
+
+        ResponseEntity<ProblemDetail> response = handler.handleFirmNotFound(ex, request);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertProblemContentType(response);
         assertNotNull(response.getBody());
         assertEquals(404, response.getBody().status());
         assertEquals("Resource Not Found", response.getBody().title());
-        assertEquals("User profile not found", response.getBody().detail());
+        assertEquals("Firm not found", response.getBody().detail());
+        assertEquals(java.net.URI.create("/api/v1/queries/firms/999999"), response.getBody().instance());
     }
 
     @Test
@@ -134,13 +157,14 @@ class GlobalExceptionHandlerTest {
         assertNotNull(response.getBody());
         assertEquals(403, response.getBody().status());
         assertEquals("Forbidden", response.getBody().title());
-        assertEquals("Missing user.read or user.admin scope", response.getBody().detail());
+        assertEquals("You do not possess the required scopes or permissions to perform this operation.",
+                response.getBody().detail());
     }
 
     @Test
     void handleInvalidActorContext_shouldReturn403WithProblemDetail() {
         InvalidActorContextException ex = new InvalidActorContextException(
-                "Actor has no active profile");
+                "Actor has no active profile: 11111111-1111-1111-1111-111111111111");
 
         ResponseEntity<ProblemDetail> response = handler.handleInvalidActorContext(ex, request);
 
@@ -149,7 +173,32 @@ class GlobalExceptionHandlerTest {
         assertNotNull(response.getBody());
         assertEquals(403, response.getBody().status());
         assertEquals("Forbidden", response.getBody().title());
-        assertEquals("Actor has no active profile", response.getBody().detail());
+        assertEquals("Your account context does not permit this operation.", response.getBody().detail());
+    }
+
+    @Test
+    void handleReferenceDataNotFound_shouldHideConfigurationDetails() {
+        ReferenceDataNotFoundException ex = new ReferenceDataNotFoundException("Unknown delete reason code: INTERNAL_CODE");
+
+        ResponseEntity<ProblemDetail> response = handler.handleReferenceDataNotFound(ex, request);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals("Required reference data is unavailable.", response.getBody().detail());
+        assertEquals("Reference Data Not Found", response.getBody().title());
+    }
+
+    @Test
+    void handleGenericException_shouldHideDownstreamDetails() {
+        Exception ex = new IllegalStateException("SQL failure on internal-host:5432; downstream response: private");
+
+        ResponseEntity<ProblemDetail> response = handler.handleGenericException(ex, request);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals("An unexpected downstream or system error occurred.", response.getBody().detail());
     }
 
     @Test
@@ -216,7 +265,37 @@ class GlobalExceptionHandlerTest {
         assertEquals("Invalid or malformed authentication token", response.getBody().detail());
     }
 
+    @Test
+    void forbiddenResponseDoesNotEchoResourceOrAuthorizationDetails() {
+        var ex = new org.springframework.security.access.AccessDeniedException(
+                "Target user secret-user belongs to secret-firm; missing secret-role");
+
+        ResponseEntity<ProblemDetail> response = handler.handleForbidden(ex, request);
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals(403, response.getBody().status());
+        assertEquals("Forbidden", response.getBody().title());
+        assertEquals("You do not possess the required scopes or permissions to perform this operation.",
+                response.getBody().detail());
+        org.junit.jupiter.api.Assertions.assertNull(response.getBody().errors());
+    }
+
     private void assertProblemContentType(ResponseEntity<ProblemDetail> response) {
         assertEquals(MediaType.APPLICATION_PROBLEM_JSON, response.getHeaders().getContentType());
+    }
+
+    @Test
+    void handleTaskRejected_shouldReturn503WithoutDiagnostics() {
+        when(request.getRequestURI()).thenReturn("/api/v1/commands/firms/bulk-deactivate-users");
+
+        ResponseEntity<ProblemDetail> response = handler.handleTaskRejected(
+                new org.springframework.core.task.TaskRejectedException("queue full: executor internals"), request);
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("The service is busy processing other requests. Please retry later.",
+                response.getBody().detail());
     }
 }

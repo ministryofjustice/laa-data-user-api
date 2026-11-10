@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +30,8 @@ import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final String REQUEST_PARAMETER_VALIDATION_DETAIL = "One or more request parameters failed validation.";
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleNotFound(
@@ -54,14 +57,33 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleUserNotFound(
             UserNotFoundException ex,
             HttpServletRequest request) {
-        return handleNotFound(ex, request);
+        return handleForbidden(new AccessDeniedException(ForbiddenResponseConstants.ACCESS_DENIED_MESSAGE, ex), request);
+    }
+
+    @ExceptionHandler(FirmNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleFirmNotFound(
+            FirmNotFoundException ex,
+            HttpServletRequest request) {
+        log.warn("Firm not found",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/not-found"),
+                "Resource Not Found",
+                HttpStatus.NOT_FOUND.value(),
+                FirmNotFoundException.CLIENT_DETAIL,
+                URI.create(request.getRequestURI()),
+                null
+        );
+        return problemResponse(HttpStatus.NOT_FOUND, problem);
     }
 
     @ExceptionHandler(UserProfileNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleUserProfileNotFound(
             UserProfileNotFoundException ex,
             HttpServletRequest request) {
-        return handleNotFound(ex, request);
+        return handleForbidden(new AccessDeniedException(ForbiddenResponseConstants.ACCESS_DENIED_MESSAGE, ex), request);
     }
 
     @ExceptionHandler(ConflictException.class)
@@ -93,7 +115,7 @@ public class GlobalExceptionHandler {
                 URI.create("https://silas.laa.gov.uk/errors/server-error"),
                 "Reference Data Not Found",
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                ex.getMessage(),
+                "Required reference data is unavailable.",
                 URI.create(request.getRequestURI()),
                 null
         );
@@ -144,7 +166,7 @@ public class GlobalExceptionHandler {
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
                 "Validation Error",
                 HttpStatus.BAD_REQUEST.value(),
-                "One or more request parameters failed validation.",
+                REQUEST_PARAMETER_VALIDATION_DETAIL,
                 URI.create(request.getRequestURI()),
                 fieldErrors
         );
@@ -181,7 +203,7 @@ public class GlobalExceptionHandler {
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
                 "Validation Error",
                 HttpStatus.BAD_REQUEST.value(),
-                "One or more request parameters failed validation.",
+                REQUEST_PARAMETER_VALIDATION_DETAIL,
                 URI.create(request.getRequestURI()),
                 List.of(new FieldErrorDetail(ex.getParameterName(), "is required"))
         );
@@ -223,7 +245,7 @@ public class GlobalExceptionHandler {
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
                 "Validation Error",
                 HttpStatus.BAD_REQUEST.value(),
-                "One or more request parameters failed validation.",
+                REQUEST_PARAMETER_VALIDATION_DETAIL,
                 URI.create(request.getRequestURI()),
                 List.of(new FieldErrorDetail(ex.getName(), toTypeMismatchMessage(ex)))
         );
@@ -258,10 +280,10 @@ public class GlobalExceptionHandler {
                 ex);
 
         ProblemDetail problem = new ProblemDetail(
-                URI.create("https://silas.laa.gov.uk/errors/forbidden"),
-                "Forbidden",
+                ForbiddenResponseConstants.TYPE,
+                ForbiddenResponseConstants.TITLE,
                 HttpStatus.FORBIDDEN.value(),
-                "You do not possess the required scopes or permissions to perform this operation.",
+                ForbiddenResponseConstants.DETAIL,
                 URI.create(request.getRequestURI()),
                 null
         );
@@ -321,10 +343,10 @@ public class GlobalExceptionHandler {
                 ex);
 
         ProblemDetail problem = new ProblemDetail(
-                URI.create("https://silas.laa.gov.uk/errors/forbidden"),
-                "Forbidden",
+                ForbiddenResponseConstants.TYPE,
+                ForbiddenResponseConstants.TITLE,
                 HttpStatus.FORBIDDEN.value(),
-                ex.getMessage(),
+                ForbiddenResponseConstants.DETAIL,
                 URI.create(request.getRequestURI()),
                 null
         );
@@ -342,15 +364,31 @@ public class GlobalExceptionHandler {
                 ex);
 
         ProblemDetail problem = new ProblemDetail(
-                URI.create("https://silas.laa.gov.uk/errors/forbidden"),
-                "Forbidden",
+                ForbiddenResponseConstants.TYPE,
+                ForbiddenResponseConstants.TITLE,
                 HttpStatus.FORBIDDEN.value(),
-                ex.getMessage(),
+                "Your account context does not permit this operation.",
                 URI.create(request.getRequestURI()),
                 null
         );
 
         return problemResponse(HttpStatus.FORBIDDEN, problem);
+    }
+
+    @ExceptionHandler(TaskRejectedException.class)
+    public ResponseEntity<ProblemDetail> handleTaskRejected(
+            TaskRejectedException ex,
+            HttpServletRequest request) {
+        log.warn("Background task rejected because the executor is saturated", ex);
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/service-unavailable"),
+                "Service Unavailable",
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
+                "The service is busy processing other requests. Please retry later.",
+                URI.create(request.getRequestURI()),
+                null
+        );
+        return problemResponse(HttpStatus.SERVICE_UNAVAILABLE, problem);
     }
 
     @ExceptionHandler(Exception.class)

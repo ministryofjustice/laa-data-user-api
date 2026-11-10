@@ -19,37 +19,6 @@ export GITHUB_ACTOR="<your-github-username>"
 export GITHUB_TOKEN="<your-personal-access-token>"
 ```
 
-### Enable Pre-commit Hooks
-
-Secret scanning is run on pre-commit hooks to prevent secrets being committed to the repository, via Gitleaks and GitGuardian Shield. These are enabled via the [pre-commit](https://pre-commit.com/) framework, configured via [.pre-commit-config.yaml](./.pre-commit-config.yaml).
-
-The pre-commit hooks will only be enabled for this repository, and won't affect others. The secret scanner CLI utilities themselves - `gitleaks` & `ggshield` - will be available in your shells to be ran against anything you wish.
-
-To enable the pre-commit hooks:
-1. Download and install [Homebrew](https://github.com/Homebrew/brew/releases/latest)
-2. Authorise GitGuardian with your Ministry of Justice GitHub user account [here](https://dashboard.gitguardian.com/api/v1/auth/user/github_login/authorize) (you only have to link your account, you do not need to go on to grant GitGuardian access to any personal or MoJ repository in this step as it shouldn't be necessary for running GitGuardian Shield locally)
-3. Run the setup script (will take a few minutes to complete the first time it is run):
-
-```sh
-./setup_precommits.sh
-```
-
-4. Acquire a GitGuardian Shield personal access token (will open authorisation in your browser), this is used to allow `ggshield` access to GitGuardian's API for scanning, and only needs to be performed once on your local machine:
-
-```sh
-ggshield auth login
-```
-
-The pre-commit hooks will now run as and when you commit your changes.
-
-To run the pre-commit secret scanners on everything in the repository:
-
-```sh
-pre-commit run --all-files
-```
-
-The hooks and dependencies can be updated by running the `setup_precommits.sh` script whenever needed (there is also an updater for the hooks alone that automatically runs on each pre-commit).
-
 ---
 
 ## Running Locally
@@ -103,6 +72,13 @@ it runs before the handler, including before a handler's transaction is opened. 
 Spring Security's `AccessDeniedException` and is returned as HTTP 403 by the security/exception
 handling layer.
 
+Missing firms raise `FirmNotFoundException` on both command and query paths and retain the
+standard HTTP 404 Problem Detail response.
+
+Configuration failures, invalid actor context, missing scopes, and unexpected system failures
+return fixed client-safe error details. Original exception diagnostics remain in server logs;
+actor identifiers, profile-state diagnostics, and reference-data codes are not echoed in these responses.
+
 For `@RequiresPermission`, the manager collects the permissions from the app roles on the actor's
 active profile. By default, `Match.ANY` means the actor must have at least one listed permission;
 `Match.ALL` requires every listed permission. After this coarse permission check, authorization
@@ -152,6 +128,9 @@ calls Tech Services and creates an audit entry. The target is locked and refresh
 and the lock is held through the local update. For an already disabled user, the `entra_user` row is updated
 only when the actor's resolved deactivation type is equal to or higher than the stored type:
 `null/NONE < SYNC < FIRM < LAA < PRIVILEGED`. Lower privilege leaves the entire row unchanged.
+Bulk deactivation is asynchronous: the handler checks permission, firm scope and firm existence, then
+returns 202 Accepted while `BulkDeactivateFirmUsersService.deactivateAsync` runs on the
+`bulkDeactivationExecutor` pool (a full queue returns 503). Per-user outcomes and a summary are logged only.
 Bulk and individual deactivation delegate to the shared transactional `DeactivateUserService` workflow
 using a target ID, reason, and actor, not another command. Bulk never invokes another handler
 or constructs `DeactivateUserCommand`.
@@ -161,50 +140,47 @@ user's row changes only for an equal or higher deactivation type. Bulk authoriza
 `DISABLE_EXTERNAL_USER` or apply individual self-target, internal-target, multi-firm, or active-profile
 firm-scope policies. Only users returned by the target firm's membership query are processed.
 Individual deactivation retains its own permission and target policies at `DeactivateUserHandler`.
-Each user is processed in an independent transaction. Internal per-user outcomes distinguish
-invalid identifiers, denied access, missing users, downstream failures, rejected operations, and
-unexpected system failures; the HTTP response retains its aggregate counts. Expected failures
-are logged at `WARN`, unexpected runtime failures at `ERROR`, and remaining users still run.
-
-Deletion delegates to `DeleteUserService`, with outbound account removal isolated in
-`DeleteUserTechServicesService`. The service resolves the delete reason once and passes it to
-`DeleteUserMapper`; the mapper no longer accesses persistence.
 User-details updates delegate to `UpdateUserDetailsService`, preserving email validation and the
 Tech Services call before local changes. Assigned-office and unrestricted-office commands use
 separate methods on `UserProfileOfficeService`, sharing profile lookup and modification metadata.
 Their handlers retain message-level authorization and transaction boundaries.
 Reactivation delegates to `ReactivateUserService`; locked target loading, the hierarchy recheck,
-Tech Services, and the local update remain in one transaction. The lifecycle service loads and
-refreshes the target once, invokes the outbound step using a DTO, then updates the same locked
-entity without another lookup.
-`UserSearchService` owns trusted search criteria and pagination preparation, and
-`UserAccountDetailsService` coordinates account retrieval. Both query services are read-only and
-use `QueryAuthorisationService` for active actor context. Existing visibility rules and not-found
-responses are unchanged.
-Multi-firm conversion requires both `EDIT_EXTERNAL_USER` and `CONVERT_USER_TO_MULTI_FIRM` through
-the command's `@RequiresPermission(match = ALL)` declaration. `InternalActorOnlyPolicy` requires an
-active internal actor profile; the existing self-target and external-target policies also apply.
-These checks run at the handler boundary before the write transaction opens.
-`ConvertToMultiFirmService` owns the lock-refresh-check-update sequence, including the
-already-converted conflict check under the row lock. Active-profile retrieval and profile-list filtering
-delegate to the read-only `UserProfileDetailsService`, with shared actor-context validation in
-`QueryAuthorisationService` and entity mapping confined to `UserProfileQueryMapper`.
-`RefreshSilasStatusHandler` retains scheduling-rejection handling at the submission boundary:
-rejected work returns a failure result, while unexpected submission failures propagate.
-Failures after asynchronous work starts are logged by the configured uncaught-exception handler;
-previously committed batches remain updated.
-
-### Using existing permissions and policies
+Tech Services, and the local update remain in one transaction. `UserSearchService` owns trusted
+search criteria and pagination preparation, and `UserAccountDetailsService` coordinates account
+retrieval. Both query services are read-only and use `QueryAuthorisationService` for active actor
+context; denied account or active-profile visibility returns a generic 403 response.
+The lifecycle service loads and refreshes the target once per deactivation or reactivation transaction,
+invokes the outbound step using a DTO, then updates the same locked entity without another lookup.
+Reactivation still reads authorization facts before execution and rechecks the refreshed state under
+the row lock; these separate reads protect against concurrent deactivation.
+Each user is processed in an independent transaction. Internal per-user outcomes distinguish
+invalid identifiers, denied access, missing users, downstream failures, rejected operations, and
+unexpected system failures; the HTTP response retains its aggregate counts. Expected failures
+are logged at `WARN`, unexpected runtime failures at `ERROR`, and remaining users still run.
 
 `ReactivationPolicyInputResolver` loads active state and the recorded deactivation type with one
 lookup after permission and global-policy checks. `ReactivationHierarchyPolicy` evaluates that
-immutable `UserDeactivationContext` without persistence access. Reactivation then rechecks the
-current hierarchy under the lifecycle write lock before calling Tech Services.
-An empty type represents legacy, unattributed deactivation and remains distinct from `NONE`.
-Reactivation and deactivation-type resolution map only roles marked `authzRole` to `AuthzRole` enums;
-ordinary application roles with matching names cannot influence the hierarchy.
-Multi-firm conversion refreshes the target after acquiring its write lock so pre-handler cached state
-cannot bypass the already-converted check.
+immutable context without persistence access. An empty deactivation type represents legacy,
+unattributed deactivation, not `NONE`: firm user managers remain unable to reactivate legacy
+accounts. Authorization roles are mapped to `AuthzRole` only from roles marked `authzRole`.
+`DeactivationTypeResolver` applies the same filtering and enum-based hierarchy; ordinary application
+roles with matching names do not affect the recorded deactivation type.
+The reactivation handler repeats the same hierarchy check under the target row lock before
+calling Tech Services, so a changed deactivation type cannot bypass the hierarchy.
+Multi-firm conversion also refreshes its target after acquiring the write lock, so state cached
+by pre-handler policies cannot bypass the already-converted check.
+
+User and profile lookups use `UserNotFoundException` and `UserProfileNotFoundException` with
+identifier-based, fixed message templates for server-side diagnostics. Missing users or profiles
+and existing but inaccessible accounts or active profiles return the same generic 403 Problem Detail,
+without returning account, firm, role, or profile details. Typed user/profile not-found exceptions
+map to this response on both command and query paths to conceal resource existence.
+Firm and other resource not-found responses remain 404. Profile-list queries continue filtering
+inaccessible profiles.
+Security filters and exception advice share the forbidden response type, title, and detail through
+`ForbiddenResponseConstants`; actor-profile diagnostics use named `InvalidActorContextException` factories.
+
+### Using existing permissions and policies
 
 Put `@RequiresPermission` on the message and include any applicable message-specific policies.
 The global firm-scope policy is automatic when the message implements its target capability;
@@ -320,6 +296,10 @@ global rules broad and stable—action-specific rules belong in `@RequiresPermis
 Global policies run after a required permission check and before message-specific policies.
 
 ### Required coverage and checks
+
+ArchUnit prohibits command/query cross-dependencies and handler-to-handler dependencies on
+both sides. Shared workflows must use the relevant side's services. A regression test verifies
+that query-handler communication is rejected while independent query handlers are allowed.
 
 Every command must declare either `@RequiresPermission` or `@PolicyGuarded`; the ArchUnit
 `every_command_must_declare_its_authorisation` rule enforces this. Add tests for a granted decision,

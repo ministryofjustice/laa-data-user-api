@@ -15,6 +15,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AuthenticatedEntraUserQueryRepository;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.access.AccessDeniedException;
+import uk.gov.justice.laa.datauserapi.exception.GlobalExceptionHandler;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -33,6 +41,19 @@ class SecurityConfigTest {
     private MockMvc mockMvc;
     @MockitoBean
     private AuthenticatedEntraUserQueryRepository authenticatedEntraUserQueryRepository;
+
+    @Test
+    void securityFilterAndMissingUserAdviceProduceIdenticalForbiddenResponses() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/queries/users/hidden");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        new SecurityConfig(null).accessDeniedHandler().handle(request, response, new AccessDeniedException("diagnostic"));
+        var advised = new GlobalExceptionHandler().handleUserNotFound(new UserNotFoundException("hidden"), request);
+        ObjectMapper mapper = new ObjectMapper();
+
+        assertThat(response.getStatus()).isEqualTo(advised.getStatusCode().value());
+        assertThat(response.getContentType()).isEqualTo(advised.getHeaders().getContentType().toString());
+        assertThat(mapper.readTree(response.getContentAsString())).isEqualTo(mapper.valueToTree(advised.getBody()));
+    }
 
     @Test
     void readScopeCanAccessFirmQueryEndpoints() throws Exception {
