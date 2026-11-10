@@ -18,6 +18,7 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
+import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 import uk.gov.justice.laa.datauserapi.exception.UserNotDeactivatedException;
 import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
@@ -63,12 +64,14 @@ public class UserAccountLifecycleService {
                                     DeactivateUserReason reason,
                                     Function<EntraUserDto, DeactivationType> beforeUpdate) {
         EntraUser user = loadForUpdate(userEntraObjectId);
+        // Resolve the audit (and its reason lookup) before the outbound call so a bad reason fails fast
+        UserAccountStatusAudit audit = deactivateUserMapper.toAuditEntity(user, reason, actorEntraOid);
         DeactivationType deactivationType = beforeUpdate.apply(modelMapper.map(user, EntraUserDto.class));
         if (user.isActive() || deactivationType.isAtLeastAsPrivilegedAs(user.getDeactivationType())) {
             user.deactivate(actorEntraOid, deactivationType);
             entraUserCommandRepository.save(user);
         }
-        auditRepository.save(deactivateUserMapper.toAuditEntity(user, reason, actorEntraOid));
+        auditRepository.save(audit);
         return deactivateUserMapper.toCommandResult(user);
     }
 

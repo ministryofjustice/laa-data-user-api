@@ -207,6 +207,22 @@ class UserAccountLifecycleServiceTest {
         verifyNoInteractions(auditRepository);
     }
 
+    @Test
+    @DisplayName("deactivate does not run the outbound step when the reason lookup fails")
+    void deactivate_WhenReasonLookupFails_SkipsOutboundStepAndWritesNothing() {
+        EntraUser user = user();
+        when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
+        when(deactivateUserMapper.toAuditEntity(user, DeactivateUserReason.CyberRisk, ACTOR))
+                .thenThrow(new IllegalArgumentException("Deactivate reason not found: CyberRisk"));
+
+        assertThatThrownBy(() -> service.deactivate(targetId, ACTOR, DeactivateUserReason.CyberRisk, target -> {
+            throw new AssertionError("Outbound step must not run when the reason lookup fails");
+        })).isInstanceOf(IllegalArgumentException.class);
+
+        verify(entraUserCommandRepository, never()).save(any());
+        verifyNoInteractions(auditRepository);
+    }
+
     static Stream<Arguments> repeatDeactivationCases() {
         DeactivationType[] levels = {null, DeactivationType.NONE, DeactivationType.SYNC,
             DeactivationType.FIRM, DeactivationType.LAA, DeactivationType.PRIVILEGED};
