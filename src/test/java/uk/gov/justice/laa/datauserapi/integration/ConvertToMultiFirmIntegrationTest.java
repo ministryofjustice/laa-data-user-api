@@ -226,7 +226,8 @@ class ConvertToMultiFirmIntegrationTest {
     @Configuration(proxyBeanMethods = false)
     @EnableTransactionManagement(proxyTargetClass = true)
     @EnableJpaRepositories(basePackageClasses = EntraUserCommandRepository.class)
-    @Import({ConvertToMultiFirmHandler.class, ConvertToMultiFirmDomainMapper.class})
+    @Import({ConvertToMultiFirmHandler.class, ConvertToMultiFirmDomainMapper.class,
+        uk.gov.justice.laa.datauserapi.application.command.service.ConvertToMultiFirmService.class})
     static class Config {
         @Bean
         DataSource dataSource() {

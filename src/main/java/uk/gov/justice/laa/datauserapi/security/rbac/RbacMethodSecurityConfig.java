@@ -6,10 +6,10 @@ import org.springframework.aop.support.StaticMethodMatcherPointcut;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.BeanDefinition;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Role;
+import org.springframework.core.env.Environment;
 import org.springframework.security.authorization.method.AuthorizationInterceptorsOrder;
 import org.springframework.security.authorization.method.AuthorizationManagerBeforeMethodInterceptor;
 import org.springframework.util.function.SingletonSupplier;
@@ -29,12 +29,13 @@ public class RbacMethodSecurityConfig {
     @Bean
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
     static Advisor requiresPermissionAdvisor(BeanFactory beanFactory,
+                                             Environment environment,
                                              ObjectProvider<GlobalAuthorizationPolicy<?>> globalPolicies,
-                                             ObjectProvider<AuthorizationPolicyInputResolver<?, ?>> inputResolvers,
-                                             @Value("${app.authorization.legacy-policies-enabled:true}")
-                                             boolean legacyPoliciesEnabled,
-                                             @Value("${app.authorization.opa-enabled:true}")
-                                             boolean opaEnabled) {
+                                             ObjectProvider<AuthorizationPolicyInputResolver<?, ?>> inputResolvers) {
+        boolean legacyPoliciesEnabled = environment.getProperty(
+                "app.authorization.legacy-policies-enabled", Boolean.class, true);
+        boolean opaEnabled = environment.getProperty("app.authorization.opa-enabled", Boolean.class, true);
+
         // Policies are resolved lazily (on first use) so this infrastructure bean doesn't eagerly
         // initialise application beans.
         Supplier<List<GlobalAuthorizationPolicy<?>>> globals =
