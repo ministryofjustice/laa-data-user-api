@@ -17,6 +17,7 @@ import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicyFeature;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
+import uk.gov.justice.laa.datauserapi.security.rbac.OpaReplacement;
 import uk.gov.justice.laa.datauserapi.security.rbac.TargetsUser;
 
 import java.util.Collection;
@@ -27,6 +28,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Component
+@OpaReplacement
 public class OpaLifecycleAuthorizationPolicy implements AuthorizationPolicy<TargetsUser> {
 
     private final UserCommandService userCommandService;

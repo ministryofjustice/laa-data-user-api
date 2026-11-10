@@ -18,6 +18,8 @@ spec:
     metadata:
       labels:
         app: laa-data-user-api
+      annotations:
+        laa-data-user-api/opa-bundle-ref: {{ .Values.opa.bundleRef | quote }}
     spec:
       securityContext:
         runAsUser: 10000
@@ -130,7 +132,7 @@ spec:
             - --server
             - --addr=127.0.0.1:8181
             - --bundle
-            - {{ .Values.opa.bundleUrl | quote }}
+            - /bundle/bundle.tar.gz
             - --log-format=json
           securityContext:
             runAsUser: 10000
@@ -151,6 +153,12 @@ spec:
           volumeMounts:
             - name: opa-tmp
               mountPath: /tmp
+            - name: opa-bundle
+              mountPath: /bundle
+              readOnly: true
       volumes:
         - name: opa-tmp
           emptyDir: {}
+        - name: opa-bundle
+          configMap:
+            name: laa-data-user-api-opa-bundle-{{ .Values.opa.bundleRef | sha256sum | trunc 12 }}

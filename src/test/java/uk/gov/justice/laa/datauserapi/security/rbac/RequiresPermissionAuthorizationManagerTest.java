@@ -103,6 +103,7 @@ class RequiresPermissionAuthorizationManagerTest {
         }
     }
 
+    @OpaReplacement
     static class OpaFeaturePolicy implements AuthorizationPolicy<TargetsUser> {
         final AtomicInteger calls = new AtomicInteger();
 
@@ -321,6 +322,24 @@ class RequiresPermissionAuthorizationManagerTest {
         assertThat(opaPolicy.calls).hasValue(1);
         assertThat(decide(noFineGrainedPolicies, "flagged",
                 new Object[]{command, RbacTestActors.externalActorWith(UUID.randomUUID())}, noAuth)).isFalse();
+    }
+
+    @Test
+    void legacyPoliciesRemainEnabledForCommandsWithoutAnOpaReplacement() throws Exception {
+        UUID allowedTarget = UUID.randomUUID();
+        final AllowPolicy allow = registerPolicies(allowedTarget);
+        ExternalOnlyGlobalPolicy global = new ExternalOnlyGlobalPolicy();
+        global.grant = true;
+        globals.add(global);
+        RequiresPermissionAuthorizationManager opaOnly =
+                new RequiresPermissionAuthorizationManager(policies::get, () -> globals, () -> inputResolvers,
+                        false, true);
+        var actor = RbacTestActors.externalActorWith(UUID.randomUUID(), Permission.DELETE_EXTERNAL_USER);
+
+        assertThat(decide(opaOnly, "policy",
+                new Object[]{actor, new PolicyCommand(UUID.randomUUID())}, noAuth)).isFalse();
+        assertThat(global.calls).hasValue(1);
+        assertThat(allow.calls).hasValue(1);
     }
 
     @Test

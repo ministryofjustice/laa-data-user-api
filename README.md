@@ -205,9 +205,10 @@ fails closed with HTTP 503.
 Enforcement can be controlled independently with `APP_AUTHORIZATION_OPA_ENABLED` and
 `APP_AUTHORIZATION_LEGACY_POLICIES_ENABLED` (or the matching `authorization.opaEnabled` and
 `authorization.legacyPoliciesEnabled` Helm values). Both default to `true` to preserve current behavior.
-Disabling legacy policies skips the fine-grained Java policies, including global firm-scope policies, when OPA
-is enabled. If OPA is disabled, legacy policies are automatically enabled as a fallback. Declared permissions
-and OAuth scope checks remain active whichever policy engine is enabled.
+When both engines are enabled, both policy sets run. Disabling legacy policies skips them only for commands
+that declare an enabled OPA replacement; legacy policies remain enforced for commands without one. If OPA is
+disabled, legacy policies are automatically enabled as a fallback. Declared permissions and OAuth scope checks
+remain active whichever policy engine is enabled.
 
 Locally, start OPA with the policy directory before running the API:
 
@@ -217,7 +218,10 @@ opa run --server --addr=127.0.0.1:8181 opa/policies
 
 The `OPA_URL` environment variable can override the default `http://localhost:8181`. Policy tests run with
 `opa test opa/policies opa/tests -v`. Deployments build and publish the policy bundle to
-`s3://laa-opa-bundles/laa-data-user-api/bundle.tar.gz`, which the OPA sidecar loads.
+an environment-, image-version-, and content-addressed S3 key. The deploy workflow passes that exact reference
+and bundle to Helm; Helm stores each bundle in a versioned immutable ConfigMap, and the OPA sidecar loads it
+from a shared local volume. This keeps policy data aligned with the deployed image and allows Helm rollback to
+restore the matching bundle.
 
 ### Using existing permissions and policies
 
