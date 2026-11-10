@@ -18,7 +18,9 @@ import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -51,50 +53,54 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
         }
 
         List<EntraUser> users = entraUserCommandRepository.findUsersByFirmCode(firmCode);
-        int deactivated = 0;
-        int alreadyDeactivated = 0;
-        int failed = 0;
+        Map<Outcome, Long> counts = users.stream()
+                .collect(Collectors.groupingBy(user -> processUser(user, command, actor), Collectors.counting()));
+        long deactivated = counts.getOrDefault(Outcome.DEACTIVATED, 0L);
+        long alreadyDeactivated = counts.getOrDefault(Outcome.ALREADY_DEACTIVATED, 0L);
+        long failed = counts.getOrDefault(Outcome.FAILED, 0L);
 
-        for (EntraUser user : users) {
-            try {
-                if (user.getUserAccountStatus() == UserAccountStatus.DEACTIVATED) {
-                    UserAccountStatusAudit audit = deactivateUserMapper.toAuditEntity(
-                            user, command.deactivateReason(), actor.entraOid());
-                    auditRepository.save(audit);
-                    alreadyDeactivated++;
-                    continue;
-                }
-
-                DeactivateUserCommand deactivateCommand = DeactivateUserCommand.builder()
-                        .userEntraObjectId(UUID.fromString(user.getEntraOid()))
-                        .deactivateReason(command.deactivateReason())
-                        .build();
-                CommandResult result = deactivateUserHandler.handle(deactivateCommand, actor);
-                if (result.success()) {
-                    deactivated++;
-                } else {
-                    failed++;
-                    log.warn("Could not bulk-deactivate user",
-                            kv("entraOid", user.getEntraOid()),
-                            kv("firmCode", firmCode));
-                }
-            } catch (RuntimeException e) {
-                failed++;
-                log.error("Error while bulk-deactivating user",
-                        kv("entraOid", user.getEntraOid()),
-                        kv("firmCode", firmCode),
-                        e);
-            }
-        }
-
+        String summary = String.format("Deactivated %d users; audited %d already-deactivated users",
+                deactivated, alreadyDeactivated);
         if (failed > 0) {
             return CommandResult.failure(String.format(
-                    "Deactivated %d users; audited %d already-deactivated users; failed to deactivate %d users "
-                            + "for firm '%s'",
-                    deactivated, alreadyDeactivated, failed, firmCode));
+                    "%s; failed to deactivate %d users for firm '%s'", summary, failed, firmCode));
         }
-        return CommandResult.success(String.format(
-                "Deactivated %d users; audited %d already-deactivated users for firm '%s'",
-                deactivated, alreadyDeactivated, firmCode));
+        return CommandResult.success(String.format("%s for firm '%s'", summary, firmCode));
+    }
+
+    private Outcome processUser(EntraUser user, BulkDeactivateFirmUsersCommand command,
+                                AuthenticatedEntraUser actor) {
+        try {
+            if (user.getUserAccountStatus() == UserAccountStatus.DEACTIVATED) {
+                UserAccountStatusAudit audit = deactivateUserMapper.toAuditEntity(
+                        user, command.deactivateReason(), actor.entraOid());
+                auditRepository.save(audit);
+                return Outcome.ALREADY_DEACTIVATED;
+            }
+
+            DeactivateUserCommand deactivateCommand = DeactivateUserCommand.builder()
+                    .userEntraObjectId(UUID.fromString(user.getEntraOid()))
+                    .deactivateReason(command.deactivateReason())
+                    .build();
+            CommandResult result = deactivateUserHandler.handle(deactivateCommand, actor);
+            if (result.success()) {
+                return Outcome.DEACTIVATED;
+            }
+            log.warn("Could not bulk-deactivate user",
+                    kv("entraOid", user.getEntraOid()),
+                    kv("firmCode", command.firmId()));
+        } catch (RuntimeException e) {
+            log.error("Error while bulk-deactivating user",
+                    kv("entraOid", user.getEntraOid()),
+                    kv("firmCode", command.firmId()),
+                    e);
+        }
+        return Outcome.FAILED;
+    }
+
+    private enum Outcome {
+        DEACTIVATED,
+        ALREADY_DEACTIVATED,
+        FAILED
     }
 }
