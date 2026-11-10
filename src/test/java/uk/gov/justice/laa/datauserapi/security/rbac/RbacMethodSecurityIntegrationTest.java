@@ -168,7 +168,7 @@ class RbacMethodSecurityIntegrationTest {
         }
 
         @Bean
-        BulkDeactivateFirmUsersMapper bulkMapper() {
+        BulkDeactivateFirmUsersMapper bulkDeactivateFirmUsersMapper() {
             return new BulkDeactivateFirmUsersMapper();
         }
 

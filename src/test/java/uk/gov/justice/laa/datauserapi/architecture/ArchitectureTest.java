@@ -34,6 +34,7 @@ import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyGuarded;
 import uk.gov.justice.laa.datauserapi.security.rbac.RequiresPermission;
 
+import static com.tngtech.archunit.base.DescribedPredicate.not;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
@@ -68,6 +69,37 @@ class ArchitectureTest {
             .that().resideInAPackage(QUERY_PACKAGE)
             .should().dependOnClassesThat().resideInAPackage(COMMAND_PACKAGE)
             .because("In CQRS Lite, Query side must not depend on Command execution or state modification");
+
+    @ArchTest
+    static final ArchRule command_handlers_must_not_depend_on_other_command_handlers = noClasses()
+            .that().resideInAPackage("..application.command.handler..")
+            .and().doNotHaveSimpleName("CommandHandler")
+            .should().dependOnClassesThat(JavaClass.Predicates.resideInAPackage("..application.command.handler..")
+                    .and(not(JavaClass.Predicates.simpleName("CommandHandler"))))
+            .because("Command handlers are entry points; shared workflows belong in services");
+
+    @ArchTest
+    static final ArchRule query_handlers_must_not_depend_on_other_query_handlers = noClasses()
+            .that().resideInAPackage("..application.query.handler..")
+            .should().dependOnClassesThat(
+                    JavaClass.Predicates.resideInAPackage("..application.query.handler.."))
+            .because("Query handlers are entry points; shared workflows belong in services");
+
+    @ArchTest
+    static final ArchRule query_handlers_must_not_access_repositories = noClasses()
+            .that().resideInAPackage("..application.query.handler..")
+            .should().dependOnClassesThat().resideInAPackage("..application.query.shared.repository..")
+            .because("Query handlers delegate reads to query services rather than access repositories directly");
+
+    @ArchTest
+    static final ArchRule services_must_not_depend_on_handlers_or_controllers = noClasses()
+            .that().resideInAnyPackage("..application.command.service..", "..application.query.service..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                    "..application.command.handler..",
+                    "..application.query.handler..",
+                    "..application.command.controller..",
+                    "..application.query.controller..")
+            .because("Services implement workflows below the handler and controller entry points");
 
     @ArchTest
     static final ArchRule query_side_must_not_access_external_mutation_clients = noClasses()
@@ -219,8 +251,9 @@ class ArchitectureTest {
             .layer("Authorisation").definedBy("..authorisation..")
 
             .whereLayer("QueryController").mayNotBeAccessedByAnyLayer()
+            .whereLayer("QueryHandler").mayOnlyBeAccessedByLayers("QueryController")
             .whereLayer("QueryService").mayOnlyBeAccessedByLayers("QueryController", "QueryHandler")
-            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation", "QueryHandler");
+            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation");
 
     // =========================================================================
     // 5. Naming Conventions & Stereotype Annotations

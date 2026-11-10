@@ -297,9 +297,10 @@ Global policies run after a required permission check and before message-specifi
 
 ### Required coverage and checks
 
-ArchUnit prohibits command/query cross-dependencies and handler-to-handler dependencies on
-both sides. Shared workflows must use the relevant side's services. A regression test verifies
-that query-handler communication is rejected while independent query handlers are allowed.
+ArchUnit prohibits command/query cross-dependencies, handler-to-handler dependencies, and
+service dependencies on handlers or controllers. Query handlers must delegate to query services
+instead of accessing repositories directly, and only query controllers may call query handlers.
+Regression tests cover rejected dependencies in both CQRS directions and allow independent handlers.
 
 Every command must declare either `@RequiresPermission` or `@PolicyGuarded`; the ArchUnit
 `every_command_must_declare_its_authorisation` rule enforces this. Add tests for a granted decision,

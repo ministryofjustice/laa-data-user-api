@@ -9,6 +9,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.query.Procedure;
 import org.springframework.data.repository.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import uk.gov.justice.laa.datauserapi.application.command.controller.CommandControllerBoundaryFixtures;
+import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandlerBoundaryFixtures;
+import uk.gov.justice.laa.datauserapi.application.command.service.CommandServiceBoundaryFixtures;
+import uk.gov.justice.laa.datauserapi.application.query.handler.QueryHandlerBoundaryFixtures;
+import uk.gov.justice.laa.datauserapi.application.query.shared.repository.QueryRepositoryBoundaryFixtures;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 
 import java.util.List;
@@ -20,6 +25,55 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ArchitectureRulesTest {
+
+    @Test
+    void enforcesCommandQueryIsolationInBothDirections() {
+        assertThat(ArchitectureTest.command_side_must_not_depend_on_query_side.evaluate(importClasses(
+                CommandHandlerBoundaryFixtures.CommandHandlerFixture.class,
+                QueryHandlerBoundaryFixtures.QueryHandler.class)).hasViolation()).isTrue();
+        assertThat(ArchitectureTest.query_side_must_not_depend_on_command_side.evaluate(importClasses(
+                QueryHandlerBoundaryFixtures.QueryHandler.class,
+                CommandHandlerBoundaryFixtures.CommandSiblingHandler.class)).hasViolation()).isTrue();
+
+        ArchitectureTest.command_side_must_not_depend_on_query_side.check(importClasses(
+                CommandHandlerBoundaryFixtures.IndependentCommandHandler.class,
+                QueryHandlerBoundaryFixtures.IndependentQueryHandler.class));
+        ArchitectureTest.query_side_must_not_depend_on_command_side.check(importClasses(
+                CommandHandlerBoundaryFixtures.IndependentCommandHandler.class,
+                QueryHandlerBoundaryFixtures.IndependentQueryHandler.class));
+    }
+
+    @Test
+    void rejectsHandlerToHandlerDependenciesOnBothSides() {
+        assertThat(ArchitectureTest.command_handlers_must_not_depend_on_other_command_handlers.evaluate(
+                importClasses(CommandHandlerBoundaryFixtures.CommandHandlerFixture.class,
+                        CommandHandlerBoundaryFixtures.CommandSiblingHandler.class)).hasViolation()).isTrue();
+        assertThat(ArchitectureTest.query_handlers_must_not_depend_on_other_query_handlers.evaluate(
+                importClasses(QueryHandlerBoundaryFixtures.QueryHandler.class,
+                        QueryHandlerBoundaryFixtures.QuerySiblingHandler.class)).hasViolation()).isTrue();
+
+        ArchitectureTest.command_handlers_must_not_depend_on_other_command_handlers.check(
+                importClasses(CommandHandlerBoundaryFixtures.IndependentCommandHandler.class));
+        ArchitectureTest.query_handlers_must_not_depend_on_other_query_handlers.check(
+                importClasses(QueryHandlerBoundaryFixtures.IndependentQueryHandler.class));
+    }
+
+    @Test
+    void queryHandlersMustDelegateRepositoryAccessToServices() {
+        assertThat(ArchitectureTest.query_handlers_must_not_access_repositories.evaluate(importClasses(
+                QueryHandlerBoundaryFixtures.QueryHandler.class,
+                QueryRepositoryBoundaryFixtures.QueryRepositoryFixture.class)).hasViolation()).isTrue();
+        ArchitectureTest.query_handlers_must_not_access_repositories.check(
+                importClasses(QueryHandlerBoundaryFixtures.IndependentQueryHandler.class));
+    }
+
+    @Test
+    void servicesMustNotDependOnEntryPointHandlers() {
+        assertThat(ArchitectureTest.services_must_not_depend_on_handlers_or_controllers.evaluate(importClasses(
+                CommandServiceBoundaryFixtures.CommandService.class,
+                CommandHandlerBoundaryFixtures.CommandHandlerFixture.class,
+                CommandControllerBoundaryFixtures.CommandController.class)).hasViolation()).isTrue();
+    }
 
     @Test
     void rejectsDeclaredAndInheritedRepositoryWrites() {
