@@ -1,7 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.command.mapper;
 
 import org.springframework.stereotype.Component;
-import uk.gov.justice.laa.datauserapi.application.command.shared.repository.DeleteUserReasonRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeleteUserCommand;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus;
 import uk.gov.justice.laa.datauserapi.contracts.request.DeleteUserRequest;
@@ -15,12 +14,6 @@ import java.time.LocalDateTime;
 @Component
 public class DeleteUserMapper {
 
-    private final DeleteUserReasonRepository deleteUserReasonRepository;
-
-    public DeleteUserMapper(DeleteUserReasonRepository deleteUserReasonRepository) {
-        this.deleteUserReasonRepository = deleteUserReasonRepository;
-    }
-
     public DeleteUserCommand toDeleteUserCommand(DeleteUserRequest request) {
         return DeleteUserCommand.builder()
                 .userEntraObjectId(request.userEntraObjectId())
@@ -28,9 +21,7 @@ public class DeleteUserMapper {
                 .build();
     }
 
-    public UserAccountStatusAudit toAuditEntity(EntraUser user, DeleteUserCommand command, String actorId) {
-        DeleteUserReasonEntity reason = deleteUserReasonRepository.findByCode(command.deleteReason().name())
-                .orElseThrow(() -> new IllegalArgumentException("Delete reason not found: " + command.deleteReason().name()));
+    public UserAccountStatusAudit toAuditEntity(EntraUser user, DeleteUserReasonEntity reason, String actorId) {
         return UserAccountStatusAudit.builder()
                 .userAccountAuditStatus(UserAccountAuditStatus.DELETED)
                 .entraUserId(user.getId())

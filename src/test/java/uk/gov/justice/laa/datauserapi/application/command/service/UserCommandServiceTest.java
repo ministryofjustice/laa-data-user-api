@@ -5,13 +5,22 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullSource;
+import uk.gov.justice.laa.datauserapi.application.command.dto.UserDeactivationContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
+import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
+import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
+import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 import java.util.Collections;
 import java.util.Optional;
@@ -21,6 +30,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,13 +39,45 @@ class UserCommandServiceTest {
     @Mock
     private EntraUserCommandRepository entraUserCommandRepository;
 
+    @Mock
+    private UserProfileCommandRepository userProfileCommandRepository;
+
     private UserCommandService userCommandService;
 
     private final UUID entraUserId = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @BeforeEach
     void setUp() {
-        userCommandService = new UserCommandService(entraUserCommandRepository);
+        userCommandService = new UserCommandService(entraUserCommandRepository, userProfileCommandRepository);
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @EnumSource(DeactivationType.class)
+    void loadsDeactivationFactsInOneLookupIncludingLegacyState(DeactivationType type) {
+        EntraUser user = EntraUser.builder().active(false).deactivationType(type).build();
+        when(entraUserCommandRepository.findByEntraOid(entraUserId.toString())).thenReturn(Optional.of(user));
+
+        UserDeactivationContext context = userCommandService.getDeactivationContext(entraUserId);
+
+        assertThat(context.deactivated()).isTrue();
+        assertThat(context.deactivationType()).isEqualTo(Optional.ofNullable(type));
+        verify(entraUserCommandRepository).findByEntraOid(entraUserId.toString());
+        verifyNoMoreInteractions(entraUserCommandRepository);
+    }
+
+    @Test
+    void deactivationContextReportsActiveUser() {
+        when(entraUserCommandRepository.findByEntraOid(entraUserId.toString()))
+                .thenReturn(Optional.of(EntraUser.builder().active(true).build()));
+
+        assertThat(userCommandService.getDeactivationContext(entraUserId).deactivated()).isFalse();
+    }
+
+    @Test
+    void deactivationContextPropagatesTypedNotFound() {
+        assertThatThrownBy(() -> userCommandService.getDeactivationContext(entraUserId))
+                .isInstanceOf(UserNotFoundException.class);
     }
 
     @Nested
@@ -109,8 +151,8 @@ class UserCommandServiceTest {
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> userCommandService.isExternalUser(entraUserId))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessage("Entra user not found for oid: " + entraUserId);
+                    .isInstanceOf(UserNotFoundException.class)
+                    .hasMessage("Entra user not found for user Entra OID: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }
@@ -187,8 +229,8 @@ class UserCommandServiceTest {
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> userCommandService.isInternalUser(entraUserId))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessage("Entra user not found for oid: " + entraUserId);
+                    .isInstanceOf(UserNotFoundException.class)
+                    .hasMessage("Entra user not found for user Entra OID: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }
@@ -251,8 +293,8 @@ class UserCommandServiceTest {
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.of(entraUser));
 
             assertThatThrownBy(() -> userCommandService.getActiveUserProfile(entraUserId))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessage("Active profile not found for user oid: " + entraUserId);
+                    .isInstanceOf(UserProfileNotFoundException.class)
+                    .hasMessage("Active profile not found for user Entra OID: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }
@@ -269,8 +311,8 @@ class UserCommandServiceTest {
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.of(entraUser));
 
             assertThatThrownBy(() -> userCommandService.getActiveUserProfile(entraUserId))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessage("Active profile not found for user oid: " + entraUserId);
+                    .isInstanceOf(UserProfileNotFoundException.class)
+                    .hasMessage("Active profile not found for user Entra OID: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }
@@ -281,11 +323,140 @@ class UserCommandServiceTest {
             when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> userCommandService.getActiveUserProfile(entraUserId))
-                    .isInstanceOf(ResourceNotFoundException.class)
+                    .isInstanceOf(UserNotFoundException.class)
                     .hasMessage("User account not found for oid: " + entraUserId);
 
             verify(entraUserCommandRepository).findByEntraOid(String.valueOf(entraUserId));
         }
     }
 
+    @Nested
+    @DisplayName("policy lookup tests")
+    class PolicyLookupTests {
+
+        @Test
+        void isMultiFirmUser_ReturnsFlagFromUser() {
+            EntraUser entraUser = EntraUser.builder().entraOid(String.valueOf(entraUserId)).multiFirmUser(true).build();
+            when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.of(entraUser));
+
+            assertThat(userCommandService.isMultiFirmUser(entraUserId)).isTrue();
+        }
+
+        @Test
+        void findActiveFirmId_ReturnsFirmOfActiveProfile() {
+            UUID firmId = UUID.randomUUID();
+            UserProfile inactive = UserProfile.builder().id(UUID.randomUUID()).activeProfile(false)
+                    .firm(Firm.builder().id(UUID.randomUUID()).build()).build();
+            UserProfile active = UserProfile.builder().id(UUID.randomUUID()).activeProfile(true)
+                    .firm(Firm.builder().id(firmId).build()).build();
+            EntraUser entraUser = EntraUser.builder().userProfiles(Set.of(inactive, active)).build();
+            when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.of(entraUser));
+
+            assertThat(userCommandService.findActiveFirmId(entraUserId)).contains(firmId);
+        }
+
+        @Test
+        void findActiveFirmId_EmptyWhenNoActiveProfileOrFirm() {
+            UserProfile activeNoFirm = UserProfile.builder().id(UUID.randomUUID()).activeProfile(true).build();
+            EntraUser entraUser = EntraUser.builder().userProfiles(Set.of(activeNoFirm)).build();
+            when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.of(entraUser));
+
+            assertThat(userCommandService.findActiveFirmId(entraUserId)).isEmpty();
+        }
+
+        @Test
+        void isDeactivated_ReflectsActiveFlag() {
+            EntraUser entraUser = EntraUser.builder().active(false).build();
+            when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.of(entraUser));
+            assertThat(userCommandService.isDeactivated(entraUserId)).isTrue();
+
+            entraUser.setActive(true);
+            assertThat(userCommandService.isDeactivated(entraUserId)).isFalse();
+        }
+
+        @Test
+        void findDeactivationType_ReturnsStoredTypeOrEmpty() {
+            EntraUser entraUser = EntraUser.builder().deactivationType(DeactivationType.FIRM).build();
+            when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.of(entraUser));
+            assertThat(userCommandService.findDeactivationType(entraUserId)).contains(DeactivationType.FIRM);
+
+            entraUser.setDeactivationType(null);
+            assertThat(userCommandService.findDeactivationType(entraUserId)).isEmpty();
+        }
+
+        @Test
+        void throwsNotFoundWhenUserMissing() {
+            when(entraUserCommandRepository.findByEntraOid(String.valueOf(entraUserId))).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> userCommandService.isMultiFirmUser(entraUserId))
+                    .isInstanceOf(ResourceNotFoundException.class);
+            assertThatThrownBy(() -> userCommandService.findActiveFirmId(entraUserId))
+                    .isInstanceOf(ResourceNotFoundException.class);
+            assertThatThrownBy(() -> userCommandService.isDeactivated(entraUserId))
+                    .isInstanceOf(ResourceNotFoundException.class);
+            assertThatThrownBy(() -> userCommandService.findDeactivationType(entraUserId))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("findProfileFirmId tests")
+    class FindProfileFirmIdTests {
+
+        @Test
+        void returnsFirmIdOfProfile() {
+            UUID profileId = UUID.randomUUID();
+            UUID firmId = UUID.randomUUID();
+            UserProfile profile = UserProfile.builder().id(profileId).firm(Firm.builder().id(firmId).build()).build();
+            when(userProfileCommandRepository.findById(profileId)).thenReturn(Optional.of(profile));
+
+            assertThat(userCommandService.findProfileFirmId(profileId)).contains(firmId);
+        }
+
+        @Test
+        void returnsEmptyWhenProfileHasNoFirm() {
+            UUID profileId = UUID.randomUUID();
+            when(userProfileCommandRepository.findById(profileId))
+                    .thenReturn(Optional.of(UserProfile.builder().id(profileId).build()));
+
+            assertThat(userCommandService.findProfileFirmId(profileId)).isEmpty();
+        }
+
+        @Test
+        void throwsNotFoundWhenProfileMissing() {
+            UUID profileId = UUID.randomUUID();
+            when(userProfileCommandRepository.findById(profileId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> userCommandService.findProfileFirmId(profileId))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessage("User profile not found with ID: " + profileId);
+        }
+    }
+
+    @Nested
+    @DisplayName("profile target lookups")
+    class ProfileTargetLookupTests {
+
+        @Test
+        void returnsUserTypeAndEntraOidOfProfile() {
+            UUID profileId = UUID.randomUUID();
+            UserProfile profile = UserProfile.builder().id(profileId).userType(UserType.EXTERNAL)
+                    .entraUser(EntraUser.builder().entraOid("oid-1").build()).build();
+            when(userProfileCommandRepository.findById(profileId)).thenReturn(Optional.of(profile));
+
+            assertThat(userCommandService.findProfileUserType(profileId)).contains(UserType.EXTERNAL);
+            assertThat(userCommandService.findProfileEntraOid(profileId)).contains("oid-1");
+        }
+
+        @Test
+        void throwsNotFoundWhenProfileMissing() {
+            UUID profileId = UUID.randomUUID();
+            when(userProfileCommandRepository.findById(profileId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> userCommandService.findProfileUserType(profileId))
+                    .isInstanceOf(ResourceNotFoundException.class);
+            assertThatThrownBy(() -> userCommandService.findProfileEntraOid(profileId))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+    }
 }

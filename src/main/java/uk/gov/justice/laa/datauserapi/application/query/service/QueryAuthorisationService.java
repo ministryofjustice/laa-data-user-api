@@ -4,11 +4,59 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.model.Permission;
+import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
+import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
+import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 
 @Service
 @Transactional(readOnly = true)
 public class QueryAuthorisationService {
+
+    public AuthenticatedUserProfile requireActiveProfile(AuthenticatedEntraUser actor) {
+        AuthenticatedUserProfile profile = actor.activeProfile();
+        if (profile == null) {
+            throw new InvalidActorContextException("Actor has no active profile: " + actor.entraOid());
+        }
+        if (profile.userType() == null) {
+            throw new InvalidActorContextException("Actor user type cannot be determined");
+        }
+        return profile;
+    }
+
+    public UserProfileDto requireActiveProfile(EntraUserDto actor, String actorOid) {
+        UserProfileDto profile = actor.getUserProfiles().stream()
+                .filter(UserProfileDto::isActiveProfile)
+                .findFirst()
+                .orElseThrow(() -> new InvalidActorContextException("Actor has no active profile: " + actorOid));
+        if (profile.getUserType() == null) {
+            throw new InvalidActorContextException("Actor user type cannot be determined");
+        }
+        return profile;
+    }
+
+    /**
+     * Preserves account-level visibility, which differs from profile visibility: internal accounts do not require
+     * VIEW_INTERNAL_USER, and same-firm account access can match a target profile of either user type.
+     */
+    public boolean canViewAccount(UserProfileDto actorProfile, EntraUserDto target) {
+        if (actorProfile.getUserType() == UserType.INTERNAL
+                && target.getUserProfiles().stream().anyMatch(profile -> profile.getUserType() == UserType.INTERNAL)) {
+            return true;
+        }
+        if (actorProfile.getUserType() == UserType.EXTERNAL
+                && actorProfile.getFirm() != null
+                && target.getUserProfiles().stream().anyMatch(profile ->
+                profile.getFirm() != null && profile.getFirm().getId().equals(actorProfile.getFirm().getId()))) {
+            return true;
+        }
+        boolean canViewExternalUsers = actorProfile.getAppRoles().stream()
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(permission -> permission == Permission.VIEW_EXTERNAL_USER);
+        return actorProfile.getUserType() == UserType.INTERNAL && canViewExternalUsers
+                && target.getUserProfiles().stream().anyMatch(profile -> profile.getUserType() == UserType.EXTERNAL);
+    }
 
     /**
      * Checks if the authenticated actor can view the target profile (using AuthenticatedUserProfile).

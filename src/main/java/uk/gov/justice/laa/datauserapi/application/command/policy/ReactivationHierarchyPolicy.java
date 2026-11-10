@@ -1,0 +1,85 @@
+package uk.gov.justice.laa.datauserapi.application.command.policy;
+
+import org.jspecify.annotations.NonNull;
+import org.springframework.stereotype.Component;
+import uk.gov.justice.laa.datauserapi.application.command.dto.UserDeactivationContext;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
+import uk.gov.justice.laa.datauserapi.model.AuthzRole;
+import uk.gov.justice.laa.datauserapi.model.DeactivationType;
+import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
+
+import java.util.Collection;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * Enforces that the target is currently deactivated and that the actor's roles are high enough to undo the
+ * way it was deactivated:
+ *
+ * <table>
+ *   <caption>Who may reactivate, by deactivation type</caption>
+ *   <tr><th>type</th><th>FUM</th><th>EUM / EUA / EUS</th><th>SR / GA</th></tr>
+ *   <tr><td>none recorded (legacy)</td><td>no</td><td>yes</td><td>yes</td></tr>
+ *   <tr><td>NONE</td><td>yes</td><td>yes</td><td>yes</td></tr>
+ *   <tr><td>SYNC, LAA</td><td>no</td><td>yes</td><td>yes</td></tr>
+ *   <tr><td>FIRM</td><td>yes (same firm, enforced by the firm scope policy)</td><td>yes</td><td>yes</td></tr>
+ *   <tr><td>PRIVILEGED</td><td>no</td><td>no</td><td>yes</td></tr>
+ * </table>
+ */
+@Component
+public class ReactivationHierarchyPolicy implements AuthorizationPolicy<UserDeactivationContext> {
+
+    @Override
+    public @NonNull PolicyDecision evaluate(UserDeactivationContext context, AuthenticatedEntraUser actor) {
+        if (!context.deactivated()) {
+            return PolicyDecision.deny(PolicyDenialReason.TARGET_USER_NOT_DEACTIVATED);
+        }
+        return canReactivate(context.deactivationType(), roles(actor))
+                ? PolicyDecision.allow()
+                : PolicyDecision.deny(PolicyDenialReason.REACTIVATION_NOT_ALLOWED_FOR_DEACTIVATION_TYPE);
+    }
+
+    public static boolean canReactivate(DeactivationType type, AuthenticatedEntraUser actor) {
+        return canReactivate(Optional.ofNullable(type), roles(actor));
+    }
+
+    private static boolean canReactivate(Optional<DeactivationType> type, Set<AuthzRole> roles) {
+        boolean privileged = has(roles, AuthzRole.GLOBAL_ADMIN) || has(roles, AuthzRole.SECURITY_RESPONSE);
+        boolean externalUserManagement = has(roles, AuthzRole.EXTERNAL_USER_ADMIN)
+                || has(roles, AuthzRole.EXTERNAL_USER_MANAGER)
+                || has(roles, AuthzRole.EXTERNAL_USER_SUPPORT);
+        if (type.isEmpty()) {
+            return privileged || externalUserManagement || has(roles, AuthzRole.INTERNAL_USER_MANAGER);
+        }
+        return switch (type.orElseThrow()) {
+            case NONE -> true;
+            case SYNC, LAA -> privileged || externalUserManagement;
+            case FIRM -> privileged || externalUserManagement || has(roles, AuthzRole.FIRM_USER_MANAGER);
+            case PRIVILEGED -> privileged;
+        };
+    }
+
+    private static boolean has(Set<AuthzRole> roles, AuthzRole role) {
+        return roles.contains(role);
+    }
+
+    private static Set<AuthzRole> roles(AuthenticatedEntraUser actor) {
+        return Optional.ofNullable(actor.activeProfile())
+                .map(AuthenticatedUserProfile::appRoles)
+                .stream()
+                .flatMap(Collection::stream)
+                .filter(Objects::nonNull)
+                .filter(AuthenticatedAppRole::authzRole)
+                .map(AuthenticatedAppRole::name)
+                .filter(Objects::nonNull)
+                .map(AuthzRole::fromRoleName)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toSet());
+    }
+}

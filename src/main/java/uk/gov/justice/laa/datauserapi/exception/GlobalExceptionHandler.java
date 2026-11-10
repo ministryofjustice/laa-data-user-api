@@ -50,6 +50,20 @@ public class GlobalExceptionHandler {
         return problemResponse(HttpStatus.NOT_FOUND, problem);
     }
 
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleUserNotFound(
+            UserNotFoundException ex,
+            HttpServletRequest request) {
+        return handleNotFound(ex, request);
+    }
+
+    @ExceptionHandler(UserProfileNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleUserProfileNotFound(
+            UserProfileNotFoundException ex,
+            HttpServletRequest request) {
+        return handleNotFound(ex, request);
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ProblemDetail> handleConflict(
             ConflictException ex,
@@ -253,6 +267,27 @@ public class GlobalExceptionHandler {
         );
 
         return problemResponse(HttpStatus.FORBIDDEN, problem);
+    }
+
+    @ExceptionHandler({UserAlreadyDeactivatedException.class, UserNotDeactivatedException.class})
+    public ResponseEntity<ProblemDetail> handleUserAccountStatusConflict(
+            RuntimeException ex,
+            HttpServletRequest request) {
+        log.info("User account status conflict",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
+
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/conflict"),
+                "Conflict",
+                HttpStatus.CONFLICT.value(),
+                ex.getMessage(),
+                URI.create(request.getRequestURI()),
+                null
+        );
+
+        return problemResponse(HttpStatus.CONFLICT, problem);
     }
 
     @ExceptionHandler(JwtException.class)
