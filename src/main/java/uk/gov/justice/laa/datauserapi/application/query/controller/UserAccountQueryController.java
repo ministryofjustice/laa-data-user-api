@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.query.dto.AccountStatusHistoryView;
 import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountStatusView;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetActiveProfileHandler;
-import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfilesHandler;
+import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfilesEntraIdHandler;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserAccountHandler;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
@@ -37,17 +37,17 @@ public class UserAccountQueryController {
     private final UserAccountQueryService queryService;
     private final SearchUsersHandler searchUsersHandler;
     private final GetUserAccountHandler getUserAccountHandler;
-    private final GetUserProfilesHandler getUserProfilesHandler;
+    private final GetUserProfilesEntraIdHandler getUserProfilesEntraIdHandler;
     private final GetActiveProfileHandler getActiveProfileHandler;
 
     public UserAccountQueryController(UserAccountQueryService queryService, SearchUsersHandler searchUsersHandler,
                                       GetUserAccountHandler getUserAccountHandler,
-                                      GetUserProfilesHandler getUserProfilesHandler,
+                                      GetUserProfilesEntraIdHandler getUserProfilesEntraIdHandler,
                                       GetActiveProfileHandler getActiveProfileHandler) {
         this.queryService = queryService;
         this.searchUsersHandler = searchUsersHandler;
         this.getUserAccountHandler = getUserAccountHandler;
-        this.getUserProfilesHandler = getUserProfilesHandler;
+        this.getUserProfilesEntraIdHandler = getUserProfilesEntraIdHandler;
         this.getActiveProfileHandler = getActiveProfileHandler;
     }
 
@@ -78,7 +78,7 @@ public class UserAccountQueryController {
     @GetMapping("/users/{userEntraObjectId}/profiles")
     public ResponseEntity<UserProfileSummaryList> getUserProfiles(@PathVariable String userEntraObjectId,
                                                                           @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        List<UserProfileSummaryView> readModel = getUserProfilesHandler.handle(userEntraObjectId, authenticatedUser);
+        List<UserProfileSummaryView> readModel = getUserProfilesEntraIdHandler.handle(userEntraObjectId, authenticatedUser);
         return ResponseEntity.ok(new UserProfileSummaryList(readModel));
     }
 

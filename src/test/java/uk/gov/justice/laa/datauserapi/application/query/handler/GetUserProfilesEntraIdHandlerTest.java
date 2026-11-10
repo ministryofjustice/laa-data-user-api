@@ -37,7 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
-class GetUserProfilesHandlerTest {
+class GetUserProfilesEntraIdHandlerTest {
 
     @Mock
     private UserProfileQueryRepository userProfileQueryRepository;
@@ -61,7 +61,7 @@ class GetUserProfilesHandlerTest {
         List<UserProfileSummaryView> expected = List.of(mock(UserProfileSummaryView.class));
         when(service.getProfiles(userEntraObjectId, actor)).thenReturn(expected);
 
-        assertThat(new GetUserProfilesHandler(service).handle(userEntraObjectId, actor)).isSameAs(expected);
+        assertThat(new GetUserProfilesEntraIdHandler(service).handle(userEntraObjectId, actor)).isSameAs(expected);
         verify(service).getProfiles(userEntraObjectId, actor);
     }
 
@@ -84,7 +84,7 @@ class GetUserProfilesHandlerTest {
         when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(userEntraObjectId))
                 .thenReturn(Optional.of(List.of()));
 
-        GetUserProfilesHandler handler = handler();
+        GetUserProfilesEntraIdHandler handler = handler();
         List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).isEmpty();
@@ -106,7 +106,7 @@ class GetUserProfilesHandlerTest {
                 .thenReturn(Optional.of(List.of(profile)));
         when(authorizationService.canViewProfile(actorProfile, profile.userType(), profile.firmId())).thenReturn(true);
 
-        GetUserProfilesHandler handler = handler();
+        GetUserProfilesEntraIdHandler handler = handler();
         List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).hasSize(1);
@@ -134,7 +134,7 @@ class GetUserProfilesHandlerTest {
                 .thenReturn(Optional.of(List.of(profile)));
         when(authorizationService.canViewProfile(actorProfile, profile.userType(), profile.firmId())).thenReturn(false);
 
-        GetUserProfilesHandler handler = handler();
+        GetUserProfilesEntraIdHandler handler = handler();
         List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).isEmpty();
@@ -156,7 +156,7 @@ class GetUserProfilesHandlerTest {
                 .thenReturn(Optional.of(List.of(profile)));
         when(authorizationService.canViewProfile(actorProfile, profile.userType(), profile.firmId())).thenReturn(true);
 
-        GetUserProfilesHandler handler = handler();
+        GetUserProfilesEntraIdHandler handler = handler();
         List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).hasSize(1);
@@ -165,7 +165,7 @@ class GetUserProfilesHandlerTest {
 
     @Test
     void throwsExceptionWhenActorHasNoActiveProfile() {
-        GetUserProfilesHandler handler = handler();
+        GetUserProfilesEntraIdHandler handler = handler();
 
         assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser(null)))
                 .isInstanceOf(InvalidActorContextException.class)
@@ -183,8 +183,8 @@ class GetUserProfilesHandlerTest {
         verifyNoInteractions(userProfileQueryRepository);
     }
 
-    private GetUserProfilesHandler handler() {
-        return new GetUserProfilesHandler(new UserProfileDetailsService(
+    private GetUserProfilesEntraIdHandler handler() {
+        return new GetUserProfilesEntraIdHandler(new UserProfileDetailsService(
                 userProfileQueryRepository, authorizationService,
                 mock(UserProfileQueryMapper.class), mock(GetActiveProfileQueryMapper.class)));
     }
