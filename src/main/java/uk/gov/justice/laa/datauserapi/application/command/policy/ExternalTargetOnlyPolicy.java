@@ -6,6 +6,7 @@ import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandSer
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.security.rbac.TargetsUser;
 
 /** The guarded action is only permitted on external users; internal (LAA) users are never a valid target. */
@@ -21,7 +22,7 @@ public class ExternalTargetOnlyPolicy implements AuthorizationPolicy<TargetsUser
     @Override
     public @NonNull PolicyDecision evaluate(TargetsUser targetsUser, AuthenticatedEntraUser actor) {
         return userCommandService.isInternalUser(targetsUser.targetUserEntraObjectId())
-                ? PolicyDecision.deny("target user is an internal user")
+                ? PolicyDecision.deny(PolicyDenialReason.TARGET_USER_INTERNAL)
                 : PolicyDecision.allow();
     }
 }

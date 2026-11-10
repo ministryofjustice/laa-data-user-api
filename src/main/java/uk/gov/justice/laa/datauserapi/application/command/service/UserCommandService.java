@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
+import uk.gov.justice.laa.datauserapi.application.command.dto.UserDeactivationContext;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
@@ -72,6 +73,12 @@ public class UserCommandService {
                 .findFirst()
                 .map(UserProfile::getFirm)
                 .map(Firm::getId);
+    }
+
+    @Transactional(readOnly = true)
+    public UserDeactivationContext getDeactivationContext(UUID userEntraObjectId) {
+        EntraUser user = findEntraUser(userEntraObjectId);
+        return new UserDeactivationContext(!user.isActive(), Optional.ofNullable(user.getDeactivationType()));
     }
 
     @Transactional(readOnly = true)

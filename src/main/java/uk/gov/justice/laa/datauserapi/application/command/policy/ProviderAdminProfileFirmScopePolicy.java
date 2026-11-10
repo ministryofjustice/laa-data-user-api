@@ -8,6 +8,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.security.rbac.GlobalAuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.security.rbac.TargetsUserProfile;
 
 import java.util.Optional;
@@ -36,10 +37,10 @@ public class ProviderAdminProfileFirmScopePolicy implements GlobalAuthorizationP
     public @NonNull PolicyDecision evaluate(TargetsUserProfile message, AuthenticatedEntraUser actor) {
         UUID actorFirmId = Optional.ofNullable(actor.activeProfile()).map(AuthenticatedUserProfile::firmId).orElse(null);
         if (actorFirmId == null) {
-            return PolicyDecision.deny(PolicyMessages.PROVIDER_ADMIN_NO_ACTIVE_FIRM);
+            return PolicyDecision.deny(PolicyDenialReason.PROVIDER_ADMIN_NO_ACTIVE_FIRM);
         }
         return userCommandService.findProfileFirmId(message.targetUserProfileId()).filter(actorFirmId::equals).isPresent()
                 ? PolicyDecision.allow()
-                : PolicyDecision.deny("target profile is not in provider admin's firm");
+                : PolicyDecision.deny(PolicyDenialReason.TARGET_PROFILE_OUTSIDE_ACTOR_FIRM);
     }
 }

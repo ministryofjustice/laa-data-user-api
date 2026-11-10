@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,12 +14,32 @@ import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.test.util.AopTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.command.handler.BulkDeactivateFirmUsersHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeactivateUserHandler;
+import uk.gov.justice.laa.datauserapi.application.command.handler.ConvertToMultiFirmHandler;
+import uk.gov.justice.laa.datauserapi.application.command.policy.InternalActorOnlyPolicy;
+import uk.gov.justice.laa.datauserapi.application.command.service.ConvertToMultiFirmService;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmultifirm.ConvertToMultiFirmCommand;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
+import uk.gov.justice.laa.datauserapi.application.command.handler.ReactivateUserHandler;
+import uk.gov.justice.laa.datauserapi.application.command.service.ReactivateUserService;
+import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserDetailsHandler;
+import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserProfileOfficesHandler;
+import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserProfileUnrestrictedOfficesHandler;
+import uk.gov.justice.laa.datauserapi.application.command.service.UpdateUserDetailsService;
+import uk.gov.justice.laa.datauserapi.application.command.service.UserProfileOfficeService;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.UpdateUserDetailsCommand;
+import uk.gov.justice.laa.datauserapi.application.command.userprofile.UpdateUserProfileUnrestrictedOfficesCommand;
+import uk.gov.justice.laa.datauserapi.application.command.dto.UserDeactivationContext;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.BulkDeactivateFirmUsersMapper;
+import uk.gov.justice.laa.datauserapi.application.command.service.BulkDeactivateFirmUsersService;
+import uk.gov.justice.laa.datauserapi.application.command.service.DeactivateUserService;
+import uk.gov.justice.laa.datauserapi.application.command.service.ReactivationPolicyInputResolver;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ExternalProfileTargetOnlyPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ExternalTargetOnlyPolicy;
@@ -44,8 +65,10 @@ import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
+import uk.gov.justice.laa.datauserapi.entity.DeleteUserReasonEntity;
 import uk.gov.justice.laa.datauserapi.model.AuthzRole;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 import uk.gov.justice.laa.datauserapi.model.Permission;
@@ -67,6 +90,8 @@ import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 
 /**
  * Verifies the advisor is wired into the Spring proxy chain and gates the real user account commands
@@ -79,7 +104,9 @@ class RbacMethodSecurityIntegrationTest {
     @Configuration
     @EnableMethodSecurity(proxyTargetClass = true)
     @EnableTransactionManagement(proxyTargetClass = true)
-    @Import(RbacMethodSecurityConfig.class)
+    @Import({RbacMethodSecurityConfig.class, UpdateUserDetailsHandler.class,
+        UpdateUserProfileOfficesHandler.class, UpdateUserProfileUnrestrictedOfficesHandler.class,
+        ReactivateUserHandler.class, ConvertToMultiFirmHandler.class, InternalActorOnlyPolicy.class})
     static class TestConfig {
         @Bean
         PlatformTransactionManager transactionManager() {
@@ -117,20 +144,56 @@ class RbacMethodSecurityIntegrationTest {
         }
 
         @Bean
-        DeactivateUserHandler realDeactivateUserHandler(
+        UpdateUserDetailsService updateUserDetailsService() {
+            return mock(UpdateUserDetailsService.class);
+        }
+
+        @Bean
+        ReactivateUserService reactivateUserService() {
+            return mock(ReactivateUserService.class);
+        }
+
+        @Bean
+        UserProfileOfficeService userProfileOfficeService() {
+            return mock(UserProfileOfficeService.class);
+        }
+
+        @Bean
+        ConvertToMultiFirmService convertToMultiFirmService() {
+            return mock(ConvertToMultiFirmService.class);
+        }
+
+        @Bean
+        DeactivateUserService deactivateUserService(
                 UserAccountLifecycleService lifecycleService,
                 DeactivationTypeResolver deactivationTypeResolver,
                 TechServicesClient techServicesClient) {
-            return new DeactivateUserHandler(lifecycleService, deactivationTypeResolver, techServicesClient);
+            return new DeactivateUserService(lifecycleService, deactivationTypeResolver, techServicesClient);
+        }
+
+        @Bean
+        DeactivateUserHandler realDeactivateUserHandler(DeactivateUserService service) {
+            return new DeactivateUserHandler(service);
+        }
+
+        @Bean
+        BulkDeactivateFirmUsersMapper bulkMapper() {
+            return new BulkDeactivateFirmUsersMapper();
+        }
+
+        @Bean
+        BulkDeactivateFirmUsersService bulkDeactivateFirmUsersService(
+                FirmCommandRepository firmCommandRepository,
+                EntraUserCommandRepository entraUserCommandRepository,
+                DeactivateUserService deactivateUserService) {
+            return new BulkDeactivateFirmUsersService(
+                    firmCommandRepository, entraUserCommandRepository, deactivateUserService);
         }
 
         @Bean
         BulkDeactivateFirmUsersHandler realBulkDeactivateFirmUsersHandler(
-                FirmCommandRepository firmCommandRepository,
-                EntraUserCommandRepository entraUserCommandRepository,
-                DeactivateUserHandler deactivateUserHandler) {
-            return new BulkDeactivateFirmUsersHandler(
-                    firmCommandRepository, entraUserCommandRepository, deactivateUserHandler);
+                BulkDeactivateFirmUsersService service, BulkDeactivateFirmUsersMapper mapper) {
+            return new BulkDeactivateFirmUsersHandler(service, mapper);
         }
 
         @Bean
@@ -149,8 +212,13 @@ class RbacMethodSecurityIntegrationTest {
         }
 
         @Bean
-        ReactivationHierarchyPolicy reactivationHierarchyPolicy(UserCommandService userCommandService) {
-            return new ReactivationHierarchyPolicy(userCommandService);
+        ReactivationHierarchyPolicy reactivationHierarchyPolicy() {
+            return new ReactivationHierarchyPolicy();
+        }
+
+        @Bean
+        ReactivationPolicyInputResolver reactivationPolicyInputResolver(UserCommandService userCommandService) {
+            return new ReactivationPolicyInputResolver(userCommandService);
         }
 
         @Bean
@@ -279,6 +347,30 @@ class RbacMethodSecurityIntegrationTest {
     private BulkDeactivateFirmUsersHandler realBulkHandler;
 
     @Autowired
+    private DeactivateUserHandler realDeactivateUserHandler;
+
+    @Autowired
+    private ConvertToMultiFirmHandler convertToMultiFirmHandler;
+    @Autowired
+    private ConvertToMultiFirmService convertToMultiFirmService;
+
+    @Autowired
+    private ReactivateUserHandler realReactivateUserHandler;
+    @Autowired
+    private ReactivateUserService reactivateService;
+
+    @Autowired
+    private UpdateUserDetailsHandler updateDetailsHandler;
+    @Autowired
+    private UpdateUserProfileOfficesHandler updateOfficesHandler;
+    @Autowired
+    private UpdateUserProfileUnrestrictedOfficesHandler updateUnrestrictedHandler;
+    @Autowired
+    private UpdateUserDetailsService updateDetailsService;
+    @Autowired
+    private UserProfileOfficeService profileOfficeService;
+
+    @Autowired
     private FakeDeactivateUserHandler deactivateHandler;
 
     @Autowired
@@ -303,7 +395,59 @@ class RbacMethodSecurityIntegrationTest {
         handler.invocations().set(0);
         reset(transactionManager, userCommandService, firmCommandRepository, entraUserCommandRepository,
                 lifecycleService, deactivationTypeResolver);
+        reset(AopTestUtils.getUltimateTargetObject(updateDetailsService),
+                AopTestUtils.getUltimateTargetObject(profileOfficeService),
+                AopTestUtils.getUltimateTargetObject(reactivateService),
+                AopTestUtils.getUltimateTargetObject(convertToMultiFirmService));
         SecurityContextHolder.clearContext();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"editPermission", "convertPermission", "external", "inactive", "noProfile",
+        "unknownType", "self", "internalTarget"})
+    void conversionDeniesBeforeInvokingServiceOrOpeningWriteTransaction(String restriction) {
+        authenticate();
+        AuthenticatedEntraUser permitted = RbacTestActors.actorWith(
+                Permission.EDIT_EXTERNAL_USER, Permission.CONVERT_USER_TO_MULTI_FIRM);
+        AuthenticatedUserProfile profile = permitted.activeProfile();
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().entraOid(permitted.entraOid())
+                .activeProfile(restriction.equals("noProfile") ? null : AuthenticatedUserProfile.builder()
+                        .activeProfile(!restriction.equals("inactive"))
+                        .userType(restriction.equals("unknownType") ? null
+                                : restriction.equals("external") ? UserType.EXTERNAL : UserType.INTERNAL)
+                        .appRoles(profile.appRoles()).build()).build();
+        if (restriction.equals("editPermission")) {
+            actor = RbacTestActors.actorWith(Permission.CONVERT_USER_TO_MULTI_FIRM);
+        } else if (restriction.equals("convertPermission")) {
+            actor = RbacTestActors.actorWith(Permission.EDIT_EXTERNAL_USER);
+        }
+        UUID targetId = restriction.equals("self") ? UUID.fromString(actor.entraOid()) : UUID.randomUUID();
+        when(userCommandService.isInternalUser(targetId)).thenReturn(restriction.equals("internalTarget"));
+        AuthenticatedEntraUser finalActor = actor;
+
+        assertThatThrownBy(() -> convertToMultiFirmHandler.handle(
+                new ConvertToMultiFirmCommand(targetId), finalActor)).isInstanceOf(AccessDeniedException.class);
+        verifyNoInteractions(AopTestUtils.<ConvertToMultiFirmService>getUltimateTargetObject(convertToMultiFirmService));
+        verify(transactionManager, never()).getTransaction(argThat(def -> def != null && !def.isReadOnly()));
+    }
+
+    @Test
+    void conversionAllowsPermissionsAcrossRolesAndDelegatesAfterAuthorization() {
+        authenticate();
+        AuthenticatedAppRole editRole = RbacTestActors.actorWith(Permission.EDIT_EXTERNAL_USER)
+                .activeProfile().appRoles().iterator().next();
+        AuthenticatedAppRole convertRole = RbacTestActors.actorWith(Permission.CONVERT_USER_TO_MULTI_FIRM)
+                .activeProfile().appRoles().iterator().next();
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().entraOid(UUID.randomUUID().toString())
+                .activeProfile(AuthenticatedUserProfile.builder().activeProfile(true).userType(UserType.INTERNAL)
+                        .appRoles(Set.of(editRole, convertRole)).build()).build();
+        ConvertToMultiFirmCommand command = new ConvertToMultiFirmCommand(UUID.randomUUID());
+        ConvertToMultiFirmService service = AopTestUtils.getUltimateTargetObject(convertToMultiFirmService);
+        CommandResult expected = CommandResult.success("converted");
+        when(service.convert(command, actor)).thenReturn(expected);
+
+        assertThat(convertToMultiFirmHandler.handle(command, actor)).isSameAs(expected);
+        verify(service).convert(command, actor);
     }
 
     @Test
@@ -338,16 +482,19 @@ class RbacMethodSecurityIntegrationTest {
     }
 
     @Test
-    void authorizationPointcutOnlyMatchesCommandHandlerEntryPoints() throws Exception {
+    void authorizationPointcutMatchesOnlyExplicitEntryPoints() throws Exception {
         RbacMethodSecurityConfig.RequiresPermissionPointcut pointcut =
                 new RbacMethodSecurityConfig.RequiresPermissionPointcut();
         Method mapperMethod = DeleteUserMapper.class.getMethod(
-                "toAuditEntity", EntraUser.class, DeleteUserCommand.class, String.class);
+                "toAuditEntity", EntraUser.class, DeleteUserReasonEntity.class, String.class);
         Method handlerMethod = FakeDeleteUserHandler.class.getMethod(
                 "handle", DeleteUserCommand.class, AuthenticatedEntraUser.class);
 
         assertThat(pointcut.matches(mapperMethod, DeleteUserMapper.class)).isFalse();
         assertThat(pointcut.matches(handlerMethod, FakeDeleteUserHandler.class)).isTrue();
+        Method serviceMethod = DeactivateUserService.class.getMethod(
+                "deactivate", UUID.class, DeactivateUserReason.class, AuthenticatedEntraUser.class);
+        assertThat(pointcut.matches(serviceMethod, DeactivateUserService.class)).isFalse();
     }
 
     @Test
@@ -419,8 +566,8 @@ class RbacMethodSecurityIntegrationTest {
     @Test
     void reactivateRequiresEnableExternalUserPermission() {
         authenticate();
-        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(true);
-        when(userCommandService.findDeactivationType(accountTargetId)).thenReturn(Optional.of(DeactivationType.NONE));
+        when(userCommandService.getDeactivationContext(accountTargetId))
+                .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.NONE)));
 
         assertThatThrownBy(() -> reactivateHandler.handle(reactivateCommand(),
                 RbacTestActors.actorWith(Permission.DISABLE_EXTERNAL_USER))).isInstanceOf(AccessDeniedException.class);
@@ -428,10 +575,47 @@ class RbacMethodSecurityIntegrationTest {
                 RbacTestActors.actorWith(Permission.ENABLE_EXTERNAL_USER)).success()).isTrue();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"permission", "self", "internal", "firm", "hierarchy"})
+    void realReactivationHandlerDeniesBeforeInvokingExtractedService(String restriction) {
+        authenticate();
+        AuthenticatedEntraUser actor = restriction.equals("permission") ? RbacTestActors.actorWith()
+                : restriction.equals("firm") ? RbacTestActors.externalActorWith(UUID.randomUUID(), Permission.ENABLE_EXTERNAL_USER)
+                : RbacTestActors.actorWith(Permission.ENABLE_EXTERNAL_USER);
+        UUID targetId = restriction.equals("self") ? UUID.fromString(actor.entraOid()) : UUID.randomUUID();
+        when(userCommandService.isInternalUser(targetId)).thenReturn(restriction.equals("internal"));
+        when(userCommandService.findActiveFirmId(targetId)).thenReturn(Optional.of(UUID.randomUUID()));
+        when(userCommandService.getDeactivationContext(targetId)).thenReturn(
+                new UserDeactivationContext(true, Optional.of(restriction.equals("hierarchy")
+                        ? DeactivationType.PRIVILEGED : DeactivationType.NONE)));
+
+        assertThatThrownBy(() -> realReactivateUserHandler.handle(new ReactivateUserCommand(targetId, "verified"), actor))
+                .isInstanceOf(AccessDeniedException.class);
+        verifyNoInteractions(AopTestUtils.<ReactivateUserService>getUltimateTargetObject(reactivateService));
+        verify(transactionManager, never()).getTransaction(argThat(def -> def != null && !def.isReadOnly()));
+    }
+
+    @Test
+    void realReactivationHandlerDelegatesAfterAuthorization() {
+        authenticate();
+        AuthenticatedEntraUser actor = RbacTestActors.actorWith(Permission.ENABLE_EXTERNAL_USER);
+        ReactivateUserCommand command = reactivateCommand();
+        when(userCommandService.getDeactivationContext(accountTargetId))
+                .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.NONE)));
+        ReactivateUserService service = AopTestUtils.getUltimateTargetObject(reactivateService);
+        CommandResult expected = CommandResult.success("reactivated");
+        when(service.reactivate(command, actor)).thenReturn(expected);
+
+        assertThat(realReactivateUserHandler.handle(command, actor)).isSameAs(expected);
+        verify(service).reactivate(command, actor);
+    }
+
     @Test
     void reactivateDeniesTargetThatIsNotDeactivated() {
         authenticate();
         AuthenticatedEntraUser actor = RbacTestActors.actorWith(Permission.ENABLE_EXTERNAL_USER);
+        when(userCommandService.getDeactivationContext(accountTargetId))
+                .thenReturn(new UserDeactivationContext(false, Optional.empty()));
 
         assertThatThrownBy(() -> reactivateHandler.handle(reactivateCommand(), actor)).isInstanceOf(AccessDeniedException.class);
     }
@@ -439,8 +623,8 @@ class RbacMethodSecurityIntegrationTest {
     @Test
     void reactivateAppliesDeactivationHierarchy() {
         authenticate();
-        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(true);
-        when(userCommandService.findDeactivationType(accountTargetId)).thenReturn(Optional.of(DeactivationType.PRIVILEGED));
+        when(userCommandService.getDeactivationContext(accountTargetId))
+                .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.PRIVILEGED)));
         AuthenticatedEntraUser eua = RbacTestActors.actorWithRole(AuthzRole.EXTERNAL_USER_ADMIN.getRoleName(),
                 Permission.ENABLE_EXTERNAL_USER);
         AuthenticatedEntraUser globalAdmin = RbacTestActors.actorWithRole(AuthzRole.GLOBAL_ADMIN.getRoleName(),
@@ -456,8 +640,8 @@ class RbacMethodSecurityIntegrationTest {
         UUID firmId = UUID.randomUUID();
         when(userCommandService.isMultiFirmUser(accountTargetId)).thenReturn(false);
         when(userCommandService.findActiveFirmId(accountTargetId)).thenReturn(Optional.of(firmId));
-        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(true);
-        when(userCommandService.findDeactivationType(accountTargetId)).thenReturn(Optional.of(DeactivationType.FIRM));
+        when(userCommandService.getDeactivationContext(accountTargetId))
+                .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.FIRM)));
         AuthenticatedEntraUser actor = RbacTestActors.externalActorWithRole(firmId,
                 AuthzRole.FIRM_USER_MANAGER.getRoleName(),
                 Permission.DISABLE_EXTERNAL_USER, Permission.ENABLE_EXTERNAL_USER);
@@ -471,8 +655,8 @@ class RbacMethodSecurityIntegrationTest {
         authenticate();
         when(userCommandService.isMultiFirmUser(accountTargetId)).thenReturn(false);
         when(userCommandService.findActiveFirmId(accountTargetId)).thenReturn(Optional.of(UUID.randomUUID()));
-        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(true);
-        when(userCommandService.findDeactivationType(accountTargetId)).thenReturn(Optional.of(DeactivationType.NONE));
+        when(userCommandService.getDeactivationContext(accountTargetId))
+                .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.NONE)));
         AuthenticatedEntraUser actor = RbacTestActors.externalActorWith(UUID.randomUUID(),
                 Permission.DISABLE_EXTERNAL_USER, Permission.ENABLE_EXTERNAL_USER);
 
@@ -486,8 +670,8 @@ class RbacMethodSecurityIntegrationTest {
         when(userCommandService.isMultiFirmUser(accountTargetId)).thenReturn(true);
         UUID firmId = UUID.randomUUID();
         when(userCommandService.findActiveFirmId(accountTargetId)).thenReturn(Optional.of(firmId));
-        when(userCommandService.isDeactivated(accountTargetId)).thenReturn(true);
-        when(userCommandService.findDeactivationType(accountTargetId)).thenReturn(Optional.of(DeactivationType.NONE));
+        when(userCommandService.getDeactivationContext(accountTargetId))
+                .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.NONE)));
         AuthenticatedEntraUser actor = RbacTestActors.externalActorWithRole(firmId,
                 AuthzRole.FIRM_USER_MANAGER.getRoleName(),
                 Permission.DISABLE_EXTERNAL_USER, Permission.ENABLE_EXTERNAL_USER);
@@ -530,6 +714,66 @@ class RbacMethodSecurityIntegrationTest {
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("user", null, "SCOPE_user_data.admin"));
     }
 
+    @ParameterizedTest
+    @CsvSource({
+        "details,permission", "details,self", "details,internal", "details,firm",
+        "offices,permission", "offices,self", "offices,internal", "offices,firm",
+        "unrestricted,permission", "unrestricted,self", "unrestricted,internal", "unrestricted,firm"
+    })
+    void extractedUpdateHandlersDenyBeforeCallingServices(String operation, String restriction) {
+        authenticate();
+        UUID targetId = UUID.randomUUID();
+        Permission permission = operation.equals("details") ? Permission.EDIT_USER_DETAILS : Permission.EDIT_USER_OFFICE;
+        AuthenticatedEntraUser actor = restriction.equals("permission") ? RbacTestActors.actorWith()
+                : restriction.equals("firm") ? RbacTestActors.externalActorWith(UUID.randomUUID(), permission)
+                : RbacTestActors.actorWith(permission);
+        if (restriction.equals("self") && operation.equals("details")) {
+            targetId = UUID.fromString(actor.entraOid());
+        }
+        when(userCommandService.isInternalUser(targetId)).thenReturn(restriction.equals("internal"));
+        when(userCommandService.findProfileUserType(targetId))
+                .thenReturn(Optional.of(restriction.equals("internal") ? UserType.INTERNAL : UserType.EXTERNAL));
+        when(userCommandService.findProfileEntraOid(targetId))
+                .thenReturn(Optional.of(restriction.equals("self") ? actor.entraOid() : UUID.randomUUID().toString()));
+        when(userCommandService.findActiveFirmId(targetId)).thenReturn(Optional.of(UUID.randomUUID()));
+        when(userCommandService.findProfileFirmId(targetId)).thenReturn(Optional.of(UUID.randomUUID()));
+        final UUID target = targetId;
+
+        assertThatThrownBy(() -> invokeUpdateHandler(operation, target, actor))
+                .isInstanceOf(AccessDeniedException.class);
+        verifyNoInteractions(AopTestUtils.getUltimateTargetObject(updateDetailsService),
+                AopTestUtils.getUltimateTargetObject(profileOfficeService));
+        verify(transactionManager, never()).getTransaction(argThat(def -> def != null && !def.isReadOnly()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"details", "offices", "unrestricted"})
+    void extractedUpdateHandlersDelegateForAuthorizedActors(String operation) {
+        authenticate();
+        UUID targetId = UUID.randomUUID();
+        Permission permission = operation.equals("details") ? Permission.EDIT_USER_DETAILS : Permission.EDIT_USER_OFFICE;
+        AuthenticatedEntraUser actor = RbacTestActors.actorWith(permission);
+        UpdateUserDetailsService details = AopTestUtils.getUltimateTargetObject(updateDetailsService);
+        UserProfileOfficeService offices = AopTestUtils.getUltimateTargetObject(profileOfficeService);
+        CommandResult expected = CommandResult.success("updated");
+        when(details.update(new UpdateUserDetailsCommand(targetId, "New", null, null), actor)).thenReturn(expected);
+        when(offices.updateOffices(new UpdateUserProfileOfficesCommand(targetId, Set.of()), actor)).thenReturn(expected);
+        when(offices.updateUnrestrictedAccess(new UpdateUserProfileUnrestrictedOfficesCommand(targetId, true), actor))
+                .thenReturn(expected);
+
+        assertThat(invokeUpdateHandler(operation, targetId, actor)).isSameAs(expected);
+    }
+
+    private CommandResult invokeUpdateHandler(String operation, UUID targetId, AuthenticatedEntraUser actor) {
+        return switch (operation) {
+            case "details" -> updateDetailsHandler.handle(new UpdateUserDetailsCommand(targetId, "New", null, null), actor);
+            case "offices" -> updateOfficesHandler.handle(new UpdateUserProfileOfficesCommand(targetId, Set.of()), actor);
+            case "unrestricted" -> updateUnrestrictedHandler.handle(
+                    new UpdateUserProfileUnrestrictedOfficesCommand(targetId, true), actor);
+            default -> throw new IllegalArgumentException("Unknown update operation: " + operation);
+        };
+    }
+
     @Test
     void bulkDeactivateRequiresBulkDisablePermission() {
         authenticate();
@@ -543,35 +787,96 @@ class RbacMethodSecurityIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void realBulkHandlerRequiresBothBulkAndPerUserPermissionsAndCountsDeniedUsers(boolean active) {
+    void realBulkHandlerRequiresOnlyBulkPermissionForActiveAndDisabledUsers(boolean active) {
         authenticate();
         UUID userId = UUID.randomUUID();
         BulkDeactivateFirmUsersCommand bulk = new BulkDeactivateFirmUsersCommand(
                 "FIRM1", DeactivateUserReason.values()[0]);
         when(firmCommandRepository.existsByCode("FIRM1")).thenReturn(true);
-        when(entraUserCommandRepository.findUsersByFirmCode("FIRM1"))
-                .thenReturn(List.of(EntraUser.builder()
-                        .id(UUID.randomUUID()).entraOid(userId.toString()).active(active).build()));
+        when(entraUserCommandRepository.findUserEntraOidsByFirmCode("FIRM1"))
+                .thenReturn(List.of(userId.toString()));
 
-        CommandResult bulkOnlyResult = realBulkHandler.handle(
-                bulk, RbacTestActors.actorWith(Permission.BULK_DISABLE_FIRM_USERS));
-        assertThat(bulkOnlyResult.success()).isFalse();
-        assertThat(bulkOnlyResult.message()).contains("failed to deactivate 1 users");
-
-        AuthenticatedEntraUser actor = RbacTestActors.actorWith(
-                Permission.BULK_DISABLE_FIRM_USERS, Permission.DISABLE_EXTERNAL_USER);
-        EntraUserDto userDto = EntraUserDto.builder().id(userId.toString()).build();
-        when(lifecycleService.loadEntraUserDtoForDeactivation(userId)).thenReturn(userDto);
+        final AuthenticatedEntraUser actor = RbacTestActors.actorWith(Permission.BULK_DISABLE_FIRM_USERS);
+        assertThatThrownBy(() -> realBulkHandler.handle(
+                bulk, RbacTestActors.actorWith(Permission.DISABLE_EXTERNAL_USER)))
+                .isInstanceOf(AccessDeniedException.class);
+        verifyNoInteractions(lifecycleService, firmCommandRepository, entraUserCommandRepository);
+        EntraUserDto userDto = EntraUserDto.builder().id(userId.toString()).active(active).build();
+        UserAccountLifecycleService lifecycleMock = AopTestUtils.getUltimateTargetObject(lifecycleService);
         when(deactivationTypeResolver.resolve(actor)).thenReturn(DeactivationType.NONE);
-        when(lifecycleService.deactivate(
-                userId, actor.entraOid(), DeactivationType.NONE, bulk.deactivateReason()))
-                .thenReturn(CommandResult.success("deactivated"));
+        when(lifecycleMock.deactivate(
+                eq(userId), eq(actor.entraOid()), eq(bulk.deactivateReason()), any()))
+                .thenAnswer(invocation -> {
+                    java.util.function.Function<EntraUserDto, DeactivationType> beforeUpdate = invocation.getArgument(3);
+                    assertThat(beforeUpdate.apply(userDto)).isEqualTo(DeactivationType.NONE);
+                    return CommandResult.success("deactivated");
+                });
 
-        CommandResult bothPermissionsResult = realBulkHandler.handle(bulk, actor);
+        CommandResult bulkOnlyResult = realBulkHandler.handle(bulk, actor);
 
-        assertThat(bothPermissionsResult.success()).isTrue();
-        verify(lifecycleService).loadEntraUserDtoForDeactivation(userId);
-        verify(lifecycleService).deactivate(userId, actor.entraOid(), DeactivationType.NONE, bulk.deactivateReason());
+        assertThat(bulkOnlyResult.success()).isTrue();
+        verify(lifecycleMock).deactivate(eq(userId), eq(actor.entraOid()), eq(bulk.deactivateReason()), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"bulkOnly", "self", "internal", "multiFirm", "differentFirm"})
+    void individualHandlerRetainsItsPermissionAndTargetPolicies(String restriction) {
+        authenticate();
+        AuthenticatedEntraUser actor = restriction.equals("bulkOnly")
+                ? RbacTestActors.actorWith(Permission.BULK_DISABLE_FIRM_USERS)
+                : RbacTestActors.actorWith(Permission.DISABLE_EXTERNAL_USER);
+        if (restriction.equals("multiFirm") || restriction.equals("differentFirm")) {
+            actor = RbacTestActors.externalActorWith(UUID.randomUUID(), Permission.DISABLE_EXTERNAL_USER);
+        }
+        UUID targetId = restriction.equals("self") ? UUID.fromString(actor.entraOid()) : UUID.randomUUID();
+        when(userCommandService.isInternalUser(targetId)).thenReturn(restriction.equals("internal"));
+        when(userCommandService.isMultiFirmUser(targetId)).thenReturn(restriction.equals("multiFirm"));
+        when(userCommandService.findActiveFirmId(targetId)).thenReturn(Optional.of(UUID.randomUUID()));
+        final AuthenticatedEntraUser finalActor = actor;
+
+        assertThatThrownBy(() -> realDeactivateUserHandler.handle(
+                new DeactivateUserCommand(targetId, DeactivateUserReason.Absence), finalActor))
+                .isInstanceOf(AccessDeniedException.class);
+        verifyNoInteractions(lifecycleService);
+        verify(transactionManager, never()).getTransaction(argThat(def -> def != null && !def.isReadOnly()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"self", "internal", "multiFirm", "differentFirm"})
+    void realBulkWorkflowDoesNotApplyIndividualTargetPolicies(String targetKind) {
+        authenticate();
+        UUID firmId = UUID.randomUUID();
+        AuthenticatedEntraUser actor = RbacTestActors.actorWith(Permission.BULK_DISABLE_FIRM_USERS);
+        if (targetKind.equals("multiFirm") || targetKind.equals("differentFirm")) {
+            actor = AuthenticatedEntraUser.builder().entraOid(actor.entraOid())
+                    .activeProfile(AuthenticatedUserProfile.builder()
+                            .userType(UserType.EXTERNAL).firmId(firmId).firmCode("FIRM1")
+                            .appRoles(actor.activeProfile().appRoles()).build())
+                    .build();
+        }
+        UUID userId = targetKind.equals("self") ? UUID.fromString(actor.entraOid()) : UUID.randomUUID();
+        when(firmCommandRepository.existsByCode("FIRM1")).thenReturn(true);
+        when(entraUserCommandRepository.findUserEntraOidsByFirmCode("FIRM1")).thenReturn(List.of(userId.toString()));
+        when(userCommandService.isInternalUser(userId)).thenReturn(targetKind.equals("internal"));
+        when(userCommandService.isMultiFirmUser(userId)).thenReturn(targetKind.equals("multiFirm"));
+        when(userCommandService.findActiveFirmId(userId)).thenReturn(Optional.of(UUID.randomUUID()));
+        UserAccountLifecycleService lifecycleMock = AopTestUtils.getUltimateTargetObject(lifecycleService);
+        when(deactivationTypeResolver.resolve(actor)).thenReturn(DeactivationType.NONE);
+        when(lifecycleMock.deactivate(eq(userId), eq(actor.entraOid()), eq(DeactivateUserReason.Absence), any()))
+                .thenAnswer(invocation -> {
+                    java.util.function.Function<EntraUserDto, DeactivationType> beforeUpdate = invocation.getArgument(3);
+                    assertThat(beforeUpdate.apply(EntraUserDto.builder().id(userId.toString()).build()))
+                            .isEqualTo(DeactivationType.NONE);
+                    return CommandResult.success("deactivated");
+                });
+
+        CommandResult result = realBulkHandler.handle(
+                new BulkDeactivateFirmUsersCommand("FIRM1", DeactivateUserReason.Absence), actor);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.message()).contains("Deactivated 1 users");
+        verifyNoInteractions(userCommandService);
+        verify(lifecycleMock).deactivate(eq(userId), eq(actor.entraOid()), eq(DeactivateUserReason.Absence), any());
     }
 
     @Test
@@ -582,6 +887,8 @@ class RbacMethodSecurityIntegrationTest {
                 Permission.BULK_DISABLE_FIRM_USERS);
 
         assertThatThrownBy(() -> bulkHandler.handle(bulk, external)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> realBulkHandler.handle(bulk, external)).isInstanceOf(AccessDeniedException.class);
+        verifyNoInteractions(firmCommandRepository, entraUserCommandRepository, lifecycleService);
     }
 
     @Test

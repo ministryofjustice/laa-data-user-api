@@ -250,6 +250,18 @@ class ArchitectureTest {
             .because("Fine-grained authorisation policies belong to one side of CQRS and are resolved as Spring beans");
 
     @ArchTest
+    static final ArchRule reactivation_hierarchy_evaluates_facts_without_persistence = noClasses()
+            .that().haveSimpleName("ReactivationHierarchyPolicy")
+            .should().dependOnClassesThat().resideInAnyPackage("..service..", "..repository..", "..entity..")
+            .because("Trusted deactivation facts are loaded by the policy input resolver");
+
+    @ArchTest
+    static final ArchRule bulk_deactivation_does_not_depend_on_individual_command = noClasses()
+            .that().haveSimpleNameStartingWith("BulkDeactivateFirmUsers")
+            .should().dependOnClassesThat().haveSimpleName("DeactivateUserCommand")
+            .because("Bulk and individual commands have separate authorization boundaries");
+
+    @ArchTest
     static final ArchRule services_must_reside_in_service_package = classes()
             .that().haveSimpleNameEndingWith("Service")
             .should().resideInAPackage("..service..")

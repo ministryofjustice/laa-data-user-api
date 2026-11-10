@@ -3,6 +3,7 @@ package uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmu
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ExternalTargetOnlyPolicy;
+import uk.gov.justice.laa.datauserapi.application.command.policy.InternalActorOnlyPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.NotSelfTargetPolicy;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.security.rbac.RequiresPermission;
@@ -14,7 +15,7 @@ import java.util.UUID;
 @RequiresPermission(
         value = {Permission.EDIT_EXTERNAL_USER, Permission.CONVERT_USER_TO_MULTI_FIRM},
         match = RequiresPermission.Match.ALL,
-        policies = {NotSelfTargetPolicy.class, ExternalTargetOnlyPolicy.class})
+        policies = {InternalActorOnlyPolicy.class, NotSelfTargetPolicy.class, ExternalTargetOnlyPolicy.class})
 public record ConvertToMultiFirmCommand(@NotNull UUID userEntraObjectId) implements TargetsUser {
 
     @Override

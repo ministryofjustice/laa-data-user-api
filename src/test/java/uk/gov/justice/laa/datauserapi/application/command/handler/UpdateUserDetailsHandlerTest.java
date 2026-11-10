@@ -1,95 +1,31 @@
 package uk.gov.justice.laa.datauserapi.application.command.handler;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import uk.gov.justice.laa.datauserapi.application.command.mapper.UpdateUserDetailsMapper;
-import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import uk.gov.justice.laa.datauserapi.application.command.service.UpdateUserDetailsService;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.UpdateUserDetailsCommand;
-import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
-import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
-import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorCode;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
-import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
 class UpdateUserDetailsHandlerTest {
 
-    @Mock
-    private EntraUserCommandRepository repository;
-    @Mock
-    private UpdateUserDetailsMapper mapper;
-    @Mock
-    private TechServicesClient techServicesClient;
-
-    private UpdateUserDetailsHandler handler;
-    private final UUID targetId = UUID.randomUUID();
-    private final String target = targetId.toString();
-    private final AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().entraOid("actor").build();
-    private EntraUser user;
-
-    @BeforeEach
-    void setUp() {
-        handler = new UpdateUserDetailsHandler(repository, mapper, techServicesClient);
-        user = EntraUser.builder().entraOid(target).firstName("Old").lastName("Name").email("old@x.com").build();
-        user.setId(UUID.randomUUID());
-    }
-
-    private void tsSucceeds(String firstName, String lastName, String email) {
-        when(techServicesClient.updateUserDetails(target, firstName, lastName, email))
-                .thenReturn(TechServicesApiResponse.success(ChangeAccountEnabledResponse.builder().success(true).build()));
-    }
-
-    @Test
-    void throwsWhenUserNotFound() {
-        when(repository.findByEntraOid(target)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> handler.handle(new UpdateUserDetailsCommand(targetId, "A", null, null), actor))
-                .isInstanceOf(ResourceNotFoundException.class);
-        verifyNoInteractions(techServicesClient);
-    }
-
-    @Test
-    void updatesAllProvidedFields() {
-        final CommandResult expected = CommandResult.success("ok");
-        when(repository.findByEntraOid(target)).thenReturn(Optional.of(user));
-        when(repository.existsByEmailIgnoreCaseAndIdNot("new@x.com", user.getId())).thenReturn(false);
-        tsSucceeds("New", "Last", "new@x.com");
-        when(mapper.toCommandResult(user)).thenReturn(expected);
-
-        CommandResult result = handler.handle(new UpdateUserDetailsCommand(targetId, "New", "Last", "new@x.com"), actor);
-
-        assertThat(result).isSameAs(expected);
-        assertThat(user.getFirstName()).isEqualTo("New");
-        assertThat(user.getLastName()).isEqualTo("Last");
-        assertThat(user.getEmail()).isEqualTo("new@x.com");
-        assertThat(user.getLastModifiedBy()).isEqualTo("actor");
-        verify(repository).save(user);
-    }
-
-    @Test
-    void leavesOmittedFieldsUnchanged() {
-        when(repository.findByEntraOid(target)).thenReturn(Optional.of(user));
-        tsSucceeds(null, "Last", null);
-
-        handler.handle(new UpdateUserDetailsCommand(targetId, null, "Last", null), actor);
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void delegatesCommandAndActorAndPreservesResult(boolean success) {
+        UpdateUserDetailsService service = mock(UpdateUserDetailsService.class);
+        UpdateUserDetailsCommand command = new UpdateUserDetailsCommand(UUID.randomUUID(), "New", null, null);
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().build();
+        CommandResult expected = success ? CommandResult.success("updated") : CommandResult.failure("rejected");
+        when(service.update(command, actor)).thenReturn(expected);
 
         assertThat(user.getFirstName()).isEqualTo("Old");
         assertThat(user.getLastName()).isEqualTo("Last");

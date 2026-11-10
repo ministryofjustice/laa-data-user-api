@@ -28,14 +28,16 @@ public class RbacMethodSecurityConfig {
     @Bean
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
     static Advisor requiresPermissionAdvisor(BeanFactory beanFactory,
-                                             ObjectProvider<GlobalAuthorizationPolicy<?>> globalPolicies) {
+                                             ObjectProvider<GlobalAuthorizationPolicy<?>> globalPolicies,
+                                             ObjectProvider<AuthorizationPolicyInputResolver<?, ?>> inputResolvers) {
         // Policies are resolved lazily (on first use) so this infrastructure bean doesn't eagerly
         // initialise application beans.
         Supplier<List<GlobalAuthorizationPolicy<?>>> globals =
                 SingletonSupplier.of(() -> globalPolicies.orderedStream().toList());
         AuthorizationManagerBeforeMethodInterceptor interceptor = new AuthorizationManagerBeforeMethodInterceptor(
                 new RequiresPermissionPointcut(),
-                new RequiresPermissionAuthorizationManager(beanFactory::getBean, globals));
+                new RequiresPermissionAuthorizationManager(beanFactory::getBean, globals,
+                        SingletonSupplier.of(() -> inputResolvers.orderedStream().toList())));
         interceptor.setOrder(AuthorizationInterceptorsOrder.PRE_AUTHORIZE.getOrder() + 1);
         return interceptor;
     }
