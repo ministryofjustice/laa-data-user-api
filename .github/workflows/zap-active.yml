@@ -1,0 +1,228 @@
+name: ZAP Active Scan (Data User API)
+
+on:
+  schedule:
+    - cron: '0 8 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: zap-active-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  zap_active_scan:
+    name: Active scan of the local API
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: zap
+          POSTGRES_USER: zap
+          POSTGRES_PASSWORD: zap
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U zap -d zap"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      APP_URL: http://localhost:8080
+      ZAP_TEST_OID: 00000000-0000-0000-0000-000000000001
+      ZAP_AUTH_TOKEN: oid__00000000-0000-0000-0000-000000000001_scope__user_data.read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Cache Gradle
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: ~/.gradle/caches
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Start the API with local scan configuration
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SPRING_PROFILE: local
+          SERVER_PORT: '8080'
+          SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+          POSTGRES_DB_ADDRESS: localhost
+          POSTGRES_DB_NAME: zap
+          POSTGRES_USERNAME: zap
+          POSTGRES_PASSWORD: zap
+          AZURE_TENANT_ID: 00000000-0000-0000-0000-000000000001
+          AZURE_CLIENT_ID: 00000000-0000-0000-0000-000000000002
+          TECH_SERVICES_AZURE_SCOPE: api://local-scan/.default
+          TECH_SERVICES_AZURE_CLIENT_ID: local-scan
+          TECH_SERVICES_AZURE_CLIENT_SECRET: local-scan
+          TECH_SERVICES_TENANT_ID: 00000000-0000-0000-0000-000000000001
+          TECH_SERVICES_BASE_URL: https://example.invalid
+          TECH_SERVICES_CALLS_ENABLED: 'false'
+          SENTRY_ENABLED: 'false'
+          CCMS_APP_ENTRA_OBJECT_ID: local-scan
+          CCMS_EBS_APP_ENTRA_OBJECT_ID: local-scan
+          CIVIL_APPLY_APP_ENTRA_OBJECT_ID: local-scan
+          CCMS_APP_TWO_ENTRA_OBJECT_ID: local-scan
+          CCMS_EBS_APP_TWO_ENTRA_OBJECT_ID: local-scan
+          CCMS_APP_THREE_ENTRA_OBJECT_ID: local-scan
+          CCMS_EBS_APP_THREE_ENTRA_OBJECT_ID: local-scan
+          CCMS_USER_MANAGEMENT_API_BASE_URL: https://example.invalid
+          CCMS_USER_MANAGEMENT_API_KEY: local-scan
+          CCMS_USER_API_SQS_ARN: local-scan
+          CCMS_UDA_API_BASE_URL: https://example.invalid
+          CCMS_UDA_API_KEY: local-scan
+          CCMS_APP_TWO_USER_MANAGEMENT_API_BASE_URL: https://example.invalid
+          CCMS_APP_TWO_USER_MANAGEMENT_API_KEY: local-scan
+          CCMS_APP_TWO_USER_API_SQS_ARN: local-scan
+          CCMS_APP_TWO_UDA_API_BASE_URL: https://example.invalid
+          CCMS_APP_TWO_UDA_API_KEY: local-scan
+          CCMS_APP_THREE_USER_MANAGEMENT_API_BASE_URL: https://example.invalid
+          CCMS_APP_THREE_USER_MANAGEMENT_API_KEY: local-scan
+          CCMS_APP_THREE_USER_API_SQS_ARN: local-scan
+          CCMS_APP_THREE_UDA_API_BASE_URL: https://example.invalid
+          CCMS_APP_THREE_UDA_API_KEY: local-scan
+        run: |
+          mkdir -p build/zap
+          nohup ./gradlew bootRun --no-daemon > build/zap/app.log 2>&1 &
+          echo $! > build/zap/app.pid
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent --max-time 2 "$APP_URL/actuator/health" >/dev/null; then
+              echo "API is up."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::API did not become healthy."
+          tail -n 100 build/zap/app.log
+          exit 1
+
+      - name: Seed local test identity
+        env:
+          PGPASSWORD: zap
+        run: |
+          psql --host localhost --username zap --dbname zap --set ON_ERROR_STOP=1 <<SQL
+          INSERT INTO entra_user (
+            id, entra_oid, first_name, last_name, email, status, multi_firm_user,
+            mail_only, enabled, ccms_ebs_user, created_date, created_by
+          ) VALUES (
+            '$ZAP_TEST_OID', '$ZAP_TEST_OID', 'ZAP', 'Scan', 'zap-scan@example.invalid',
+            'ACTIVE', false, false, true, false, CURRENT_TIMESTAMP, 'zap-active-scan'
+          );
+          SQL
+
+      - name: Prepare ZAP plan
+        run: |
+          envsubst '${ZAP_AUTH_TOKEN}' < .github/zap/active-scan-plan.yaml > build/zap/plan.yaml
+          chmod 777 build/zap
+
+      - name: Run ZAP active scan
+        id: zap_scan
+        run: |
+          docker run --rm --network host \
+            -v "$PWD/build/zap:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:stable@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6 \
+            zap.sh -cmd -port 8090 -autorun /zap/wrk/plan.yaml
+
+      - name: Check authenticated read endpoint
+        if: ${{ always() && steps.zap_scan.outcome != 'skipped' }}
+        run: |
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 30 \
+            --header "Authorization: Bearer $ZAP_AUTH_TOKEN" "$APP_URL/api/v1/me")
+          if [ "$status" != "200" ]; then
+            echo "::error::Synthetic test identity cannot access /api/v1/me (HTTP $status)."
+            exit 1
+          fi
+
+      - name: Summarise findings
+        if: ${{ always() && hashFiles('build/zap/zap-active-report.json') != '' }}
+        run: |
+          report=build/zap/zap-active-report.json
+          summary_rows=build/zap/summary-rows.md
+          : > "$summary_rows"
+          for entry in "3:HIGH" "2:MEDIUM" "1:LOW" "0:INFO"; do
+            code=${entry%%:*}
+            name=${entry##*:}
+            instances=$(jq --arg code "$code" \
+              '[.site[]?.alerts[]? | select((.riskcode | tostring) == $code) | (.count // (.instances | length) | tonumber)] | add // 0' \
+              "$report")
+            types=$(jq --arg code "$code" \
+              '[.site[]?.alerts[]? | select((.riskcode | tostring) == $code)] | length' \
+              "$report")
+            echo "ZAP_${name}_INSTANCES=$instances" >> "$GITHUB_ENV"
+            echo "ZAP_${name}_TYPES=$types" >> "$GITHUB_ENV"
+            echo "| $name | $instances | $types |" >> "$summary_rows"
+          done
+          {
+            echo "## ZAP active scan"
+            echo
+            echo "| Risk | Alert instances | Alert types |"
+            echo "| --- | ---: | ---: |"
+            cat "$summary_rows"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check Slack notification configuration
+        id: slack_config
+        env:
+          ZAP_SLACK_WEBHOOK_URL: ${{ secrets.ZAP_SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -n "$ZAP_SLACK_WEBHOOK_URL" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Slack notification skipped: no repository or organization webhook is configured."
+          fi
+
+      - name: Post active scan summary to Slack
+        if: ${{ always() && steps.slack_config.outputs.configured == 'true' && hashFiles('build/zap/zap-active-report.json') != '' }}
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
+        with:
+          webhook: ${{ secrets.ZAP_SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "ZAP Active Scan: ${{ github.event.repository.name }} - DEV"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Scan step:* ${{ steps.zap_scan.outcome }}\n*Findings (alert instances):*\n• High: ${{ env.ZAP_HIGH_INSTANCES }} (${{ env.ZAP_HIGH_TYPES }} alert types)\n• Medium: ${{ env.ZAP_MEDIUM_INSTANCES }} (${{ env.ZAP_MEDIUM_TYPES }} alert types)\n• Low: ${{ env.ZAP_LOW_INSTANCES }} (${{ env.ZAP_LOW_TYPES }} alert types)\n• Informational: ${{ env.ZAP_INFO_INSTANCES }} (${{ env.ZAP_INFO_TYPES }} alert types)\n\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View full report>"
+                  }
+                }
+              ]
+            }
+
+      - name: Upload ZAP reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zap-active-report
+          path: |
+            build/zap/zap-active-report.*
+            build/zap/app.log
+          if-no-files-found: warn
+          retention-days: 14

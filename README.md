@@ -19,6 +19,37 @@ export GITHUB_ACTOR="<your-github-username>"
 export GITHUB_TOKEN="<your-personal-access-token>"
 ```
 
+### Enable Pre-commit Hooks
+
+Secret scanning is run on pre-commit hooks to prevent secrets being committed to the repository, via Gitleaks and GitGuardian Shield. These are enabled via the [pre-commit](https://pre-commit.com/) framework, configured via [.pre-commit-config.yaml](./.pre-commit-config.yaml).
+
+The pre-commit hooks will only be enabled for this repository, and won't affect others. The secret scanner CLI utilities themselves - `gitleaks` & `ggshield` - will be available in your shells to be ran against anything you wish.
+
+To enable the pre-commit hooks:
+1. Download and install [Homebrew](https://github.com/Homebrew/brew/releases/latest)
+2. Authorise GitGuardian with your Ministry of Justice GitHub user account [here](https://dashboard.gitguardian.com/api/v1/auth/user/github_login/authorize) (you only have to link your account, you do not need to go on to grant GitGuardian access to any personal or MoJ repository in this step as it shouldn't be necessary for running GitGuardian Shield locally)
+3. Run the setup script (will take a few minutes to complete the first time it is run):
+
+```sh
+./setup_precommits.sh
+```
+
+4. Acquire a GitGuardian Shield personal access token (will open authorisation in your browser), this is used to allow `ggshield` access to GitGuardian's API for scanning, and only needs to be performed once on your local machine:
+
+```sh
+ggshield auth login
+```
+
+The pre-commit hooks will now run as and when you commit your changes.
+
+To run the pre-commit secret scanners on everything in the repository:
+
+```sh
+pre-commit run --all-files
+```
+
+The hooks and dependencies can be updated by running the `setup_precommits.sh` script whenever needed (there is also an updater for the hooks alone that automatically runs on each pre-commit).
+
 ---
 
 ## Running Locally
@@ -66,7 +97,8 @@ Tech Services calls intentionally precede database updates; this ordering is unc
 
 Command and query handlers use message-level RBAC. Declare the requirement on the command or
 query type, not on an individual handler or controller. The `RequiresPermissionAuthorizationManager`
-intercepts handler methods whose message parameter has `@RequiresPermission` or `@PolicyGuarded`;
+intercepts `handle` methods on `AuthorizationEntryPoint` implementations whose message parameter
+has `@RequiresPermission` or `@PolicyGuarded`;
 it runs before the handler, including before a handler's transaction is opened. A denial raises
 Spring Security's `AccessDeniedException` and is returned as HTTP 403 by the security/exception
 handling layer.
@@ -80,7 +112,8 @@ policies run in this order:
 2. Policies explicitly listed on the message, which enforce rules specific to that action.
 
 Every applicable policy must allow. Policies return `PolicyDecision.allow()` or
-`PolicyDecision.deny("reason")`; denials are logged as structured `INFO` events and the reason is
+`PolicyDecision.deny(PolicyDenialReason.REASON_CODE)`; denials are logged as structured `INFO`
+events containing a stable `reasonCode` and a human-readable `reason`. The reason is
 not sent to the caller. Missing actors, missing permissions, null messages when policies are
 required, and incompatible declared policy/message types fail closed.
 
@@ -105,7 +138,7 @@ Other reusable command-side policies in `application.command.policy` are:
 |-----------------------------------|----------------------|-----------------------------------------------------------------------------------------------------------|
 | `NotSelfTargetPolicy`             | `TargetsUser`        | The actor cannot target their own Entra account.                                                          |
 | `ExternalTargetOnlyPolicy`        | `TargetsUser`        | The target user must not be an internal user.                                                             |
-| `ReactivationHierarchyPolicy`     | `TargetsUser`        | The target must be deactivated, and the actor's roles must permit reactivation for its deactivation type. |
+| `ReactivationHierarchyPolicy`     | `UserDeactivationContext` (resolved from `TargetsUser`) | The target must be deactivated, and the actor's authorization roles must permit reactivation for its deactivation type. |
 | `NotSelfProfileTargetPolicy`      | `TargetsUserProfile` | The actor cannot target a profile belonging to their own account.                                         |
 | `ExternalProfileTargetOnlyPolicy` | `TargetsUserProfile` | The target profile must not belong to an internal user.                                                   |
 
@@ -119,15 +152,54 @@ calls Tech Services and creates an audit entry. The target is locked and refresh
 and the lock is held through the local update. For an already disabled user, the `entra_user` row is updated
 only when the actor's resolved deactivation type is equal to or higher than the stored type:
 `null/NONE < SYNC < FIRM < LAA < PRIVILEGED`. Lower privilege leaves the entire row unchanged.
-Bulk deactivation applies the same per-user handler and hierarchy to active and already disabled users.
+Bulk and individual deactivation delegate to the shared transactional `DeactivateUserService` workflow
+using a target ID, reason, and actor, not another command. Bulk never invokes another handler
+or constructs `DeactivateUserCommand`.
 Each successful per-user operation calls Tech Services and creates an audit entry; an already disabled
-user's row changes only for an equal or higher deactivation type. Per-user permission and firm-scope
-checks still apply, and denied users are counted as failures without stopping the remaining users.
+user's row changes only for an equal or higher deactivation type. Bulk authorization checks
+`BULK_DISABLE_FIRM_USERS` and the target firm scope once at the bulk handler. It does not require
+`DISABLE_EXTERNAL_USER` or apply individual self-target, internal-target, multi-firm, or active-profile
+firm-scope policies. Only users returned by the target firm's membership query are processed.
+Individual deactivation retains its own permission and target policies at `DeactivateUserHandler`.
+Each user is processed in an independent transaction. Internal per-user outcomes distinguish
+invalid identifiers, denied access, missing users, downstream failures, rejected operations, and
+unexpected system failures; the HTTP response retains its aggregate counts. Expected failures
+are logged at `WARN`, unexpected runtime failures at `ERROR`, and remaining users still run.
+
+Deletion delegates to `DeleteUserService`, with outbound account removal isolated in
+`DeleteUserTechServicesService`. The service resolves the delete reason once and passes it to
+`DeleteUserMapper`; the mapper no longer accesses persistence.
+User-details updates delegate to `UpdateUserDetailsService`, preserving email validation and the
+Tech Services call before local changes. Assigned-office and unrestricted-office commands use
+separate methods on `UserProfileOfficeService`, sharing profile lookup and modification metadata.
+Their handlers retain message-level authorization and transaction boundaries.
+Reactivation delegates to `ReactivateUserService`; locked target loading, the hierarchy recheck,
+Tech Services, and the local update remain in one transaction. The lifecycle service loads and
+refreshes the target once, invokes the outbound step using a DTO, then updates the same locked
+entity without another lookup.
+`UserSearchService` owns trusted search criteria and pagination preparation, and
+`UserAccountDetailsService` coordinates account retrieval. Both query services are read-only and
+use `QueryAuthorisationService` for active actor context. Existing visibility rules and not-found
+responses are unchanged.
+Multi-firm conversion requires both `EDIT_EXTERNAL_USER` and `CONVERT_USER_TO_MULTI_FIRM` through
+the command's `@RequiresPermission(match = ALL)` declaration. `InternalActorOnlyPolicy` requires an
+active internal actor profile; the existing self-target and external-target policies also apply.
+These checks run at the handler boundary before the write transaction opens.
+`ConvertToMultiFirmService` owns the lock-refresh-check-update sequence, including the
+already-converted conflict check under the row lock. Active-profile retrieval and profile-list filtering
+delegate to the read-only `UserProfileDetailsService`, with shared actor-context validation in
+`QueryAuthorisationService` and entity mapping confined to `UserProfileQueryMapper`.
+`RefreshSilasStatusHandler` retains scheduling-rejection handling at the submission boundary:
+rejected work returns a failure result, while unexpected submission failures propagate.
+Failures after asynchronous work starts are logged by the configured uncaught-exception handler;
+previously committed batches remain updated.
 
 ### Using existing permissions and policies
 
-Reactivation reads active state and deactivation type together through `UserDeactivationContext`,
-then rechecks the current hierarchy under the lifecycle write lock before calling Tech Services.
+`ReactivationPolicyInputResolver` loads active state and the recorded deactivation type with one
+lookup after permission and global-policy checks. `ReactivationHierarchyPolicy` evaluates that
+immutable `UserDeactivationContext` without persistence access. Reactivation then rechecks the
+current hierarchy under the lifecycle write lock before calling Tech Services.
 An empty type represents legacy, unattributed deactivation and remains distinct from `NONE`.
 Reactivation and deactivation-type resolution map only roles marked `authzRole` to `AuthzRole` enums;
 ordinary application roles with matching names cannot influence the hierarchy.
@@ -191,7 +263,10 @@ Implement `AuthorizationPolicy<M>` as a Spring bean, normally under
 `application.command.policy` or `application.query.policy` for the relevant CQRS side. The
 message type (or a target capability such as `TargetsUser`) is the generic parameter. Use the
 side's service/repository boundary to read the facts required for the decision, and return a
-specific denial reason without logging sensitive request data.
+specific `PolicyDenialReason` without logging sensitive request data. For policies requiring
+multiple related facts, register an `AuthorizationPolicyInputResolver<M, C>` in the service
+boundary and evaluate the immutable context `C` instead. The resolver declares the policy class,
+accepted message type, and trusted lookup; contexts must not be supplied by callers.
 
 ```java
 @Component
@@ -209,13 +284,13 @@ public class TargetBelongsToActorPolicy implements AuthorizationPolicy<TargetsUs
                 .map(AuthenticatedUserProfile::firmId)
                 .orElse(null);
         if (actorFirmId == null) {
-            return PolicyDecision.deny("actor has no active firm");
+            return PolicyDecision.deny(PolicyDenialReason.PROVIDER_ADMIN_NO_ACTIVE_FIRM);
         }
         return userCommandService.findActiveFirmId(message.targetUserEntraObjectId())
                 .filter(actorFirmId::equals)
                 .isPresent()
                 ? PolicyDecision.allow()
-                : PolicyDecision.deny("target user is outside the actor's firm");
+                : PolicyDecision.deny(PolicyDenialReason.TARGET_USER_OUTSIDE_ACTOR_FIRM);
     }
 }
 ```

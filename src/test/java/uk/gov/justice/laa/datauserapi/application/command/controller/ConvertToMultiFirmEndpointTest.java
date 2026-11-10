@@ -26,6 +26,10 @@ import uk.gov.justice.laa.datauserapi.application.command.mapper.ConvertToMultiF
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.ReactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.UpdateUserDetailsMapper;
+import uk.gov.justice.laa.datauserapi.application.command.policy.ExternalTargetOnlyPolicy;
+import uk.gov.justice.laa.datauserapi.application.command.policy.InternalActorOnlyPolicy;
+import uk.gov.justice.laa.datauserapi.application.command.policy.NotSelfTargetPolicy;
+import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
 import uk.gov.justice.laa.datauserapi.config.SecurityConfig;
@@ -36,6 +40,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.exception.GlobalExceptionHandler;
 import uk.gov.justice.laa.datauserapi.model.Permission;
+import uk.gov.justice.laa.datauserapi.security.rbac.RbacMethodSecurityConfig;
 
 import java.util.List;
 import java.util.Optional;
@@ -60,7 +65,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     UserAccountCommandController.class,
     ConvertToMultiFirmCommandMapper.class,
     ConvertToMultiFirmHandler.class,
+    uk.gov.justice.laa.datauserapi.application.command.service.ConvertToMultiFirmService.class,
     ConvertToMultiFirmDomainMapper.class,
+    RbacMethodSecurityConfig.class,
+    InternalActorOnlyPolicy.class,
+    NotSelfTargetPolicy.class,
+    ExternalTargetOnlyPolicy.class,
     ConvertToMultiFirmEndpointTest.ClassProxyConfig.class
 })
 @ActiveProfiles("test")
@@ -80,6 +90,8 @@ class ConvertToMultiFirmEndpointTest {
     private MockMvc mockMvc;
     @MockitoBean
     private EntraUserCommandRepository repository;
+    @MockitoBean
+    private UserCommandService userCommandService;
     @MockitoBean
     private jakarta.persistence.EntityManager entityManager;
     @MockitoBean

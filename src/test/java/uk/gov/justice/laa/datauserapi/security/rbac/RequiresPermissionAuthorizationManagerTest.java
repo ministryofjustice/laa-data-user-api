@@ -7,12 +7,17 @@ import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.model.Permission;
+import uk.gov.justice.laa.datauserapi.application.command.dto.UserDeactivationContext;
+import uk.gov.justice.laa.datauserapi.application.command.policy.ReactivationHierarchyPolicy;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
+import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -26,8 +31,9 @@ class RequiresPermissionAuthorizationManagerTest {
 
     private final Map<Class<?>, AuthorizationPolicy<?>> policies = new HashMap<>();
     private final List<GlobalAuthorizationPolicy<?>> globals = new ArrayList<>();
+    private final List<AuthorizationPolicyInputResolver<?, ?>> inputResolvers = new ArrayList<>();
     private final RequiresPermissionAuthorizationManager manager =
-            new RequiresPermissionAuthorizationManager(policies::get, () -> globals);
+            new RequiresPermissionAuthorizationManager(policies::get, () -> globals, () -> inputResolvers);
     private final Supplier<Authentication> noAuth = () -> null;
 
     @RequiresPermission(Permission.DELETE_EXTERNAL_USER)
@@ -45,6 +51,34 @@ class RequiresPermissionAuthorizationManagerTest {
     @RequiresPermission(value = Permission.DELETE_EXTERNAL_USER, policies = TargetPolicy.class)
     record MisconfiguredCommand() {}
 
+    @RequiresPermission(value = Permission.ENABLE_EXTERNAL_USER, policies = ReactivationHierarchyPolicy.class)
+    record ContextCommand(UUID targetUserEntraObjectId) implements TargetsUser {}
+
+    static class ContextResolver implements AuthorizationPolicyInputResolver<TargetsUser, UserDeactivationContext> {
+        final AtomicInteger calls = new AtomicInteger();
+        RuntimeException failure;
+        UserDeactivationContext context = new UserDeactivationContext(true, Optional.of(DeactivationType.NONE));
+
+        @Override
+        public Class<? extends AuthorizationPolicy<UserDeactivationContext>> policyType() {
+            return ReactivationHierarchyPolicy.class;
+        }
+
+        @Override
+        public Class<TargetsUser> messageType() {
+            return TargetsUser.class;
+        }
+
+        @Override
+        public UserDeactivationContext resolve(TargetsUser message) {
+            calls.incrementAndGet();
+            if (failure != null) {
+                throw failure;
+            }
+            return context;
+        }
+    }
+
     static class AllowPolicy implements AuthorizationPolicy<Object> {
         final AtomicInteger calls = new AtomicInteger();
 
@@ -61,7 +95,7 @@ class RequiresPermissionAuthorizationManagerTest {
         @Override
         public @NonNull PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
             return message.targetUserEntraObjectId().equals(allowedTarget)
-                    ? PolicyDecision.allow() : PolicyDecision.deny("not allowed");
+                    ? PolicyDecision.allow() : PolicyDecision.DENY;
         }
     }
 
@@ -78,7 +112,7 @@ class RequiresPermissionAuthorizationManagerTest {
         @Override
         public @NonNull PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
             calls.incrementAndGet();
-            return grant ? PolicyDecision.allow() : PolicyDecision.deny("global denied");
+            return grant ? PolicyDecision.allow() : PolicyDecision.DENY;
         }
     }
 
@@ -118,6 +152,9 @@ class RequiresPermissionAuthorizationManagerTest {
         }
 
         public void conflicting(ConflictingCommand c, AuthenticatedEntraUser actor) {
+        }
+
+        public void context(ContextCommand c, AuthenticatedEntraUser actor) {
         }
     }
 
@@ -302,6 +339,68 @@ class RequiresPermissionAuthorizationManagerTest {
         assertThatThrownBy(() -> decide("conflicting", new Object[]{new ConflictingCommand(), RbacTestActors.actorWith()}, noAuth))
                 .isInstanceOf(InvalidAuthorizationConfigurationException.class)
                 .hasMessageContaining("only one of");
+    }
+
+    @Test
+    void resolvesTrustedFactsOnceAndEvaluatesPurePolicy() throws Exception {
+        ContextResolver resolver = registerContextResolver();
+        var actor = RbacTestActors.actorWith(Permission.ENABLE_EXTERNAL_USER);
+        assertThat(decide("context", new Object[]{new ContextCommand(UUID.randomUUID()), actor}, noAuth)).isTrue();
+        assertThat(resolver.calls).hasValue(1);
+        resolver.context = new UserDeactivationContext(false, Optional.empty());
+        assertThat(decide("context", new Object[]{new ContextCommand(UUID.randomUUID()), actor}, noAuth)).isFalse();
+    }
+
+    @Test
+    void doesNotLoadFactsBeforePermissionsOrGlobalPolicyAllows() throws Exception {
+        final ContextResolver resolver = registerContextResolver();
+        ContextCommand command = new ContextCommand(UUID.randomUUID());
+        assertThat(decide("context", new Object[]{command, RbacTestActors.actorWith()}, noAuth)).isFalse();
+        globals.add(new ExternalOnlyGlobalPolicy());
+        var actor = RbacTestActors.externalActorWith(UUID.randomUUID(), Permission.ENABLE_EXTERNAL_USER);
+        assertThat(decide("context", new Object[]{command, actor}, noAuth)).isFalse();
+        assertThat(resolver.calls).hasValue(0);
+    }
+
+    @Test
+    void contextLookupPreservesNotFoundException() {
+        ContextResolver resolver = registerContextResolver();
+        resolver.failure = new UserNotFoundException("missing");
+        var actor = RbacTestActors.actorWith(Permission.ENABLE_EXTERNAL_USER);
+        assertThatThrownBy(() -> decide("context", new Object[]{new ContextCommand(UUID.randomUUID()), actor}, noAuth))
+                .isSameAs(resolver.failure);
+    }
+
+    @Test
+    void deniesContextPolicyWhenNoResolverIsRegistered() throws Exception {
+        policies.put(ReactivationHierarchyPolicy.class, new ReactivationHierarchyPolicy());
+        var actor = RbacTestActors.actorWith(Permission.ENABLE_EXTERNAL_USER);
+        assertThat(decide("context", new Object[]{new ContextCommand(UUID.randomUUID()), actor}, noAuth)).isFalse();
+    }
+
+    @Test
+    void rejectsDuplicateResolversWithoutLoadingFacts() {
+        ContextResolver resolver = registerContextResolver();
+        inputResolvers.add(new ContextResolver());
+        var actor = RbacTestActors.actorWith(Permission.ENABLE_EXTERNAL_USER);
+        assertThatThrownBy(() -> decide("context", new Object[]{new ContextCommand(UUID.randomUUID()), actor}, noAuth))
+                .isInstanceOf(InvalidAuthorizationConfigurationException.class);
+        assertThat(resolver.calls).hasValue(0);
+    }
+
+    @Test
+    void nullResolvedFactsFailClosed() throws Exception {
+        ContextResolver resolver = registerContextResolver();
+        resolver.context = null;
+        var actor = RbacTestActors.actorWith(Permission.ENABLE_EXTERNAL_USER);
+        assertThat(decide("context", new Object[]{new ContextCommand(UUID.randomUUID()), actor}, noAuth)).isFalse();
+    }
+
+    private ContextResolver registerContextResolver() {
+        ContextResolver resolver = new ContextResolver();
+        inputResolvers.add(resolver);
+        policies.put(ReactivationHierarchyPolicy.class, new ReactivationHierarchyPolicy());
+        return resolver;
     }
 
     private AllowPolicy registerPolicies(UUID allowedTarget) {

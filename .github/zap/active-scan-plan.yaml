@@ -1,0 +1,83 @@
+env:
+  contexts:
+    - name: data-user-api
+      urls:
+        - http://localhost:8080
+      includePaths:
+        - http://localhost:8080/api/v1/me.*
+        - http://localhost:8080/api/v1/queries/.*
+  parameters:
+    failOnError: true
+    failOnWarning: false
+    progressToStdout: true
+
+jobs:
+  - type: passiveScan-config
+    parameters:
+      scanOnlyInScope: true
+      maxAlertsPerRule: 10
+
+  - type: replacer
+    rules:
+      - description: Local synthetic read-only API token
+        matchType: req_header
+        matchString: Authorization
+        matchRegex: false
+        replacementString: "Bearer ${ZAP_AUTH_TOKEN}"
+        initiators: []
+
+  # Seed read-only API routes; active scanning is scoped to these query endpoints.
+  - type: requestor
+    requests:
+      - url: http://localhost:8080/api/v1/me
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/firms
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/firms/search?query=zap
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/users
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/users/00000000-0000-0000-0000-000000000001/status
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/audit/users/00000000-0000-0000-0000-000000000001/history
+        method: GET
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 5
+
+  - type: activeScan
+    parameters:
+      context: data-user-api
+      maxRuleDurationInMins: 5
+      maxScanDurationInMins: 45
+      threadPerHost: 4
+    policyDefinition:
+      defaultStrength: Medium
+      defaultThreshold: Medium
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 5
+
+  - type: report
+    parameters:
+      template: traditional-html
+      reportDir: /zap/wrk
+      reportFile: zap-active-report
+      reportTitle: Data user API active scan
+    risks:
+      - high
+      - medium
+      - low
+
+  - type: report
+    parameters:
+      template: traditional-json
+      reportDir: /zap/wrk
+      reportFile: zap-active-report
+      reportTitle: Data user API active scan
+    risks:
+      - high
+      - medium
+      - low

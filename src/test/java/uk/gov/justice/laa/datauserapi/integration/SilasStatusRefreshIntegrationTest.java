@@ -154,6 +154,10 @@ class SilasStatusRefreshIntegrationTest {
         assertThat(users)
                 .extracting(EntraUser::getUserAccountStatus)
                 .containsExactly(UserAccountStatus.ACTIVE, UserAccountStatus.DEACTIVATED);
+        insertProfile(3, 1, "EXTERNAL", false);
+        jdbc.update("UPDATE user_profile SET firm_id = ? WHERE id = ?", id(20), id(3));
+        assertThat(entraUserCommandRepository.findUserEntraOidsByFirmCode("123456"))
+                .containsExactlyElementsOf(users.stream().map(EntraUser::getEntraOid).toList());
     }
 
     @Test
@@ -206,12 +210,13 @@ class SilasStatusRefreshIntegrationTest {
                         EntraUser preloaded = entraUserCommandRepository.findByEntraOid(entraOid).orElseThrow();
                         assertThat(preloaded.getUserAccountStatus()).isEqualTo(UserAccountStatus.ACTIVE);
                         userPreloaded.countDown();
-                        lifecycleService.loadEntraUserDtoForDeactivation(userId);
-                        assertThat(preloaded.isActive()).isFalse();
-                        assertThat(preloaded.getDeactivationType()).isEqualTo(DeactivationType.PRIVILEGED);
                         lifecycleService.deactivate(userId, UUID.randomUUID().toString(),
-                                DeactivationType.FIRM,
-                                uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason.Absence);
+                                uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason.Absence,
+                                target -> {
+                                    assertThat(preloaded.isActive()).isFalse();
+                                    assertThat(preloaded.getDeactivationType()).isEqualTo(DeactivationType.PRIVILEGED);
+                                    return DeactivationType.FIRM;
+                                });
                         return preloaded.getDeactivationType();
                     }));
 

@@ -100,14 +100,18 @@ class UserAccountLifecycleServiceTest {
 
     @Test
     @DisplayName("loads and locks an active user before deactivation")
-    void loadEntraUserDtoForDeactivation_LocksActiveUser() {
+    void deactivate_LocksActiveUserBeforeOutboundStep() {
         EntraUser user = user();
         user.setUserAccountStatus(UserAccountStatus.ACTIVE);
         EntraUserDto dto = EntraUserDto.builder().id(targetId.toString()).build();
         when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
         when(modelMapper.map(user, EntraUserDto.class)).thenReturn(dto);
 
-        assertThat(service.loadEntraUserDtoForDeactivation(targetId)).isSameAs(dto);
+        service.deactivate(targetId, ACTOR, DeactivateUserReason.Absence, target -> {
+            assertThat(target).isSameAs(dto);
+            assertThat(user.isActive()).isTrue();
+            return DeactivationType.LAA;
+        });
 
         verify(entraUserCommandRepository).findByEntraOidForUpdate(targetId.toString());
         verify(entityManager).refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
@@ -115,7 +119,7 @@ class UserAccountLifecycleServiceTest {
 
     @Test
     @DisplayName("loads and locks already deactivated users for repeat deactivation")
-    void loadEntraUserDtoForDeactivation_AlreadyDeactivated_ReturnsDto() {
+    void deactivate_AlreadyDeactivated_ProvidesDtoToOutboundStep() {
         EntraUser user = user();
         user.setActive(false);
         user.setUserAccountStatus(UserAccountStatus.DEACTIVATED);
@@ -123,34 +127,42 @@ class UserAccountLifecycleServiceTest {
         EntraUserDto dto = EntraUserDto.builder().id(targetId.toString()).active(false).build();
         when(modelMapper.map(user, EntraUserDto.class)).thenReturn(dto);
 
-        assertThat(service.loadEntraUserDtoForDeactivation(targetId)).isSameAs(dto);
+        service.deactivate(targetId, ACTOR, DeactivateUserReason.Absence, target -> {
+            assertThat(target).isSameAs(dto);
+            return DeactivationType.LAA;
+        });
         verify(entityManager).refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
     }
 
     @Test
     @DisplayName("locks and returns current status details for reactivation")
-    void loadUserForReactivation_LocksAndReturnsCurrentState() {
+    void reactivate_LocksAndProvidesCurrentStateToOutboundStep() {
         EntraUser user = user();
         user.deactivate(ACTOR, DeactivationType.FIRM);
         EntraUserDto dto = EntraUserDto.builder().id(targetId.toString()).build();
         when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
         when(modelMapper.map(user, EntraUserDto.class)).thenReturn(dto);
 
-        UserAccountLifecycleService.LockedUserForReactivation target = service.loadUserForReactivation(targetId);
-
-        assertThat(target.user()).isSameAs(dto);
-        assertThat(target.deactivationType()).isEqualTo(DeactivationType.FIRM);
+        service.reactivate(targetId, ACTOR, "ok", target -> {
+            assertThat(target.user()).isSameAs(dto);
+            assertThat(target.deactivationType()).isEqualTo(DeactivationType.FIRM);
+            assertThat(user.isActive()).isFalse();
+        });
         verify(entraUserCommandRepository).findByEntraOidForUpdate(targetId.toString());
+        verify(entityManager).refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        verify(entraUserCommandRepository, never()).findByEntraOid(any());
     }
 
     @Test
     @DisplayName("rejects reactivation when the locked user is no longer deactivated")
-    void loadUserForReactivation_ActiveUser_Throws() {
+    void reactivate_ActiveUser_ThrowsBeforeOutboundStep() {
         EntraUser user = user();
         user.setUserAccountStatus(UserAccountStatus.ACTIVE);
         when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
 
-        assertThatThrownBy(() -> service.loadUserForReactivation(targetId))
+        assertThatThrownBy(() -> service.reactivate(targetId, ACTOR, "ok", target -> {
+            throw new AssertionError("Outbound step must not run for an active user");
+        }))
                 .isInstanceOf(UserNotDeactivatedException.class)
                 .hasMessage("User is not deactivated: " + targetId);
 
@@ -167,7 +179,8 @@ class UserAccountLifecycleServiceTest {
         when(deactivateUserMapper.toAuditEntity(user, DeactivateUserReason.Absence, ACTOR)).thenReturn(audit);
         when(deactivateUserMapper.toCommandResult(user)).thenReturn(expected);
 
-        CommandResult result = service.deactivate(targetId, ACTOR, DeactivationType.LAA, DeactivateUserReason.Absence);
+        CommandResult result = service.deactivate(targetId, ACTOR, DeactivateUserReason.Absence,
+                target -> DeactivationType.LAA);
 
         assertThat(result).isSameAs(expected);
         assertThat(user.getUserAccountStatus()).isEqualTo(UserAccountStatus.DEACTIVATED);
@@ -176,6 +189,9 @@ class UserAccountLifecycleServiceTest {
         InOrder inOrder = inOrder(entraUserCommandRepository, auditRepository);
         inOrder.verify(entraUserCommandRepository).save(user);
         inOrder.verify(auditRepository).save(audit);
+        verify(entraUserCommandRepository).findByEntraOidForUpdate(targetId.toString());
+        verify(entityManager).refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        verify(entraUserCommandRepository, never()).findByEntraOid(any());
     }
 
     @Test
@@ -184,8 +200,24 @@ class UserAccountLifecycleServiceTest {
         when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.deactivate(
-                targetId, ACTOR, DeactivationType.LAA, DeactivateUserReason.Absence))
+                targetId, ACTOR, DeactivateUserReason.Absence, target -> DeactivationType.LAA))
                 .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(entraUserCommandRepository, never()).save(any());
+        verifyNoInteractions(auditRepository);
+    }
+
+    @Test
+    @DisplayName("deactivate does not run the outbound step when the reason lookup fails")
+    void deactivate_WhenReasonLookupFails_SkipsOutboundStepAndWritesNothing() {
+        EntraUser user = user();
+        when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
+        when(deactivateUserMapper.toAuditEntity(user, DeactivateUserReason.CyberRisk, ACTOR))
+                .thenThrow(new IllegalArgumentException("Deactivate reason not found: CyberRisk"));
+
+        assertThatThrownBy(() -> service.deactivate(targetId, ACTOR, DeactivateUserReason.CyberRisk, target -> {
+            throw new AssertionError("Outbound step must not run when the reason lookup fails");
+        })).isInstanceOf(IllegalArgumentException.class);
 
         verify(entraUserCommandRepository, never()).save(any());
         verifyNoInteractions(auditRepository);
@@ -212,7 +244,7 @@ class UserAccountLifecycleServiceTest {
         when(deactivateUserMapper.toAuditEntity(user, DeactivateUserReason.Absence, ACTOR)).thenReturn(audit);
         when(deactivateUserMapper.toCommandResult(user)).thenReturn(CommandResult.success("deactivated"));
 
-        assertThat(service.deactivate(targetId, ACTOR, actorType, DeactivateUserReason.Absence).success()).isTrue();
+        assertThat(service.deactivate(targetId, ACTOR, DeactivateUserReason.Absence, target -> actorType).success()).isTrue();
 
         verify(auditRepository).save(audit);
         if (shouldUpdate) {
@@ -235,11 +267,11 @@ class UserAccountLifecycleServiceTest {
         user.deactivate(ACTOR, DeactivationType.LAA);
         UserAccountStatusAudit audit = UserAccountStatusAudit.builder().id(UUID.randomUUID()).build();
         CommandResult expected = CommandResult.success("reactivated");
-        when(entraUserCommandRepository.findByEntraOid(targetId.toString())).thenReturn(Optional.of(user));
+        when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.of(user));
         when(reactivateUserMapper.toAuditEntity(user, ACTOR, "ok")).thenReturn(audit);
         when(reactivateUserMapper.toCommandResult(user)).thenReturn(expected);
 
-        CommandResult result = service.reactivate(targetId, ACTOR, "ok");
+        CommandResult result = service.reactivate(targetId, ACTOR, "ok", target -> assertThat(user.isActive()).isFalse());
 
         assertThat(result).isSameAs(expected);
         assertThat(user.getUserAccountStatus()).isNotEqualTo(UserAccountStatus.DEACTIVATED);
@@ -247,14 +279,19 @@ class UserAccountLifecycleServiceTest {
         InOrder inOrder = inOrder(entraUserCommandRepository, auditRepository);
         inOrder.verify(entraUserCommandRepository).save(user);
         inOrder.verify(auditRepository).save(audit);
+        verify(entraUserCommandRepository).findByEntraOidForUpdate(targetId.toString());
+        verify(entityManager).refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        verify(entraUserCommandRepository, never()).findByEntraOid(any());
     }
 
     @Test
     @DisplayName("reactivate writes nothing when the user does not exist")
     void reactivate_WhenMissing_WritesNothing() {
-        givenNoUser();
+        when(entraUserCommandRepository.findByEntraOidForUpdate(targetId.toString())).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.reactivate(targetId, ACTOR, "ok"))
+        assertThatThrownBy(() -> service.reactivate(targetId, ACTOR, "ok", target -> {
+            throw new AssertionError("Outbound step must not run for a missing user");
+        }))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verify(entraUserCommandRepository, never()).save(any());
