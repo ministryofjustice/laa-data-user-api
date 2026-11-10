@@ -305,6 +305,38 @@ class DeactivateUserHandlerTest {
             verify(entraUserCommandRepository, never()).save(any());
             verifyNoInteractions(auditRepository);
         }
+
+        @Test
+        @DisplayName("Should not call tech services when the deactivate reason lookup fails")
+        void handle_WhenReasonLookupFails_DoesNotCallTechServices() {
+            final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                    .id(actorId)
+                    .entraOid(actorId.toString())
+                    .email("actor@example.com")
+                    .active(true)
+                    .build();
+            DeactivateUserCommand command = DeactivateUserCommand.builder()
+                    .userEntraObjectId(targetUserId)
+                    .deactivateReason(DeactivateUserReason.CyberRisk)
+                    .build();
+            EntraUser realTargetUser = EntraUser.builder()
+                    .id(targetUserId)
+                    .email("target@example.com")
+                    .active(true)
+                    .build();
+
+            when(userCommandService.isInternalUser(targetUserId)).thenReturn(false);
+            when(userCommandService.isExternalUser(actorId)).thenReturn(false);
+            when(entraUserCommandRepository.findByEntraOid(String.valueOf(targetUserId))).thenReturn(Optional.of(realTargetUser));
+            when(deactivateUserMapper.toAuditEntity(realTargetUser, DeactivateUserReason.CyberRisk, actorId.toString()))
+                    .thenThrow(new IllegalArgumentException("Deactivate reason not found: CyberRisk"));
+
+            assertThatThrownBy(() -> handler.handle(command, actorUser))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+            verifyNoInteractions(techServicesClient, auditRepository);
+            verify(entraUserCommandRepository, never()).save(any());
+        }
     }
 
     @Nested
@@ -414,10 +446,10 @@ class DeactivateUserHandlerTest {
                     auditRepository
             );
 
+            inOrder.verify(deactivateUserMapper).toAuditEntity(realTargetUser, command.deactivateReason(), actorIdStr);
             inOrder.verify(techServicesClient).deactivateUser(userDto, DeactivateUserReason.Absence.name());
             inOrder.verify(deactivationTypeResolver).resolve(actorUser);
             inOrder.verify(entraUserCommandRepository).save(realTargetUser);
-            inOrder.verify(deactivateUserMapper).toAuditEntity(realTargetUser, command.deactivateReason(), actorIdStr);
             inOrder.verify(auditRepository).save(realAudit);
             inOrder.verify(deactivateUserMapper).toCommandResult(realTargetUser);
         }

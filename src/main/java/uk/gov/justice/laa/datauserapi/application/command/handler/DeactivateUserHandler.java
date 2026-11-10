@@ -102,6 +102,10 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
         EntraUser user = entraUserCommandRepository.findByEntraOid(String.valueOf(command.userEntraObjectId()))
                 .orElseThrow(() -> new ResourceNotFoundException("User account not found for oid: " + command.userEntraObjectId()));
 
+        DeactivateUserReason deactivateUserReason = command.deactivateReason();
+        // Resolve the audit (and its reason lookup) before the external Entra call so a bad reason fails fast
+        final UserAccountStatusAudit audit = deactivateUserMapper.toAuditEntity(user, deactivateUserReason, actor.entraOid());
+
         EntraUserDto userDto = modelMapper.map(user, EntraUserDto.class);
         techServicesClient.deactivateUser(userDto, command.deactivateReason().name());
 
@@ -109,8 +113,6 @@ public class DeactivateUserHandler implements CommandHandler<DeactivateUserComma
         user.deactivate(actor.entraOid(), deactivationType);
         entraUserCommandRepository.save(user);
 
-        DeactivateUserReason deactivateUserReason = command.deactivateReason();
-        UserAccountStatusAudit audit = deactivateUserMapper.toAuditEntity(user, deactivateUserReason, actor.entraOid());
         auditRepository.save(audit);
         log.info("User account deactivated",
                 kv("entraOid", user.getEntraOid()),

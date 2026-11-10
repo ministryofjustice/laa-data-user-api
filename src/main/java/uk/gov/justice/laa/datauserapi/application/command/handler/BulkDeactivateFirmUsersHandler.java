@@ -56,27 +56,34 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
         int failed = 0;
 
         for (EntraUser user : users) {
-            UUID userEntraObjectId = UUID.fromString(user.getEntraOid());
-            if (user.getUserAccountStatus() == UserAccountStatus.DEACTIVATED) {
-                UserAccountStatusAudit audit = deactivateUserMapper.toAuditEntity(
-                        user, command.deactivateReason(), actor.entraOid());
-                auditRepository.save(audit);
-                alreadyDeactivated++;
-                continue;
-            }
+            try {
+                if (user.getUserAccountStatus() == UserAccountStatus.DEACTIVATED) {
+                    UserAccountStatusAudit audit = deactivateUserMapper.toAuditEntity(
+                            user, command.deactivateReason(), actor.entraOid());
+                    auditRepository.save(audit);
+                    alreadyDeactivated++;
+                    continue;
+                }
 
-            DeactivateUserCommand deactivateCommand = DeactivateUserCommand.builder()
-                    .userEntraObjectId(userEntraObjectId)
-                    .deactivateReason(command.deactivateReason())
-                    .build();
-            CommandResult result = deactivateUserHandler.handle(deactivateCommand, actor);
-            if (result.success()) {
-                deactivated++;
-            } else {
+                DeactivateUserCommand deactivateCommand = DeactivateUserCommand.builder()
+                        .userEntraObjectId(UUID.fromString(user.getEntraOid()))
+                        .deactivateReason(command.deactivateReason())
+                        .build();
+                CommandResult result = deactivateUserHandler.handle(deactivateCommand, actor);
+                if (result.success()) {
+                    deactivated++;
+                } else {
+                    failed++;
+                    log.warn("Could not bulk-deactivate user",
+                            kv("entraOid", user.getEntraOid()),
+                            kv("firmCode", firmCode));
+                }
+            } catch (RuntimeException e) {
                 failed++;
-                log.warn("Could not bulk-deactivate user",
-                        kv("entraOid", userEntraObjectId),
-                        kv("firmCode", firmCode));
+                log.error("Error while bulk-deactivating user",
+                        kv("entraOid", user.getEntraOid()),
+                        kv("firmCode", firmCode),
+                        e);
             }
         }
 

@@ -131,6 +131,42 @@ class BulkDeactivateFirmUsersHandlerTest {
     }
 
     @Test
+    void handle_countsUnexpectedExceptionAsFailureAndContinuesWithRemainingUsers() {
+        String firmId = "123456";
+        EntraUser firstUser = EntraUser.builder()
+                .id(UUID.randomUUID())
+                .entraOid(UUID.randomUUID().toString())
+                .userAccountStatus(UserAccountStatus.ACTIVE)
+                .build();
+        EntraUser secondUser = EntraUser.builder()
+                .id(UUID.randomUUID())
+                .entraOid(UUID.randomUUID().toString())
+                .userAccountStatus(UserAccountStatus.ACTIVE)
+                .build();
+        final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
+                .id(UUID.randomUUID())
+                .email("actor@example.com")
+                .active(true)
+                .build();
+        BulkDeactivateFirmUsersCommand command =
+                new BulkDeactivateFirmUsersCommand(firmId, DeactivateUserReason.CyberRisk);
+        when(firmCommandRepository.existsByCode(firmId)).thenReturn(true);
+        when(entraUserCommandRepository.findUsersByFirmCode(firmId))
+                .thenReturn(List.of(firstUser, secondUser));
+        when(deactivateUserHandler.handle(any(DeactivateUserCommand.class), any(AuthenticatedEntraUser.class)))
+                .thenThrow(new IllegalArgumentException("Deactivate reason not found: CyberRisk"))
+                .thenReturn(CommandResult.success("done"));
+
+        CommandResult result = handler.handle(command, actorUser);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.message())
+                .contains("Deactivated 1 users")
+                .contains("failed to deactivate 1 users");
+        verify(deactivateUserHandler, times(2)).handle(any(DeactivateUserCommand.class), eq(actorUser));
+    }
+
+    @Test
     void handle_auditsAlreadyDeactivatedUsersWithoutCallingDeactivateHandler() {
         String firmId = "123456";
         UUID userEntraOid = UUID.randomUUID();
