@@ -87,6 +87,16 @@ names and SELECT queries; write methods, `@Modifying`, stored procedures, and na
 queries that cannot be inspected by the rule are prohibited. Regression tests
 exercise both allowed and rejected architecture examples.
 
+The user-profile access queries (`GET /api/v1/queries/user-profiles/{userProfileId}/app-roles`, `/apps`
+and `/offices`) are read-only and require the `user_data.read` scope. `UserProfileAccessQueryService` applies the
+existing `QueryAuthorisationService.canViewProfile` visibility rules, so a missing profile and a profile the
+caller cannot view both return the same generic `404` (`application/problem+json`) with no profile identifier.
+All data is selected by the requested profile ID, not by the owning account. `/app-roles` accepts optional
+`app_id` (internal SiLAS app ID) and `appEntraClientId` filters; `/apps` returns distinct enabled applications
+derived from the assigned roles; `/offices` returns every office of the profile's firm when the profile has
+unrestricted office access, otherwise only its assigned offices belonging to that firm. Results are not
+paginated and are capped at 500 roles, 100 applications and 100 offices, ordered deterministically.
+
 Query service, handler, and controller results are checked recursively for entity
 leakage through collections, wrappers, DTO fields, and projection accessors.
 Tech Services calls intentionally precede database updates; this ordering is unchanged.

@@ -225,10 +225,11 @@ paths:
     get:
       operationId: queryUserProfileAppRoles
       tags: [User Profiles]
-      summary: Get all app roles for a user profile, can be filtered by app_id
+      summary: Get all app roles for a user profile, can be filtered by app_id or appEntraClientId
       parameters:
         - $ref: '#/components/parameters/UserProfileId'
-        - $ref: '#/components/parameters/AppIdFilter'
+        - $ref: '#/components/parameters/ProfileAppSilasIdFilter'
+        - $ref: '#/components/parameters/AppEntraClientIdFilter'
       responses:
         '200':
           description: App roles
@@ -1474,6 +1475,20 @@ components:
       schema:
         type: string
         format: uuid
+    ProfileAppSilasIdFilter:
+      name: app_id
+      description: Internal SiLAS identifier for the application. Used to filter a user profile's roles to those belonging to this application.
+      in: query
+      schema:
+        type: string
+        format: uuid
+    AppEntraClientIdFilter:
+      name: appEntraClientId
+      description: Entra client ID of the application. Used to filter a user profile's roles to those belonging to this application.
+      in: query
+      schema:
+        type: string
+        format: uuid
     AppRoleIdFilter:
       name: app_role_id
       description: Identifier for the application role. This uses the SiLAS ID. Used to filter user results to only show users with this role assigned.
@@ -1919,6 +1934,12 @@ components:
         appId:
           type: string
           format: uuid
+          description: Internal SiLAS application ID
+        appEntraClientId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Entra client ID of the application
         name:
           type: string
         description:
@@ -1954,6 +1975,12 @@ components:
         appId:
           type: string
           format: uuid
+          description: Internal SiLAS application ID
+        appEntraClientId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Entra client ID of the application
         appName:
           type: string
         name:
