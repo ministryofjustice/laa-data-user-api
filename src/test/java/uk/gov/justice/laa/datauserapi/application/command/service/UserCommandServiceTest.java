@@ -8,7 +8,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import uk.gov.justice.laa.datauserapi.application.command.dto.UserDeactivationContext;
+import uk.gov.justice.laa.datauserapi.application.command.dto.UserLifecycleAuthorizationContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
@@ -23,6 +26,8 @@ import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -78,6 +83,86 @@ class UserCommandServiceTest {
     void deactivationContextPropagatesTypedNotFound() {
         assertThatThrownBy(() -> userCommandService.getDeactivationContext(entraUserId))
                 .isInstanceOf(UserNotFoundException.class);
+    }
+
+    @Nested
+    class LifecycleAuthorizationContextTests {
+
+        @Test
+        void selectsActiveProfilesFirmAmongMultipleProfiles() {
+            UUID activeFirmId = UUID.randomUUID();
+            UserProfile inactive = UserProfile.builder().id(UUID.randomUUID()).userType(UserType.EXTERNAL)
+                    .activeProfile(false).firm(Firm.builder().id(UUID.randomUUID()).build()).build();
+            UserProfile active = UserProfile.builder().id(UUID.randomUUID()).userType(UserType.EXTERNAL)
+                    .activeProfile(true).firm(Firm.builder().id(activeFirmId).build()).build();
+            EntraUser user = EntraUser.builder().userProfiles(new LinkedHashSet<>(List.of(inactive, active))).build();
+            when(entraUserCommandRepository.findByEntraOid(entraUserId.toString())).thenReturn(Optional.of(user));
+
+            UserLifecycleAuthorizationContext context = userCommandService.getLifecycleAuthorizationContext(entraUserId);
+
+            assertThat(context.userType()).isEqualTo(UserType.EXTERNAL);
+            assertThat(context.firmId()).isEqualTo(activeFirmId);
+            verify(entraUserCommandRepository).findByEntraOid(entraUserId.toString());
+            verifyNoMoreInteractions(entraUserCommandRepository);
+        }
+
+        @ParameterizedTest
+        @ValueSource(booleans = {true, false})
+        void handlesNullOrEmptyProfiles(boolean nullProfiles) {
+            EntraUser user = EntraUser.builder().userProfiles(nullProfiles ? null : Set.of()).build();
+            when(entraUserCommandRepository.findByEntraOid(entraUserId.toString())).thenReturn(Optional.of(user));
+
+            UserLifecycleAuthorizationContext context = userCommandService.getLifecycleAuthorizationContext(entraUserId);
+
+            assertThat(context.userType()).isNull();
+            assertThat(context.firmId()).isNull();
+        }
+
+        @ParameterizedTest
+        @CsvSource({"false,true", "true,false", "true,true"})
+        void handlesMissingActiveProfileFirmOrFirmId(boolean activeProfile, boolean firmPresent) {
+            UserProfile profile = UserProfile.builder().userType(UserType.INTERNAL).activeProfile(activeProfile)
+                    .firm(firmPresent ? Firm.builder().id(activeProfile ? null : UUID.randomUUID()).build() : null).build();
+            EntraUser user = EntraUser.builder().userProfiles(Set.of(profile)).build();
+            when(entraUserCommandRepository.findByEntraOid(entraUserId.toString())).thenReturn(Optional.of(user));
+
+            UserLifecycleAuthorizationContext context = userCommandService.getLifecycleAuthorizationContext(entraUserId);
+
+            assertThat(context.userType()).isEqualTo(UserType.INTERNAL);
+            assertThat(context.firmId()).isNull();
+        }
+
+        @ParameterizedTest
+        @CsvSource({"true,true", "true,false", "false,true", "false,false"})
+        void preservesAccountAndMultiFirmFlags(boolean active, boolean multiFirm) {
+            EntraUser user = EntraUser.builder().active(active).multiFirmUser(multiFirm).build();
+            when(entraUserCommandRepository.findByEntraOid(entraUserId.toString())).thenReturn(Optional.of(user));
+
+            UserLifecycleAuthorizationContext context = userCommandService.getLifecycleAuthorizationContext(entraUserId);
+
+            assertThat(context.active()).isEqualTo(active);
+            assertThat(context.multiFirm()).isEqualTo(multiFirm);
+        }
+
+        @ParameterizedTest
+        @NullSource
+        @EnumSource(DeactivationType.class)
+        void preservesRecordedAndNullDeactivationTypes(DeactivationType type) {
+            EntraUser user = EntraUser.builder().deactivationType(type).build();
+            when(entraUserCommandRepository.findByEntraOid(entraUserId.toString())).thenReturn(Optional.of(user));
+
+            assertThat(userCommandService.getLifecycleAuthorizationContext(entraUserId).deactivationType())
+                    .isEqualTo(Optional.ofNullable(type));
+        }
+
+        @Test
+        void missingTargetPropagatesTypedNotFound() {
+            when(entraUserCommandRepository.findByEntraOid(entraUserId.toString())).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> userCommandService.getLifecycleAuthorizationContext(entraUserId))
+                    .isInstanceOf(UserNotFoundException.class)
+                    .hasMessage("User account not found for oid: " + entraUserId);
+        }
     }
 
     @Nested

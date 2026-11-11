@@ -61,26 +61,6 @@ jobs:
       - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
         id: login-ecr
 
-      - name: Build OPA policy bundle
-        run: |
-          mkdir -p "$RUNNER_TEMP/opa-bundle"
-          docker run --rm --user 0:0 \
-            --volume "$GITHUB_WORKSPACE/opa:/opa:ro" \
-            --volume "$RUNNER_TEMP/opa-bundle:/bundle" \
-            openpolicyagent/opa:0.68.0 build -b -o /bundle/bundle.tar.gz /opa/policies
-
-      - name: Publish OPA policy bundle
-        id: publish-bundle
-        run: |
-          BUNDLE_SHA256="$(sha256sum "$RUNNER_TEMP/opa-bundle/bundle.tar.gz" | cut -d' ' -f1)"
-          BUNDLE_KEY="laa-data-user-api/${ENVIRONMENT}/${IMAGE_TAG}/${BUNDLE_SHA256}/bundle.tar.gz"
-          OPA_BUNDLE_REF="s3://laa-opa-bundles/${BUNDLE_KEY}"
-          aws s3 cp "$RUNNER_TEMP/opa-bundle/bundle.tar.gz" "$OPA_BUNDLE_REF"
-          echo "bundle_ref=${OPA_BUNDLE_REF}" >> "$GITHUB_OUTPUT"
-        env:
-          ENVIRONMENT: ${{ inputs.environment }}
-          IMAGE_TAG: ${{ inputs.image_tag }}
-
       - name: Configure kubectl
         uses: ./.github/actions/configure-kubectl
         with:
@@ -112,7 +92,6 @@ jobs:
             | .envName = strenv(ENV_NAME)
             | .sentryEnvironment = strenv(ENV_NAME)
             | .sentryDsn = strenv(SENTRY_DSN)
-            | .opa.bundleRef = strenv(OPA_BUNDLE_REF)
             | .rdsDbIdentifier = strenv(RDS_DB_IDENTIFIER)
             | .techServicesAzureScope = strenv(TECH_SERVICES_AZURE_SCOPE)
             | .techServicesAzureClientId = strenv(TECH_SERVICES_AZURE_CLIENT_ID)
@@ -128,7 +107,6 @@ jobs:
           IMAGE_TAG: ${{ inputs.image_tag }}
           SPRING_PROFILE: ${{ vars.SPRING_PROFILE }}
           ENV_NAME: ${{ vars.ENV_NAME }}
-          OPA_BUNDLE_REF: ${{ steps.publish-bundle.outputs.bundle_ref }}
           RDS_DB_IDENTIFIER: ${{ steps.rds-id.outputs.rds_db_identifier }}
           TECH_SERVICES_AZURE_SCOPE: ${{ vars.TECH_SERVICES_AZURE_SCOPE }}
           TECH_SERVICES_AZURE_CLIENT_ID: ${{ secrets.TECH_SERVICES_AZURE_CLIENT_ID }}
@@ -139,6 +117,42 @@ jobs:
           ALLOWLIST_CIDR: ${{ inputs.allowlist_cidr }}
           AZURE_APP_URI: ${{ secrets.AZURE_APP_URI }}
 
+      - name: Resolve OPA deployment setting
+        id: opa-setting
+        run: |
+          OPA_ENABLED="$(yq eval-all '. as $item ireduce ({}; . * $item) | .authorization.opaEnabled | select(tag == "!!bool")' \
+            deployment/helm/laa-data-user-api/values.yaml \
+            "deployment/helm/laa-data-user-api/values-${HELM_VALUES_ENV}.yaml" \
+            deployment/helm/laa-data-user-api/values-secrets.generated.yaml)"
+          case "$OPA_ENABLED" in
+            true|false) echo "enabled=${OPA_ENABLED}" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::authorization.opaEnabled must be true or false"; exit 1 ;;
+          esac
+        env:
+          HELM_VALUES_ENV: ${{ inputs.helm_values_env }}
+
+      - name: Build OPA policy bundle
+        if: steps.opa-setting.outputs.enabled == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/opa-bundle"
+          docker run --rm --user 0:0 \
+            --volume "$GITHUB_WORKSPACE/opa:/tmp/opa:ro" \
+            --volume "$RUNNER_TEMP/opa-bundle:/bundle" \
+            openpolicyagent/opa:0.68.0 build -b -o /bundle/bundle.tar.gz /tmp/opa/policies
+
+      - name: Publish OPA policy bundle
+        if: steps.opa-setting.outputs.enabled == 'true'
+        id: publish-bundle
+        run: |
+          BUNDLE_SHA256="$(sha256sum "$RUNNER_TEMP/opa-bundle/bundle.tar.gz" | cut -d' ' -f1)"
+          BUNDLE_KEY="laa-data-user-api/${ENVIRONMENT}/${IMAGE_TAG}/${BUNDLE_SHA256}/bundle.tar.gz"
+          OPA_BUNDLE_REF="s3://laa-opa-bundles/${BUNDLE_KEY}"
+          aws s3 cp "$RUNNER_TEMP/opa-bundle/bundle.tar.gz" "$OPA_BUNDLE_REF"
+          echo "bundle_ref=${OPA_BUNDLE_REF}" >> "$GITHUB_OUTPUT"
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+
       - name: Set up Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
@@ -146,18 +160,23 @@ jobs:
 
       - name: Deploy to Cloud Platform
         run: |
+          OPA_ARGS=()
+          if [ "$OPA_ENABLED" = true ]; then
+            OPA_ARGS+=(--set-string "opa.bundleRef=${OPA_BUNDLE_REF}"
+              --set-file "opa.bundleData=${RUNNER_TEMP}/opa-bundle/bundle.tar.gz")
+          fi
           helm upgrade --install laa-data-user-api deployment/helm/laa-data-user-api \
             --namespace "${KUBE_NAMESPACE}" \
             -f deployment/helm/laa-data-user-api/values.yaml \
             -f "deployment/helm/laa-data-user-api/values-${HELM_VALUES_ENV}.yaml" \
             -f deployment/helm/laa-data-user-api/values-secrets.generated.yaml \
-            --set-string "opa.bundleRef=${OPA_BUNDLE_REF}" \
-            --set-file "opa.bundleData=${RUNNER_TEMP}/opa-bundle/bundle.tar.gz" \
+            "${OPA_ARGS[@]}" \
             --atomic \
             --timeout 7m0s
         env:
           KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
           HELM_VALUES_ENV: ${{ inputs.helm_values_env }}
+          OPA_ENABLED: ${{ steps.opa-setting.outputs.enabled }}
           OPA_BUNDLE_REF: ${{ steps.publish-bundle.outputs.bundle_ref }}
 
       - name: Wait for new deployment to finish
