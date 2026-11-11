@@ -10,11 +10,11 @@ import java.util.List;
 
 @Component
 @Transactional(readOnly = true)
-public class GetUserProfilesHandler {
+public class GetUserProfilesEntraIdHandler {
 
     private final UserProfileDetailsService service;
 
-    public GetUserProfilesHandler(UserProfileDetailsService service) {
+    public GetUserProfilesEntraIdHandler(UserProfileDetailsService service) {
         this.service = service;
     }
 

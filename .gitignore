@@ -34,3 +34,5 @@ deployment/helm/laa-data-user-api/values-secrets.generated.yaml
 
 # Local pre-commit tools
 .cache_ggshield
+# Local env file
+.env

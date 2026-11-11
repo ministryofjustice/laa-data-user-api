@@ -1,12 +1,14 @@
 package uk.gov.justice.laa.datauserapi.contracts.response;
 
+import lombok.Builder;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
 import java.util.UUID;
 
-public record UserProfileSummaryView (
+@Builder
+public record UserProfileSummaryView(
         UUID userProfileId,
         boolean activeProfile,
         UserType userType,

@@ -123,7 +123,8 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule query_side_entity_access_is_confined_to_mappers_and_repositories = noClasses()
             .that().resideInAPackage(QUERY_PACKAGE)
-            .and().resideOutsideOfPackages("..application.query.mapper..", "..application.query.shared.repository..")
+            .and().resideOutsideOfPackages("..application.query.mapper..", "..application.query.getuserprofilebyid..",
+                    "..application.query.getuserprofiles..", "..application.query.shared.repository..")
             .should().dependOnClassesThat().resideInAPackage(ENTITY_PACKAGE)
             .because("Query handlers, services, controllers and view mappers must work on DTOs/views, not entities");
 
@@ -175,6 +176,8 @@ class ArchitectureTest {
                     "..application.command.useraccount..",
                     "..application.query.service..",
                     "..application.query.handler..",
+                    "..application.query.getuserprofilebyid..",
+                    "..application.query.getuserprofiles..",
                     "..repository..",
                     "..authorisation.."
             )
@@ -217,10 +220,14 @@ class ArchitectureTest {
             .layer("QueryRepository").definedBy("..application.query.shared.repository..")
             .layer("QueryHandler").definedBy("..application.query.handler..")
             .layer("Authorisation").definedBy("..authorisation..")
+            .layer("GetUserProfileById").definedBy("..application.query.getuserprofilebyid..")
+            .layer("GetUserProfiles").definedBy("..application.query.getuserprofiles..")
+
+
 
             .whereLayer("QueryController").mayNotBeAccessedByAnyLayer()
             .whereLayer("QueryService").mayOnlyBeAccessedByLayers("QueryController", "QueryHandler")
-            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation", "QueryHandler");
+            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation", "QueryHandler", "GetUserProfileById", "GetUserProfiles");
 
     // =========================================================================
     // 5. Naming Conventions & Stereotype Annotations

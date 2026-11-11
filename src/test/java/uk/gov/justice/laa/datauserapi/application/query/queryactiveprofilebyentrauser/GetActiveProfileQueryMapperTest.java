@@ -3,6 +3,7 @@ package uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyent
 import org.junit.jupiter.api.Test;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileSilasStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
@@ -47,7 +48,7 @@ class GetActiveProfileQueryMapperTest {
         UserProfileDetailView result = mapper.mapProfileToDetailView(profile);
 
         assertThat(result.accountStatus()).isEqualTo(UserAccountStatus.ACTIVE);
-        assertThat(result.profileStatus()).isEqualTo(UserProfileSilasStatus.COMPLETE);
+        assertThat(result.profileStatus()).isNull();
     }
 
     @Test
