@@ -1,6 +1,8 @@
 package uk.gov.justice.laa.datauserapi.security.opa;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -54,17 +56,61 @@ class OpaAuthorizationClientTest {
         server.verify();
     }
 
-    @Test
-    void rejectsMalformedOpaResponse() {
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "{}",
+        "{\"result\":null}",
+        "{\"result\":\"true\"}",
+        "{\"result\":\"false\"}",
+        "{\"result\":1}",
+        "{\"result\":0}",
+        "{\"result\":1.0}",
+        "{\"result\":{}}",
+        "{\"result\":[]}",
+        "{\"result\":[true]}",
+        "null",
+        "true",
+        "\"true\"",
+        "1",
+        "[]",
+        "[{\"result\":true}]"
+    })
+    void rejectsNonBooleanOpaDecisions(String response) {
         RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost:8181");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo("http://localhost:8181/v1/data/authz/allow"))
-                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
         OpaAuthorizationClient client = new OpaAuthorizationClient(builder.build());
 
         assertThatThrownBy(() -> client.isAllowed(input()))
                 .isInstanceOf(OpaUnavailableException.class)
-                .hasMessage("OPA authorization response did not contain a decision");
+                .hasMessage("OPA authorization response did not contain a boolean decision");
+        server.verify();
+    }
+
+    @Test
+    void returnsFalseForAnOpaDenial() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost:8181");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://localhost:8181/v1/data/authz/allow"))
+                .andRespond(withSuccess("{\"result\":false}", MediaType.APPLICATION_JSON));
+        OpaAuthorizationClient client = new OpaAuthorizationClient(builder.build());
+
+        assertThat(client.isAllowed(input())).isFalse();
+        server.verify();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "{\"result\":", "not-json"})
+    void rejectsInvalidJsonResponses(String response) {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost:8181");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://localhost:8181/v1/data/authz/allow"))
+                .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
+        OpaAuthorizationClient client = new OpaAuthorizationClient(builder.build());
+
+        assertThatThrownBy(() -> client.isAllowed(input()))
+                .isInstanceOf(OpaUnavailableException.class);
         server.verify();
     }
 

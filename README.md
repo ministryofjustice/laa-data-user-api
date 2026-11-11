@@ -200,7 +200,8 @@ Deactivate and reactivate commands additionally send the actor's role and permis
 account, firm, and deactivation facts to the OPA sidecar. OPA applies the same-firm, self-target, external-user,
 and reactivation-hierarchy rules in `opa/policies/authz/lifecycle.rego`. The existing Java RBAC checks remain
 in place during this trial; OPA is an additional enforcing gate, and an unavailable or malformed OPA response
-fails closed with HTTP 503.
+fails closed with HTTP 503. Only a JSON boolean `result` is accepted; strings, numbers, nulls, and
+other result types are rejected rather than coerced into authorization decisions.
 
 Enforcement can be controlled independently with `APP_AUTHORIZATION_OPA_ENABLED` and
 `APP_AUTHORIZATION_LEGACY_POLICIES_ENABLED` (or the matching `authorization.opaEnabled` and

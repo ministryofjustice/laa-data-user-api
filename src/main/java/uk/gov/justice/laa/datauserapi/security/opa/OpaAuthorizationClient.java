@@ -3,6 +3,7 @@ package uk.gov.justice.laa.datauserapi.security.opa;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import tools.jackson.databind.JsonNode;
 import uk.gov.justice.laa.datauserapi.exception.OpaUnavailableException;
 
 import java.util.LinkedHashMap;
@@ -18,21 +19,22 @@ public class OpaAuthorizationClient {
     }
 
     public boolean isAllowed(OpaAuthorizationInput input) {
-        OpaResponse response;
+        JsonNode response;
         try {
             response = restClient.post()
                     .uri("/v1/data/authz/allow")
                     .body(toRequest(input))
                     .retrieve()
-                    .body(OpaResponse.class);
+                    .body(JsonNode.class);
         } catch (RestClientException exception) {
             throw new OpaUnavailableException("OPA authorization request failed", exception);
         }
 
-        if (response == null || response.result() == null) {
-            throw new OpaUnavailableException("OPA authorization response did not contain a decision");
+        JsonNode result = response == null ? null : response.get("result");
+        if (result == null || !result.isBoolean()) {
+            throw new OpaUnavailableException("OPA authorization response did not contain a boolean decision");
         }
-        return response.result();
+        return result.booleanValue();
     }
 
     private static Map<String, Object> toRequest(OpaAuthorizationInput input) {
@@ -57,6 +59,4 @@ public class OpaAuthorizationClient {
                 "target", target));
     }
 
-    private record OpaResponse(Boolean result) {
-    }
 }
