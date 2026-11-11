@@ -9,10 +9,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import zap_read_baseline as baseline
+import zap_scan_baseline as baseline
 
 
-class ZapReadBaselineTest(unittest.TestCase):
+class ZapScanBaselineTest(unittest.TestCase):
     def test_requests_are_authenticated_and_failures_do_not_hide_other_routes(self):
         seen = []
 
@@ -73,7 +73,36 @@ class ZapReadBaselineTest(unittest.TestCase):
             }), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(baseline.main(), 1)
             self.assertIn("| `/api/v1/me` | 500 |", summary_path.read_text())
-            self.assertEqual(summary_path.read_text(), (work / "zap-read-baseline.md").read_text())
+            self.assertEqual(summary_path.read_text(), (work / "zap-baseline.md").read_text())
+
+    def test_anonymous_sends_no_authorization_and_refuses_a_token(self):
+        request = {"method": "GET", "url": "http://localhost/api/v1/me"}
+        with patch.object(baseline.urllib.request, "build_opener") as build:
+            response = build.return_value.open.return_value.__enter__.return_value
+            response.status = 401
+            result = baseline.check_routes([request], "", "anonymous")
+            self.assertEqual(result, [("GET /api/v1/me", 401)])
+            sent = build.return_value.open.call_args.args[0]
+            self.assertNotIn("Authorization", sent.headers)
+        with self.assertRaises(ValueError):
+            baseline.check_routes([request], "unexpected-token", "anonymous")
+
+    def test_write_requires_command_success_not_just_http_200(self):
+        request = {
+            "method": "POST",
+            "url": "http://localhost/api/v1/commands/users/convert-to-multi-firm",
+            "data": '{"userEntraObjectId":"00000000-0000-0000-0000-000000000006"}',
+        }
+        with patch.object(baseline.urllib.request, "build_opener") as build:
+            response = build.return_value.open.return_value.__enter__.return_value
+            response.status = 200
+            with patch.object(baseline.json, "load", return_value={"success": False}), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(baseline.check_routes([request], "token", "write")[0][1],
+                                 "command failed")
+            sent = build.return_value.open.call_args.args[0]
+            self.assertEqual(sent.method, "POST")
+            self.assertEqual(sent.data, request["data"].encode())
 
 
 if __name__ == "__main__":

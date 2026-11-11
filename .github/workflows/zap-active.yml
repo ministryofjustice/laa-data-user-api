@@ -15,30 +15,26 @@ concurrency:
 
 jobs:
   zap_active_scan:
-    name: Active scan of the local API
+    name: Isolated ${{ matrix.scan }} scan
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: zap
-          POSTGRES_USER: zap
-          POSTGRES_PASSWORD: zap
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U zap -d zap"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+    strategy:
+      fail-fast: false
+      matrix:
+        scan: [read, write, anonymous]
 
     env:
       APP_URL: http://localhost:8080
+      SCAN_MODE: ${{ matrix.scan }}
+      SCAN_NAMESPACE: zap-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.scan }}
       ZAP_TEST_OID: 00000000-0000-0000-0000-000000000001
       ZAP_TEST_FIRM_CODE: '900001'
-      ZAP_AUTH_TOKEN: oid__00000000-0000-0000-0000-000000000001_scope__user_data.read
+      ZAP_AUTH_TOKEN: ${{ matrix.scan != 'anonymous' && format('oid__00000000-0000-0000-0000-000000000001_scope__{0}', matrix.scan == 'write' && 'user_data.admin' || 'user_data.read') || '' }}
+      POSTGRES_IMAGE: postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
+      APP_IMAGE: amazoncorretto:25-alpine@sha256:e3ec06bdc025f54f1dbeeb92a8cc537665371badec999ce832c1cb6c00a2c828
+      LIQUIBASE_IMAGE: liquibase/liquibase:4.33.0@sha256:e116c935ba22b59a22165207f65c268e363269de30bb1fedacff3755c2abaa8c
+      ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:stable@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6
 
     steps:
       - name: Checkout
@@ -53,15 +49,8 @@ jobs:
           sparse-checkout: src/main/resources/db/changelog
           persist-credentials: false
 
-      - name: Initialise the shared database schema
-        run: |
-          docker run --rm --network host \
-            -v "$PWD/shared-schema/src/main/resources/db/changelog:/liquibase/changelog/db/changelog:ro" \
-            liquibase/liquibase:4.33.0@sha256:e116c935ba22b59a22165207f65c268e363269de30bb1fedacff3755c2abaa8c \
-            --search-path=/liquibase/changelog \
-            --changelog-file=db/changelog/db.changelog-master.yaml \
-            --url=jdbc:postgresql://localhost:5432/zap \
-            --username=zap --password=zap update
+      - name: Test scan helpers
+        run: python3 -B -m unittest discover -s .github/scripts -p 'test_zap_*.py'
 
       - name: Set up JDK
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
@@ -77,172 +66,67 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: Start the API with local scan configuration
+      - name: Build the API before network isolation
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SPRING_PROFILE: local
-          SERVER_PORT: '8080'
-          SPRING_JPA_HIBERNATE_DDL_AUTO: validate
-          POSTGRES_DB_ADDRESS: localhost
-          POSTGRES_DB_NAME: zap
-          POSTGRES_USERNAME: zap
-          POSTGRES_PASSWORD: zap
-          AZURE_TENANT_ID: 00000000-0000-0000-0000-000000000001
-          AZURE_CLIENT_ID: 00000000-0000-0000-0000-000000000002
-          TECH_SERVICES_AZURE_SCOPE: api://local-scan/.default
-          TECH_SERVICES_AZURE_CLIENT_ID: local-scan
-          TECH_SERVICES_AZURE_CLIENT_SECRET: local-scan
-          TECH_SERVICES_TENANT_ID: 00000000-0000-0000-0000-000000000001
-          TECH_SERVICES_BASE_URL: https://example.invalid
-          TECH_SERVICES_CALLS_ENABLED: 'false'
-          SENTRY_ENABLED: 'false'
-          CCMS_APP_ENTRA_OBJECT_ID: local-scan
-          CCMS_EBS_APP_ENTRA_OBJECT_ID: local-scan
-          CIVIL_APPLY_APP_ENTRA_OBJECT_ID: local-scan
-          CCMS_APP_TWO_ENTRA_OBJECT_ID: local-scan
-          CCMS_EBS_APP_TWO_ENTRA_OBJECT_ID: local-scan
-          CCMS_APP_THREE_ENTRA_OBJECT_ID: local-scan
-          CCMS_EBS_APP_THREE_ENTRA_OBJECT_ID: local-scan
-          CCMS_USER_MANAGEMENT_API_BASE_URL: https://example.invalid
-          CCMS_USER_MANAGEMENT_API_KEY: local-scan
-          CCMS_USER_API_SQS_ARN: local-scan
-          CCMS_UDA_API_BASE_URL: https://example.invalid
-          CCMS_UDA_API_KEY: local-scan
-          CCMS_APP_TWO_USER_MANAGEMENT_API_BASE_URL: https://example.invalid
-          CCMS_APP_TWO_USER_MANAGEMENT_API_KEY: local-scan
-          CCMS_APP_TWO_USER_API_SQS_ARN: local-scan
-          CCMS_APP_TWO_UDA_API_BASE_URL: https://example.invalid
-          CCMS_APP_TWO_UDA_API_KEY: local-scan
-          CCMS_APP_THREE_USER_MANAGEMENT_API_BASE_URL: https://example.invalid
-          CCMS_APP_THREE_USER_MANAGEMENT_API_KEY: local-scan
-          CCMS_APP_THREE_USER_API_SQS_ARN: local-scan
-          CCMS_APP_THREE_UDA_API_BASE_URL: https://example.invalid
-          CCMS_APP_THREE_UDA_API_KEY: local-scan
-        run: |
-          mkdir -p build/zap
-          nohup ./gradlew bootRun --no-daemon > build/zap/app.log 2>&1 &
-          echo $! > build/zap/app.pid
-          for attempt in $(seq 1 90); do
-            if curl --fail --silent --max-time 2 "$APP_URL/actuator/health" >/dev/null; then
-              echo "API is up."
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "::error::API did not become healthy."
-          tail -n 100 build/zap/app.log
-          exit 1
+        run: ./gradlew bootJar --no-daemon
 
-      - name: Seed local scan fixtures
-        env:
-          PGPASSWORD: zap
+      - name: Pull runtime images before network isolation
         run: |
-          psql --host localhost --username zap --dbname zap --single-transaction --set ON_ERROR_STOP=1 <<SQL
-          INSERT INTO entra_user (
-            id, entra_oid, first_name, last_name, email, status, multi_firm_user,
-            mail_only, enabled, ccms_ebs_user, created_date, created_by
-          ) VALUES (
-            '$ZAP_TEST_OID', '$ZAP_TEST_OID', 'ZAP', 'Scan', 'zap-scan@example.invalid',
-            'ACTIVE', false, false, true, false, CURRENT_TIMESTAMP, 'zap-active-scan'
-          );
-          INSERT INTO user_profile (
-            id, entra_user_id, user_type, active_profile, status, silas_status,
-            created_date, created_by
-          ) VALUES (
-            '$ZAP_TEST_OID', '$ZAP_TEST_OID', 'INTERNAL', true, 'COMPLETE', 'COMPLETE',
-            CURRENT_TIMESTAMP, 'zap-active-scan'
-          );
-          INSERT INTO user_profile_app_role (user_profile_id, app_role_id)
-          SELECT '$ZAP_TEST_OID', id FROM app_role
-          WHERE role_identifier IN ('Internal User Viewer', 'External User Viewer');
-          INSERT INTO firm (id, name, code, type, enabled)
-          VALUES ('00000000-0000-0000-0000-000000000002', 'ZAP Scan Firm',
-                  '$ZAP_TEST_FIRM_CODE', 'ADVOCATE', true);
-          INSERT INTO office (id, firm_id, code, address_line_1, city, post_code)
-          VALUES ('00000000-0000-0000-0000-000000000003',
-                  '00000000-0000-0000-0000-000000000002', '900002',
-                  '1 Test Street', 'Test City', 'TE1 1ST');
-          INSERT INTO user_account_status_audit (
-            id, entra_user_id, status_changed_date, status_changed_by,
-            status_change, user_email, user_name, disable_user_reason_id
-          ) VALUES (
-            '00000000-0000-0000-0000-000000000004', '$ZAP_TEST_OID',
-            CURRENT_TIMESTAMP - INTERVAL '1 day', 'zap-active-scan', 'DEACTIVATED',
-            'zap-scan@example.invalid', 'ZAP Scan',
-            (SELECT id FROM disable_user_reason WHERE name = 'Absence')
-          );
-          SQL
+          docker pull "$POSTGRES_IMAGE"
+          docker pull "$APP_IMAGE"
+          docker pull "$LIQUIBASE_IMAGE"
+          docker pull "$ZAP_IMAGE"
 
       - name: Prepare ZAP plan
         run: |
-          envsubst '${ZAP_AUTH_TOKEN} ${ZAP_TEST_OID} ${ZAP_TEST_FIRM_CODE}' \
-            < .github/zap/active-scan-plan.yaml > build/zap/plan.yaml
-          ruby -r yaml -r json <<'RUBY'
-          spec = YAML.load_file('laa-data-user.yml')
-          plan = YAML.load_file('build/zap/plan.yaml')
-          context = plan.fetch('env').fetch('contexts').first
-          target = context.fetch('urls').first
-          scope = context.fetch('includePaths').map { |pattern| Regexp.new(pattern) }
-          spec['paths'] = spec.fetch('paths').each_with_object({}) do |(path, item), paths|
-            next unless item.key?('get') && scope.any? { |pattern| pattern.match?(target + path) }
-
-            paths[path] = item.select { |key, _| ['parameters', 'get'].include?(key) }
-            paths[path]['get'] = item.fetch('get').reject { |key, _| key == 'servers' }
-          end
-          raise 'No in-scope GET operations found in the OpenAPI specification' if spec['paths'].empty?
-
-          parameters = spec.fetch('components').fetch('parameters').values
-          spec['paths'].each_value do |item|
-            parameters.concat(item.fetch('parameters', []))
-            parameters.concat(item.fetch('get').fetch('parameters', []))
-          end
-          parameters.each do |parameter|
-            schema = parameter['schema']
-            next unless schema
-
-            if parameter['name'] == 'sort_by'
-              schema.fetch('items')['default'] = 'lastName,asc'
-              next
-            end
-            value = case parameter['name']
-                    when 'firmId', 'firm_id' then ENV.fetch('ZAP_TEST_FIRM_CODE')
-                    when 'query', 'firm', 'user' then 'ZAP'
-                    when 'email_query' then 'zap-scan@example.invalid'
-                    else ENV.fetch('ZAP_TEST_OID') if schema['format'] == 'uuid'
-                    end
-            schema['default'] = value unless value.nil?
-          end
-          spec['servers'] = [{ 'url' => target }]
-          File.write('build/zap/openapi-read-only.json', JSON.pretty_generate(spec))
-          requests = plan.fetch('jobs').find { |job| job['type'] == 'requestor' }.fetch('requests')
-          File.write('build/zap/read-baseline-requests.json', JSON.pretty_generate(requests))
-          puts "Prepared #{spec['paths'].length} in-scope OpenAPI GET operations for #{target}"
-          RUBY
+          mkdir -p build/zap
+          ruby .github/scripts/zap_prepare_plan.rb
           chmod 777 build/zap
 
-      - name: Check authenticated scan routes
-        id: read_baseline
-        run: python3 .github/scripts/zap_read_baseline.py
+      - name: Start and verify the isolated scan environment
+        run: bash .github/scripts/zap_start_environment.sh
+
+      - name: Check scan baseline
+        run: |
+          trap 'if [ -f build/zap/baseline-summary.md ]; then cat build/zap/baseline-summary.md >> "$GITHUB_STEP_SUMMARY"; fi' EXIT
+          docker run --rm --pull=never --network "container:${SCAN_NAMESPACE}-db" \
+            --cap-drop ALL --security-opt no-new-privileges \
+            -e SCAN_MODE -e ZAP_AUTH_TOKEN \
+            -e ZAP_WORK_DIR=/zap/wrk \
+            -e GITHUB_STEP_SUMMARY=/zap/wrk/baseline-summary.md \
+            -v "$PWD/build/zap:/zap/wrk:rw" -w /zap/wrk \
+            -v "$PWD/.github/scripts:/checks:ro" --entrypoint python3 \
+            "$ZAP_IMAGE" /checks/zap_scan_baseline.py
+          if [ "$SCAN_MODE" = write ]; then
+            docker exec "${SCAN_NAMESPACE}-db" psql -U zap -d zap --set ON_ERROR_STOP=1 \
+              -c "UPDATE entra_user SET multi_firm_user = false WHERE entra_oid = '00000000-0000-0000-0000-000000000006'"
+          fi
 
       - name: Run ZAP active scan
         id: zap_scan
         run: |
-          docker run --rm --network host \
+          docker run --rm --pull=never --name "${SCAN_NAMESPACE}-zap" \
+            --network "container:${SCAN_NAMESPACE}-db" \
+            --cap-drop ALL --security-opt no-new-privileges \
             -v "$PWD/build/zap:/zap/wrk:rw" \
-            ghcr.io/zaproxy/zaproxy:stable@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6 \
+            "$ZAP_IMAGE" \
             zap.sh -cmd -port 8090 -autorun /zap/wrk/plan.yaml
 
-      - name: Check authenticated read endpoint
+      - name: Check access after scanning
         id: auth_check
         if: ${{ always() && steps.zap_scan.outcome != 'skipped' }}
         run: |
-          status=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 30 \
-            --header "Authorization: Bearer $ZAP_AUTH_TOKEN" "$APP_URL/api/v1/me")
-          if [ "$status" != "200" ]; then
-            echo "::error::Synthetic test identity cannot access /api/v1/me (HTTP $status)."
-            exit 1
-          fi
+          trap 'if [ -f build/zap/post-baseline-summary.md ]; then cat build/zap/post-baseline-summary.md >> "$GITHUB_STEP_SUMMARY"; fi' EXIT
+          docker run --rm --pull=never --network "container:${SCAN_NAMESPACE}-db" \
+            --cap-drop ALL --security-opt no-new-privileges \
+            -e SCAN_MODE -e ZAP_AUTH_TOKEN -e BASELINE_PHASE=post \
+            -e ZAP_WORK_DIR=/zap/wrk \
+            -e GITHUB_STEP_SUMMARY=/zap/wrk/post-baseline-summary.md \
+            -v "$PWD/build/zap:/zap/wrk:rw" -w /zap/wrk \
+            -v "$PWD/.github/scripts:/checks:ro" --entrypoint python3 \
+            "$ZAP_IMAGE" /checks/zap_scan_baseline.py
 
       - name: Summarise findings
         if: ${{ always() && hashFiles('build/zap/zap-active-report.json') != '' }}
@@ -283,7 +167,7 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "ZAP Active Scan: ${{ github.event.repository.name }} - DEV"
+                    "text": "ZAP Active Scan: ${{ github.event.repository.name }} - ${{ matrix.scan }}"
                   }
                 },
                 {
@@ -296,17 +180,37 @@ jobs:
               ]
             }
 
+      - name: Collect logs and remove isolated containers
+        if: ${{ always() }}
+        run: |
+          mkdir -p build/zap
+          cleanup_status=0
+          for role in zap app migrations db; do
+            name="${SCAN_NAMESPACE}-${role}"
+            existing=$(docker container ls --all --filter "name=^/${name}$" --format '{{.ID}}')
+            if [ -n "$existing" ]; then
+              if ! docker logs "$name" > "build/zap/${role}.log" 2>&1; then
+                echo "::warning::Could not collect logs for $name."
+              fi
+              if ! docker rm --force --volumes "$name"; then
+                cleanup_status=1
+              fi
+            fi
+          done
+          exit "$cleanup_status"
+
       - name: Upload ZAP reports
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: zap-active-report
+          name: zap-active-report-${{ matrix.scan }}
           path: |
             build/zap/zap-active-report.*
             build/zap/zap-active-summary.md
             build/zap/zap-active-endpoints.txt
             build/zap/zap-active-query-patterns.md
-            build/zap/zap-read-baseline.md
+            build/zap/zap-baseline.md
+            build/zap/zap-post-baseline.md
             build/zap/app.log
           if-no-files-found: warn
           retention-days: 14

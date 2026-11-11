@@ -83,15 +83,18 @@ def pattern_table(patterns):
     ):
         lines.append(f"| {cell(method)} | {cell(path)} | {cell(', '.join(names))} | {count} |")
     if not patterns:
-        lines.append("| - | - | No parameterized requests found | 0 |")
+        lines.append("| - | - | No query parameters found | 0 |")
     return lines
 
 
-def markdown(rows, cov, auth_status):
-    lines = ["## ZAP active scan", ""]
-    lines.append(f"Post-scan authenticated endpoint check: **{cell(auth_status)}**.")
+def markdown(rows, cov, auth_status, mode="read"):
+    lines = [f"## ZAP active scan ({cell(mode)})", ""]
+    check = "anonymous denial" if mode == "anonymous" else "authenticated endpoint"
+    lines.append(f"Post-scan {check} check: **{cell(auth_status)}**.")
     if auth_status != "success":
-        lines.append("**Authentication was not verified after scanning; interpret results with caution.**")
+        lines.append("**Authentication was not verified after scanning; interpret results with caution.**"
+                     if mode != "anonymous" else
+                     "**Anonymous access denial was not verified after scanning; interpret results with caution.**")
     lines += ["", "| Risk | Alert instances | Alert types |", "|---|---:|---:|"]
     for code, name in RISKS:
         matching = [row for row in rows if row["risk"] == code]
@@ -139,7 +142,8 @@ def main():
     cov = coverage(json.loads(tree_path.read_text())) if tree_path.exists() else None
     if cov is None:
         print("::warning::Sites Tree export not found; endpoint coverage is unknown.")
-    summary = markdown(rows, cov, os.environ.get("AUTH_STATUS") or "unknown")
+    summary = markdown(rows, cov, os.environ.get("AUTH_STATUS") or "unknown",
+                       os.environ.get("SCAN_MODE", "read"))
     (WORK / "zap-active-summary.md").write_text(summary)
     if cov is not None:
         endpoints, _, patterns = cov

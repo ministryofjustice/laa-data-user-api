@@ -45,6 +45,11 @@ class ZapActiveSummaryTest(unittest.TestCase):
         self.assertIn("Authentication was not verified", rendered)
         self.assertNotIn("0 normalized endpoints", rendered)
 
+    def test_anonymous_summary_does_not_claim_authenticated_coverage(self):
+        rendered = summary.markdown([], None, "success", "anonymous")
+        self.assertIn("anonymous denial check: **success**", rendered)
+        self.assertNotIn("authenticated endpoint check", rendered)
+
     def test_summary_escapes_findings_and_parameter_names(self):
         cov = summary.coverage([{
             "method": "GET", "url": "http://localhost/api/v1/queries/users?bad%7C%0Aname=secret",

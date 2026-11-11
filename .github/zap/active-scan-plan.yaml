@@ -19,7 +19,7 @@ jobs:
 
   - type: replacer
     rules:
-      - description: Local synthetic read-only API token
+      - description: Local synthetic API token
         matchType: req_header
         matchString: Authorization
         matchRegex: false
@@ -32,7 +32,7 @@ jobs:
       targetUrl: http://localhost:8080
       context: data-user-api
 
-  # These implemented routes must return 200 before scanning starts.
+  # Fixture-valued seeds also cover implemented routes missing from the specification.
   - type: requestor
     requests:
       - url: http://localhost:8080/api/v1/me
