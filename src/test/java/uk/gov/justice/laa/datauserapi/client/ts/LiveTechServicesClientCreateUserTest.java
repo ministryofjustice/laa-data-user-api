@@ -1,6 +1,12 @@
 package uk.gov.justice.laa.datauserapi.client.ts;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.azure.core.credential.AccessToken;
+import com.azure.identity.ClientSecretCredential;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
+import org.springframework.test.util.ReflectionTestUtils;
+import reactor.core.publisher.Mono;
+import uk.gov.justice.laa.datauserapi.config.CachingConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,9 +21,14 @@ import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.util.UUID;
+import java.time.OffsetDateTime;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.anything;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
@@ -27,13 +38,13 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-class TechServicesEntraUserClientTest {
+class LiveTechServicesClientCreateUserTest {
     private static final String DEFAULT_GROUP = "22222222-2222-2222-2222-222222222222";
     private MockRestServiceServer server;
     private RestClient restClient;
-    private TechServicesEntraUserClient client;
+    private TechServicesClient client;
     private final UUID id = UUID.randomUUID();
-    private final EntraUserClient.Registration command = new EntraUserClient.Registration(
+    private final TechServicesClient.Registration command = new TechServicesClient.Registration(
             "person@example.com", "First", "Last");
 
     @BeforeEach
@@ -41,8 +52,25 @@ class TechServicesEntraUserClientTest {
         var builder = RestClient.builder().baseUrl("https://tech-services.example");
         server = MockRestServiceServer.bindTo(builder).build();
         restClient = builder.build();
-        client = new TechServicesEntraUserClient(restClient, new ObjectMapper(), () -> "test-token",
+        client = client(() -> "test-token",
                 "LAA", "activation_code_email", DEFAULT_GROUP, true);
+    }
+
+    private TechServicesClient client(Supplier<String> token, String businessUnit, String verificationMethod,
+                                      String group, boolean enabled) {
+        if (!enabled) {
+            return new DoNothingTechServicesClient();
+        }
+        var credential = mock(ClientSecretCredential.class);
+        lenient().when(credential.getToken(any())).thenAnswer(invocation ->
+                Mono.just(new AccessToken(token.get(), OffsetDateTime.now().plusHours(1))));
+        var liveClient = new LiveTechServicesClient(credential, restClient, new ObjectMapper(),
+                new ConcurrentMapCacheManager(CachingConfig.TECH_SERVICES_DETAILS_CACHE), null);
+        ReflectionTestUtils.setField(liveClient, "laaBusinessUnit", businessUnit);
+        ReflectionTestUtils.setField(liveClient, "verificationMethod", verificationMethod);
+        ReflectionTestUtils.setField(liveClient, "defaultSecurityGroup", group);
+        ReflectionTestUtils.setField(liveClient, "accessTokenRequestScope", "test-scope");
+        return liveClient;
     }
 
     private String response() {
@@ -59,14 +87,14 @@ class TechServicesEntraUserClientTest {
                          "verification_method":"activation_code_email","groups":["22222222-2222-2222-2222-222222222222"]}
                         """))
                 .andRespond(withStatus(HttpStatus.CREATED).contentType(MediaType.APPLICATION_JSON).body(response()));
-        assertThat(client.createUser(command)).isEqualTo(new EntraUserClient.Identity(id, true));
+        assertThat(client.createUser(command)).isEqualTo(new TechServicesClient.Identity(id, true));
         server.verify();
     }
 
     @Test
     void recognisesExistingIdentityOnRetry() {
         server.expect(anything()).andRespond(withSuccess(response(), MediaType.APPLICATION_JSON));
-        assertThat(client.createUser(command)).isEqualTo(new EntraUserClient.Identity(id, false));
+        assertThat(client.createUser(command)).isEqualTo(new TechServicesClient.Identity(id, false));
         server.verify();
     }
 
@@ -87,7 +115,7 @@ class TechServicesEntraUserClientTest {
 
     @Test
     void missingAuthenticationTokenIsBadGatewayWithoutCallingDownstream() {
-        client = new TechServicesEntraUserClient(restClient, new ObjectMapper(), () -> null,
+        client = client(() -> null,
                 "LAA", "activation_code_email", DEFAULT_GROUP, true);
         assertStatus(502);
         server.verify();
@@ -122,7 +150,7 @@ class TechServicesEntraUserClientTest {
 
     @Test
     void disabledIntegrationFailsExplicitlyWithoutInventingAnIdentity() {
-        client = new TechServicesEntraUserClient(restClient, new ObjectMapper(),
+        client = client(
                 () -> {
                     throw new AssertionError("Token must not be requested");
                 }, "LAA", "activation_code_email", DEFAULT_GROUP, false);
@@ -132,7 +160,7 @@ class TechServicesEntraUserClientTest {
 
     @Test
     void authenticationFailureIsUnavailable() {
-        client = new TechServicesEntraUserClient(restClient, new ObjectMapper(),
+        client = client(
                 () -> {
                     throw new IllegalStateException("private credentials");
                 }, "LAA", "activation_code_email", DEFAULT_GROUP, true);
@@ -141,7 +169,7 @@ class TechServicesEntraUserClientTest {
 
     @Test
     void nestedAuthenticationTimeoutIsGatewayTimeout() {
-        client = new TechServicesEntraUserClient(restClient, new ObjectMapper(),
+        client = client(
                 () -> {
                     throw new IllegalStateException(new java.util.concurrent.TimeoutException());
                 },
@@ -151,7 +179,7 @@ class TechServicesEntraUserClientTest {
 
     @Test
     void missingDefaultAccessGroupFailsBeforeTokenOrUserCreation() {
-        client = new TechServicesEntraUserClient(restClient, new ObjectMapper(),
+        client = client(
                 () -> {
                     throw new AssertionError("Token must not be requested");
                 }, "LAA", "activation_code_email", "", true);

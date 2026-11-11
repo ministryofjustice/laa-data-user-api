@@ -15,14 +15,20 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AuthenticatedEntraUserQueryRepository;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
+import uk.gov.justice.laa.datauserapi.exception.GlobalExceptionHandler;
+import org.springframework.http.MediaType;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 
 @WebMvcTest(useDefaultFilters = false)
 @Import({
     SecurityConfig.class,
+    GlobalExceptionHandler.class,
     SecurityConfigTest.JwtDecoderConfiguration.class,
     JwtToAuthenticatedEntraUserConverter.class,
     AuthenticatedEntraUserQueryRepository.class
@@ -75,7 +81,18 @@ class SecurityConfigTest {
     void readScopeCannotAccessCommandEndpoints() throws Exception {
         mockMvc.perform(get("/api/v1/commands/users")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_user_data.read"))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(403));
+    }
+
+    @Test
+    void missingAuthenticationUsesGlobalExceptionHandler() throws Exception {
+        mockMvc.perform(get("/api/v1/commands/users"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(header().string("WWW-Authenticate", "Bearer"))
+                .andExpect(jsonPath("$.detail").value("Malformed or missing token"));
     }
 
     @Test

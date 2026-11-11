@@ -6,12 +6,10 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionException;
-import org.springframework.transaction.support.TransactionTemplate;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserCreationRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.CreateUserAccountCommand;
-import uk.gov.justice.laa.datauserapi.client.ts.EntraUserClient;
+import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
 import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResponse;
 import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 import uk.gov.justice.laa.datauserapi.exception.UserAlreadyExistsException;
@@ -23,14 +21,14 @@ import java.util.UUID;
 @Service
 public class UserAccountCreationService {
     private final UserCreationRepository repository;
-    private final EntraUserClient client;
-    private final TransactionTemplate transaction;
+    private final TechServicesClient client;
+    private final UserAccountPersistenceService persistence;
 
-    public UserAccountCreationService(UserCreationRepository repository, EntraUserClient client,
-                                      PlatformTransactionManager transactionManager) {
+    public UserAccountCreationService(UserCreationRepository repository, TechServicesClient client,
+                                      UserAccountPersistenceService persistence) {
         this.repository = repository;
         this.client = client;
-        this.transaction = new TransactionTemplate(transactionManager);
+        this.persistence = persistence;
     }
 
     public CreateUserAccountResponse create(CreateUserAccountCommand request, String actorOid) {
@@ -43,9 +41,9 @@ public class UserAccountCreationService {
             throw new CreateUserException(HttpStatus.BAD_REQUEST, "firmId does not identify an active firm", "firmId");
         }
 
-        final EntraUserClient.Identity identity;
+        final TechServicesClient.Identity identity;
         try {
-            identity = client.createUser(new EntraUserClient.Registration(command.email(), command.firstName(), command.lastName()));
+            identity = client.createUser(new TechServicesClient.Registration(command.email(), command.firstName(), command.lastName()));
         } catch (CreateUserException ex) {
             if (ex.status().is5xxServerError()) {
                 log.error("User creation failed correlationId={} step=identity_registration system=TechServices/Entra status={}",
@@ -66,13 +64,7 @@ public class UserAccountCreationService {
         }
         try {
             // The downstream operation is intentionally outside the local transaction and is never compensated.
-            CreateUserAccountResponse result = transaction.execute(status -> {
-                repository.lockEmail(command.email());
-                repository.findExisting(command.email()).ifPresent(existing -> {
-                    throw new UserAlreadyExistsException(existing);
-                });
-                return repository.insert(command, identity.id(), actorOid);
-            });
+            CreateUserAccountResponse result = persistence.create(command, identity.id(), actorOid);
             log.info("User created correlationId={} step=local_commit system=PostgreSQL identityId={} profileId={}",
                     MDC.get("correlationId"), identity.id(), result.userProfileId());
             return result;

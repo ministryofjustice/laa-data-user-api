@@ -1,11 +1,8 @@
 package uk.gov.justice.laa.datauserapi.config;
 
-import java.net.URI;
-
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -17,11 +14,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import jakarta.servlet.RequestDispatcher;
-import jakarta.servlet.http.HttpServletResponse;
-import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
+import jakarta.servlet.ServletException;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
 
 /**
@@ -33,10 +27,16 @@ import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserC
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtToAuthenticatedEntraUserConverter jwtToAuthenticatedEntraUserConverter;
+    private final HandlerExceptionResolver exceptionResolver;
+
+    public SecurityConfig(JwtToAuthenticatedEntraUserConverter converter,
+                          @Qualifier("handlerExceptionResolver") HandlerExceptionResolver exceptionResolver) {
+        this.jwtToAuthenticatedEntraUserConverter = converter;
+        this.exceptionResolver = exceptionResolver;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -83,51 +83,18 @@ public class SecurityConfig {
     @Bean
     public AuthenticationEntryPoint authenticationEntryPoint() {
         return (request, response, authException) -> {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setHeader("WWW-Authenticate", "Bearer");
-            response.setContentType("application/problem+json");
-
-            String requestUri = request.getRequestURI();
-            String originalUri = (String) request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI);
-            if (originalUri != null) {
-                requestUri = originalUri;
+            if (exceptionResolver.resolveException(request, response, null, authException) == null) {
+                throw new ServletException("Authentication failure could not be resolved", authException);
             }
-
-            ProblemDetail problemDetail = new ProblemDetail(
-                    URI.create("https://silas.laa.gov.uk/errors/unauthorized"),
-                    "Unauthorized",
-                    HttpStatus.UNAUTHORIZED.value(),
-                    "Malformed or missing token",
-                    URI.create(requestUri),
-                    null
-            );
-
-            response.getWriter().write(new ObjectMapper().writeValueAsString(problemDetail));
         };
     }
 
     @Bean
     public AccessDeniedHandler accessDeniedHandler() {
         return (request, response, accessDeniedException) -> {
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.setContentType("application/problem+json");
-
-            String requestUri = request.getRequestURI();
-            String originalUri = (String) request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI);
-            if (originalUri != null) {
-                requestUri = originalUri;
+            if (exceptionResolver.resolveException(request, response, null, accessDeniedException) == null) {
+                throw new ServletException("Access denial could not be resolved", accessDeniedException);
             }
-
-            ProblemDetail problemDetail = new ProblemDetail(
-                    URI.create("https://silas.laa.gov.uk/errors/forbidden"),
-                    "Forbidden",
-                    HttpStatus.FORBIDDEN.value(),
-                    "You do not possess the required scopes or permissions to perform this operation.",
-                    URI.create(requestUri),
-                    null
-            );
-
-            response.getWriter().write(new ObjectMapper().writeValueAsString(problemDetail));
         };
     }
 

@@ -13,6 +13,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.http.HttpHeaders;
+import jakarta.servlet.RequestDispatcher;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -32,6 +35,27 @@ import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountRespon
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ProblemDetail> handleAuthentication(
+            AuthenticationException ex, HttpServletRequest request) {
+        log.warn("Request authentication failed", kv("requestUri", request.getRequestURI()));
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/unauthorized"),
+                "Unauthorized",
+                HttpStatus.UNAUTHORIZED.value(),
+                "Malformed or missing token",
+                requestInstance(request),
+                null);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .header(HttpHeaders.WWW_AUTHENTICATE, "Bearer")
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON).body(problem);
+    }
+
+    private URI requestInstance(HttpServletRequest request) {
+        String originalUri = (String) request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI);
+        return URI.create(originalUri == null ? request.getRequestURI() : originalUri);
+    }
 
     @ExceptionHandler(CreateUserException.class)
     public ResponseEntity<ProblemDetail> handleCreateUser(
@@ -323,7 +347,7 @@ public class GlobalExceptionHandler {
                 "Forbidden",
                 HttpStatus.FORBIDDEN.value(),
                 "You do not possess the required scopes or permissions to perform this operation.",
-                URI.create(request.getRequestURI()),
+                requestInstance(request),
                 null
         );
 

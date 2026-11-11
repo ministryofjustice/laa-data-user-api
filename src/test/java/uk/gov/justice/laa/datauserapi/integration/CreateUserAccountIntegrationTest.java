@@ -23,12 +23,13 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CreateUserAccountHandler;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
-import uk.gov.justice.laa.datauserapi.client.ts.EntraUserClient;
+import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
 import uk.gov.justice.laa.datauserapi.config.CorrelationIdFilter;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.CreateUserAccountCommand;
 import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResponse;
@@ -61,6 +62,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @ExtendWith(OutputCaptureExtension.class)
 @SpringBootTest(properties = {
+    "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.liquibase.LiquibaseAutoConfiguration",
     "spring.jpa.hibernate.ddl-auto=none",
     "spring.sql.init.mode=always",
     "spring.sql.init.schema-locations=classpath:create-user-schema.sql"
@@ -73,7 +75,7 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
     @Autowired private ObjectMapper mapper;
     @Autowired private CreateUserAccountHandler handler;
     @Autowired private JwtToAuthenticatedEntraUserConverter converter;
-    @MockitoBean private EntraUserClient client;
+    @MockitoBean private TechServicesClient client;
     @MockitoBean(name = "jwtDecoder") private JwtDecoder decoder;
     private MockMvc mvc;
     private UUID actorId;
@@ -145,7 +147,10 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
 
     @Test
     void createsInitialProfileAndRetryReturnsExistingIdsWithoutProvisioningAgain() throws Exception {
-        when(client.createUser(any())).thenReturn(new EntraUserClient.Identity(identity, true));
+        when(client.createUser(any())).thenAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return new TechServicesClient.Identity(identity, true);
+        });
         var result = mvc.perform(authorizedPost(body()))
                 .andExpect(status().isCreated())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
@@ -179,7 +184,7 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
 
     @Test
     void singleFirmFlagIsPersisted() throws Exception {
-        when(client.createUser(any())).thenReturn(new EntraUserClient.Identity(identity, true));
+        when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, true));
         var body = body();
         body.put("multiFirmUser", false);
         mvc.perform(authorizedPost(body)).andExpect(status().isCreated());
@@ -244,14 +249,13 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"external", "inactive", "disabled", "noPermission", "notAuthzRole"})
+    @ValueSource(strings = {"external", "inactive", "disabled", "noPermission"})
     void rejectsActorsWithoutInternalDatabasePermissionDespiteForgedRoleClaims(String mode) throws Exception {
         switch (mode) {
             case "external" -> jdbc.update("update user_profile set user_type='EXTERNAL', firm_id=? where id=?", firm, actorProfile);
             case "inactive" -> jdbc.update("update user_profile set active_profile=false where id=?", actorProfile);
             case "disabled" -> jdbc.update("update entra_user set enabled=false where id=?", actorId);
             case "noPermission" -> jdbc.update("delete from role_permission where app_role_id=?", role);
-            case "notAuthzRole" -> jdbc.update("update app_role set authz_role=false where id=?", role);
             default -> throw new AssertionError(mode);
         }
         mvc.perform(authorizedPost(body()))
@@ -264,7 +268,17 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
     @Test
     void allowsEligibleInternalActorWithFirmScopedProfile() throws Exception {
         jdbc.update("update user_profile set firm_id=? where id=?", firm, actorProfile);
-        when(client.createUser(any())).thenReturn(new EntraUserClient.Identity(identity, true));
+        when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, true));
+
+        mvc.perform(authorizedPost(body())).andExpect(status().isCreated());
+
+        verify(client).createUser(any());
+    }
+
+    @Test
+    void allowsPermissionGrantedThroughNonAuthorizationRole() throws Exception {
+        jdbc.update("update app_role set authz_role=false where id=?", role);
+        when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, true));
 
         mvc.perform(authorizedPost(body())).andExpect(status().isCreated());
 
@@ -373,7 +387,7 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
 
     @Test
     void existingDownstreamIdentityReturnsConflictWithoutInventingProfileId() throws Exception {
-        when(client.createUser(any())).thenReturn(new EntraUserClient.Identity(identity, false));
+        when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, false));
         mvc.perform(authorizedPost(body())).andExpect(status().isConflict())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.success").value(false))
@@ -386,7 +400,7 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
     void profileInsertFailureRollsBackUserAndLogsRetainedIdentityWithCorrelation(CapturedOutput output) throws Exception {
         when(client.createUser(any())).thenAnswer(invocation -> {
             jdbc.update("delete from firm where id=?", firm);
-            return new EntraUserClient.Identity(identity, true);
+            return new TechServicesClient.Identity(identity, true);
         });
         var response = mvc.perform(authorizedPost(body())).andExpect(status().isInternalServerError())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
@@ -412,7 +426,7 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
                 execute function reject_user_creation_commit()
                 """.formatted(identity));
         try {
-            when(client.createUser(any())).thenReturn(new EntraUserClient.Identity(identity, true));
+            when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, true));
             var response = mvc.perform(authorizedPost(body())).andExpect(status().isInternalServerError())
                     .andExpect(jsonPath("$.detail").value("The user could not be stored locally"))
                     .andReturn().getResponse();
@@ -432,7 +446,7 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
         var actor = (AuthenticatedEntraUser) converter.convert(decoder.decode(stubToken("user_data.admin"))).getPrincipal();
         when(client.createUser(any())).thenAnswer(invocation -> {
             barrier.await(10, TimeUnit.SECONDS);
-            return new EntraUserClient.Identity(UUID.randomUUID(), true);
+            return new TechServicesClient.Identity(UUID.randomUUID(), true);
         });
         try (var executor = Executors.newFixedThreadPool(2)) {
             var first = executor.submit(() -> createOrConflict(command(), actor));

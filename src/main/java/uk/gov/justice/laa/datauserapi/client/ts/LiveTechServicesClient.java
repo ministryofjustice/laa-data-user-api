@@ -5,6 +5,9 @@ import static net.logstash.logback.argument.StructuredArguments.kv;
 import com.azure.core.credential.TokenRequestContext;
 import com.azure.identity.ClientSecretCredential;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +22,9 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import uk.gov.justice.laa.datauserapi.client.ts.request.ChangeAccountReactivationRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateUserDetailsRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
@@ -30,6 +36,7 @@ import uk.gov.justice.laa.datauserapi.client.ts.response.UpdateSecurityGroupsRes
 import uk.gov.justice.laa.datauserapi.config.CachingConfig;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
+import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -37,6 +44,12 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.net.SocketTimeoutException;
+import java.net.http.HttpTimeoutException;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 public class LiveTechServicesClient implements TechServicesClient {
@@ -52,6 +65,10 @@ public class LiveTechServicesClient implements TechServicesClient {
     private String laaBusinessUnit;
     @Value("${spring.security.tech.services.credentials.scope}")
     private String accessTokenRequestScope;
+    @Value("${app.tech.services.verification-method:activation_code_email}")
+    private String verificationMethod;
+    @Value("${app.laa.default.user.access.security.group:}")
+    private String defaultSecurityGroup;
 
     public LiveTechServicesClient(ClientSecretCredential clientSecretCredential, RestClient restClient, ObjectMapper objectMapper,
                                   CacheManager cacheManager, @Qualifier("tokenExpiryJwtDecoder") JwtDecoder jwtDecoder) {
@@ -60,6 +77,74 @@ public class LiveTechServicesClient implements TechServicesClient {
         this.objectMapper = objectMapper;
         this.cacheManager = cacheManager;
         this.jwtDecoder = jwtDecoder;
+    }
+
+    @Override
+    public Identity createUser(Registration command) {
+        if (defaultSecurityGroup == null || defaultSecurityGroup.isBlank()) {
+            throw new CreateUserException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Identity provisioning has no default access security group configured");
+        }
+        final String token;
+        try {
+            token = getAccessToken();
+        } catch (RuntimeException ex) {
+            throw new CreateUserException(isTimeout(ex) ? HttpStatus.GATEWAY_TIMEOUT : HttpStatus.SERVICE_UNAVAILABLE,
+                    "Identity provider authentication failed", ex);
+        }
+        if (token == null || token.isBlank()) {
+            throw new CreateUserException(HttpStatus.BAD_GATEWAY, "Identity provider authentication returned no token");
+        }
+        try {
+            ResponseEntity<String> response = restClient.post().uri("/{businessUnit}/users", laaBusinessUnit)
+                    .headers(headers -> headers.setBearerAuth(token))
+                    .body(Map.of("givenName", command.firstName(), "surname", command.lastName(),
+                            "mail", command.email(), "verification_method", verificationMethod,
+                            "groups", Set.of(defaultSecurityGroup)))
+                    .retrieve().toEntity(String.class);
+            if (response.getStatusCode().value() != 201 && response.getStatusCode().value() != 200) {
+                throw new CreateUserException(HttpStatus.BAD_GATEWAY, "Identity provider returned an unexpected status");
+            }
+            return parseIdentity(response.getBody(), response.getStatusCode().value() == 201);
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().value() == 409) {
+                throw new CreateUserException(HttpStatus.CONFLICT, "Identity provider reported an existing user", ex);
+            }
+            throw new CreateUserException(HttpStatus.BAD_GATEWAY, "Identity provider returned an unexpected response", ex);
+        } catch (ResourceAccessException ex) {
+            throw new CreateUserException(isTimeout(ex) ? HttpStatus.GATEWAY_TIMEOUT : HttpStatus.SERVICE_UNAVAILABLE,
+                    isTimeout(ex) ? "Identity provider did not respond in time" : "Identity provider is unreachable", ex);
+        } catch (RestClientException ex) {
+            throw new CreateUserException(HttpStatus.BAD_GATEWAY, "Identity provider returned an invalid response", ex);
+        }
+    }
+
+    private Identity parseIdentity(String body, boolean created) {
+        try {
+            JsonNode response = body == null ? null : objectMapper.reader()
+                    .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readTree(body);
+            if (response == null || !response.path("success").isBoolean() || !response.path("success").booleanValue()) {
+                throw new CreateUserException(HttpStatus.BAD_GATEWAY, "Identity provider returned an invalid response");
+            }
+            String id = response.path("user").path("id").asText("");
+            UUID oid = UUID.fromString(id);
+            if (!oid.toString().equalsIgnoreCase(id)) {
+                throw new IllegalArgumentException("Non-canonical identity ID");
+            }
+            return new Identity(oid, created);
+        } catch (JsonProcessingException | IllegalArgumentException ex) {
+            throw new CreateUserException(HttpStatus.BAD_GATEWAY, "Identity provider returned an invalid identity", ex);
+        }
+    }
+
+    private boolean isTimeout(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SocketTimeoutException || cause instanceof HttpTimeoutException
+                    || cause instanceof TimeoutException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

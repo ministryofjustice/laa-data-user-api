@@ -6,9 +6,16 @@ import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledRes
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
+import org.springframework.http.HttpStatus;
+import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 
 @Slf4j
 public class DoNothingTechServicesClient implements TechServicesClient {
+
+    @Override
+    public Identity createUser(Registration registration) {
+        throw new CreateUserException(HttpStatus.SERVICE_UNAVAILABLE, "Identity provisioning is disabled");
+    }
 
     @Override
     public TechServicesApiResponse<ChangeAccountReactivationResponse> reactivateUser(EntraUserDto user) {
