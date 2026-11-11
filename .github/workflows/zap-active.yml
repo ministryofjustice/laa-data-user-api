@@ -37,6 +37,7 @@ jobs:
     env:
       APP_URL: http://localhost:8080
       ZAP_TEST_OID: 00000000-0000-0000-0000-000000000001
+      ZAP_TEST_FIRM_CODE: '900001'
       ZAP_AUTH_TOKEN: oid__00000000-0000-0000-0000-000000000001_scope__user_data.read
 
     steps:
@@ -133,7 +134,7 @@ jobs:
           tail -n 100 build/zap/app.log
           exit 1
 
-      - name: Seed local test identity
+      - name: Seed local scan fixtures
         env:
           PGPASSWORD: zap
         run: |
@@ -155,24 +156,31 @@ jobs:
           INSERT INTO user_profile_app_role (user_profile_id, app_role_id)
           SELECT '$ZAP_TEST_OID', id FROM app_role
           WHERE role_identifier IN ('Internal User Viewer', 'External User Viewer');
+          INSERT INTO firm (id, name, code, type, enabled)
+          VALUES ('00000000-0000-0000-0000-000000000002', 'ZAP Scan Firm',
+                  '$ZAP_TEST_FIRM_CODE', 'ADVOCATE', true);
+          INSERT INTO office (id, firm_id, code, address_line_1, city, post_code)
+          VALUES ('00000000-0000-0000-0000-000000000003',
+                  '00000000-0000-0000-0000-000000000002', '900002',
+                  '1 Test Street', 'Test City', 'TE1 1ST');
+          INSERT INTO user_account_status_audit (
+            id, entra_user_id, status_changed_date, status_changed_by,
+            status_change, user_email, user_name, disable_user_reason_id
+          ) VALUES (
+            '00000000-0000-0000-0000-000000000004', '$ZAP_TEST_OID',
+            CURRENT_TIMESTAMP - INTERVAL '1 day', 'zap-active-scan', 'DEACTIVATED',
+            'zap-scan@example.invalid', 'ZAP Scan',
+            (SELECT id FROM disable_user_reason WHERE name = 'Absence')
+          );
           SQL
-
-      - name: Check authenticated scan routes
-        run: |
-          for route in /api/v1/me /api/v1/queries/firms /api/v1/queries/users; do
-            status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 30 \
-              --header "Authorization: Bearer $ZAP_AUTH_TOKEN" "$APP_URL$route")
-            if [ "$status" != "200" ]; then
-              echo "::error::Synthetic test identity cannot access $route (HTTP $status)."
-              exit 1
-            fi
-          done
 
       - name: Prepare ZAP plan
         run: |
+          envsubst '${ZAP_AUTH_TOKEN} ${ZAP_TEST_OID} ${ZAP_TEST_FIRM_CODE}' \
+            < .github/zap/active-scan-plan.yaml > build/zap/plan.yaml
           ruby -r yaml -r json <<'RUBY'
           spec = YAML.load_file('laa-data-user.yml')
-          plan = YAML.load_file('.github/zap/active-scan-plan.yaml')
+          plan = YAML.load_file('build/zap/plan.yaml')
           context = plan.fetch('env').fetch('contexts').first
           target = context.fetch('urls').first
           scope = context.fetch('includePaths').map { |pattern| Regexp.new(pattern) }
@@ -184,12 +192,38 @@ jobs:
           end
           raise 'No in-scope GET operations found in the OpenAPI specification' if spec['paths'].empty?
 
+          parameters = spec.fetch('components').fetch('parameters').values
+          spec['paths'].each_value do |item|
+            parameters.concat(item.fetch('parameters', []))
+            parameters.concat(item.fetch('get').fetch('parameters', []))
+          end
+          parameters.each do |parameter|
+            schema = parameter['schema']
+            next unless schema
+
+            if parameter['name'] == 'sort_by'
+              schema.fetch('items')['default'] = 'lastName,asc'
+              next
+            end
+            value = case parameter['name']
+                    when 'firmId', 'firm_id' then ENV.fetch('ZAP_TEST_FIRM_CODE')
+                    when 'query', 'firm', 'user' then 'ZAP'
+                    when 'email_query' then 'zap-scan@example.invalid'
+                    else ENV.fetch('ZAP_TEST_OID') if schema['format'] == 'uuid'
+                    end
+            schema['default'] = value unless value.nil?
+          end
           spec['servers'] = [{ 'url' => target }]
           File.write('build/zap/openapi-read-only.json', JSON.pretty_generate(spec))
+          requests = plan.fetch('jobs').find { |job| job['type'] == 'requestor' }.fetch('requests')
+          File.write('build/zap/read-baseline-requests.json', JSON.pretty_generate(requests))
           puts "Prepared #{spec['paths'].length} in-scope OpenAPI GET operations for #{target}"
           RUBY
-          envsubst '${ZAP_AUTH_TOKEN}' < .github/zap/active-scan-plan.yaml > build/zap/plan.yaml
           chmod 777 build/zap
+
+      - name: Check authenticated scan routes
+        id: read_baseline
+        run: python3 .github/scripts/zap_read_baseline.py
 
       - name: Run ZAP active scan
         id: zap_scan
@@ -272,6 +306,7 @@ jobs:
             build/zap/zap-active-summary.md
             build/zap/zap-active-endpoints.txt
             build/zap/zap-active-query-patterns.md
+            build/zap/zap-read-baseline.md
             build/zap/app.log
           if-no-files-found: warn
           retention-days: 14

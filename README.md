@@ -535,10 +535,19 @@ The workflow imports [the OpenAPI specification](laa-data-user.yml) into ZAP aft
 filtering it to GET operations within the existing `/api/v1/me` and
 `/api/v1/queries/**` scope. The generated specification targets only the local API;
 write operations are removed before import because importing sends requests.
-The six explicit requests remain as supplemental seeds, including known test-user
-IDs. Imported operations use the same local bearer token. Discovery does not
-guarantee successful responses: endpoints needing other records or permissions
-may return errors until representative test data is added.
+Eleven explicit requests cover the implemented read routes using the seeded user,
+active profile, firm, office and account audit event. Before ZAP starts, every
+baseline GET must return HTTP 200; failures stop scanning and appear in the run
+summary and `zap-read-baseline.md` artifact. The OpenAPI import uses local fixture
+defaults for UUIDs, firm codes, search terms and sorting rather than placeholder
+parameter names. Imported operations use the same local bearer token.
+
+The checked-in specification also describes routes without controllers in this
+application, including standalone user-profile queries, app/role queries and
+audit export/deleted-user queries. These remain in the OpenAPI scan and can still
+produce errors; fixtures cannot make an unimplemented route succeed. They are
+not part of the eleven-route successful baseline. Active attack payloads may
+also legitimately produce error responses after the baseline succeeds.
 
 The GitHub run summary includes alert totals, individual findings and rule IDs,
 the post-scan authentication check, and observed endpoint/response-code coverage.

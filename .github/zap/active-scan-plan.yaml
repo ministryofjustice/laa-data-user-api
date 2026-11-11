@@ -32,7 +32,7 @@ jobs:
       targetUrl: http://localhost:8080
       context: data-user-api
 
-  # Supplement OpenAPI discovery with known routes and seeded identity values.
+  # These implemented routes must return 200 before scanning starts.
   - type: requestor
     requests:
       - url: http://localhost:8080/api/v1/me
@@ -43,9 +43,19 @@ jobs:
         method: GET
       - url: http://localhost:8080/api/v1/queries/users
         method: GET
-      - url: http://localhost:8080/api/v1/queries/users/00000000-0000-0000-0000-000000000001/status
+      - url: http://localhost:8080/api/v1/queries/users/${ZAP_TEST_OID}/status
         method: GET
-      - url: http://localhost:8080/api/v1/queries/audit/users/00000000-0000-0000-0000-000000000001/history
+      - url: http://localhost:8080/api/v1/queries/audit/users/${ZAP_TEST_OID}/history
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/users/${ZAP_TEST_OID}
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/users/${ZAP_TEST_OID}/profiles
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/users/${ZAP_TEST_OID}/active-profile
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/firms/${ZAP_TEST_FIRM_CODE}
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/firms/${ZAP_TEST_FIRM_CODE}/offices
         method: GET
 
   - type: passiveScan-wait
