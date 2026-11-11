@@ -132,6 +132,17 @@ class UserProfileAccessQueryRepositoryTest {
     }
 
     @Test
+    void entraClientIdFilterIgnoresTheCaseOfTheStoredValue() {
+        UUID mixedCaseClient = UUID.fromString("abcdef00-0000-0000-0000-00000000abcd");
+        jdbc.update("UPDATE app SET entra_app_id = ? WHERE id = ?", mixedCaseClient.toString().toUpperCase(), APP_B);
+
+        List<AppRole> roles = repository.findAppRolesByProfileId(
+                PROFILE_ID, null, mixedCaseClient.toString(), PageRequest.ofSize(500));
+
+        assertThat(roles).extracting(AppRole::getName).containsExactly("B role");
+    }
+
+    @Test
     void appRolesFilteredByAnAppTheProfileDoesNotHoldAreEmpty() {
         assertThat(repository.findAppRolesByProfileId(PROFILE_ID, APP_OF_OTHER_PROFILE, null, PageRequest.ofSize(500)))
                 .isEmpty();
@@ -144,7 +155,7 @@ class UserProfileAccessQueryRepositoryTest {
 
     @Test
     void appsAreDistinctActiveAndDerivedFromAssignedRoles() {
-        List<AppView> apps = repository.findActiveAppsByProfileId(PROFILE_ID, PageRequest.ofSize(100));
+        List<AppView> apps = repository.findEnabledAppsByProfileId(PROFILE_ID, PageRequest.ofSize(100));
 
         assertThat(apps).extracting(AppView::name).containsExactly("App A", "App B");
         assertThat(apps.getFirst().appId()).isEqualTo(APP_A.toString());
@@ -156,7 +167,7 @@ class UserProfileAccessQueryRepositoryTest {
     void appsAreEmptyWhenNoRolesAreAssigned() {
         jdbc.update("DELETE FROM user_profile_app_role WHERE user_profile_id = ?", PROFILE_ID);
 
-        assertThat(repository.findActiveAppsByProfileId(PROFILE_ID, PageRequest.ofSize(100))).isEmpty();
+        assertThat(repository.findEnabledAppsByProfileId(PROFILE_ID, PageRequest.ofSize(100))).isEmpty();
     }
 
     @Test

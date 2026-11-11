@@ -1,6 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyentrauser;
 
 import org.springframework.stereotype.Component;
+import uk.gov.justice.laa.datauserapi.application.query.mapper.AppRoleRestrictionMapper;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
@@ -9,7 +10,6 @@ import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.OfficeDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -59,10 +59,8 @@ public class GetActiveProfileQueryMapper {
                 role.getRoleIdentifier(),
                 role.isLegacySync(),
                 role.getOrdinal(),
-                role.getUserTypeRestriction() == null || Arrays.stream(role.getUserTypeRestriction()).distinct().count() != 1
-                        ? "BOTH" : role.getUserTypeRestriction()[0].name(),
-                role.getFirmTypeRestriction() != null
-                        ? Arrays.stream(role.getFirmTypeRestriction()).map(Enum::name).toList() : List.of()
+                AppRoleRestrictionMapper.toUserTypeRestriction(role.getUserTypeRestriction()),
+                AppRoleRestrictionMapper.toFirmTypeRestrictions(role.getFirmTypeRestriction())
         );
     }
 

@@ -15,13 +15,13 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
 import uk.gov.justice.laa.datauserapi.application.query.dto.UserProfileAccessTarget;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserProfileAccessQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileAccessQueryRepository;
-import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppRoleViewList;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppViewList;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
+import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
 
 /**
@@ -54,14 +54,13 @@ public class UserProfileAccessQueryService {
                                        AuthenticatedEntraUser actor) {
         requireVisibleProfile(userProfileId, actor);
         String clientId = appEntraClientId == null ? null : appEntraClientId.toString();
-        List<AppRoleView> roles = mapper.toAppRoleViews(
-                repository.findAppRolesByProfileId(userProfileId, appId, clientId, limit(MAX_APP_ROLES)));
-        return new AppRoleViewList(roles);
+        List<AppRole> roles = repository.findAppRolesByProfileId(userProfileId, appId, clientId, limit(MAX_APP_ROLES));
+        return new AppRoleViewList(mapper.toAppRoleViews(roles));
     }
 
     public AppViewList getApps(UUID userProfileId, AuthenticatedEntraUser actor) {
         requireVisibleProfile(userProfileId, actor);
-        List<AppView> apps = repository.findActiveAppsByProfileId(userProfileId, limit(MAX_APPS));
+        List<AppView> apps = repository.findEnabledAppsByProfileId(userProfileId, limit(MAX_APPS));
         return new AppViewList(apps);
     }
 

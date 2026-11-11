@@ -35,7 +35,7 @@ public interface UserProfileAccessQueryRepository extends Repository<UserProfile
         JOIN FETCH ar.app a
         WHERE up.id = :profileId
             AND (:appId IS NULL OR a.id = :appId)
-            AND (:appEntraClientId IS NULL OR a.entraAppId = :appEntraClientId)
+            AND (:appEntraClientId IS NULL OR LOWER(a.entraAppId) = :appEntraClientId)
         ORDER BY a.ordinal, a.name, ar.ordinal, ar.name, ar.id
         """)
     List<AppRole> findAppRolesByProfileId(
@@ -56,7 +56,7 @@ public interface UserProfileAccessQueryRepository extends Repository<UserProfile
                 WHERE up.id = :profileId)
         ORDER BY a.ordinal, a.name, a.id
         """)
-    List<AppView> findActiveAppsByProfileId(@Param("profileId") UUID profileId, Pageable pageable);
+    List<AppView> findEnabledAppsByProfileId(@Param("profileId") UUID profileId, Pageable pageable);
 
     @Query("""
         SELECT new uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView(

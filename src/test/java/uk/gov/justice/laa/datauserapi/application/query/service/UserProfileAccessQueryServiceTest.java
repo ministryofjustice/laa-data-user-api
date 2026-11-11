@@ -64,7 +64,7 @@ class UserProfileAccessQueryServiceTest {
 
         assertThat(result).isEqualTo(expected);
         ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(repository).findActiveAppsByProfileId(eq(PROFILE_ID), pageable.capture());
+        verify(repository).findEnabledAppsByProfileId(eq(PROFILE_ID), pageable.capture());
         assertThat(pageable.getValue().getPageSize()).isEqualTo(UserProfileAccessQueryService.MAX_APPS);
     }
 
@@ -187,7 +187,7 @@ class UserProfileAccessQueryServiceTest {
     @Test
     void emptyResultsAreReturnedAsEmptyLists() {
         stubTarget(UserType.EXTERNAL, FIRM_ID, false);
-        when(repository.findActiveAppsByProfileId(eq(PROFILE_ID), any())).thenReturn(List.of());
+        when(repository.findEnabledAppsByProfileId(eq(PROFILE_ID), any())).thenReturn(List.of());
         when(repository.findAssignedOfficesByProfileId(eq(PROFILE_ID), eq(FIRM_ID), any())).thenReturn(List.of());
 
         assertThat(service().getApps(PROFILE_ID, externalActor(FIRM_ID)).items()).isEmpty();
@@ -204,7 +204,7 @@ class UserProfileAccessQueryServiceTest {
         stubTarget(type, firmId, false);
         AppView app = new AppView(UUID.randomUUID().toString(), "App", "Description", "https://app", true, 1,
                 UUID.randomUUID().toString(), UUID.randomUUID().toString());
-        when(repository.findActiveAppsByProfileId(eq(PROFILE_ID), any())).thenReturn(List.of(app));
+        when(repository.findEnabledAppsByProfileId(eq(PROFILE_ID), any())).thenReturn(List.of(app));
         return new AppViewList(List.of(app));
     }
 
