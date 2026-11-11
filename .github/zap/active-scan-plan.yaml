@@ -26,7 +26,13 @@ jobs:
         replacementString: "Bearer ${ZAP_AUTH_TOKEN}"
         initiators: []
 
-  # Seed read-only API routes; active scanning is scoped to these query endpoints.
+  - type: openapi
+    parameters:
+      apiFile: /zap/wrk/openapi-read-only.json
+      targetUrl: http://localhost:8080
+      context: data-user-api
+
+  # Supplement OpenAPI discovery with known routes and seeded identity values.
   - type: requestor
     requests:
       - url: http://localhost:8080/api/v1/me

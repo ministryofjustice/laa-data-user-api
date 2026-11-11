@@ -531,8 +531,18 @@ User Viewer roles. It checks access to the user and firm query routes before
 scanning them with the local-profile read-scope test token. No deployed database is
 used.
 
-Slack summaries use `ZAP_SLACK_WEBHOOK_URL`; if it is unavailable, notification is
-skipped.
+The workflow imports [the OpenAPI specification](laa-data-user.yml) into ZAP after
+filtering it to GET operations within the existing `/api/v1/me` and
+`/api/v1/queries/**` scope. The generated specification targets only the local API;
+write operations are removed before import because importing sends requests.
+The six explicit requests remain as supplemental seeds, including known test-user
+IDs. Imported operations use the same local bearer token. Discovery does not
+guarantee successful responses: endpoints needing other records or permissions
+may return errors until representative test data is added.
+
+Only scheduled runs send Slack summaries; manual (`workflow_dispatch`) runs do
+not notify Slack. Summaries use `ZAP_SLACK_WEBHOOK_URL`; if it is unavailable,
+notification is skipped.
 
 ## TODO 
 
