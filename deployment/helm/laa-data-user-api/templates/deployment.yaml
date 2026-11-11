@@ -18,8 +18,10 @@ spec:
     metadata:
       labels:
         app: laa-data-user-api
+      {{- if .Values.authorization.opaEnabled }}
       annotations:
         laa-data-user-api/opa-bundle-ref: {{ .Values.opa.bundleRef | quote }}
+      {{- end }}
     spec:
       securityContext:
         runAsUser: 10000
@@ -124,6 +126,7 @@ spec:
               port: 8080
             failureThreshold: 15
             periodSeconds: 10
+        {{- if .Values.authorization.opaEnabled }}
         - name: opa
           image: "{{ .Values.opa.image }}"
           imagePullPolicy: IfNotPresent
@@ -131,9 +134,20 @@ spec:
             - run
             - --server
             - --addr=127.0.0.1:8181
+            - --diagnostic-addr=0.0.0.0:8182
             - --bundle
             - /bundle/bundle.tar.gz
             - --log-format=json
+          ports:
+            - name: opa-diagnostics
+              containerPort: 8182
+          readinessProbe:
+            httpGet:
+              path: /health?bundles=true
+              port: opa-diagnostics
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 1
           securityContext:
             runAsUser: 10000
             runAsNonRoot: true
@@ -162,3 +176,4 @@ spec:
         - name: opa-bundle
           configMap:
             name: laa-data-user-api-opa-bundle-{{ .Values.opa.bundleRef | sha256sum | trunc 12 }}
+        {{- end }}

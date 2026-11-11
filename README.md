@@ -209,6 +209,11 @@ When both engines are enabled, both policy sets run. Disabling legacy policies s
 that declare an enabled OPA replacement; legacy policies remain enforced for commands without one. If OPA is
 disabled, legacy policies are automatically enabled as a fallback. Declared permissions and OAuth scope checks
 remain active whichever policy engine is enabled.
+Setting the Helm value `authorization.opaEnabled=false` also omits the OPA sidecar, bundle ConfigMap,
+bundle annotation, and OPA volumes, so Java-only deployments do not require a policy bundle.
+When enabled, OPA's readiness probe checks `/health?bundles=true` on a separate diagnostic listener
+on port 8182. The pod is not Ready if OPA is unresponsive or its bundle is not ready; the policy API
+remains bound to loopback on port 8181.
 
 Locally, start OPA with the policy directory before running the API:
 
