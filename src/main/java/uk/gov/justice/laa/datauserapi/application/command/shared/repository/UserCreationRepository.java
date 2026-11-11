@@ -2,8 +2,8 @@ package uk.gov.justice.laa.datauserapi.application.command.shared.repository;
 
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
+import uk.gov.justice.laa.datauserapi.application.command.dto.UserAccountCreationData;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.CreateUserAccountCommand;
-import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResponse;
 
 import java.util.Optional;
 import java.util.List;
@@ -23,7 +23,7 @@ public class UserCreationRepository {
                 .setParameter("firmId", firmId).getSingleResult());
     }
 
-    public Optional<CreateUserAccountResponse> findExisting(String email) {
+    public Optional<UserAccountCreationData> findExisting(String email) {
         List<?> rows = entityManager.createNativeQuery("""
                 select eu.entra_oid, up.id as profile_id
                 from entra_user eu left join user_profile up on up.entra_user_id = eu.id
@@ -35,8 +35,7 @@ public class UserCreationRepository {
             return Optional.empty();
         }
         Object[] row = (Object[]) rows.getFirst();
-        return Optional.of(new CreateUserAccountResponse(false, "User already exists",
-                (String) row[0], (UUID) row[1]));
+        return Optional.of(new UserAccountCreationData((String) row[0], (UUID) row[1]));
     }
 
     public void lockEmail(String email) {
@@ -45,7 +44,7 @@ public class UserCreationRepository {
                 .setParameter("email", email).getSingleResult();
     }
 
-    public CreateUserAccountResponse insert(CreateUserAccountCommand command, UUID entraOid, String actorOid) {
+    public UserAccountCreationData insert(CreateUserAccountCommand command, UUID entraOid, String actorOid) {
         UUID userId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
         entityManager.createNativeQuery("""
@@ -67,6 +66,6 @@ public class UserCreationRepository {
                 """).setParameter("id", profileId).setParameter("actor", actorOid)
                 .setParameter("userId", userId).setParameter("firmId", UUID.fromString(command.firmId()))
                 .setParameter("legacyId", UUID.randomUUID()).executeUpdate();
-        return new CreateUserAccountResponse(true, "User created", entraOid.toString(), profileId);
+        return new UserAccountCreationData(entraOid.toString(), profileId);
     }
 }

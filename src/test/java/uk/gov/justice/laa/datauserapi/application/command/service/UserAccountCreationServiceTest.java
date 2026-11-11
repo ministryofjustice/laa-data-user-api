@@ -7,6 +7,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.TransactionSystemException;
+import uk.gov.justice.laa.datauserapi.application.command.dto.UserAccountCreationData;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.UserAccountCreationMapper;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserCreationRepository;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.CreateUserAccountCommand;
@@ -36,12 +38,13 @@ class UserAccountCreationServiceTest {
     private final String actor = UUID.randomUUID().toString();
     private final UUID firm = UUID.randomUUID();
     private final UUID identity = UUID.randomUUID();
+    private final UserAccountCreationMapper mapper = new UserAccountCreationMapper();
     private final CreateUserAccountCommand command = new CreateUserAccountCommand(
             "Person@Example.com", "First", "Last", "EXTERNAL", true, firm.toString());
 
     @BeforeEach
     void setUp() {
-        service = new UserAccountCreationService(repository, client, persistence);
+        service = new UserAccountCreationService(repository, client, persistence, mapper);
     }
 
     private void provision() {
@@ -61,8 +64,9 @@ class UserAccountCreationServiceTest {
 
     @Test
     void returnsExistingLocalIdsWithoutCallingDownstream() {
-        var existing = new CreateUserAccountResponse(false, "Already exists", identity.toString(), UUID.randomUUID());
-        when(repository.findExisting("person@example.com")).thenReturn(Optional.of(existing));
+        var existing = new CreateUserAccountResponse(false, "User already exists", identity.toString(), UUID.randomUUID());
+        when(repository.findExisting("person@example.com")).thenReturn(
+                Optional.of(new UserAccountCreationData(identity.toString(), existing.userProfileId())));
         assertThatThrownBy(() -> service.create(command, actor))
                 .isInstanceOfSatisfying(UserAlreadyExistsException.class, ex -> assertThat(ex.result()).isEqualTo(existing));
         verifyNoInteractions(client, persistence);
@@ -72,7 +76,7 @@ class UserAccountCreationServiceTest {
     void normalizesEmailAndCommitsBothLocalRecords() {
         provision();
         var normalized = new CreateUserAccountCommand("person@example.com", "First", "Last", "EXTERNAL", true, firm.toString());
-        var expected = new CreateUserAccountResponse(true, "Created", identity.toString(), UUID.randomUUID());
+        var expected = new CreateUserAccountResponse(true, "User created", identity.toString(), UUID.randomUUID());
         when(persistence.create(normalized, identity, actor)).thenReturn(expected);
 
         assertThat(service.create(command, actor)).isEqualTo(expected);
@@ -98,7 +102,8 @@ class UserAccountCreationServiceTest {
     @Test
     void rollsBackLateConflictAndRetainsProvisionedIdentity() {
         provision();
-        var existing = new CreateUserAccountResponse(false, "Already exists", UUID.randomUUID().toString(), UUID.randomUUID());
+        var existing = new CreateUserAccountResponse(false, "User already exists",
+                UUID.randomUUID().toString(), UUID.randomUUID());
         when(persistence.create(any(), any(), any())).thenThrow(new UserAlreadyExistsException(existing));
         assertThatThrownBy(() -> service.create(command, actor)).isInstanceOf(UserAlreadyExistsException.class);
         verify(repository, never()).insert(any(), any(), any());
