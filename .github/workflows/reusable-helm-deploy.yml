@@ -120,10 +120,15 @@ jobs:
       - name: Resolve OPA deployment setting
         id: opa-setting
         run: |
-          OPA_ENABLED="$(yq eval-all '. as $item ireduce ({}; . * $item) | .authorization.opaEnabled | select(tag == "!!bool")' \
+          AUTHORIZATION="$(yq eval-all '. as $item ireduce ({}; . * $item) | .authorization' \
             deployment/helm/laa-data-user-api/values.yaml \
             "deployment/helm/laa-data-user-api/values-${HELM_VALUES_ENV}.yaml" \
             deployment/helm/laa-data-user-api/values-secrets.generated.yaml)"
+          if [ "$(printf '%s\n' "$AUTHORIZATION" | yq 'has("opaEnabled")' -)" = false ]; then
+            OPA_ENABLED=false
+          else
+            OPA_ENABLED="$(printf '%s\n' "$AUTHORIZATION" | yq '.opaEnabled | select(tag == "!!bool")' -)"
+          fi
           case "$OPA_ENABLED" in
             true|false) echo "enabled=${OPA_ENABLED}" >> "$GITHUB_OUTPUT" ;;
             *) echo "::error::authorization.opaEnabled must be true or false"; exit 1 ;;
