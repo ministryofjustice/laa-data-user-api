@@ -540,6 +540,14 @@ IDs. Imported operations use the same local bearer token. Discovery does not
 guarantee successful responses: endpoints needing other records or permissions
 may return errors until representative test data is added.
 
+The GitHub run summary includes alert totals, individual findings and rule IDs,
+the post-scan authentication check, and observed endpoint/response-code coverage.
+The report artifact also includes `zap-active-summary.md`,
+`zap-active-endpoints.txt` and `zap-active-query-patterns.md`. Coverage is based on
+ZAP's Sites Tree, not proof that every endpoint received every active rule.
+Query values are omitted and numeric/UUID path segments are normalized; raw Sites
+Tree exports are deleted after summarizing. Missing coverage is reported as unknown.
+
 Only scheduled runs send Slack summaries; manual (`workflow_dispatch`) runs do
 not notify Slack. Summaries use `ZAP_SLACK_WEBHOOK_URL`; if it is unavailable,
 notification is skipped.

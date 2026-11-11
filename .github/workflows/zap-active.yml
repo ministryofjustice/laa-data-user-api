@@ -200,6 +200,7 @@ jobs:
             zap.sh -cmd -port 8090 -autorun /zap/wrk/plan.yaml
 
       - name: Check authenticated read endpoint
+        id: auth_check
         if: ${{ always() && steps.zap_scan.outcome != 'skipped' }}
         run: |
           status=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 30 \
@@ -211,30 +212,16 @@ jobs:
 
       - name: Summarise findings
         if: ${{ always() && hashFiles('build/zap/zap-active-report.json') != '' }}
+        env:
+          AUTH_STATUS: ${{ steps.auth_check.outcome }}
         run: |
-          report=build/zap/zap-active-report.json
-          summary_rows=build/zap/summary-rows.md
-          : > "$summary_rows"
-          for entry in "3:HIGH" "2:MEDIUM" "1:LOW" "0:INFO"; do
-            code=${entry%%:*}
-            name=${entry##*:}
-            instances=$(jq --arg code "$code" \
-              '[.site[]?.alerts[]? | select((.riskcode | tostring) == $code) | (.count // (.instances | length) | tonumber)] | add // 0' \
-              "$report")
-            types=$(jq --arg code "$code" \
-              '[.site[]?.alerts[]? | select((.riskcode | tostring) == $code)] | length' \
-              "$report")
-            echo "ZAP_${name}_INSTANCES=$instances" >> "$GITHUB_ENV"
-            echo "ZAP_${name}_TYPES=$types" >> "$GITHUB_ENV"
-            echo "| $name | $instances | $types |" >> "$summary_rows"
-          done
-          {
-            echo "## ZAP active scan"
-            echo
-            echo "| Risk | Alert instances | Alert types |"
-            echo "| --- | ---: | ---: |"
-            cat "$summary_rows"
-          } >> "$GITHUB_STEP_SUMMARY"
+          trap 'rm -f build/zap/sites-tree.yaml build/zap/sites-tree.json' EXIT
+          if [ -f build/zap/sites-tree.yaml ]; then
+            ruby -r yaml -r json -e 'puts JSON.generate(YAML.load_file(ARGV[0]))' \
+              build/zap/sites-tree.yaml > build/zap/sites-tree.json
+          fi
+          python3 .github/scripts/zap_active_summary.py
+          cat build/zap/zap-active-summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check Slack notification configuration
         id: slack_config
@@ -269,7 +256,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Scan step:* ${{ steps.zap_scan.outcome }}\n*Findings (alert instances):*\n• High: ${{ env.ZAP_HIGH_INSTANCES }} (${{ env.ZAP_HIGH_TYPES }} alert types)\n• Medium: ${{ env.ZAP_MEDIUM_INSTANCES }} (${{ env.ZAP_MEDIUM_TYPES }} alert types)\n• Low: ${{ env.ZAP_LOW_INSTANCES }} (${{ env.ZAP_LOW_TYPES }} alert types)\n• Informational: ${{ env.ZAP_INFO_INSTANCES }} (${{ env.ZAP_INFO_TYPES }} alert types)\n\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View full report>"
+                    "text": "*Scan step:* ${{ steps.zap_scan.outcome }}\n*Findings (alert instances):*\n• High: ${{ env.ZAP_HIGH_INSTANCES }} (${{ env.ZAP_HIGH_TYPES }} alert types)\n• Medium: ${{ env.ZAP_MEDIUM_INSTANCES }} (${{ env.ZAP_MEDIUM_TYPES }} alert types)\n• Low: ${{ env.ZAP_LOW_INSTANCES }} (${{ env.ZAP_LOW_TYPES }} alert types)\n• Informational: ${{ env.ZAP_INFO_INSTANCES }} (${{ env.ZAP_INFO_TYPES }} alert types)\n\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View full report and coverage>"
                   }
                 }
               ]
@@ -282,6 +269,9 @@ jobs:
           name: zap-active-report
           path: |
             build/zap/zap-active-report.*
+            build/zap/zap-active-summary.md
+            build/zap/zap-active-endpoints.txt
+            build/zap/zap-active-query-patterns.md
             build/zap/app.log
           if-no-files-found: warn
           retention-days: 14

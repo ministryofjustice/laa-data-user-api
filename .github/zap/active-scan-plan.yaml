@@ -87,3 +87,11 @@ jobs:
       - high
       - medium
       - low
+
+  # Export coverage last so it cannot prevent report generation.
+  - type: export
+    parameters:
+      context: data-user-api
+      type: yaml
+      source: sitestree
+      fileName: /zap/wrk/sites-tree.yaml
