@@ -36,8 +36,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.warn("Resource not found",
                 kv("exceptionMessage", ex.getMessage()),
-                kv("requestUri", request.getRequestURI()),
-                ex);
+                kv("requestUri", request.getRequestURI()));
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/not-found"),
                 "Resource Not Found",
@@ -216,8 +215,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.warn("Request parameter type validation failed",
                 kv("parameterName", ex.getName()),
-                kv("requestUri", request.getRequestURI()),
-                ex);
+                kv("requestUri", request.getRequestURI()));
 
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
