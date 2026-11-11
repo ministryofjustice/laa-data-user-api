@@ -3,6 +3,7 @@ package uk.gov.justice.laa.datauserapi.application.command.service;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import org.modelmapper.ModelMapper;
@@ -17,6 +18,7 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
+import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 import uk.gov.justice.laa.datauserapi.exception.UserNotDeactivatedException;
 import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
@@ -56,34 +58,32 @@ public class UserAccountLifecycleService {
         return modelMapper.map(load(userEntraObjectId), EntraUserDto.class);
     }
 
-    @Transactional(propagation = Propagation.MANDATORY)
-    public LockedUserForReactivation loadUserForReactivation(UUID userEntraObjectId) {
-        EntraUser user = loadForUpdate(userEntraObjectId);
-        if (user.isActive()) {
-            throw new UserNotDeactivatedException(userEntraObjectId);
-        }
-        return new LockedUserForReactivation(
-                modelMapper.map(user, EntraUserDto.class), user.getDeactivationType());
-    }
-
     /** Runs the outbound step under the row lock before mutating the same managed entity. */
     @Transactional(propagation = Propagation.MANDATORY)
     public CommandResult deactivate(UUID userEntraObjectId, String actorEntraOid,
                                     DeactivateUserReason reason,
                                     Function<EntraUserDto, DeactivationType> beforeUpdate) {
         EntraUser user = loadForUpdate(userEntraObjectId);
+        // Resolve the audit (and its reason lookup) before the outbound call so a bad reason fails fast
+        UserAccountStatusAudit audit = deactivateUserMapper.toAuditEntity(user, reason, actorEntraOid);
         DeactivationType deactivationType = beforeUpdate.apply(modelMapper.map(user, EntraUserDto.class));
         if (user.isActive() || deactivationType.isAtLeastAsPrivilegedAs(user.getDeactivationType())) {
             user.deactivate(actorEntraOid, deactivationType);
             entraUserCommandRepository.save(user);
         }
-        auditRepository.save(deactivateUserMapper.toAuditEntity(user, reason, actorEntraOid));
+        auditRepository.save(audit);
         return deactivateUserMapper.toCommandResult(user);
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
-    public CommandResult reactivate(UUID userEntraObjectId, String actorEntraOid, String comments) {
-        EntraUser user = load(userEntraObjectId);
+    public CommandResult reactivate(UUID userEntraObjectId, String actorEntraOid, String comments,
+                                    Consumer<LockedUserForReactivation> beforeUpdate) {
+        EntraUser user = loadForUpdate(userEntraObjectId);
+        if (user.isActive()) {
+            throw new UserNotDeactivatedException(userEntraObjectId);
+        }
+        beforeUpdate.accept(new LockedUserForReactivation(
+                modelMapper.map(user, EntraUserDto.class), user.getDeactivationType()));
         user.reactivate(actorEntraOid);
         entraUserCommandRepository.save(user);
         auditRepository.save(reactivateUserMapper.toAuditEntity(user, actorEntraOid, comments));

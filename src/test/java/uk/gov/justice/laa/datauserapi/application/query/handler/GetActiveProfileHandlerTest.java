@@ -4,9 +4,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
 import uk.gov.justice.laa.datauserapi.application.query.service.QueryAuthorisationService;
+import uk.gov.justice.laa.datauserapi.application.query.service.UserProfileDetailsService;
+import uk.gov.justice.laa.datauserapi.application.query.mapper.UserProfileQueryMapper;
+import uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyentrauser.GetActiveProfileQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
@@ -36,6 +40,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class GetActiveProfileHandlerTest {
@@ -43,8 +50,8 @@ class GetActiveProfileHandlerTest {
     @Mock
     private UserProfileQueryRepository userProfileQueryRepository;
 
-    @Mock
-    private QueryAuthorisationService authorizationService;
+    @Spy
+    private QueryAuthorisationService authorizationService = new QueryAuthorisationService();
 
     private ModelMapper modelMapper;
 
@@ -59,6 +66,17 @@ class GetActiveProfileHandlerTest {
     }
 
     @Test
+    void delegatesToProfileService() {
+        UserProfileDetailsService service = mock(UserProfileDetailsService.class);
+        AuthenticatedEntraUser actor = authenticatedTestUser(null);
+        UserProfileDetailView expected = mock(UserProfileDetailView.class);
+        when(service.getActiveProfile(userEntraObjectId, actor)).thenReturn(expected);
+
+        assertThat(new GetActiveProfileHandler(service).handle(userEntraObjectId, actor)).isSameAs(expected);
+        verify(service).getActiveProfile(userEntraObjectId, actor);
+    }
+
+    @Test
     void returnsActiveProfileWhenAccessible() {
         AuthenticatedUserProfile actorProfile = authenticatedUserProfile(
                 UserType.INTERNAL,
@@ -70,7 +88,7 @@ class GetActiveProfileHandlerTest {
                 .thenReturn(Optional.of(targetProfile));
         when(authorizationService.canViewProfile(actorProfile, targetProfile.getUserType(), null)).thenReturn(true);
 
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService, modelMapper);
+        GetActiveProfileHandler handler = handler();
         UserProfileDetailView result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).isNotNull();
@@ -89,7 +107,7 @@ class GetActiveProfileHandlerTest {
         when(userProfileQueryRepository.findActiveProfileWithDetailsAndRoles(userEntraObjectId))
                 .thenReturn(Optional.empty());
 
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService, modelMapper);
+        GetActiveProfileHandler handler = handler();
 
         assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile)))
                 .isInstanceOf(ResourceNotFoundException.class)
@@ -124,7 +142,7 @@ class GetActiveProfileHandlerTest {
                 targetProfile.getUserType(),
                 targetFirm.getId().toString())).thenReturn(false);
 
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService, modelMapper);
+        GetActiveProfileHandler handler = handler();
 
         assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile)))
                 .isInstanceOf(ResourceNotFoundException.class)
@@ -143,7 +161,7 @@ class GetActiveProfileHandlerTest {
                 .thenReturn(Optional.of(targetProfile));
         when(authorizationService.canViewProfile(actorProfile, targetProfile.getUserType(), null)).thenReturn(true);
 
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService, modelMapper);
+        GetActiveProfileHandler handler = handler();
         UserProfileDetailView result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).isNotNull();
@@ -154,11 +172,27 @@ class GetActiveProfileHandlerTest {
 
     @Test
     void throwsExceptionWhenActorHasNoActiveProfile() {
-        GetActiveProfileHandler handler = new GetActiveProfileHandler(userProfileQueryRepository, authorizationService, modelMapper);
+        GetActiveProfileHandler handler = handler();
 
         assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser(null)))
                 .isInstanceOf(InvalidActorContextException.class)
                 .hasMessageContaining("Actor has no active profile");
+        verifyNoInteractions(userProfileQueryRepository);
+    }
+
+    @Test
+    void rejectsUndeterminedActorTypeBeforeProfileLookup() {
+        AuthenticatedUserProfile profile = authenticatedUserProfile(null, null, Set.of());
+
+        assertThatThrownBy(() -> handler().handle(userEntraObjectId, authenticatedTestUser(profile)))
+                .isInstanceOf(InvalidActorContextException.class)
+                .hasMessage("Actor user type cannot be determined");
+        verifyNoInteractions(userProfileQueryRepository);
+    }
+
+    private GetActiveProfileHandler handler() {
+        return new GetActiveProfileHandler(new UserProfileDetailsService(userProfileQueryRepository,
+                authorizationService, new UserProfileQueryMapper(modelMapper), new GetActiveProfileQueryMapper()));
     }
 
     private AuthenticatedUserProfile authenticatedUserProfile(UserType userType, UUID firmId, Set<Permission> permissions) {

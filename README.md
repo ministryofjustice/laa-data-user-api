@@ -19,6 +19,37 @@ export GITHUB_ACTOR="<your-github-username>"
 export GITHUB_TOKEN="<your-personal-access-token>"
 ```
 
+### Enable Pre-commit Hooks
+
+Secret scanning is run on pre-commit hooks to prevent secrets being committed to the repository, via Gitleaks and GitGuardian Shield. These are enabled via the [pre-commit](https://pre-commit.com/) framework, configured via [.pre-commit-config.yaml](./.pre-commit-config.yaml).
+
+The pre-commit hooks will only be enabled for this repository, and won't affect others. The secret scanner CLI utilities themselves - `gitleaks` & `ggshield` - will be available in your shells to be ran against anything you wish.
+
+To enable the pre-commit hooks:
+1. Download and install [Homebrew](https://github.com/Homebrew/brew/releases/latest)
+2. Authorise GitGuardian with your Ministry of Justice GitHub user account [here](https://dashboard.gitguardian.com/api/v1/auth/user/github_login/authorize) (you only have to link your account, you do not need to go on to grant GitGuardian access to any personal or MoJ repository in this step as it shouldn't be necessary for running GitGuardian Shield locally)
+3. Run the setup script (will take a few minutes to complete the first time it is run):
+
+```sh
+./setup_precommits.sh
+```
+
+4. Acquire a GitGuardian Shield personal access token (will open authorisation in your browser), this is used to allow `ggshield` access to GitGuardian's API for scanning, and only needs to be performed once on your local machine:
+
+```sh
+ggshield auth login
+```
+
+The pre-commit hooks will now run as and when you commit your changes.
+
+To run the pre-commit secret scanners on everything in the repository:
+
+```sh
+pre-commit run --all-files
+```
+
+The hooks and dependencies can be updated by running the `setup_precommits.sh` script whenever needed (there is also an updater for the hooks alone that automatically runs on each pre-commit).
+
 ---
 
 ## Running Locally
@@ -134,6 +165,34 @@ Each user is processed in an independent transaction. Internal per-user outcomes
 invalid identifiers, denied access, missing users, downstream failures, rejected operations, and
 unexpected system failures; the HTTP response retains its aggregate counts. Expected failures
 are logged at `WARN`, unexpected runtime failures at `ERROR`, and remaining users still run.
+
+Deletion delegates to `DeleteUserService`, with outbound account removal isolated in
+`DeleteUserTechServicesService`. The service resolves the delete reason once and passes it to
+`DeleteUserMapper`; the mapper no longer accesses persistence.
+User-details updates delegate to `UpdateUserDetailsService`, preserving email validation and the
+Tech Services call before local changes. Assigned-office and unrestricted-office commands use
+separate methods on `UserProfileOfficeService`, sharing profile lookup and modification metadata.
+Their handlers retain message-level authorization and transaction boundaries.
+Reactivation delegates to `ReactivateUserService`; locked target loading, the hierarchy recheck,
+Tech Services, and the local update remain in one transaction. The lifecycle service loads and
+refreshes the target once, invokes the outbound step using a DTO, then updates the same locked
+entity without another lookup.
+`UserSearchService` owns trusted search criteria and pagination preparation, and
+`UserAccountDetailsService` coordinates account retrieval. Both query services are read-only and
+use `QueryAuthorisationService` for active actor context. Existing visibility rules and not-found
+responses are unchanged.
+Multi-firm conversion requires both `EDIT_EXTERNAL_USER` and `CONVERT_USER_TO_MULTI_FIRM` through
+the command's `@RequiresPermission(match = ALL)` declaration. `InternalActorOnlyPolicy` requires an
+active internal actor profile; the existing self-target and external-target policies also apply.
+These checks run at the handler boundary before the write transaction opens.
+`ConvertToMultiFirmService` owns the lock-refresh-check-update sequence, including the
+already-converted conflict check under the row lock. Active-profile retrieval and profile-list filtering
+delegate to the read-only `UserProfileDetailsService`, with shared actor-context validation in
+`QueryAuthorisationService` and entity mapping confined to `UserProfileQueryMapper`.
+`RefreshSilasStatusHandler` retains scheduling-rejection handling at the submission boundary:
+rejected work returns a failure result, while unexpected submission failures propagate.
+Failures after asynchronous work starts are logged by the configured uncaught-exception handler;
+previously committed batches remain updated.
 
 ### Using existing permissions and policies
 
