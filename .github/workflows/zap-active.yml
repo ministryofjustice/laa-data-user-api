@@ -43,6 +43,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Checkout shared database migrations
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ministryofjustice/laa-landing-page
+          ref: 1704ab9d8836e3ab9ed189f945298dca738604da
+          path: shared-schema
+          sparse-checkout: src/main/resources/db/changelog
+          persist-credentials: false
+
+      - name: Initialise the shared database schema
+        run: |
+          docker run --rm --network host \
+            -v "$PWD/shared-schema/src/main/resources/db/changelog:/liquibase/changelog/db/changelog:ro" \
+            liquibase/liquibase:4.33.0@sha256:e116c935ba22b59a22165207f65c268e363269de30bb1fedacff3755c2abaa8c \
+            --search-path=/liquibase/changelog \
+            --changelog-file=db/changelog/db.changelog-master.yaml \
+            --url=jdbc:postgresql://localhost:5432/zap \
+            --username=zap --password=zap update
+
       - name: Set up JDK
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
@@ -63,7 +82,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SPRING_PROFILE: local
           SERVER_PORT: '8080'
-          SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+          SPRING_JPA_HIBERNATE_DDL_AUTO: validate
           POSTGRES_DB_ADDRESS: localhost
           POSTGRES_DB_NAME: zap
           POSTGRES_USERNAME: zap
@@ -118,7 +137,7 @@ jobs:
         env:
           PGPASSWORD: zap
         run: |
-          psql --host localhost --username zap --dbname zap --set ON_ERROR_STOP=1 <<SQL
+          psql --host localhost --username zap --dbname zap --single-transaction --set ON_ERROR_STOP=1 <<SQL
           INSERT INTO entra_user (
             id, entra_oid, first_name, last_name, email, status, multi_firm_user,
             mail_only, enabled, ccms_ebs_user, created_date, created_by
@@ -126,7 +145,28 @@ jobs:
             '$ZAP_TEST_OID', '$ZAP_TEST_OID', 'ZAP', 'Scan', 'zap-scan@example.invalid',
             'ACTIVE', false, false, true, false, CURRENT_TIMESTAMP, 'zap-active-scan'
           );
+          INSERT INTO user_profile (
+            id, entra_user_id, user_type, active_profile, status, silas_status,
+            created_date, created_by
+          ) VALUES (
+            '$ZAP_TEST_OID', '$ZAP_TEST_OID', 'INTERNAL', true, 'COMPLETE', 'COMPLETE',
+            CURRENT_TIMESTAMP, 'zap-active-scan'
+          );
+          INSERT INTO user_profile_app_role (user_profile_id, app_role_id)
+          SELECT '$ZAP_TEST_OID', id FROM app_role
+          WHERE role_identifier IN ('Internal User Viewer', 'External User Viewer');
           SQL
+
+      - name: Check authenticated scan routes
+        run: |
+          for route in /api/v1/me /api/v1/queries/firms /api/v1/queries/users; do
+            status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 30 \
+              --header "Authorization: Bearer $ZAP_AUTH_TOKEN" "$APP_URL$route")
+            if [ "$status" != "200" ]; then
+              echo "::error::Synthetic test identity cannot access $route (HTTP $status)."
+              exit 1
+            fi
+          done
 
       - name: Prepare ZAP plan
         run: |

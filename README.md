@@ -515,6 +515,25 @@ Breaking changes (major bumps) require coordinating with all consumers before me
 
 ---
 
+## ZAP active scan
+
+The [active-scan workflow](.github/workflows/zap-active.yml) runs the API locally
+against a disposable PostgreSQL database. Before starting the API, it runs the
+shared Liquibase migrations from `laa-landing-page` at the commit pinned in the
+workflow's **Checkout shared database migrations** step. Update that pin when the
+API needs a newer shared schema.
+
+The API uses Hibernate schema validation, not `create-drop`: entity-generated DDL
+does not reproduce the shared schema's PostgreSQL enum types and defaults. Migration
+or validation failures stop the workflow before scanning. The workflow then inserts
+a synthetic local user with an active internal profile and the Internal/External
+User Viewer roles. It checks access to the user and firm query routes before
+scanning them with the local-profile read-scope test token. No deployed database is
+used.
+
+Slack summaries use `ZAP_SLACK_WEBHOOK_URL`; if it is unavailable, notification is
+skipped.
+
 ## TODO 
 
 > This section is a work in progress, it currently only contains immediate baseline goals
