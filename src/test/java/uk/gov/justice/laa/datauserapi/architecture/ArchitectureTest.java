@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandler;
+import uk.gov.justice.laa.datauserapi.exception.ReasonedException;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionGroup;
 import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 import uk.gov.justice.laa.datauserapi.security.RequiresSystemAdminScope;
@@ -47,6 +49,41 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
         importOptions = ImportOption.DoNotIncludeTests.class
 )
 class ArchitectureTest {
+
+    @ArchTest
+    static final ArchRule project_exceptions_must_declare_explicit_groups = classes()
+            .that().areAssignableTo(Throwable.class)
+            .and().doNotHaveModifier(JavaModifier.ABSTRACT)
+            .should(new ArchCondition<>("implement ExceptionGroup and declare their own groupName") {
+                @Override
+                public void check(JavaClass item, ConditionEvents events) {
+                    boolean declaresGroup = item.getMethods().stream()
+                            .anyMatch(method -> method.getName().equals("groupName")
+                                    && method.getRawParameterTypes().isEmpty()
+                                    && method.getRawReturnType().isEquivalentTo(String.class)
+                                    && method.getModifiers().contains(JavaModifier.PUBLIC)
+                                    && !method.getModifiers().contains(JavaModifier.STATIC));
+                    if (!item.isAssignableTo(ExceptionGroup.class) || !declaresGroup) {
+                        events.add(SimpleConditionEvent.violated(item,
+                                item.getName() + " must implement ExceptionGroup and declare its own groupName"));
+                    }
+                }
+            });
+
+    @ArchTest
+    static final ArchRule exceptions_with_enum_reasons_must_implement_reasoned_exception = classes()
+            .that().areAssignableTo(Throwable.class)
+            .should(new ArchCondition<>("implement ReasonedException when exposing enum facts") {
+                @Override
+                public void check(JavaClass item, ConditionEvents events) {
+                    boolean hasEnum = item.getAllFields().stream().anyMatch(field -> field.getRawType().isEnum())
+                            || item.getAllMethods().stream().anyMatch(method -> method.getRawReturnType().isEnum());
+                    if (hasEnum && !item.isAssignableTo(ReasonedException.class)) {
+                        events.add(SimpleConditionEvent.violated(item,
+                                item.getName() + " exposes enum facts but does not implement ReasonedException"));
+                    }
+                }
+            });
 
     private static final String COMMAND_PACKAGE = "..application.command..";
     private static final String QUERY_PACKAGE = "..application.query..";

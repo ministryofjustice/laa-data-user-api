@@ -4,6 +4,11 @@ import java.util.UUID;
 
 public class UserNotFoundException extends ResourceNotFoundException {
 
+    @Override
+    public String groupName() {
+        return "user_not_found";
+    }
+
     public UserNotFoundException(UUID userId) {
         this(userId.toString());
     }

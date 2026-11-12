@@ -4,7 +4,8 @@ import lombok.Getter;
 import org.springframework.http.ResponseEntity;
 
 @Getter
-public class TechServicesClientException extends RuntimeException {
+public class TechServicesClientException extends RuntimeException
+        implements ReasonedException<TechServicesClientException.Reason> {
 
     public enum Reason {
         DOWNSTREAM_FAILURE,
@@ -19,6 +20,11 @@ public class TechServicesClientException extends RuntimeException {
     private String[] errors;
     private ResponseEntity<?> responseEntity;
 
+    @Override
+    public String groupName() {
+        return "tech_services_client";
+    }
+
     public TechServicesClientException(String message) {
         super(message);
     }
@@ -29,12 +35,12 @@ public class TechServicesClientException extends RuntimeException {
 
     public TechServicesClientException(Reason reason, String message, Throwable cause) {
         super(message, cause);
-        this.reason = reason;
+        this.reason = java.util.Objects.requireNonNull(reason, "reason");
     }
 
     public TechServicesClientException(Reason reason, String message) {
         super(message);
-        this.reason = reason;
+        this.reason = java.util.Objects.requireNonNull(reason, "reason");
     }
 
     public TechServicesClientException(String message, String... args) {
@@ -55,6 +61,11 @@ public class TechServicesClientException extends RuntimeException {
     public TechServicesClientException(ResponseEntity<?> responseEntity) {
         super("There was an error when sending a request to Tech Services.");
         this.responseEntity = responseEntity;
+    }
+
+    @Override
+    public Reason reason() {
+        return reason;
     }
 
 }

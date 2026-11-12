@@ -1,6 +1,7 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
-public class InvalidRequestException extends IllegalArgumentException {
+public class InvalidRequestException extends IllegalArgumentException
+        implements ReasonedException<InvalidRequestException.Reason> {
 
     public enum Reason {
         INVALID_DEACTIVATION_REASON,
@@ -9,16 +10,22 @@ public class InvalidRequestException extends IllegalArgumentException {
 
     private final Reason reason;
 
+    @Override
+    public String groupName() {
+        return "invalid_request";
+    }
+
     public InvalidRequestException(Reason reason, String message) {
         super(message);
-        this.reason = reason;
+        this.reason = java.util.Objects.requireNonNull(reason, "reason");
     }
 
     public InvalidRequestException(Reason reason, String message, Throwable cause) {
         super(message, cause);
-        this.reason = reason;
+        this.reason = java.util.Objects.requireNonNull(reason, "reason");
     }
 
+    @Override
     public Reason reason() {
         return reason;
     }

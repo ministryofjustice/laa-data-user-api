@@ -12,8 +12,58 @@ import java.io.StringWriter;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 class ExceptionLogFieldsTest {
+
+    @Test
+    void discoversNewReasonedExceptionsWithoutLoggingChanges() {
+        assertToken(new FutureBusinessException(), "stable_business_group", "new_business_failure");
+    }
+
+    private enum FutureReason {
+        NEW_BUSINESS_FAILURE
+    }
+
+    private static class FutureBusinessException extends RuntimeException implements ReasonedException<FutureReason> {
+        @Override
+        public String groupName() {
+            return "stable_business_group";
+        }
+
+        @Override
+        public FutureReason reason() {
+            return FutureReason.NEW_BUSINESS_FAILURE;
+        }
+    }
+
+    @Test
+    void explicitReasonConstructorsRejectNull() {
+        assertThatNullPointerException().isThrownBy(() -> new InvalidRequestException(null, "diagnostic"));
+        assertThatNullPointerException().isThrownBy(() -> new InvalidRequestException(null, "diagnostic", null));
+        assertThatNullPointerException().isThrownBy(() -> new CcmsNotificationException(null, "diagnostic", null));
+        assertThatNullPointerException().isThrownBy(() -> new TechServicesClientException(
+                (TechServicesClientException.Reason) null, "diagnostic"));
+        assertThatNullPointerException().isThrownBy(() -> new TechServicesClientException(null, "diagnostic", (Throwable) null));
+    }
+
+    @Test
+    void legacyConstructorsRetainDefaultReasons() {
+        assertThat(new CcmsNotificationException("diagnostic", null).reason())
+                .isEqualTo(CcmsNotificationException.Reason.SERIALIZATION_FAILURE);
+        TechServicesClientException[] failures = {
+            new TechServicesClientException("diagnostic"),
+            new TechServicesClientException("diagnostic", new IllegalStateException()),
+            new TechServicesClientException("diagnostic %s", new String[]{"value"}),
+            new TechServicesClientException("diagnostic", "code"),
+            new TechServicesClientException("diagnostic", "code", new String[]{"detail"}),
+            new TechServicesClientException(org.springframework.http.ResponseEntity.badRequest().build())
+        };
+        assertThat(failures).allSatisfy(failure -> {
+            assertThat(failure.reason()).isEqualTo(TechServicesClientException.Reason.DOWNSTREAM_FAILURE);
+            assertThat(failure.getReason()).isEqualTo(failure.reason());
+        });
+    }
 
     @ParameterizedTest
     @EnumSource(UserProfileNotFoundReason.class)
@@ -67,6 +117,34 @@ class ExceptionLogFieldsTest {
     @Test
     void untypedFailuresUseExceptionKeyWithoutMessage() {
         assertToken(new UserNotFoundException("private-user"), "user_not_found", "user_not_found");
+    }
+
+    @Test
+    void untypedProjectExceptionsDeclareStableGroups() {
+        assertToken(new ResourceNotFoundException("private"), "resource_not_found", "resource_not_found");
+        assertToken(new FirmNotFoundException("private"), "firm_not_found", "firm_not_found");
+        assertToken(new ReferenceDataNotFoundException("private"), "reference_data_not_found", "reference_data_not_found");
+        assertToken(new InvalidUuidFormatException("private"), "invalid_uuid_format", "invalid_uuid_format");
+        assertToken(new JwtConfigurationException("private", null), "jwt_configuration", "jwt_configuration");
+        assertToken(new ScopeMissingException("private"), "scope_missing", "scope_missing");
+        UUID id = UUID.randomUUID();
+        assertToken(new UserAlreadyDeactivatedException(id), "user_already_deactivated", "user_already_deactivated");
+        assertToken(new UserNotDeactivatedException(id), "user_not_deactivated", "user_not_deactivated");
+        assertToken(new UserAlreadyMultiFirmException("private"), "user_already_multi_firm", "user_already_multi_firm");
+        assertToken(new uk.gov.justice.laa.datauserapi.security.rbac.InvalidAuthorizationConfigurationException("private"),
+                "invalid_authorization_configuration", "invalid_authorization_configuration");
+    }
+
+    @Test
+    void untypedGroupContractOverridesClassNameForBothFields() {
+        assertToken(new RenamedBusinessException(), "stable_group", "stable_group");
+    }
+
+    private static class RenamedBusinessException extends RuntimeException implements ExceptionGroup {
+        @Override
+        public String groupName() {
+            return "stable_group";
+        }
     }
 
     @Test

@@ -1,14 +1,21 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
-public class InvalidActorContextException extends RuntimeException {
+public class InvalidActorContextException extends RuntimeException
+        implements ReasonedException<InvalidActorContextReason> {
 
     private final InvalidActorContextReason reason;
+
+    @Override
+    public String groupName() {
+        return "invalid_actor_context";
+    }
 
     private InvalidActorContextException(InvalidActorContextReason reason, String message, Throwable cause) {
         super(message, cause);
         this.reason = reason;
     }
 
+    @Override
     public InvalidActorContextReason reason() {
         return reason;
     }

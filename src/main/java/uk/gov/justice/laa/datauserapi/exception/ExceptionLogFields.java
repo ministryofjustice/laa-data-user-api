@@ -16,6 +16,9 @@ public final class ExceptionLogFields {
     }
 
     private static String groupName(Throwable exception) {
+        if (exception instanceof ExceptionGroup grouped) {
+            return grouped.groupName();
+        }
         Class<?> type = exception.getClass();
         while (type.getSimpleName().isEmpty()) {
             type = type.getSuperclass();
@@ -30,14 +33,9 @@ public final class ExceptionLogFields {
     }
 
     public static StructuredArgument exceptionReason(Throwable exception) {
-        Enum<?> reason = switch (exception) {
-            case UserProfileNotFoundException failure -> failure.reason();
-            case InvalidActorContextException failure -> failure.reason();
-            case InvalidRequestException failure -> failure.reason();
-            case TechServicesClientException failure -> failure.getReason();
-            case CcmsNotificationException failure -> failure.reason();
-            default -> null;
-        };
-        return kv("exception_reason", reason == null ? groupName(exception) : reason.name().toLowerCase(Locale.ROOT));
+        String reason = exception instanceof ReasonedException<?> failure
+                ? failure.reason().name().toLowerCase(Locale.ROOT)
+                : groupName(exception);
+        return kv("exception_reason", reason);
     }
 }

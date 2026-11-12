@@ -27,6 +27,59 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ArchitectureRulesTest {
 
     @Test
+    void requiresExplicitGroupsRatherThanInheritedOrMissingGroups() {
+        ArchRule rule = ArchitectureTest.project_exceptions_must_declare_explicit_groups;
+        assertViolation(rule, PlainBusinessException.class);
+        assertViolation(rule, InheritedGroupException.class);
+        rule.check(importClasses(ReasonContractException.class));
+    }
+
+    static class InheritedGroupException extends ReasonContractException {
+    }
+
+    @Test
+    void requiresReasonContractForEnumFieldsAndAccessors() {
+        ArchRule rule = ArchitectureTest.exceptions_with_enum_reasons_must_implement_reasoned_exception;
+        assertViolation(rule, MissingReasonContract.class);
+        assertViolation(rule, MissingAccessorContract.class);
+        assertViolation(rule, InheritedEnumException.class);
+        rule.check(importClasses(ReasonContractException.class, PlainBusinessException.class));
+    }
+
+    enum FailureReason {
+        INVALID_STATE
+    }
+
+    static class MissingReasonContract extends RuntimeException {
+        private final FailureReason detail = FailureReason.INVALID_STATE;
+    }
+
+    static class MissingAccessorContract extends RuntimeException {
+        public FailureReason getReason() {
+            return FailureReason.INVALID_STATE;
+        }
+    }
+
+    static class InheritedEnumException extends MissingReasonContract {
+    }
+
+    static class ReasonContractException extends RuntimeException
+            implements uk.gov.justice.laa.datauserapi.exception.ReasonedException<FailureReason> {
+        @Override
+        public String groupName() {
+            return "business_failure";
+        }
+
+        @Override
+        public FailureReason reason() {
+            return FailureReason.INVALID_STATE;
+        }
+    }
+
+    static class PlainBusinessException extends RuntimeException {
+    }
+
+    @Test
     void rejectsGenericExceptionConstructionButPermitsDomainExceptions() {
         assertViolation(ArchitectureTest.application_code_must_use_specific_exceptions, GenericExceptionThrower.class);
         assertViolation(ArchitectureTest.application_code_must_use_specific_exceptions, GenericRuntimeExceptionThrower.class);

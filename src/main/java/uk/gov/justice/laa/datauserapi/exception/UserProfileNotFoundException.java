@@ -2,8 +2,14 @@ package uk.gov.justice.laa.datauserapi.exception;
 
 import java.util.UUID;
 
-public class UserProfileNotFoundException extends ResourceNotFoundException {
+public class UserProfileNotFoundException extends ResourceNotFoundException
+        implements ReasonedException<UserProfileNotFoundReason> {
     private final UserProfileNotFoundReason reason;
+
+    @Override
+    public String groupName() {
+        return "user_profile_not_found";
+    }
 
     public UserProfileNotFoundException(UUID profileId) {
         super("User profile not found with ID: " + profileId);
@@ -15,6 +21,7 @@ public class UserProfileNotFoundException extends ResourceNotFoundException {
         this.reason = UserProfileNotFoundReason.ACTIVE_PROFILE_NOT_FOUND;
     }
 
+    @Override
     public UserProfileNotFoundReason reason() {
         return reason;
     }
