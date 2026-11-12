@@ -198,6 +198,8 @@ Tech Services transport, response-mapping, and token exceptions retain distinct 
 downstream, invalid-response, and authentication reasons through the shared exception base.
 Invalid deactivation reasons and firm sorting use typed request-validation reasons.
 Missing users/profiles return generic 403 responses; other missing resources return 404.
+Mapping a target user without an active profile raises `UserProfileNotFoundException` with
+`ACTIVE_PROFILE_NOT_FOUND`, not an actor-context exception.
 Conflict, invalid-identifier, configuration, and unexpected-error responses use fixed client-safe
 details, never exception messages. Structured server logs retain reasons, context, and stack traces.
 ArchUnit rejects construction of generic `Exception` and `RuntimeException` in application code.
@@ -205,6 +207,9 @@ Spring-proxied CCMS notifications retry serialization and AWS SDK failures up to
 unexpected programming faults are neither retried nor treated as successful delivery.
 Missing CCMS clients or queues return an unsuccessful notification result, never a successful delivery.
 Role-cleanup downstream failures remain best-effort during user deletion; unexpected faults propagate.
+Empty, blank, or JSON-null successful group-removal responses are classified as `INVALID_RESPONSE`
+and remain best-effort during deletion. Regression tests exercise the real Spring async proxy and
+configured bulk executor: submissions return 202 while workers are blocked, and a full pool/queue returns 503.
 Deliberate last-resort runtime guards remain at best-effort bulk/profile-processing boundaries,
 where they log diagnostics. The token provider replaces invalid cached JWTs, acquires an uncached token
 when the cache is absent, and propagates cache infrastructure faults.
