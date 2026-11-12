@@ -133,6 +133,21 @@ class ExceptionLogFieldsTest {
         assertToken(new UserAlreadyMultiFirmException("private"), "user_already_multi_firm", "user_already_multi_firm");
         assertToken(new uk.gov.justice.laa.datauserapi.security.rbac.InvalidAuthorizationConfigurationException("private"),
                 "invalid_authorization_configuration", "invalid_authorization_configuration");
+        assertToken(new MissingOidException(), "missing_oid", "missing_oid");
+        assertToken(new MissingEntraOidException("private"), "missing_entra_oid", "missing_entra_oid");
+    }
+
+    @Test
+    void extractedTechServicesExceptionsRetainTypedReasonsAndExplicitGroups() {
+        assertToken(new TechServicesResponseMappingException("private"),
+                "tech_services_response_mapping", "invalid_response");
+        assertToken(new TechServicesResponseMappingException("private", new IllegalArgumentException()),
+                "tech_services_response_mapping", "invalid_response");
+        assertToken(new TechServicesTokenException("private"), "tech_services_token", "authentication_failure");
+        assertToken(new TechServicesTokenException("private", new IllegalStateException()),
+                "tech_services_token", "authentication_failure");
+        assertToken(new TechServicesTransportException("private", new IllegalStateException()),
+                "tech_services_transport", "downstream_failure");
     }
 
     @Test

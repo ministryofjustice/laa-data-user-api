@@ -32,6 +32,7 @@ import uk.gov.justice.laa.datauserapi.application.command.policy.NotSelfTargetPo
 import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
+import uk.gov.justice.laa.datauserapi.config.JacksonConfig;
 import uk.gov.justice.laa.datauserapi.config.SecurityConfig;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
@@ -60,6 +61,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(UserAccountCommandController.class)
 @Import({
+    JacksonConfig.class,
     SecurityConfig.class,
     GlobalExceptionHandler.class,
     UserAccountCommandController.class,

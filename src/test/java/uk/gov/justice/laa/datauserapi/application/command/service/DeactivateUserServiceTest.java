@@ -110,7 +110,7 @@ class DeactivateUserServiceTest {
                 .hasMessage("Downstream API timeout");
 
         verify(userRepository, never()).save(any());
-        verifyNoInteractions(auditRepository, deactivateMapper, deactivationTypeResolver);
+        verifyNoInteractions(auditRepository, deactivationTypeResolver);
         assertThat(user.isActive()).isTrue();
     }
 

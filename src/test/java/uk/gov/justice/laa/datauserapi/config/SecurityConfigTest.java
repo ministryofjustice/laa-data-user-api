@@ -30,6 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(useDefaultFilters = false)
 @Import({
+    JacksonConfig.class,
     SecurityConfig.class,
     SecurityConfigTest.JwtDecoderConfiguration.class,
     JwtToAuthenticatedEntraUserConverter.class,
@@ -46,7 +47,8 @@ class SecurityConfigTest {
     void securityFilterAndMissingUserAdviceProduceIdenticalForbiddenResponses() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/queries/users/hidden");
         MockHttpServletResponse response = new MockHttpServletResponse();
-        new SecurityConfig(null).accessDeniedHandler().handle(request, response, new AccessDeniedException("diagnostic"));
+        new SecurityConfig(null, new ObjectMapper()).accessDeniedHandler()
+                .handle(request, response, new AccessDeniedException("diagnostic"));
         var advised = new GlobalExceptionHandler().handleUserNotFound(new UserNotFoundException("hidden"), request);
         ObjectMapper mapper = new ObjectMapper();
 

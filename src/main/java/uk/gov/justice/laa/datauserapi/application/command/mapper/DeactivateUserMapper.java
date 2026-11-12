@@ -27,7 +27,7 @@ public class DeactivateUserMapper {
     }
 
     public UserAccountStatusAudit toAuditEntity(EntraUser user, DeactivateUserReason deactivateUserReason, String actorId) {
-        DeactivateUserReasonLookup deactivateUserReasonLookup = deactivateUserReasonRepository.findByName(deactivateUserReason.name())
+        DeactivateUserReasonLookup deactivateUserReasonLookup = deactivateUserReasonRepository.findFirstByEntraDescription(deactivateUserReason.name())
                 .orElseThrow(() -> new ReferenceDataNotFoundException("Deactivate reason not found: " + deactivateUserReason.name()));
         return UserAccountStatusAudit.builder()
                 .entraUserId(user.getId())

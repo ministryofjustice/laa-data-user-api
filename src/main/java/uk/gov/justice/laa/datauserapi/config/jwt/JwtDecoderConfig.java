@@ -2,7 +2,7 @@ package uk.gov.justice.laa.datauserapi.config.jwt;
 
 import static net.logstash.logback.argument.StructuredArguments.kv;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -16,8 +16,8 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
 import lombok.extern.slf4j.Slf4j;
-import uk.gov.justice.laa.datauserapi.exception.JwtConfigurationException;
 import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
+import uk.gov.justice.laa.datauserapi.exception.JwtConfigurationException;
 
 /**
  * JWT Decoder configuration for production environments.
@@ -27,40 +27,30 @@ import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
 @Slf4j
 @Configuration
 @Profile("prod")
+@EnableConfigurationProperties(JwtProperties.class)
 public class JwtDecoderConfig {
-
-    @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
-    private String issuerUri;
-
-    @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}")
-    private String jwkSetUri;
-
-    @Value("${spring.security.oauth2.resourceserver.jwt.audience}")
-    private String audience;
 
     @Bean
     @Primary
-    public JwtDecoder jwtDecoder() {
+    public JwtDecoder jwtDecoder(JwtProperties properties) {
         log.debug("Configuring JWT decoder",
-                kv("issuerUri", issuerUri),
-                kv("jwkSetUri", jwkSetUri),
-                kv("audience", audience));
-        OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(audience);
+                kv("issuerUri", properties.issuerUri()),
+                kv("jwkSetUri", properties.jwkSetUri()),
+                kv("audience", properties.audience()));
+        OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(properties.audience());
         OAuth2TokenValidator<Jwt> timestampValidator = new JwtTimestampValidator();
-        OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
+        OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(properties.issuerUri());
 
         NimbusJwtDecoder jwtDecoder;
         try {
-            jwtDecoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
-        } catch (IllegalArgumentException e) {
+            jwtDecoder = NimbusJwtDecoder.withJwkSetUri(properties.jwkSetUri()).build();
+        } catch (IllegalArgumentException ex) {
             log.error("JWT decoder creation failed",
-                    ExceptionLogFields.exceptionGroup(e), ExceptionLogFields.exceptionReason(e),
-                    kv("exceptionMessage", e.getMessage()),
-                    e);
-            throw new JwtConfigurationException("JWT Decoder configuration failed", e);
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex), ex);
+            throw new JwtConfigurationException("JWT Decoder configuration failed", ex);
         }
         jwtDecoder.setJwtValidator(
-                new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator, timestampValidator));
+            new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator, timestampValidator));
         return jwtDecoder;
     }
 }

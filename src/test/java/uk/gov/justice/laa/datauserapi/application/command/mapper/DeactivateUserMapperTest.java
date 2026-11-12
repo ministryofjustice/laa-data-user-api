@@ -70,7 +70,7 @@ class DeactivateUserMapperTest {
                     .description("User contract terminated")
                     .build();
 
-            when(deactivateUserReasonRepository.findByName(reasonEnum.name()))
+            when(deactivateUserReasonRepository.findFirstByEntraDescription(reasonEnum.name()))
                     .thenReturn(Optional.of(lookupEntity));
 
             LocalDateTime beforeCall = LocalDateTime.now();
@@ -88,7 +88,7 @@ class DeactivateUserMapperTest {
                     .isNotNull()
                     .isCloseTo(beforeCall, within(2, ChronoUnit.SECONDS));
 
-            verify(deactivateUserReasonRepository).findByName(reasonEnum.name());
+            verify(deactivateUserReasonRepository).findFirstByEntraDescription(reasonEnum.name());
         }
 
         @Test
@@ -108,7 +108,7 @@ class DeactivateUserMapperTest {
                     .deactivateReason(reasonEnum)
                     .build();
 
-            when(deactivateUserReasonRepository.findByName(reasonEnum.name()))
+            when(deactivateUserReasonRepository.findFirstByEntraDescription(reasonEnum.name()))
                     .thenReturn(Optional.empty());
 
             // Act & Assert
@@ -116,7 +116,7 @@ class DeactivateUserMapperTest {
                     .isInstanceOf(uk.gov.justice.laa.datauserapi.exception.ReferenceDataNotFoundException.class)
                     .hasMessage("Deactivate reason not found: " + reasonEnum.name());
 
-            verify(deactivateUserReasonRepository).findByName(reasonEnum.name());
+            verify(deactivateUserReasonRepository).findFirstByEntraDescription(reasonEnum.name());
         }
     }
 

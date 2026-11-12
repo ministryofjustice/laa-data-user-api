@@ -170,7 +170,7 @@ Tokens never depend on diagnostic messages or identifiers; explicit group values
 constants form the reporting contract and should not change without updating dependent searches.
 
 HTTP exception handlers and bulk, role-cleanup, and CCMS exception logs include `exception_reason`.
-Catch-block logs in the Tech Services client, JWT decoders, and refresh-task submission also include
+Catch-block logs in the Tech Services token provider, JWT decoders, and refresh-task submission also include
 both fields. Library exceptions use their own readable class name when no typed reason is available.
 Wrap-and-rethrow catches do not add duplicate logs; the handling boundary records the translated exception.
 There is no `failureStage` field. CCMS send attempts and terminal failures share the same token;
@@ -194,8 +194,9 @@ exception_group=user_profile_not_found
 ```
 
 Exception handling uses domain-specific exceptions for business and integration failures.
-Tech Services exceptions distinguish downstream, response-parsing, authentication, and configuration
-failures; invalid deactivation reasons and firm sorting use typed request-validation reasons.
+Tech Services transport, response-mapping, and token exceptions retain distinct groups and typed
+downstream, invalid-response, and authentication reasons through the shared exception base.
+Invalid deactivation reasons and firm sorting use typed request-validation reasons.
 Missing users/profiles return generic 403 responses; other missing resources return 404.
 Conflict, invalid-identifier, configuration, and unexpected-error responses use fixed client-safe
 details, never exception messages. Structured server logs retain reasons, context, and stack traces.
@@ -204,8 +205,10 @@ Spring-proxied CCMS notifications retry serialization and AWS SDK failures up to
 unexpected programming faults are neither retried nor treated as successful delivery.
 Missing CCMS clients or queues return an unsuccessful notification result, never a successful delivery.
 Role-cleanup downstream failures remain best-effort during user deletion; unexpected faults propagate.
-Deliberate last-resort runtime guards remain only at best-effort bulk/profile-processing and token-cache
-boundaries, where they log diagnostics. The generic HTTP exception handler remains a final safety net.
+Deliberate last-resort runtime guards remain at best-effort bulk/profile-processing boundaries,
+where they log diagnostics. The token provider replaces invalid cached JWTs, acquires an uncached token
+when the cache is absent, and propagates cache infrastructure faults.
+The generic HTTP exception handler remains a final safety net.
 
 User-details updates delegate to `UpdateUserDetailsService`, preserving email validation and the
 Tech Services call before local changes. Assigned-office and unrestricted-office commands use
@@ -437,7 +440,7 @@ The application relies on several environment variables for configuration. Below
 
 Note there are two distinct Azure AD app registrations in play here, each with its own credentials: the values under `AZURE_*` validate JWTs presented *to* this API (inbound), while `TECH_SERVICES_AZURE_*`/`TECH_SERVICES_TENANT_ID` authenticate this API's outbound calls *to* the Tech Services API. There's currently no `AZURE_CLIENT_SECRET` — the inbound-validation app registration only needs the tenant and client ID.
 
-> **Orphaned secret:** a Kubernetes Secret named `laa-data-user-api-azure-client-secret-k8s` also exists in the namespace,  However, nothing in this repo — chart or code — consumes it: there's no `secretKeyRef` for it in `templates/deployment.yaml`, and no `AZURE_CLIENT_SECRET` env var or `@Value` binding anywhere in the codebase (the only client secret actually read by the code is `TECH_SERVICES_AZURE_CLIENT_SECRET`, via `TechServicesConfig`). 
+> **Orphaned secret:** a Kubernetes Secret named `laa-data-user-api-azure-client-secret-k8s` also exists in the namespace,  However, nothing in this repo — chart or code — consumes it: there's no `secretKeyRef` for it in `templates/deployment.yaml`, and no `AZURE_CLIENT_SECRET` env var or `@Value` binding anywhere in the codebase (the only client secret actually read by the code is `TECH_SERVICES_AZURE_CLIENT_SECRET`, bound by `TechServicesProperties` and consumed by `TechServicesAuthConfig`).
 </details>
 
 ### Adding a New Environment Variable
