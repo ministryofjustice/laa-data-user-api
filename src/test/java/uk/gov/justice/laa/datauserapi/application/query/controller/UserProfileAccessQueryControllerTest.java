@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.query.controller;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -128,6 +130,7 @@ class UserProfileAccessQueryControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.title").value(not(containsString(profileId.toString()))))
                 .andExpect(jsonPath("$.detail").value("User profile not found"));
     }
 
