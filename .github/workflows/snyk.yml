@@ -32,6 +32,8 @@ permissions:
 
 jobs:
   vulnerability-scan:
+    # Dependabot can upload SARIF on pull_request events, but not on pushes.
+    if: ${{ github.event_name != 'push' || github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     env:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
