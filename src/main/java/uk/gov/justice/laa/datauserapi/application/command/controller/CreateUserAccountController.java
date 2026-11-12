@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CreateUserAccountHandler;
-import uk.gov.justice.laa.datauserapi.application.command.useraccount.CreateUserAccountCommand;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.UserAccountCreationMapper;
 import uk.gov.justice.laa.datauserapi.contracts.request.CreateUserAccountRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResponse;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -19,17 +19,17 @@ import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
 @RequiresAdminScope
 public class CreateUserAccountController {
     private final CreateUserAccountHandler handler;
+    private final UserAccountCreationMapper mapper;
 
-    public CreateUserAccountController(CreateUserAccountHandler handler) {
+    public CreateUserAccountController(CreateUserAccountHandler handler, UserAccountCreationMapper mapper) {
         this.handler = handler;
+        this.mapper = mapper;
     }
 
     @PostMapping("/create")
     public ResponseEntity<CreateUserAccountResponse> create(
             @Valid @RequestBody CreateUserAccountRequest request,
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        CreateUserAccountCommand command = new CreateUserAccountCommand(request.email(), request.firstName(),
-                request.lastName(), request.userType(), request.multiFirmUser(), request.firmId());
-        return ResponseEntity.status(201).body(handler.handle(command, authenticatedUser));
+        return ResponseEntity.status(201).body(handler.handle(mapper.toCommand(request), authenticatedUser));
     }
 }

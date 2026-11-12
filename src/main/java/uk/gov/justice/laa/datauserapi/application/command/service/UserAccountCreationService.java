@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.TransactionException;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.UserAccountCreationMapper;
+import uk.gov.justice.laa.datauserapi.application.command.shared.repository.FirmCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserCreationRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.CreateUserAccountCommand;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
@@ -15,33 +16,34 @@ import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountRespon
 import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 import uk.gov.justice.laa.datauserapi.exception.UserAlreadyExistsException;
 
-import java.util.Locale;
 import java.util.UUID;
 
 @Slf4j
 @Service
 public class UserAccountCreationService {
     private final UserCreationRepository repository;
+    private final FirmCommandRepository firmRepository;
     private final TechServicesClient client;
     private final UserAccountPersistenceService persistence;
     private final UserAccountCreationMapper mapper;
 
-    public UserAccountCreationService(UserCreationRepository repository, TechServicesClient client,
+    public UserAccountCreationService(UserCreationRepository repository, FirmCommandRepository firmRepository,
+                                      TechServicesClient client,
                                       UserAccountPersistenceService persistence, UserAccountCreationMapper mapper) {
         this.repository = repository;
+        this.firmRepository = firmRepository;
         this.client = client;
         this.persistence = persistence;
         this.mapper = mapper;
     }
 
-    public CreateUserAccountResponse create(CreateUserAccountCommand request, String actorOid) {
-        CreateUserAccountCommand command = new CreateUserAccountCommand(request.email().strip().toLowerCase(Locale.ROOT),
-                request.firstName(), request.lastName(), request.userType(), request.multiFirmUser(), request.firmId());
+    public CreateUserAccountResponse create(CreateUserAccountCommand command, String actorOid) {
         repository.findExisting(command.email()).map(mapper::toExistingResponse)
                 .ifPresent(existing -> {
                     throw new UserAlreadyExistsException(existing);
                 });
-        if (!repository.firmExists(UUID.fromString(command.firmId()))) {
+        UUID firmId = UUID.fromString(command.firmId());
+        if (!firmRepository.existsByIdAndEnabledTrue(firmId)) {
             throw new CreateUserException(HttpStatus.BAD_REQUEST, "firmId does not identify an active firm", "firmId");
         }
 
@@ -61,11 +63,10 @@ public class UserAccountCreationService {
         if (!identity.created()) {
             log.info("Existing identity detected correlationId={} step=identity_registration system=TechServices/Entra identityId={}",
                     MDC.get("correlationId"), identity.id());
-            CreateUserAccountResponse existing = repository.findExisting(command.email())
-                    .map(mapper::toExistingResponse).orElse(
-                            new CreateUserAccountResponse(false, "Identity already exists; no local profile was created",
-                                    identity.id().toString(), null));
-            throw new UserAlreadyExistsException(existing);
+            repository.findExistingByEntraOid(identity.id()).map(mapper::toExistingResponse)
+                    .ifPresent(existing -> {
+                        throw new UserAlreadyExistsException(existing);
+                    });
         }
         try {
             // The downstream operation is intentionally outside the local transaction and is never compensated.
@@ -78,7 +79,9 @@ public class UserAccountCreationService {
             throw ex;
         } catch (DataIntegrityViolationException ex) {
             logRetainedIdentity(identity.id(), "local_constraint");
-            var existing = repository.findExisting(command.email()).map(mapper::toExistingResponse);
+            var existing = repository.findExisting(command.email())
+                    .or(() -> repository.findExistingByEntraOid(identity.id()))
+                    .map(mapper::toExistingResponse);
             if (existing.isPresent()) {
                 throw new UserAlreadyExistsException(existing.get());
             }

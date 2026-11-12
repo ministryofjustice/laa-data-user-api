@@ -90,6 +90,9 @@ exercise both allowed and rejected architecture examples.
 Query service, handler, and controller results are checked recursively for entity
 leakage through collections, wrappers, DTO fields, and projection accessors.
 Tech Services calls intentionally precede database updates; this ordering is unchanged.
+For user creation, the controller mapper normalizes the validated request before it reaches the
+service. If Tech Services returns an existing identity, the service checks its Entra OID locally:
+it creates the local account/profile when absent and returns a conflict when that OID is already stored.
 
 ---
 

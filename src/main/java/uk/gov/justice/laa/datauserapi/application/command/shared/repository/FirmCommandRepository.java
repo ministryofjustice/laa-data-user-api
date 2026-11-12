@@ -11,6 +11,8 @@ import java.util.UUID;
 @Repository
 public interface FirmCommandRepository extends JpaRepository<Firm, UUID> {
 
+    boolean existsByIdAndEnabledTrue(UUID id);
+
     @Query("SELECT COUNT(f) > 0 FROM Firm f WHERE f.code = :code")
     boolean existsByCode(@Param("code") String code);
 

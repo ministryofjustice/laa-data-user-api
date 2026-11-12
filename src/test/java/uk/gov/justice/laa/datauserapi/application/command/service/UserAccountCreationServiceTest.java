@@ -9,6 +9,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.TransactionSystemException;
 import uk.gov.justice.laa.datauserapi.application.command.dto.UserAccountCreationData;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.UserAccountCreationMapper;
+import uk.gov.justice.laa.datauserapi.application.command.shared.repository.FirmCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserCreationRepository;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.CreateUserAccountCommand;
@@ -23,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -32,6 +32,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class UserAccountCreationServiceTest {
     @Mock private UserCreationRepository repository;
+    @Mock private FirmCommandRepository firmRepository;
     @Mock private TechServicesClient client;
     @Mock private UserAccountPersistenceService persistence;
     private UserAccountCreationService service;
@@ -40,20 +41,21 @@ class UserAccountCreationServiceTest {
     private final UUID identity = UUID.randomUUID();
     private final UserAccountCreationMapper mapper = new UserAccountCreationMapper();
     private final CreateUserAccountCommand command = new CreateUserAccountCommand(
-            "Person@Example.com", "First", "Last", "EXTERNAL", true, firm.toString());
+            "person@example.com", "First", "Last", "EXTERNAL", true, firm.toString());
 
     @BeforeEach
     void setUp() {
-        service = new UserAccountCreationService(repository, client, persistence, mapper);
+        service = new UserAccountCreationService(repository, firmRepository, client, persistence, mapper);
     }
 
     private void provision() {
-        when(repository.firmExists(firm)).thenReturn(true);
+        when(firmRepository.existsByIdAndEnabledTrue(firm)).thenReturn(true);
         when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, true));
     }
 
     @Test
     void rejectsUnknownFirmWithoutCallingDownstream() {
+        when(repository.findExisting("person@example.com")).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.create(command, actor)).isInstanceOfSatisfying(CreateUserException.class,
                 ex -> {
                     assertThat(ex.status().value()).isEqualTo(400);
@@ -73,30 +75,42 @@ class UserAccountCreationServiceTest {
     }
 
     @Test
-    void normalizesEmailAndCommitsBothLocalRecords() {
+    void provisionsIdentityAndCommitsBothLocalRecords() {
         provision();
-        var normalized = new CreateUserAccountCommand("person@example.com", "First", "Last", "EXTERNAL", true, firm.toString());
         var expected = new CreateUserAccountResponse(true, "User created", identity.toString(), UUID.randomUUID());
-        when(persistence.create(normalized, identity, actor)).thenReturn(expected);
+        when(persistence.create(command, identity, actor)).thenReturn(expected);
 
         assertThat(service.create(command, actor)).isEqualTo(expected);
         var order = inOrder(client, persistence);
         order.verify(client).createUser(new TechServicesClient.Registration("person@example.com", "First", "Last"));
-        order.verify(persistence).create(normalized, identity, actor);
+        order.verify(persistence).create(command, identity, actor);
     }
 
     @Test
-    void existingDownstreamIdentityProducesConflictWithoutLocalWrites() {
-        when(repository.firmExists(firm)).thenReturn(true);
+    void existingDownstreamIdentityCreatesLocalRecordsWhenOidIsNotStored() {
+        when(firmRepository.existsByIdAndEnabledTrue(firm)).thenReturn(true);
         when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, false));
+        var expected = new CreateUserAccountResponse(true, "User created", identity.toString(), UUID.randomUUID());
+        when(persistence.create(command, identity, actor)).thenReturn(expected);
+
+        assertThat(service.create(command, actor)).isEqualTo(expected);
+        verify(persistence).create(command, identity, actor);
+    }
+
+    @Test
+    void existingDownstreamIdentityWithLocalOidProducesConflictWithoutLocalWrites() {
+        when(firmRepository.existsByIdAndEnabledTrue(firm)).thenReturn(true);
+        when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, false));
+        var existing = new UserAccountCreationData(identity.toString(), UUID.randomUUID());
+        when(repository.findExistingByEntraOid(identity)).thenReturn(Optional.of(existing));
+
         assertThatThrownBy(() -> service.create(command, actor))
                 .isInstanceOfSatisfying(UserAlreadyExistsException.class, ex -> {
                     assertThat(ex.result().success()).isFalse();
                     assertThat(ex.result().userEntraObjectId()).isEqualTo(identity.toString());
-                    assertThat(ex.result().userProfileId()).isNull();
+                    assertThat(ex.result().userProfileId()).isEqualTo(existing.profileId());
                 });
         verifyNoInteractions(persistence);
-        verify(repository, never()).insert(any(), any(), any());
     }
 
     @Test
@@ -106,7 +120,6 @@ class UserAccountCreationServiceTest {
                 UUID.randomUUID().toString(), UUID.randomUUID());
         when(persistence.create(any(), any(), any())).thenThrow(new UserAlreadyExistsException(existing));
         assertThatThrownBy(() -> service.create(command, actor)).isInstanceOf(UserAlreadyExistsException.class);
-        verify(repository, never()).insert(any(), any(), any());
         verify(client).createUser(any());
         verifyNoMoreInteractions(client);
     }

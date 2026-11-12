@@ -386,8 +386,31 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
-    void existingDownstreamIdentityReturnsConflictWithoutInventingProfileId() throws Exception {
+    void existingDownstreamIdentityCreatesLocalAccountWhenOidIsNotStored() throws Exception {
         when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, false));
+        var response = mvc.perform(authorizedPost(body())).andExpect(status().isCreated())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.userEntraObjectId").value(identity.toString()))
+                .andExpect(jsonPath("$.userProfileId").isNotEmpty()).andReturn().getResponse();
+        UUID profile = UUID.fromString(mapper.readTree(response.getContentAsString()).path("userProfileId").asText());
+        assertThat(jdbc.queryForObject("select count(*) from entra_user where entra_oid=?", Integer.class,
+                identity.toString())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from user_profile where id=?", Integer.class, profile)).isEqualTo(1);
+        verify(client).createUser(any());
+    }
+
+    @Test
+    void existingDownstreamIdentityWithLocallyStoredOidReturnsConflict() throws Exception {
+        jdbc.update("""
+                insert into entra_user
+                (id, created_date, created_by, email, entra_oid, first_name, last_name,
+                 status, multi_firm_user, enabled, mail_only, ccms_ebs_user)
+                values (?, current_timestamp, 'fixture', ?, ?, 'Existing', 'User',
+                        'ACTIVATION_REQUIRED', false, true, false, false)
+                """, UUID.randomUUID(), identity + "@example.com", identity.toString());
+        when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, false));
+
         mvc.perform(authorizedPost(body())).andExpect(status().isConflict())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.success").value(false))
