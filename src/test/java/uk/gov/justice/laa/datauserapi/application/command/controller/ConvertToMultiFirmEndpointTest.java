@@ -233,6 +233,7 @@ class ConvertToMultiFirmEndpointTest {
         AuthenticatedAppRole role = new AuthenticatedAppRole(UUID.randomUUID(), "role", 0, "ROLE", false, null, null,
                 null, false, null, permissions);
         AuthenticatedEntraUser principal = AuthenticatedEntraUser.builder()
+                .active(true)
                 .id(UUID.randomUUID()).entraOid(UUID.randomUUID().toString())
                 .activeProfile(AuthenticatedUserProfile.builder().activeProfile(true).userType(UserType.INTERNAL)
                         .appRoles(Set.of(role)).build())

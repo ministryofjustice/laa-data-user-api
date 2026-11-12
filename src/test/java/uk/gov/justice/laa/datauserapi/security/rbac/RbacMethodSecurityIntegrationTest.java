@@ -403,7 +403,7 @@ class RbacMethodSecurityIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"editPermission", "convertPermission", "external", "inactive", "noProfile",
+    @ValueSource(strings = {"editPermission", "convertPermission", "external", "inactive", "inactiveAccount", "noProfile",
         "unknownType", "self", "internalTarget"})
     void conversionDeniesBeforeInvokingServiceOrOpeningWriteTransaction(String restriction) {
         authenticate();
@@ -411,6 +411,7 @@ class RbacMethodSecurityIntegrationTest {
                 Permission.EDIT_EXTERNAL_USER, Permission.CONVERT_USER_TO_MULTI_FIRM);
         AuthenticatedUserProfile profile = permitted.activeProfile();
         AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().entraOid(permitted.entraOid())
+                .active(!restriction.equals("inactiveAccount"))
                 .activeProfile(restriction.equals("noProfile") ? null : AuthenticatedUserProfile.builder()
                         .activeProfile(!restriction.equals("inactive"))
                         .userType(restriction.equals("unknownType") ? null
@@ -439,6 +440,7 @@ class RbacMethodSecurityIntegrationTest {
         AuthenticatedAppRole convertRole = RbacTestActors.actorWith(Permission.CONVERT_USER_TO_MULTI_FIRM)
                 .activeProfile().appRoles().iterator().next();
         AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().entraOid(UUID.randomUUID().toString())
+                .active(true)
                 .activeProfile(AuthenticatedUserProfile.builder().activeProfile(true).userType(UserType.INTERNAL)
                         .appRoles(Set.of(editRole, convertRole)).build()).build();
         ConvertToMultiFirmCommand command = new ConvertToMultiFirmCommand(UUID.randomUUID());

@@ -183,7 +183,8 @@ use `QueryAuthorisationService` for active actor context. Existing visibility ru
 responses are unchanged.
 Multi-firm conversion requires both `EDIT_EXTERNAL_USER` and `CONVERT_USER_TO_MULTI_FIRM` through
 the command's `@RequiresPermission(match = ALL)` declaration. `InternalActorOnlyPolicy` requires an
-active internal actor profile; the existing self-target and external-target policies also apply.
+active account with an active internal actor profile, independent of the command or target. Account
+creation uses the same policy; the existing self-target and external-target policies also apply to conversion.
 These checks run at the handler boundary before the write transaction opens.
 `ConvertToMultiFirmService` owns the lock-refresh-check-update sequence, including the
 already-converted conflict check under the row lock. Active-profile retrieval and profile-list filtering
