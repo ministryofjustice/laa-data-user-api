@@ -1,7 +1,7 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
 public class CcmsNotificationException extends RuntimeException
-        implements ReasonedException<CcmsNotificationException.Reason> {
+        implements LaaDataApiException<CcmsNotificationException.Reason> {
 
     public enum Reason {
         SERIALIZATION_FAILURE,

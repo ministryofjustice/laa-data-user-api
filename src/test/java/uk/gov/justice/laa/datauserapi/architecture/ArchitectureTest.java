@@ -23,7 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandler;
-import uk.gov.justice.laa.datauserapi.exception.ReasonedException;
+import uk.gov.justice.laa.datauserapi.exception.LaaDataApiException;
 import uk.gov.justice.laa.datauserapi.exception.ExceptionGroup;
 import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
@@ -71,16 +71,16 @@ class ArchitectureTest {
             });
 
     @ArchTest
-    static final ArchRule exceptions_with_enum_reasons_must_implement_reasoned_exception = classes()
+    static final ArchRule exceptions_with_enum_reasons_must_implement_laa_data_api_exception = classes()
             .that().areAssignableTo(Throwable.class)
-            .should(new ArchCondition<>("implement ReasonedException when exposing enum facts") {
+            .should(new ArchCondition<>("implement LaaDataApiException when exposing enum facts") {
                 @Override
                 public void check(JavaClass item, ConditionEvents events) {
                     boolean hasEnum = item.getAllFields().stream().anyMatch(field -> field.getRawType().isEnum())
                             || item.getAllMethods().stream().anyMatch(method -> method.getRawReturnType().isEnum());
-                    if (hasEnum && !item.isAssignableTo(ReasonedException.class)) {
+                    if (hasEnum && !item.isAssignableTo(LaaDataApiException.class)) {
                         events.add(SimpleConditionEvent.violated(item,
-                                item.getName() + " exposes enum facts but does not implement ReasonedException"));
+                                item.getName() + " exposes enum facts but does not implement LaaDataApiException"));
                     }
                 }
             });

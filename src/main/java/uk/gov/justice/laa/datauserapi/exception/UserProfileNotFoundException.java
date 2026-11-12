@@ -3,7 +3,7 @@ package uk.gov.justice.laa.datauserapi.exception;
 import java.util.UUID;
 
 public class UserProfileNotFoundException extends ResourceNotFoundException
-        implements ReasonedException<UserProfileNotFoundReason> {
+        implements LaaDataApiException<UserProfileNotFoundReason> {
     private final UserProfileNotFoundReason reason;
 
     @Override

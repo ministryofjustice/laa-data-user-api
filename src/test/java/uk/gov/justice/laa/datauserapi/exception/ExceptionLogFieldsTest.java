@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 class ExceptionLogFieldsTest {
 
     @Test
-    void discoversNewReasonedExceptionsWithoutLoggingChanges() {
+    void discoversNewLaaDataApiExceptionsWithoutLoggingChanges() {
         assertToken(new FutureBusinessException(), "stable_business_group", "new_business_failure");
     }
 
@@ -25,7 +25,7 @@ class ExceptionLogFieldsTest {
         NEW_BUSINESS_FAILURE
     }
 
-    private static class FutureBusinessException extends RuntimeException implements ReasonedException<FutureReason> {
+    private static class FutureBusinessException extends RuntimeException implements LaaDataApiException<FutureReason> {
         @Override
         public String groupName() {
             return "stable_business_group";

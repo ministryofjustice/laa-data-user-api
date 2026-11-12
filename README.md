@@ -153,7 +153,7 @@ Exception metrics are derived from structured logs in Splunk; no exception count
 for example `active_profile_not_found`. The supported reason enums are
 `UserProfileNotFoundReason`, `InvalidActorContextReason`, `InvalidRequestException.Reason`,
 `TechServicesClientException.Reason`, and `CcmsNotificationException.Reason`.
-Exceptions with typed reasons implement `ReasonedException<R>` and provide a non-null `reason()`.
+Project exceptions with typed reasons implement `LaaDataApiException<R>` and provide a non-null `reason()`.
 Logging reads this contract automatically; adding an exception requires no logging switch updates.
 An ArchUnit rule rejects project exceptions exposing enum fields or enum-returning methods without
 the contract. Constructors reject null explicit reasons, and tests cover factories and legacy defaults.
@@ -162,7 +162,7 @@ Repeated multi-firm conversion raises `UserAlreadyMultiFirmException`, with grou
 `user_already_multi_firm`; the client still receives the generic HTTP 409 conflict response.
 Each of these log events also includes `exception_group`. Every project exception declares a stable
 snake-case value through `ExceptionGroup.groupName()` (for example `user_profile_not_found`,
-`invalid_actor_context`, or `tech_services_client`). `ReasonedException` extends this contract.
+`invalid_actor_context`, or `tech_services_client`). `LaaDataApiException` extends this contract.
 An ArchUnit rule requires every concrete project exception to declare its own group, including subclasses.
 Renaming a project exception does not change its group. Only third-party exceptions derive groups
 from their class names, removing the `Exception` suffix and converting to snake case.

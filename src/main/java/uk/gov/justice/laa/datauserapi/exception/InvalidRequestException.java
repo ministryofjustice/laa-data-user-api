@@ -1,7 +1,7 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
 public class InvalidRequestException extends IllegalArgumentException
-        implements ReasonedException<InvalidRequestException.Reason> {
+        implements LaaDataApiException<InvalidRequestException.Reason> {
 
     public enum Reason {
         INVALID_DEACTIVATION_REASON,

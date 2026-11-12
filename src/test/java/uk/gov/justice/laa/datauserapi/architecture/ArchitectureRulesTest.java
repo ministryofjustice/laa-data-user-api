@@ -39,7 +39,7 @@ class ArchitectureRulesTest {
 
     @Test
     void requiresReasonContractForEnumFieldsAndAccessors() {
-        ArchRule rule = ArchitectureTest.exceptions_with_enum_reasons_must_implement_reasoned_exception;
+        ArchRule rule = ArchitectureTest.exceptions_with_enum_reasons_must_implement_laa_data_api_exception;
         assertViolation(rule, MissingReasonContract.class);
         assertViolation(rule, MissingAccessorContract.class);
         assertViolation(rule, InheritedEnumException.class);
@@ -64,7 +64,7 @@ class ArchitectureRulesTest {
     }
 
     static class ReasonContractException extends RuntimeException
-            implements uk.gov.justice.laa.datauserapi.exception.ReasonedException<FailureReason> {
+            implements uk.gov.justice.laa.datauserapi.exception.LaaDataApiException<FailureReason> {
         @Override
         public String groupName() {
             return "business_failure";

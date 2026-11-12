@@ -5,7 +5,7 @@ import org.springframework.http.ResponseEntity;
 
 @Getter
 public class TechServicesClientException extends RuntimeException
-        implements ReasonedException<TechServicesClientException.Reason> {
+        implements LaaDataApiException<TechServicesClientException.Reason> {
 
     public enum Reason {
         DOWNSTREAM_FAILURE,

@@ -1,7 +1,7 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
 public class InvalidActorContextException extends RuntimeException
-        implements ReasonedException<InvalidActorContextReason> {
+        implements LaaDataApiException<InvalidActorContextReason> {
 
     private final InvalidActorContextReason reason;
 
