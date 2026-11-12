@@ -45,7 +45,7 @@ public class GlobalExceptionHandler {
                 URI.create("https://silas.laa.gov.uk/errors/not-found"),
                 "Resource Not Found",
                 HttpStatus.NOT_FOUND.value(),
-                ex.getMessage(),
+                "The requested resource was not found.",
                 URI.create(request.getRequestURI()),
                 null
         );
@@ -57,7 +57,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleUserNotFound(
             UserNotFoundException ex,
             HttpServletRequest request) {
-        return handleForbidden(new AccessDeniedException(ForbiddenResponseConstants.ACCESS_DENIED_MESSAGE, ex), request);
+        log.warn("User lookup failed",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
+        return forbiddenResponse(request);
     }
 
     @ExceptionHandler(FirmNotFoundException.class)
@@ -83,19 +87,25 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleUserProfileNotFound(
             UserProfileNotFoundException ex,
             HttpServletRequest request) {
-        return handleForbidden(new AccessDeniedException(ForbiddenResponseConstants.ACCESS_DENIED_MESSAGE, ex), request);
+        log.warn("User profile lookup failed",
+                kv("reason", ex.reason()),
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
+        return forbiddenResponse(request);
     }
 
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ProblemDetail> handleConflict(
             ConflictException ex,
             HttpServletRequest request) {
-        log.warn(ex.getMessage(), ex);
+        log.warn("Request conflicts with resource state",
+                kv("exceptionMessage", ex.getMessage()), kv("requestUri", request.getRequestURI()), ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/conflict"),
                 "Conflict",
                 HttpStatus.CONFLICT.value(),
-                ex.getMessage(),
+                "The request conflicts with the current resource state.",
                 URI.create(request.getRequestURI()),
                 null
         );
@@ -178,7 +188,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleUnreadableBody(
             HttpMessageNotReadableException ex,
             HttpServletRequest request) {
-        log.warn(ex.getMessage(), ex);
+        log.warn("Request body is missing or malformed",
+                kv("exceptionMessage", ex.getMessage()), kv("requestUri", request.getRequestURI()), ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
                 "Validation Error",
@@ -224,7 +235,7 @@ public class GlobalExceptionHandler {
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
                 "Validation Error",
                 HttpStatus.BAD_REQUEST.value(),
-                ex.getMessage(),
+                "A request identifier must match UUID format.",
                 URI.create(request.getRequestURI()),
                 null
         );
@@ -271,7 +282,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ProblemDetail> handleForbidden(
+    public ResponseEntity<ProblemDetail> handleAccessDenied(
             AccessDeniedException ex,
             HttpServletRequest request) {
         log.warn("Request access denied",
@@ -279,6 +290,10 @@ public class GlobalExceptionHandler {
                 kv("requestUri", request.getRequestURI()),
                 ex);
 
+        return forbiddenResponse(request);
+    }
+
+    private ResponseEntity<ProblemDetail> forbiddenResponse(HttpServletRequest request) {
         ProblemDetail problem = new ProblemDetail(
                 ForbiddenResponseConstants.TYPE,
                 ForbiddenResponseConstants.TITLE,
@@ -295,7 +310,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleUserAccountStatusConflict(
             RuntimeException ex,
             HttpServletRequest request) {
-        log.info("User account status conflict",
+        log.warn("User account status conflict",
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -304,7 +319,7 @@ public class GlobalExceptionHandler {
                 URI.create("https://silas.laa.gov.uk/errors/conflict"),
                 "Conflict",
                 HttpStatus.CONFLICT.value(),
-                ex.getMessage(),
+                "The user account state does not permit this operation.",
                 URI.create(request.getRequestURI()),
                 null
         );
@@ -342,16 +357,7 @@ public class GlobalExceptionHandler {
                 kv("requestUri", request.getRequestURI()),
                 ex);
 
-        ProblemDetail problem = new ProblemDetail(
-                ForbiddenResponseConstants.TYPE,
-                ForbiddenResponseConstants.TITLE,
-                HttpStatus.FORBIDDEN.value(),
-                ForbiddenResponseConstants.DETAIL,
-                URI.create(request.getRequestURI()),
-                null
-        );
-
-        return problemResponse(HttpStatus.FORBIDDEN, problem);
+        return forbiddenResponse(request);
     }
 
     @ExceptionHandler(InvalidActorContextException.class)
@@ -359,6 +365,7 @@ public class GlobalExceptionHandler {
             InvalidActorContextException ex,
             HttpServletRequest request) {
         log.warn("Actor context is invalid",
+                kv("reason", ex.reason()),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -379,7 +386,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleTaskRejected(
             TaskRejectedException ex,
             HttpServletRequest request) {
-        log.warn("Background task rejected because the executor is saturated", ex);
+        log.warn("Background task rejected because the executor is saturated",
+                kv("requestUri", request.getRequestURI()), ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/service-unavailable"),
                 "Service Unavailable",
@@ -400,15 +408,34 @@ public class GlobalExceptionHandler {
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
+        return internalServerErrorResponse(request);
+    }
+
+    @ExceptionHandler(InvalidRequestException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidRequest(
+            InvalidRequestException ex, HttpServletRequest request) {
+        log.warn("Request validation failed", kv("reason", ex.reason()),
+                kv("exceptionMessage", ex.getMessage()), kv("requestUri", request.getRequestURI()), ex);
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/validation-error"),
+                "Validation Error", HttpStatus.BAD_REQUEST.value(),
+                REQUEST_PARAMETER_VALIDATION_DETAIL, URI.create(request.getRequestURI()), null);
+        return problemResponse(HttpStatus.BAD_REQUEST, problem);
+    }
+
+    @ExceptionHandler(TechServicesClientException.class)
+    public ResponseEntity<ProblemDetail> handleTechServicesFailure(
+            TechServicesClientException ex, HttpServletRequest request) {
+        log.error("Tech Services request failed", kv("reason", ex.getReason()),
+                kv("requestUri", request.getRequestURI()), ex);
+        return internalServerErrorResponse(request);
+    }
+
+    private ResponseEntity<ProblemDetail> internalServerErrorResponse(HttpServletRequest request) {
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/internal-server-error"),
-                "Internal Server Error",
-                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "An unexpected downstream or system error occurred.",
-                URI.create(request.getRequestURI()),
-                null
-        );
-
+                "Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "An unexpected downstream or system error occurred.", URI.create(request.getRequestURI()), null);
         return problemResponse(HttpStatus.INTERNAL_SERVER_ERROR, problem);
     }
 

@@ -23,6 +23,7 @@ import uk.gov.justice.laa.datauserapi.application.query.shared.repository.FirmQu
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.OfficeQueryRepository;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.exception.FirmNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.InvalidRequestException;
 
 @Service
 @Transactional(readOnly = true)
@@ -66,12 +67,19 @@ public class FirmQueryService {
         String[] parts = value.split(",", -1);
         String property = parts.length > 0 ? FIRM_SORT_PROPERTIES.get(parts[0]) : null;
         if (property == null || parts.length > 2 || (parts.length == 2 && parts[1].isBlank())) {
-            throw new IllegalArgumentException("Unsupported firm sort value: " + value);
+            throw new InvalidRequestException(
+                    InvalidRequestException.Reason.INVALID_FIRM_SORT,
+                    "Unsupported firm sort value: " + value);
         }
 
-        Sort.Direction direction = parts.length == 2
-                ? Sort.Direction.fromString(parts[1])
-                : Sort.Direction.ASC;
+        Sort.Direction direction;
+        try {
+            direction = parts.length == 2 ? Sort.Direction.fromString(parts[1]) : Sort.Direction.ASC;
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidRequestException(
+                    InvalidRequestException.Reason.INVALID_FIRM_SORT,
+                    "Unsupported firm sort direction: " + value, ex);
+        }
         Sort.Order order = new Sort.Order(direction, property);
         if (property.equals("name")) {
             order = order.ignoreCase();

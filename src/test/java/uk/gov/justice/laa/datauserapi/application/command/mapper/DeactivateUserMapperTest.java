@@ -113,7 +113,7 @@ class DeactivateUserMapperTest {
 
             // Act & Assert
             assertThatThrownBy(() -> mapper.toAuditEntity(entraUser, command.deactivateReason(), actorId))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(uk.gov.justice.laa.datauserapi.exception.ReferenceDataNotFoundException.class)
                     .hasMessage("Deactivate reason not found: " + reasonEnum.name());
 
             verify(deactivateUserReasonRepository).findByName(reasonEnum.name());
@@ -206,9 +206,9 @@ class DeactivateUserMapperTest {
                     .build();
 
             // Act & Assert
-            // DeactivateUserReason.valueOf(null) throws NullPointerException, caught as non-matching or bubbling
             assertThatThrownBy(() -> mapper.toDeactivateUserCommand(request))
-                    .isInstanceOf(Exception.class);
+                    .isInstanceOf(uk.gov.justice.laa.datauserapi.exception.InvalidRequestException.class)
+                    .hasMessage("Invalid deactivate reason: null");
 
             verifyNoInteractions(deactivateUserReasonRepository);
         }

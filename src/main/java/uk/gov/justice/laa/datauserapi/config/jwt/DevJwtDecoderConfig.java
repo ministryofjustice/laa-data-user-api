@@ -3,6 +3,7 @@ package uk.gov.justice.laa.datauserapi.config.jwt;
 import static net.logstash.logback.argument.StructuredArguments.kv;
 
 import java.time.Instant;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -83,42 +84,41 @@ public class DevJwtDecoderConfig {
     }
 
     private Jwt decodeJwtClaimsWithoutValidation(String token) {
+        SignedJWT signedJwt;
+        JWTClaimsSet claimsSet;
         try {
-            SignedJWT signedJwt = SignedJWT.parse(token);
-            JWTClaimsSet claimsSet = signedJwt.getJWTClaimsSet();
-
-            final Map<String, Object> headers = new LinkedHashMap<>(signedJwt.getHeader().toJSONObject());
-            Map<String, Object> claims = new LinkedHashMap<>(claimsSet.getClaims());
-
-            // In local dev, add the read scope for upstream tokens that only carry Microsoft Graph scopes.
-            Object scpClaim = claims.get("scp");
-            Object scopeClaim = claims.get("scope");
-            String existingScopes = "";
-            if (scpClaim != null) {
-                existingScopes = scpClaim.toString();
-            } else if (scopeClaim != null) {
-                existingScopes = scopeClaim.toString();
-            }
-
-            Set<String> scopes = new LinkedHashSet<>(Arrays.asList(existingScopes.split("\\s+")));
-            scopes.removeIf(String::isBlank);
-            scopes.add("user_data.read");
-
-            claims.put("scp", String.join(" ", scopes));
-
-            Instant issuedAt = claimsSet.getIssueTime() != null
-                    ? claimsSet.getIssueTime().toInstant()
-                    : Instant.now();
-            Instant expiresAt = claimsSet.getExpirationTime() != null
-                    ? claimsSet.getExpirationTime().toInstant()
-                    : Instant.now().plusSeconds(3600);
-
-            return new Jwt(token, issuedAt, expiresAt, headers, Collections.unmodifiableMap(claims));
-        } catch (Exception e) {
+            signedJwt = SignedJWT.parse(token);
+            claimsSet = signedJwt.getJWTClaimsSet();
+        } catch (ParseException e) {
             log.warn("Failed to parse JWT payload in development decoder",
                     kv("exceptionMessage", e.getMessage()),
                     e);
             throw new JwtException("Dev JWT decoder failed - unable to parse token payload", e);
         }
+
+        final Map<String, Object> headers = new LinkedHashMap<>(signedJwt.getHeader().toJSONObject());
+        Map<String, Object> claims = new LinkedHashMap<>(claimsSet.getClaims());
+
+        // Local upstream tokens may carry Microsoft Graph scopes rather than API scopes.
+        Object scpClaim = claims.get("scp");
+        Object scopeClaim = claims.get("scope");
+        String existingScopes = "";
+        if (scpClaim != null) {
+            existingScopes = scpClaim.toString();
+        } else if (scopeClaim != null) {
+            existingScopes = scopeClaim.toString();
+        }
+
+        Set<String> scopes = new LinkedHashSet<>(Arrays.asList(existingScopes.split("\\s+")));
+        scopes.removeIf(String::isBlank);
+        scopes.add("user_data.read");
+        claims.put("scp", String.join(" ", scopes));
+
+        Instant issuedAt = claimsSet.getIssueTime() != null
+                ? claimsSet.getIssueTime().toInstant() : Instant.now();
+        Instant expiresAt = claimsSet.getExpirationTime() != null
+                ? claimsSet.getExpirationTime().toInstant() : Instant.now().plusSeconds(3600);
+
+        return new Jwt(token, issuedAt, expiresAt, headers, Collections.unmodifiableMap(claims));
     }
 }

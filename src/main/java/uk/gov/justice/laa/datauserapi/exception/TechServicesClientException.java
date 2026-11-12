@@ -6,6 +6,15 @@ import org.springframework.http.ResponseEntity;
 @Getter
 public class TechServicesClientException extends RuntimeException {
 
+    public enum Reason {
+        DOWNSTREAM_FAILURE,
+        INVALID_RESPONSE,
+        AUTHENTICATION_FAILURE,
+        CONFIGURATION_FAILURE,
+        INVALID_REQUEST
+    }
+
+    private Reason reason = Reason.DOWNSTREAM_FAILURE;
     private String code;
     private String[] errors;
     private ResponseEntity<?> responseEntity;
@@ -16,6 +25,16 @@ public class TechServicesClientException extends RuntimeException {
 
     public TechServicesClientException(String message, Throwable cause) {
         super(message, cause);
+    }
+
+    public TechServicesClientException(Reason reason, String message, Throwable cause) {
+        super(message, cause);
+        this.reason = reason;
+    }
+
+    public TechServicesClientException(Reason reason, String message) {
+        super(message);
+        this.reason = reason;
     }
 
     public TechServicesClientException(String message, String... args) {

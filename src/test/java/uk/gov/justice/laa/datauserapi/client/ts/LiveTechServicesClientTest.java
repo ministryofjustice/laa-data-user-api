@@ -7,6 +7,8 @@ import com.azure.core.credential.AccessToken;
 import com.azure.core.credential.TokenRequestContext;
 import com.azure.identity.ClientSecretCredential;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import org.springframework.web.client.ResourceAccessException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -237,7 +239,7 @@ class LiveTechServicesClientTest {
             when(requestBodySpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(String.class)).thenThrow(ex);
 
-            when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenThrow(new RuntimeException("Error Parsing"));
+            when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenThrow(new JsonProcessingException("Error Parsing") {});
 
             assertThatThrownBy(() -> client.reactivateUser(validUser)).isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("Error while sending reactivate user request to Tech Services.");
@@ -394,7 +396,7 @@ class LiveTechServicesClientTest {
             when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
             when(requestBodySpec.retrieve()).thenReturn(responseSpec);
             when(responseSpec.toEntity(String.class)).thenThrow(ex);
-            when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenThrow(new RuntimeException("Error Parsing"));
+            when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenThrow(new JsonProcessingException("Error Parsing") {});
 
             assertThatThrownBy(() -> client.deactivateUser(validUser, "test")).isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("Error while sending deactivate user request to Tech Services.");
@@ -586,10 +588,10 @@ class LiveTechServicesClientTest {
             mockTokenGeneration();
             mockPatch();
             when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(clientError(HttpStatus.BAD_REQUEST, "oops"));
-            when(objectMapper.readValue("oops", TechServicesErrorResponse.class)).thenThrow(new RuntimeException("parse"));
+            when(objectMapper.readValue("oops", TechServicesErrorResponse.class)).thenThrow(new JsonProcessingException("parse") {});
 
             assertThatThrownBy(() -> client.updateUserDetails("user-123", "John", null, null))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(TechServicesClientException.class)
                     .hasMessage("Error while getting users from Tech Services.");
         }
 
@@ -597,10 +599,10 @@ class LiveTechServicesClientTest {
         void wrapsUnexpectedErrors() {
             mockTokenGeneration();
             mockPatch();
-            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(new IllegalStateException("boom"));
+            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(new ResourceAccessException("boom"));
 
             assertThatThrownBy(() -> client.updateUserDetails("user-123", "John", null, null))
-                    .isInstanceOf(RuntimeException.class)
+                    .isInstanceOf(TechServicesClientException.class)
                     .hasMessage("Unexpected error while updating users details from Tech Services.");
         }
     }
@@ -666,7 +668,7 @@ class LiveTechServicesClientTest {
         void wrapsUnexpectedErrors() {
             mockTokenGeneration();
             mockPatch();
-            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class)).thenThrow(new IllegalStateException("boom"));
+            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class)).thenThrow(new ResourceAccessException("boom"));
 
             assertThatThrownBy(() -> client.deleteRoleAssignment(validUser))
                     .isInstanceOf(TechServicesClientException.class)
@@ -676,6 +678,40 @@ class LiveTechServicesClientTest {
 
     @Nested
     class EdgeCaseTests {
+
+        @Test
+        void authenticationFailurePreservesItsTypedReasonAndCause() {
+            when(cacheManager.getCache(CachingConfig.TECH_SERVICES_DETAILS_CACHE)).thenReturn(cache);
+            IllegalStateException failure = new IllegalStateException("token acquisition timed out");
+            when(clientSecretCredential.getToken(any(TokenRequestContext.class))).thenReturn(Mono.error(failure));
+
+            assertThatThrownBy(() -> client.reactivateUser(validUser))
+                    .isInstanceOfSatisfying(TechServicesClientException.class,
+                            ex -> assertThat(ex.getReason()).isEqualTo(TechServicesClientException.Reason.AUTHENTICATION_FAILURE))
+                    .hasCause(failure);
+        }
+
+        @Test
+        void unexpectedProgrammingFaultIsNotWrappedAsDownstreamFailure() {
+            mockTokenGeneration();
+            NullPointerException failure = new NullPointerException("unexpected bug");
+            when(restClient.patch()).thenThrow(failure);
+
+            assertThatThrownBy(() -> client.reactivateUser(validUser)).isSameAs(failure);
+        }
+
+        @Test
+        void malformedSuccessResponseIsClassifiedSeparatelyFromTransportFailure() throws Exception {
+            mockTokenGeneration();
+            mockFluentRestClient(ResponseEntity.ok("invalid"));
+            JsonProcessingException failure = new JsonProcessingException("invalid JSON") {};
+            when(objectMapper.readValue("invalid", ChangeAccountReactivationResponse.class)).thenThrow(failure);
+
+            assertThatThrownBy(() -> client.reactivateUser(validUser))
+                    .isInstanceOfSatisfying(TechServicesClientException.class,
+                            ex -> assertThat(ex.getReason()).isEqualTo(TechServicesClientException.Reason.INVALID_RESPONSE))
+                    .hasCause(failure);
+        }
 
         @Test
         void deactivateRejectsNullUser() {
@@ -688,7 +724,9 @@ class LiveTechServicesClientTest {
         void fetchesNewTokenWhenCacheMissing() {
             when(cacheManager.getCache(CachingConfig.TECH_SERVICES_DETAILS_CACHE)).thenReturn(null);
 
-            assertThatThrownBy(() -> client.reactivateUser(validUser)).isInstanceOf(RuntimeException.class);
+            assertThatThrownBy(() -> client.reactivateUser(validUser))
+                    .isInstanceOfSatisfying(TechServicesClientException.class,
+                            ex -> assertThat(ex.getReason()).isEqualTo(TechServicesClientException.Reason.CONFIGURATION_FAILURE));
         }
     }
 }

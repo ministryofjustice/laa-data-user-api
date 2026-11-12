@@ -1,16 +1,25 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.util.List;
+import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +38,8 @@ import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 class GlobalExceptionHandlerTest {
 
     private GlobalExceptionHandler handler;
+    private Logger logger;
+    private ListAppender<ILoggingEvent> appender;
 
     @Mock
     private HttpServletRequest request;
@@ -37,6 +48,16 @@ class GlobalExceptionHandlerTest {
     void setUp() {
         handler = new GlobalExceptionHandler();
         when(request.getRequestURI()).thenReturn("/api/v1/queries/users");
+        logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
+        appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+    }
+
+    @AfterEach
+    void tearDown() {
+        logger.detachAppender(appender);
+        appender.stop();
     }
 
     @Test
@@ -65,14 +86,20 @@ class GlobalExceptionHandlerTest {
         assertEquals("Forbidden", response.getBody().title());
         assertEquals("You do not possess the required scopes or permissions to perform this operation.",
                 response.getBody().detail());
-        assertEquals(handler.handleForbidden(new org.springframework.security.access.AccessDeniedException("Access denied"),
+        assertThat(appender.list.getFirst().getThrowableProxy().getClassName())
+                .isEqualTo(UserNotFoundException.class.getName());
+        assertEquals(handler.handleAccessDenied(new org.springframework.security.access.AccessDeniedException("Access denied"),
                 request).getBody(), response.getBody());
     }
 
-    @Test
-    void handleUserProfileNotFound_shouldReturnGeneric403WithProblemDetail() {
-        UserProfileNotFoundException ex = new UserProfileNotFoundException(
-                java.util.UUID.fromString("11111111-1111-1111-1111-111111111111"));
+    @ParameterizedTest
+    @EnumSource(UserProfileNotFoundReason.class)
+    void handleUserProfileNotFound_shouldReturnGeneric403WithProblemDetail(UserProfileNotFoundReason reason) {
+        java.util.UUID id = java.util.UUID.fromString("11111111-1111-1111-1111-111111111111");
+        UserProfileNotFoundException ex = switch (reason) {
+            case PROFILE_ID_NOT_FOUND -> new UserProfileNotFoundException(id);
+            case ACTIVE_PROFILE_NOT_FOUND -> UserProfileNotFoundException.activeProfileForUser(id.toString());
+        };
 
         ResponseEntity<ProblemDetail> response = handler.handleUserProfileNotFound(ex, request);
 
@@ -83,7 +110,11 @@ class GlobalExceptionHandlerTest {
         assertEquals("Forbidden", response.getBody().title());
         assertEquals("You do not possess the required scopes or permissions to perform this operation.",
                 response.getBody().detail());
-        assertEquals(handler.handleForbidden(new org.springframework.security.access.AccessDeniedException("Access denied"),
+        assertThat(appender.list.getFirst().getArgumentArray()).extracting(Object::toString)
+                .contains("reason=" + reason);
+        assertThat(appender.list.getFirst().getThrowableProxy().getClassName())
+                .isEqualTo(UserProfileNotFoundException.class.getName());
+        assertEquals(handler.handleAccessDenied(new org.springframework.security.access.AccessDeniedException("Access denied"),
                 request).getBody(), response.getBody());
     }
 
@@ -128,7 +159,7 @@ class GlobalExceptionHandlerTest {
         assertNotNull(response.getBody());
         assertEquals(409, response.getBody().status());
         assertEquals("Conflict", response.getBody().title());
-        assertEquals("User is already a multi-firm user", response.getBody().detail());
+        assertEquals("The request conflicts with the current resource state.", response.getBody().detail());
     }
 
     @Test
@@ -161,10 +192,17 @@ class GlobalExceptionHandlerTest {
                 response.getBody().detail());
     }
 
-    @Test
-    void handleInvalidActorContext_shouldReturn403WithProblemDetail() {
-        InvalidActorContextException ex = new InvalidActorContextException(
-                "Actor has no active profile: 11111111-1111-1111-1111-111111111111");
+    @ParameterizedTest
+    @EnumSource(InvalidActorContextReason.class)
+    void handleInvalidActorContext_shouldReturn403WithProblemDetail(InvalidActorContextReason reason) {
+        InvalidActorContextException ex = switch (reason) {
+            case NO_ACTIVE_PROFILE -> InvalidActorContextException.noActiveProfile(
+                    "11111111-1111-1111-1111-111111111111");
+            case UNDETERMINED_USER_TYPE -> InvalidActorContextException.undeterminedUserType();
+            case MISSING_ACTOR_IDENTITY -> InvalidActorContextException.missingActorIdentity();
+            case INVALID_ACTOR_IDENTITY -> InvalidActorContextException.invalidActorIdentity(
+                    new IllegalArgumentException("Invalid UUID"));
+        };
 
         ResponseEntity<ProblemDetail> response = handler.handleInvalidActorContext(ex, request);
 
@@ -174,6 +212,9 @@ class GlobalExceptionHandlerTest {
         assertEquals(403, response.getBody().status());
         assertEquals("Forbidden", response.getBody().title());
         assertEquals("Your account context does not permit this operation.", response.getBody().detail());
+        assertThat(appender.list.getFirst().getArgumentArray()).extracting(Object::toString)
+                .contains("reason=" + reason);
+        assertThat(response.getBody().toString()).doesNotContain(reason.name(), "11111111-1111-1111-1111-111111111111");
     }
 
     @Test
@@ -213,7 +254,7 @@ class GlobalExceptionHandlerTest {
         assertNotNull(response.getBody());
         assertEquals(400, response.getBody().status());
         assertEquals("Validation Error", response.getBody().title());
-        assertEquals("userEntraObjectId must be a valid UUID format", response.getBody().detail());
+        assertEquals("A request identifier must match UUID format.", response.getBody().detail());
     }
 
     @Test
@@ -270,7 +311,7 @@ class GlobalExceptionHandlerTest {
         var ex = new org.springframework.security.access.AccessDeniedException(
                 "Target user secret-user belongs to secret-firm; missing secret-role");
 
-        ResponseEntity<ProblemDetail> response = handler.handleForbidden(ex, request);
+        ResponseEntity<ProblemDetail> response = handler.handleAccessDenied(ex, request);
 
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
         assertProblemContentType(response);
@@ -284,6 +325,42 @@ class GlobalExceptionHandlerTest {
 
     private void assertProblemContentType(ResponseEntity<ProblemDetail> response) {
         assertEquals(MediaType.APPLICATION_PROBLEM_JSON, response.getHeaders().getContentType());
+    }
+
+    @Test
+    void diagnosticMessagesNeverBecomeClientResponseDetails() {
+        String diagnostic = "secret-user secret-firm secret-role secret-config";
+        List<ResponseEntity<ProblemDetail>> responses = List.of(
+                handler.handleNotFound(new ResourceNotFoundException(diagnostic), request),
+                handler.handleConflict(new ConflictException(diagnostic), request),
+                handler.handleInvalidUuidFormat(new InvalidUuidFormatException(diagnostic), request),
+                handler.handleReferenceDataNotFound(new ReferenceDataNotFoundException(diagnostic), request),
+                handler.handleJwtException(new JwtException(diagnostic), request),
+                handler.handleGenericException(new IllegalStateException(diagnostic), request),
+                handler.handleTechServicesFailure(new TechServicesClientException(diagnostic), request),
+                handler.handleInvalidRequest(new InvalidRequestException(
+                        InvalidRequestException.Reason.INVALID_FIRM_SORT, diagnostic), request),
+                handler.handleUserAccountStatusConflict(new UserAlreadyDeactivatedException(
+                        UUID.fromString("11111111-1111-1111-1111-111111111111")), request));
+
+        for (ResponseEntity<ProblemDetail> response : responses) {
+            assertProblemContentType(response);
+            assertThat(response.getBody()).isNotNull();
+            assertThat(response.getBody().toString()).doesNotContain(
+                    diagnostic, "11111111-1111-1111-1111-111111111111");
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(InvalidRequestException.Reason.class)
+    void invalidRequestReasonsAreLoggedButNotReturned(InvalidRequestException.Reason reason) {
+        ResponseEntity<ProblemDetail> response = handler.handleInvalidRequest(
+                new InvalidRequestException(reason, "private diagnostic"), request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertThat(response.getBody().detail()).isEqualTo("One or more request parameters failed validation.");
+        assertThat(appender.list.getFirst().getArgumentArray()).extracting(Object::toString)
+                .contains("reason=" + reason);
     }
 
     @Test

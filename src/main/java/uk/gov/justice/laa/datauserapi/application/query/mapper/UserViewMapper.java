@@ -36,8 +36,7 @@ public class UserViewMapper {
         UserProfileDto activeProfile = user.getUserProfiles().stream()
                 .filter(UserProfileDto::isActiveProfile)
                 .findFirst()
-                .orElseThrow(() -> new InvalidActorContextException(
-                        "No active profile found for user: " + user.getEntraOid()));
+                .orElseThrow(() -> InvalidActorContextException.noActiveProfile(user.getEntraOid()));
 
         UserAccountSummaryView userAccount = new UserAccountSummaryView(
                 user.getEntraOid(),

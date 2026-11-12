@@ -27,6 +27,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ArchitectureRulesTest {
 
     @Test
+    void rejectsGenericExceptionConstructionButPermitsDomainExceptions() {
+        assertViolation(ArchitectureTest.application_code_must_use_specific_exceptions, GenericExceptionThrower.class);
+        assertViolation(ArchitectureTest.application_code_must_use_specific_exceptions, GenericRuntimeExceptionThrower.class);
+        ArchitectureTest.application_code_must_use_specific_exceptions.check(importClasses(DomainExceptionThrower.class));
+    }
+
+    @Test
     void enforcesCommandQueryIsolationInBothDirections() {
         assertThat(ArchitectureTest.command_side_must_not_depend_on_query_side.evaluate(importClasses(
                 CommandHandlerBoundaryFixtures.CommandHandlerFixture.class,
@@ -161,6 +168,24 @@ class ArchitectureRulesTest {
     interface ReadRepository extends Repository<UserProfile, UUID> {
         @Query("select p from UserProfile p")
         Optional<UserProfile> findProfile();
+    }
+
+    static class GenericExceptionThrower {
+        void fail() throws Exception {
+            throw new Exception("generic");
+        }
+    }
+
+    static class GenericRuntimeExceptionThrower {
+        void fail() {
+            throw new RuntimeException("generic");
+        }
+    }
+
+    static class DomainExceptionThrower {
+        void fail() {
+            throw new uk.gov.justice.laa.datauserapi.exception.UserNotFoundException("user");
+        }
     }
 
     interface WriteRepository extends Repository<UserProfile, UUID> {

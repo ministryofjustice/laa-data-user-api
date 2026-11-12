@@ -5,12 +5,16 @@ import static net.logstash.logback.argument.StructuredArguments.kv;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.RejectedExecutionException;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.TransactionException;
 import uk.gov.justice.laa.datauserapi.application.command.dto.BulkDeactivationResult;
 import uk.gov.justice.laa.datauserapi.application.command.dto.BulkDeactivationResult.Status;
 import uk.gov.justice.laa.datauserapi.application.command.dto.BulkDeactivationResult.UserOutcome;
@@ -52,15 +56,29 @@ public class BulkDeactivateFirmUsersService {
      */
     @Async("bulkDeactivationExecutor")
     public void deactivateAsync(BulkDeactivateFirmUsersCommand command, AuthenticatedEntraUser actor) {
+        BulkDeactivationResult result;
         try {
-            BulkDeactivationResult result = deactivate(command, actor);
-            log.info("Bulk deactivation completed",
-                    kv("firmCode", command.firmId()), kv("actorEntraOid", actor.entraOid()),
-                    kv("deactivated", result.deactivated()), kv("failed", result.failed()));
-        } catch (Exception ex) {
-            log.error("Bulk deactivation aborted",
-                    kv("firmCode", command.firmId()), kv("actorEntraOid", actor.entraOid()), ex);
+            result = deactivate(command, actor);
+        } catch (FirmNotFoundException ex) {
+            recordAborted(command, actor, Status.FIRM_NOT_FOUND, ex);
+            return;
+        } catch (DataAccessException | TransactionException ex) {
+            recordAborted(command, actor, Status.DATABASE_FAILURE, ex);
+            return;
+        } catch (ConstraintViolationException ex) {
+            recordAborted(command, actor, Status.VALIDATION_FAILURE, ex);
+            return;
+        } catch (RejectedExecutionException ex) {
+            recordAborted(command, actor, Status.EXECUTOR_REJECTED, ex);
+            return;
+        } catch (RuntimeException ex) {
+            // The async caller cannot receive failures; retain an explicit last-resort diagnostic.
+            recordAborted(command, actor, Status.SYSTEM_FAILURE, ex);
+            return;
         }
+        log.info("Bulk deactivation completed",
+                kv("firmCode", command.firmId()), kv("actorEntraOid", actor.entraOid()),
+                kv("deactivated", result.deactivated()), kv("failed", result.failed()));
     }
 
     // Firm-level authorization is enforced by the bulk handler; each user gets an independent transaction.
@@ -97,7 +115,13 @@ public class BulkDeactivateFirmUsersService {
                 recordFailure(outcomes, entraOid, command.firmId(), Status.USER_NOT_FOUND, ex);
             } catch (TechServicesClientException ex) {
                 recordFailure(outcomes, entraOid, command.firmId(), Status.DOWNSTREAM_FAILURE, ex);
-            } catch (Exception ex) {
+            } catch (DataAccessException | TransactionException ex) {
+                recordFailure(outcomes, entraOid, command.firmId(), Status.DATABASE_FAILURE, ex);
+            } catch (ConstraintViolationException ex) {
+                recordFailure(outcomes, entraOid, command.firmId(), Status.VALIDATION_FAILURE, ex);
+            } catch (RejectedExecutionException ex) {
+                recordFailure(outcomes, entraOid, command.firmId(), Status.EXECUTOR_REJECTED, ex);
+            } catch (RuntimeException ex) {
                 // Preserve best-effort processing, but distinguish unexpected faults from business failures.
                 recordFailure(outcomes, entraOid, command.firmId(), Status.SYSTEM_FAILURE, ex);
             }
@@ -108,12 +132,25 @@ public class BulkDeactivateFirmUsersService {
     private void recordFailure(List<UserOutcome> outcomes, String entraOid, String firmCode, Status status,
                                Exception ex) {
         outcomes.add(new UserOutcome(entraOid, status));
-        if (status == Status.SYSTEM_FAILURE) {
+        if (status == Status.SYSTEM_FAILURE || status == Status.DATABASE_FAILURE) {
             log.error("Unexpected bulk deactivation failure",
                     kv("entraOid", entraOid), kv("firmCode", firmCode), kv("failureType", status), ex);
         } else {
             log.warn("Bulk deactivation failed for user",
                     kv("entraOid", entraOid), kv("firmCode", firmCode), kv("failureType", status), ex);
+        }
+    }
+
+    private void recordAborted(BulkDeactivateFirmUsersCommand command, AuthenticatedEntraUser actor,
+                               Status status, RuntimeException ex) {
+        if (status == Status.SYSTEM_FAILURE || status == Status.DATABASE_FAILURE) {
+            log.error("Bulk deactivation aborted",
+                    kv("firmCode", command.firmId()), kv("actorEntraOid", actor.entraOid()),
+                    kv("failureType", status), ex);
+        } else {
+            log.warn("Bulk deactivation aborted",
+                    kv("firmCode", command.firmId()), kv("actorEntraOid", actor.entraOid()),
+                    kv("failureType", status), ex);
         }
     }
 }

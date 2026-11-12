@@ -131,6 +131,11 @@ only when the actor's resolved deactivation type is equal to or higher than the 
 Bulk deactivation is asynchronous: the handler checks permission, firm scope and firm existence, then
 returns 202 Accepted while `BulkDeactivateFirmUsersService.deactivateAsync` runs on the
 `bulkDeactivationExecutor` pool (a full queue returns 503). Per-user outcomes and a summary are logged only.
+Bulk failure logs classify invalid user IDs, missing resources, access denials, downstream failures,
+database/transaction failures, validation failures, executor rejections, unsuccessful results, and
+unexpected runtime faults using the structured `failureType` field. Known per-user failures do not
+stop subsequent users; an unexpected runtime-failure guard preserves best-effort processing.
+Aborted asynchronous runs also log a classified failure and the original exception.
 Bulk and individual deactivation delegate to the shared transactional `DeactivateUserService` workflow
 using a target ID, reason, and actor, not another command. Bulk never invokes another handler
 or constructs `DeactivateUserCommand`.
@@ -140,6 +145,25 @@ user's row changes only for an equal or higher deactivation type. Bulk authoriza
 `DISABLE_EXTERNAL_USER` or apply individual self-target, internal-target, multi-firm, or active-profile
 firm-scope policies. Only users returned by the target firm's membership query are processed.
 Individual deactivation retains its own permission and target policies at `DeactivateUserHandler`.
+Missing users, missing profiles, access denials, and missing scopes share the same generic 403 response
+builder without synthesizing exceptions. Actor-context and profile-lookup exceptions expose typed
+reasons in structured server logs; reasons and diagnostic messages are not returned to clients.
+No new metrics are registered by these exception handlers.
+
+Exception handling uses domain-specific exceptions for business and integration failures.
+Tech Services exceptions distinguish downstream, response-parsing, authentication, and configuration
+failures; invalid deactivation reasons and firm sorting use typed request-validation reasons.
+Missing users/profiles return generic 403 responses; other missing resources return 404.
+Conflict, invalid-identifier, configuration, and unexpected-error responses use fixed client-safe
+details, never exception messages. Structured server logs retain reasons, context, and stack traces.
+ArchUnit rejects construction of generic `Exception` and `RuntimeException` in application code.
+Spring-proxied CCMS notifications retry serialization and AWS SDK failures up to three times and recover to a logged failure;
+unexpected programming faults are neither retried nor treated as successful delivery.
+Missing CCMS clients or queues return an unsuccessful notification result, never a successful delivery.
+Role-cleanup downstream failures remain best-effort during user deletion; unexpected faults propagate.
+Deliberate last-resort runtime guards remain only at best-effort bulk/profile-processing and token-cache
+boundaries, where they log diagnostics. The generic HTTP exception handler remains a final safety net.
+
 User-details updates delegate to `UpdateUserDetailsService`, preserving email validation and the
 Tech Services call before local changes. Assigned-office and unrestricted-office commands use
 separate methods on `UserProfileOfficeService`, sharing profile lookup and modification metadata.

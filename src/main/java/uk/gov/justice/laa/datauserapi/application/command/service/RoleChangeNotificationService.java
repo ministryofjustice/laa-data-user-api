@@ -3,6 +3,7 @@ package uk.gov.justice.laa.datauserapi.application.command.service;
 import static net.logstash.logback.argument.StructuredArguments.kv;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.retry.annotation.Backoff;
@@ -10,6 +11,8 @@ import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataAccessException;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
@@ -21,6 +24,7 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.exception.CcmsNotificationException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -55,7 +59,7 @@ public class RoleChangeNotificationService {
      * @return true if successful
      */
     @Retryable(
-            retryFor = {RuntimeException.class},
+            retryFor = {CcmsNotificationException.class, SdkException.class},
             maxAttempts = 3,
             backoff = @Backoff(delay = 100)
     )
@@ -73,27 +77,28 @@ public class RoleChangeNotificationService {
             log.info("Initializing CCMS role change message",
                     kv("entraOid", userProfile.getEntraUser().getEntraOid()),
                     kv("applicationEntraOid", appEntraOid));
-            sendRoleChangeNotificationToSqs(userProfile, appEntraOid, newPuiRoles, oldPuiRoles);
-            return true;
-        } catch (Exception e) {
+            return sendRoleChangeNotificationToSqs(userProfile, appEntraOid, newPuiRoles, oldPuiRoles);
+        } catch (CcmsNotificationException | SdkException e) {
             log.warn("CCMS notification attempt failed",
                     kv("entraOid", userProfile.getEntraUser().getEntraOid()),
                     kv("applicationEntraOid", appEntraOid),
+                    kv("reason", e instanceof CcmsNotificationException notification
+                            ? notification.reason() : "SDK_FAILURE"),
                     kv("exceptionMessage", e.getMessage()),
                     e);
-            throw new RuntimeException("CCMS notification failed", e);
+            throw e;
         }
     }
 
 
-    private void sendRoleChangeNotificationToSqs(UserProfile userProfile, String appEntraOid, Set<String> newPuiRoles, Set<String> oldPuiRoles) throws Exception {
+    private boolean sendRoleChangeNotificationToSqs(UserProfile userProfile, String appEntraOid, Set<String> newPuiRoles, Set<String> oldPuiRoles) {
         Optional<SqsClient> sqsClientOpt = sqsClientRegistry.getSqsClient(appEntraOid);
         Optional<String> sqsQueueUrlOpt = sqsClientRegistry.getSqsQueueUrl(appEntraOid);
         if (sqsClientOpt.isEmpty() || sqsQueueUrlOpt.isEmpty() || "NONE".equalsIgnoreCase(sqsQueueUrlOpt.get())) {
             log.info("Skipping CCMS update because the queue or client is unavailable",
                     kv("entraOid", userProfile.getEntraUser().getEntraOid()),
                     kv("applicationEntraOid", appEntraOid));
-            return;
+            return false;
         }
 
         SqsClient sqsClient = sqsClientOpt.get();
@@ -116,7 +121,13 @@ public class RoleChangeNotificationService {
                 ccmsMessageBuilder.vendorNumber(userProfile.getFirm().getCode());
             }
 
-            String messageBody = objectMapper.writeValueAsString(ccmsMessageBuilder.build());
+            CcmsMessage message = ccmsMessageBuilder.build();
+            String messageBody;
+            try {
+                messageBody = objectMapper.writeValueAsString(message);
+            } catch (JsonProcessingException ex) {
+                throw new CcmsNotificationException("CCMS message serialization failed", ex);
+            }
             log.info("CCMS role change message generated",
                     kv("userProfileId", userProfile.getId()),
                     kv("entraOid", userProfile.getEntraUser().getEntraOid()),
@@ -147,13 +158,34 @@ public class RoleChangeNotificationService {
                     kv("entraOid", userProfile.getEntraUser().getEntraOid()),
                     kv("applicationEntraOid", appEntraOid));
         }
+        return true;
     }
 
     @Recover
-    public boolean recoverFromRetryFailure(RuntimeException e, UserProfile userProfile) {
+    public boolean propagateUnexpectedFailure(RuntimeException e, UserProfile userProfile,
+                                             String appEntraOid, Set<String> newPuiRoles, Set<String> oldPuiRoles) {
+        throw e;
+    }
+
+    @Recover
+    public boolean recoverFromRetryFailure(CcmsNotificationException e, UserProfile userProfile,
+                                          String appEntraOid, Set<String> newPuiRoles, Set<String> oldPuiRoles) {
+        return recordRetryFailure(e, userProfile, appEntraOid);
+    }
+
+    @Recover
+    public boolean recoverFromRetryFailure(SdkException e, UserProfile userProfile,
+                                          String appEntraOid, Set<String> newPuiRoles, Set<String> oldPuiRoles) {
+        return recordRetryFailure(e, userProfile, appEntraOid);
+    }
+
+    private boolean recordRetryFailure(RuntimeException e, UserProfile userProfile, String appEntraOid) {
         log.error("All CCMS notification retries failed; continuing with database update",
                 kv("userProfileId", userProfile.getId()),
                 kv("entraOid", userProfile.getEntraUser().getEntraOid()),
+                kv("applicationEntraOid", appEntraOid),
+                kv("reason", e instanceof CcmsNotificationException notification
+                        ? notification.reason() : "SDK_FAILURE"),
                 e);
         return false;
     }
@@ -185,6 +217,10 @@ public class RoleChangeNotificationService {
 
         profiles.forEach(profile -> {
             try {
+                if (profile.getAppRoles() == null) {
+                    throw new CcmsNotificationException(CcmsNotificationException.Reason.INVALID_PROFILE,
+                            "CCMS profile roles are unavailable", null);
+                }
                 Map<String, Set<String>> ccmsRolesMap = profile.getAppRoles().stream()
                         .filter(AppRole::isLegacySync)
                         .collect(Collectors.groupingBy(role -> role.getApp().getEntraOid(),
@@ -214,10 +250,18 @@ public class RoleChangeNotificationService {
                 } else {
                     unsuccessful.incrementAndGet();
                 }
-            } catch (Exception e) {
+            } catch (CcmsNotificationException | SdkException | DataAccessException e) {
                 log.error("Failed to sync CCMS roles for profile",
                         kv("userProfileId", profile.getId()),
                         kv("entraOid", profile.getEntraUser().getEntraOid()),
+                        kv("failureType", e instanceof DataAccessException ? "DATABASE_FAILURE" : "NOTIFICATION_FAILURE"),
+                        e);
+                unsuccessful.incrementAndGet();
+            } catch (RuntimeException e) {
+                // Keep independent profile syncs running after an unexpected fault.
+                log.error("Unexpected CCMS role sync failure",
+                        kv("userProfileId", profile.getId()),
+                        kv("failureType", "SYSTEM_FAILURE"),
                         e);
                 unsuccessful.incrementAndGet();
             }

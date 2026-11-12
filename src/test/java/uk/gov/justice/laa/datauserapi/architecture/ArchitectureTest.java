@@ -313,6 +313,22 @@ class ArchitectureTest {
     static final ArchRule no_autowired_field_injection_should_be_used = noFields()
             .should().beAnnotatedWith(Autowired.class);
 
+    @ArchTest
+    static final ArchRule application_code_must_use_specific_exceptions = classes()
+            .that().areNotAssignableTo(Throwable.class)
+            .should(new ArchCondition<>("use specific exceptions rather than Exception or RuntimeException") {
+                @Override
+                public void check(JavaClass item, ConditionEvents events) {
+                    item.getConstructorCallsFromSelf().forEach(call -> {
+                        if (call.getTargetOwner().isEquivalentTo(Exception.class)
+                                || call.getTargetOwner().isEquivalentTo(RuntimeException.class)) {
+                            events.add(SimpleConditionEvent.violated(call, call.getDescription()
+                                    + " must construct a specific exception type"));
+                        }
+                    });
+                }
+            });
+
 
     @ArchTest
     static final ArchRule application_packages_are_free_of_cycles =

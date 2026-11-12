@@ -16,6 +16,7 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
 import lombok.extern.slf4j.Slf4j;
+import uk.gov.justice.laa.datauserapi.exception.JwtConfigurationException;
 
 /**
  * JWT Decoder configuration for production environments.
@@ -43,20 +44,21 @@ public class JwtDecoderConfig {
                 kv("issuerUri", issuerUri),
                 kv("jwkSetUri", jwkSetUri),
                 kv("audience", audience));
-        try {
-            OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(audience);
-            OAuth2TokenValidator<Jwt> timestampValidator = new JwtTimestampValidator();
-            OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
+        OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(audience);
+        OAuth2TokenValidator<Jwt> timestampValidator = new JwtTimestampValidator();
+        OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
 
-            NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
-            jwtDecoder.setJwtValidator(
-                new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator, timestampValidator));
-            return jwtDecoder;
-        } catch (Exception e) {
+        NimbusJwtDecoder jwtDecoder;
+        try {
+            jwtDecoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+        } catch (IllegalArgumentException e) {
             log.error("JWT decoder creation failed",
                     kv("exceptionMessage", e.getMessage()),
                     e);
-            throw new RuntimeException("JWT Decoder configuration failed", e);
+            throw new JwtConfigurationException("JWT Decoder configuration failed", e);
         }
+        jwtDecoder.setJwtValidator(
+                new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator, timestampValidator));
+        return jwtDecoder;
     }
 }

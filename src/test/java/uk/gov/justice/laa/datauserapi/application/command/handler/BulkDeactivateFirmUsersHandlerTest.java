@@ -2,6 +2,7 @@ package uk.gov.justice.laa.datauserapi.application.command.handler;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
+import org.springframework.core.task.TaskRejectedException;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.BulkDeactivateFirmUsersMapper;
 import uk.gov.justice.laa.datauserapi.application.command.service.BulkDeactivateFirmUsersService;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.BulkDeactivateFirmUsersCommand;
@@ -46,5 +47,13 @@ class BulkDeactivateFirmUsersHandlerTest {
 
         verify(service).requireFirmExists("FIRM1");
         verifyNoMoreInteractions(service);
+    }
+
+    @Test
+    void executorRejectionPropagatesInsteadOfReturningAccepted() {
+        TaskRejectedException rejection = new TaskRejectedException("bulk executor saturated");
+        doThrow(rejection).when(service).deactivateAsync(command, actor);
+
+        assertThatThrownBy(() -> handler.handle(command, actor)).isSameAs(rejection);
     }
 }

@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.service;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import lombok.extern.slf4j.Slf4j;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -12,7 +14,7 @@ import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.exception.ConflictException;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
 @Slf4j
 @Service
@@ -31,16 +33,15 @@ public class ConvertToMultiFirmService {
 
     @Transactional
     public CommandResult convert(ConvertToMultiFirmCommand command, AuthenticatedEntraUser actor) {
-        log.info("Converting user {} to multi-firm", command.userEntraObjectId());
+        log.info("Converting user to multi-firm", kv("entraOid", command.userEntraObjectId()));
 
         // Refresh a target cached by pre-handler policies after acquiring the row lock.
         EntraUser user = entraUserCommandRepository.findByEntraOidForUpdate(mapper.toEntraOid(command))
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "User account not found for oid: " + command.userEntraObjectId()));
+                .orElseThrow(() -> new UserNotFoundException(command.userEntraObjectId()));
         entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
 
         if (user.isMultiFirmUser()) {
-            log.warn("User {} is already multi-firm", command.userEntraObjectId());
+            log.warn("User is already multi-firm", kv("entraOid", command.userEntraObjectId()));
             throw new ConflictException("User is already a multi-firm user");
         }
 

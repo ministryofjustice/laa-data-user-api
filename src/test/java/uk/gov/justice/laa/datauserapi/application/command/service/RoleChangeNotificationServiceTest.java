@@ -1,6 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -8,7 +9,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.retry.annotation.EnableRetry;
 import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import uk.gov.justice.laa.datauserapi.exception.CcmsNotificationException;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 import uk.gov.justice.laa.datauserapi.application.command.registry.SqsClientRegistry;
@@ -31,7 +37,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -122,22 +130,105 @@ class RoleChangeNotificationServiceTest {
         when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
         when(registry.getSqsClient(APP)).thenReturn(Optional.empty());
 
-        assertThat(service.sendMessage(profile, APP, Set.of(), Set.of("R"))).isTrue();
+        assertThat(service.sendMessage(profile, APP, Set.of(), Set.of("R"))).isFalse();
     }
 
     @Test
     void wrapsSendFailures() {
         when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
         when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
-        when(sqsClient.sendMessage(any(SendMessageRequest.class))).thenThrow(new IllegalStateException("down"));
+        SdkClientException failure = SdkClientException.create("down");
+        when(sqsClient.sendMessage(any(SendMessageRequest.class))).thenThrow(failure);
 
         assertThatThrownBy(() -> service.sendMessage(profile, APP, Set.of(), Set.of("R")))
-                .isInstanceOf(RuntimeException.class).hasMessage("CCMS notification failed");
+                .isSameAs(failure);
     }
 
     @Test
     void recoverReturnsFalse() {
-        assertThat(service.recoverFromRetryFailure(new RuntimeException("x"), profile)).isFalse();
+        assertThat(service.recoverFromRetryFailure(
+                new CcmsNotificationException("x", null), profile, APP, Set.of(), Set.of())).isFalse();
+        assertThat(service.recoverFromRetryFailure(
+                SdkClientException.create("x"), profile, APP, Set.of(), Set.of())).isFalse();
+    }
+
+    @Test
+    void wrapsSerializationFailureWithItsCause() throws JsonProcessingException {
+        ObjectMapper mapper = mock(ObjectMapper.class);
+        JsonProcessingException failure = new JsonProcessingException("invalid JSON") {};
+        when(mapper.writeValueAsString(any())).thenThrow(failure);
+        RoleChangeNotificationService notification = new RoleChangeNotificationService(registry, mapper, repository);
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+
+        assertThatThrownBy(() -> notification.sendMessage(profile, APP, Set.of("R"), Set.of()))
+                .isInstanceOf(CcmsNotificationException.class).hasCause(failure);
+        verifyNoInteractions(sqsClient);
+    }
+
+    @Test
+    void springProxyRetriesSdkFailuresThreeTimesThenReturnsFalse() {
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+        when(sqsClient.sendMessage(any(SendMessageRequest.class))).thenThrow(SdkClientException.create("unavailable"));
+
+        try (AnnotationConfigApplicationContext context = retryContext()) {
+            assertThat(context.getBean(RoleChangeNotificationService.class)
+                    .sendMessage(profile, APP, Set.of("R"), Set.of())).isFalse();
+        }
+
+        verify(sqsClient, times(3)).sendMessage(any(SendMessageRequest.class));
+    }
+
+    @Test
+    void springProxyRetriesSerializationFailuresThreeTimesThenReturnsFalse() throws JsonProcessingException {
+        ObjectMapper mapper = mock(ObjectMapper.class);
+        when(mapper.writeValueAsString(any())).thenThrow(new JsonProcessingException("invalid JSON") {});
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+
+        try (AnnotationConfigApplicationContext context = retryContext(mapper)) {
+            assertThat(context.getBean(RoleChangeNotificationService.class)
+                    .sendMessage(profile, APP, Set.of("R"), Set.of())).isFalse();
+        }
+
+        verify(mapper, times(3)).writeValueAsString(any());
+        verifyNoInteractions(sqsClient);
+    }
+
+    @Test
+    void springProxyDoesNotRetryOrRecoverUnexpectedProgrammingFaults() {
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+        IllegalStateException failure = new IllegalStateException("unexpected bug");
+        when(sqsClient.sendMessage(any(SendMessageRequest.class))).thenThrow(failure);
+
+        try (AnnotationConfigApplicationContext context = retryContext()) {
+            assertThatThrownBy(() -> context.getBean(RoleChangeNotificationService.class)
+                    .sendMessage(profile, APP, Set.of("R"), Set.of())).isSameAs(failure);
+        }
+
+        verify(sqsClient).sendMessage(any(SendMessageRequest.class));
+    }
+
+    private AnnotationConfigApplicationContext retryContext() {
+        return retryContext(new ObjectMapper().registerModule(new JavaTimeModule()));
+    }
+
+    private AnnotationConfigApplicationContext retryContext(ObjectMapper mapper) {
+        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
+        context.register(RetryConfiguration.class);
+        context.registerBean(SqsClientRegistry.class, () -> registry);
+        context.registerBean(ObjectMapper.class, () -> mapper);
+        context.registerBean(UserProfileCommandRepository.class, () -> repository);
+        context.register(RoleChangeNotificationService.class);
+        context.refresh();
+        return context;
+    }
+
+    @Configuration
+    @EnableRetry(proxyTargetClass = true)
+    static class RetryConfiguration {
     }
 
     @Test
@@ -185,7 +276,7 @@ class RoleChangeNotificationServiceTest {
         when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE), Optional.of("NONE"));
         when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
 
-        assertThat(service.sendMessage(profile, APP, Set.of(), Set.of("R"))).isTrue();
+        assertThat(service.sendMessage(profile, APP, Set.of(), Set.of("R"))).isFalse();
         verifyNoInteractions(sqsClient);
     }
 
