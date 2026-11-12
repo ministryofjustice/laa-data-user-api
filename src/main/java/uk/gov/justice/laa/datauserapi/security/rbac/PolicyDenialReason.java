@@ -18,26 +18,12 @@ public enum PolicyDenialReason {
     TARGET_PROFILE_OUTSIDE_ACTOR_FIRM("target profile is not in provider admin's firm"),
     TARGET_FIRM_OUTSIDE_ACTOR_FIRM("target firm is not the provider admin's firm"),
     ACTOR_NO_ACTIVE_PROFILE("actor has no active profile with a determinable user type"),
-    TARGET_PROFILE_NOT_FOUND("target profile does not exist", "User profile not found"),
-    TARGET_PROFILE_NOT_VISIBLE("actor cannot view the target profile", "User profile not found");
+    TARGET_PROFILE_NOT_FOUND("target profile does not exist"),
+    TARGET_PROFILE_NOT_VISIBLE("actor cannot view the target profile");
 
     private final String description;
-    /**
-     * Fixed client-facing 404 detail for denials that must be indistinguishable from a missing resource;
-     * null for denials answered with a 403.
-     */
-    private final String notFoundMessage;
 
     PolicyDenialReason(String description) {
-        this(description, null);
-    }
-
-    PolicyDenialReason(String description, String notFoundMessage) {
         this.description = description;
-        this.notFoundMessage = notFoundMessage;
-    }
-
-    public boolean hidesResourceExistence() {
-        return notFoundMessage != null;
     }
 }

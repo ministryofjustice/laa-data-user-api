@@ -34,8 +34,7 @@ public class UserProfileVisibilityPolicyInputResolver
 
     @Override
     public ProfileVisibilityContext resolve(UserProfileAccessQuery message) {
-        return repository.findAccessTargetById(message.userProfileId())
-                .map(target -> new ProfileVisibilityContext(true, target.userType(), target.firmId()))
+        return repository.findVisibilityContextById(message.userProfileId())
                 .orElseGet(ProfileVisibilityContext::missing);
     }
 }

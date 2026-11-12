@@ -28,7 +28,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import jakarta.persistence.EntityManagerFactory;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserProfileAccessTarget;
+import uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
@@ -104,11 +104,11 @@ class UserProfileAccessQueryRepositoryTest {
     }
 
     @Test
-    void accessTargetExposesTypeAndFirm() {
-        UserProfileAccessTarget target = repository.findAccessTargetById(PROFILE_ID).orElseThrow();
+    void visibilityContextExposesTypeAndFirm() {
+        ProfileVisibilityContext target = repository.findVisibilityContextById(PROFILE_ID).orElseThrow();
 
-        assertThat(target).isEqualTo(new UserProfileAccessTarget(UserType.EXTERNAL, FIRM_ID));
-        assertThat(repository.findAccessTargetById(UUID.randomUUID())).isEmpty();
+        assertThat(target).isEqualTo(new ProfileVisibilityContext(true, UserType.EXTERNAL, FIRM_ID));
+        assertThat(repository.findVisibilityContextById(UUID.randomUUID())).isEmpty();
     }
 
     @Test

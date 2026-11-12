@@ -15,7 +15,6 @@ import uk.gov.justice.laa.datauserapi.contracts.dto.AppView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppRoleViewList;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppViewList;
-import uk.gov.justice.laa.datauserapi.entity.AppRole;
 
 /**
  * Serves the roles, applications and offices of one user profile. Callers are authorised before this service
@@ -40,8 +39,8 @@ public class UserProfileAccessQueryService {
 
     public AppRoleViewList getAppRoles(UUID userProfileId, UUID appId, UUID appEntraClientId) {
         String clientId = appEntraClientId == null ? null : appEntraClientId.toString();
-        List<AppRole> roles = repository.findAppRolesByProfileId(userProfileId, appId, clientId, limit(MAX_APP_ROLES));
-        return new AppRoleViewList(mapper.toAppRoleViews(roles));
+        return new AppRoleViewList(mapper.toAppRoleViews(
+                repository.findAppRolesByProfileId(userProfileId, appId, clientId, limit(MAX_APP_ROLES))));
     }
 
     public AppViewList getApps(UUID userProfileId) {

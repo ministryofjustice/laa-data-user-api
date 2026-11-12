@@ -26,7 +26,7 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserProfileAccessTarget;
+import uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext;
 import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewProfilePolicy;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserprofileaccess.GetUserProfileAppRolesQuery;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserprofileaccess.GetUserProfileAppsQuery;
@@ -118,7 +118,7 @@ class UserProfileAccessAuthorizationIntegrationTest {
 
     @Test
     void missingProfileIsDeniedTheSameWayAsAnInvisibleOne() {
-        when(repository.findAccessTargetById(PROFILE_ID)).thenReturn(Optional.empty());
+        when(repository.findVisibilityContextById(PROFILE_ID)).thenReturn(Optional.empty());
 
         assertDeniedWith(PolicyDenialReason.TARGET_PROFILE_NOT_FOUND,
                 () -> officesHandler.handle(new GetUserProfileOfficesQuery(PROFILE_ID), external(FIRM_ID)));
@@ -154,8 +154,8 @@ class UserProfileAccessAuthorizationIntegrationTest {
     }
 
     private void stubTarget(UserType type, UUID firmId) {
-        when(repository.findAccessTargetById(PROFILE_ID))
-                .thenReturn(Optional.of(new UserProfileAccessTarget(type, firmId)));
+        when(repository.findVisibilityContextById(PROFILE_ID))
+                .thenReturn(Optional.of(new ProfileVisibilityContext(true, type, firmId)));
     }
 
     private static AuthenticatedEntraUser external(UUID firmId) {

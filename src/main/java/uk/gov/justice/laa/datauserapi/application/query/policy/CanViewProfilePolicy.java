@@ -18,8 +18,9 @@ import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
  * external profile. A missing profile is denied, so existence is not revealed.
  *
  * <p>Being internal is not enough to view other internal users: per the SiLAS roles matrix, External User Manager and
- * External User Admin are internal roles without {@code VIEW_INTERNAL_USER}. This is the same rule the profile detail
- * queries use, so {@code QueryAuthorisationService.canViewProfile} delegates here.
+ * External User Admin are internal roles without {@code VIEW_INTERNAL_USER}. The rule mirrors
+ * {@code QueryAuthorisationService.canViewProfile}, which the profile detail queries use; a parity test keeps the two
+ * in step.
  */
 @Component
 public class CanViewProfilePolicy implements AuthorizationPolicy<ProfileVisibilityContext> {
@@ -33,40 +34,37 @@ public class CanViewProfilePolicy implements AuthorizationPolicy<ProfileVisibili
         if (!context.profileExists()) {
             return PolicyDecision.deny(PolicyDenialReason.TARGET_PROFILE_NOT_FOUND);
         }
-        String targetFirmId = context.firmId() == null ? null : context.firmId().toString();
-        return canView(actorProfile, context.userType(), targetFirmId)
+        return canView(actorProfile, context)
                 ? PolicyDecision.allow()
                 : PolicyDecision.deny(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE);
     }
 
-    /** The single definition of profile visibility, also used by the profile detail query. */
-    public static boolean canView(AuthenticatedUserProfile actorProfile, UserType targetUserType, String targetFirmId) {
-        return isInternalViewingInternal(actorProfile, targetUserType)
-                || isExternalViewingOwnFirm(actorProfile, targetFirmId)
-                || isInternalWithExternalViewPermission(actorProfile, targetUserType);
+    private boolean canView(AuthenticatedUserProfile actorProfile, ProfileVisibilityContext target) {
+        return isInternalViewingInternal(actorProfile, target)
+                || isExternalViewingOwnFirm(actorProfile, target)
+                || isInternalWithExternalViewPermission(actorProfile, target);
     }
 
-    private static boolean isInternalViewingInternal(AuthenticatedUserProfile actorProfile, UserType targetUserType) {
+    private boolean isInternalViewingInternal(AuthenticatedUserProfile actorProfile, ProfileVisibilityContext target) {
         return actorProfile.userType() == UserType.INTERNAL
-                && targetUserType == UserType.INTERNAL
+                && target.userType() == UserType.INTERNAL
                 && holds(actorProfile, Permission.VIEW_INTERNAL_USER);
     }
 
-    private static boolean isExternalViewingOwnFirm(AuthenticatedUserProfile actorProfile, String targetFirmId) {
+    private boolean isExternalViewingOwnFirm(AuthenticatedUserProfile actorProfile, ProfileVisibilityContext target) {
         return actorProfile.userType() == UserType.EXTERNAL
                 && actorProfile.firmId() != null
-                && targetFirmId != null
-                && actorProfile.firmId().toString().equals(targetFirmId);
+                && actorProfile.firmId().equals(target.firmId());
     }
 
-    private static boolean isInternalWithExternalViewPermission(AuthenticatedUserProfile actorProfile,
-                                                                UserType targetUserType) {
+    private boolean isInternalWithExternalViewPermission(AuthenticatedUserProfile actorProfile,
+                                                         ProfileVisibilityContext target) {
         return actorProfile.userType() == UserType.INTERNAL
-                && targetUserType == UserType.EXTERNAL
+                && target.userType() == UserType.EXTERNAL
                 && holds(actorProfile, Permission.VIEW_EXTERNAL_USER);
     }
 
-    private static boolean holds(AuthenticatedUserProfile actorProfile, Permission permission) {
+    private boolean holds(AuthenticatedUserProfile actorProfile, Permission permission) {
         return actorProfile.appRoles().stream()
                 .flatMap(role -> role.permissions().stream())
                 .anyMatch(granted -> granted == permission);

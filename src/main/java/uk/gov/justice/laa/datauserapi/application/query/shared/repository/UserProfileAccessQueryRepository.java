@@ -9,7 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserProfileAccessTarget;
+import uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
@@ -20,13 +20,13 @@ import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 public interface UserProfileAccessQueryRepository extends Repository<UserProfile, UUID> {
 
     @Query("""
-        SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.UserProfileAccessTarget(
-            up.userType, f.id)
+        SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext(
+            true, up.userType, f.id)
         FROM UserProfile up
         LEFT JOIN up.firm f
         WHERE up.id = :profileId
         """)
-    Optional<UserProfileAccessTarget> findAccessTargetById(@Param("profileId") UUID profileId);
+    Optional<ProfileVisibilityContext> findVisibilityContextById(@Param("profileId") UUID profileId);
 
     @Query("""
         SELECT ar

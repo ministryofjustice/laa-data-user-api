@@ -2,12 +2,14 @@ package uk.gov.justice.laa.datauserapi.application.query.policy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
 import uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext;
+import uk.gov.justice.laa.datauserapi.application.query.service.QueryAuthorisationService;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -69,6 +71,38 @@ class CanViewProfilePolicyTest {
 
         assertDenied(policy.evaluate(profile(UserType.EXTERNAL, FIRM_ID), noProfile),
                 PolicyDenialReason.ACTOR_NO_ACTIVE_PROFILE);
+    }
+
+    @Test
+    void agreesWithTheProfileDetailVisibilityRuleForEveryActorAndTarget() {
+        QueryAuthorisationService detailRule = new QueryAuthorisationService();
+        UUID otherFirm = UUID.randomUUID();
+        List<AuthenticatedEntraUser> actors = List.of(
+                internalWith(), internalWith(Permission.VIEW_INTERNAL_USER), internalWith(Permission.VIEW_EXTERNAL_USER),
+                internalWith(Permission.VIEW_INTERNAL_USER, Permission.VIEW_EXTERNAL_USER),
+                external(FIRM_ID), external(otherFirm), external(null));
+        List<ProfileVisibilityContext> targets = List.of(
+                profile(UserType.INTERNAL, null), profile(UserType.EXTERNAL, FIRM_ID),
+                profile(UserType.EXTERNAL, otherFirm), profile(UserType.EXTERNAL, null));
+
+        for (AuthenticatedEntraUser actor : actors) {
+            for (ProfileVisibilityContext target : targets) {
+                String firmId = target.firmId() == null ? null : target.firmId().toString();
+                boolean expected = detailRule.canViewProfile(actor.activeProfile(), target.userType(), firmId);
+
+                assertThat(policy.evaluate(target, actor).granted())
+                        .as("actor %s, target %s", actor.activeProfile(), target)
+                        .isEqualTo(expected);
+            }
+        }
+    }
+
+    private static AuthenticatedEntraUser internalWith(Permission... permissions) {
+        Set<AuthenticatedAppRole> roles = permissions.length == 0 ? Set.of()
+                : Set.of(new AuthenticatedAppRole(UUID.randomUUID(), "Role", 1, "ROLE", false, null, null, "Role",
+                        true, null, Set.of(permissions)));
+        return actor(AuthenticatedUserProfile.builder().id(UUID.randomUUID()).activeProfile(true)
+                .userType(UserType.INTERNAL).appRoles(roles).build());
     }
 
     private static ProfileVisibilityContext profile(UserType type, UUID firmId) {
