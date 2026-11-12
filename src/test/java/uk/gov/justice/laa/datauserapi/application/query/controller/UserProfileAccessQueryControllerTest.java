@@ -19,6 +19,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -31,7 +32,6 @@ import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppRoleViewList;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppViewList;
 import uk.gov.justice.laa.datauserapi.exception.GlobalExceptionHandler;
-import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
 
 class UserProfileAccessQueryControllerTest {
 
@@ -115,13 +115,14 @@ class UserProfileAccessQueryControllerTest {
     }
 
     @Test
-    void inaccessibleProfileReturnsProblemJsonNotFoundWithoutLeakingTheId() throws Exception {
-        when(appsHandler.handle(eq(profileId), any())).thenThrow(new UserProfileNotFoundException("User profile not found"));
+    void inaccessibleProfileReturnsGenericProblemJsonForbiddenWithoutLeakingDiagnostics() throws Exception {
+        when(appsHandler.handle(eq(profileId), any())).thenThrow(new AccessDeniedException("User profile access denied: PROFILE_NOT_VISIBLE"));
 
         mockMvc.perform(get(BASE + profileId + "/apps"))
-                .andExpect(status().isNotFound())
+                .andExpect(status().isForbidden())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.detail").value("User profile not found"));
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.detail").value(
+                        "You do not possess the required scopes or permissions to perform this operation."));
     }
 }

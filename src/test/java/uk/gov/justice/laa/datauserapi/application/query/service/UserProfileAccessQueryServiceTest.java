@@ -21,8 +21,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 
 import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
+import uk.gov.justice.laa.datauserapi.application.query.dto.ProfileAccessDenialReason;
 import uk.gov.justice.laa.datauserapi.application.query.dto.UserProfileAccessTarget;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserProfileAccessQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileAccessQueryRepository;
@@ -36,7 +38,6 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
-import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 
 @ExtendWith(MockitoExtension.class)
@@ -86,25 +87,25 @@ class UserProfileAccessQueryServiceTest {
     void externalActorCannotSeeProfileInAnotherFirm() {
         stubTarget(UserType.EXTERNAL, FIRM_ID, false);
 
-        assertNotFound(() -> service().getApps(PROFILE_ID, externalActor(UUID.randomUUID())));
+        assertAccessDenied(() -> service().getApps(PROFILE_ID, externalActor(UUID.randomUUID())));
     }
 
     @Test
     void externalActorCannotSeeInternalProfile() {
         stubTarget(UserType.INTERNAL, null, false);
 
-        assertNotFound(() -> service().getApps(PROFILE_ID, externalActor(FIRM_ID)));
+        assertAccessDenied(() -> service().getApps(PROFILE_ID, externalActor(FIRM_ID)));
     }
 
     @Test
     void internalActorWithoutViewExternalPermissionCannotSeeExternalProfile() {
         stubTarget(UserType.EXTERNAL, FIRM_ID, false);
 
-        assertNotFound(() -> service().getApps(PROFILE_ID, internalActor(Permission.VIEW_INTERNAL_USER)));
+        assertAccessDenied(() -> service().getApps(PROFILE_ID, internalActor(Permission.VIEW_INTERNAL_USER)));
     }
 
     @Test
-    void missingAndInvisibleProfilesProduceTheSameNotFound() {
+    void missingAndInvisibleProfilesAreDeniedWithServerSideReasonsOnly() {
         when(repository.findAccessTargetById(PROFILE_ID)).thenReturn(Optional.empty());
         Throwable missing = org.assertj.core.api.Assertions.catchThrowable(
                 () -> service().getOffices(PROFILE_ID, externalActor(FIRM_ID)));
@@ -115,10 +116,10 @@ class UserProfileAccessQueryServiceTest {
         Throwable invisible = org.assertj.core.api.Assertions.catchThrowable(
                 () -> service().getOffices(otherProfile, externalActor(FIRM_ID)));
 
-        assertThat(missing).isInstanceOf(UserProfileNotFoundException.class);
-        assertThat(invisible).isInstanceOf(UserProfileNotFoundException.class)
-                .hasMessage(missing.getMessage())
-                .hasMessage(UserProfileAccessQueryService.PROFILE_NOT_FOUND_MESSAGE);
+        assertThat(missing).isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining(ProfileAccessDenialReason.PROFILE_NOT_FOUND.name());
+        assertThat(invisible).isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining(ProfileAccessDenialReason.PROFILE_NOT_VISIBLE.name());
     }
 
     @Test
@@ -194,10 +195,8 @@ class UserProfileAccessQueryServiceTest {
         assertThat(service().getOffices(PROFILE_ID, externalActor(FIRM_ID)).items()).isEmpty();
     }
 
-    private void assertNotFound(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
-        assertThatThrownBy(call)
-                .isInstanceOf(UserProfileNotFoundException.class)
-                .hasMessage(UserProfileAccessQueryService.PROFILE_NOT_FOUND_MESSAGE);
+    private void assertAccessDenied(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
+        assertThatThrownBy(call).isInstanceOf(AccessDeniedException.class);
     }
 
     private AppViewList stubActiveApps(UserType type, UUID firmId) {

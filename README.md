@@ -90,8 +90,9 @@ exercise both allowed and rejected architecture examples.
 The user-profile access queries (`GET /api/v1/queries/user-profiles/{userProfileId}/app-roles`, `/apps`
 and `/offices`) are read-only and require the `user_data.read` scope. `UserProfileAccessQueryService` applies the
 existing `QueryAuthorisationService.canViewProfile` visibility rules, so a missing profile and a profile the
-caller cannot view both return the same generic `404` (`application/problem+json`), whose `title` and `detail`
-carry no profile identifier (`instance` only echoes the request path).
+caller cannot view both return the same generic `403` (`application/problem+json`) via `AccessDeniedException`;
+the response carries no profile identifier (`instance` only echoes the request path) and the typed denial reason
+(`ProfileAccessDenialReason`) appears only in the server-side log.
 All data is selected by the requested profile ID, not by the owning account. `/app-roles` accepts optional
 `app_id` (internal SiLAS app ID) and `appEntraClientId` filters; `/apps` returns distinct enabled applications
 derived from the assigned roles; `/offices` returns every office of the profile's firm when the profile has
