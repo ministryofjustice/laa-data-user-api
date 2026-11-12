@@ -1897,14 +1897,19 @@ components:
           type: string
         postCode:
           type: string
+          nullable: true
         addressLine1:
           type: string
+          nullable: true
         addressLine2:
           type: string
+          nullable: true
         addressLine3:
           type: string
+          nullable: true
         city:
           type: string
+          nullable: true
 
     OfficeViewList:
       type: object
@@ -1953,6 +1958,7 @@ components:
         appEntraObjectId:
           type: string
           format: uuid
+          nullable: true
 
     AppViewList:
       type: object
