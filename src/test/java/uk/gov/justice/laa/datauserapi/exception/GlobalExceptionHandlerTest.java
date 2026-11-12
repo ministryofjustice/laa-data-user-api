@@ -152,10 +152,10 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void handleConflict_shouldReturn409WithProblemDetail() {
-        ConflictException ex = new ConflictException("User is already a multi-firm user");
+    void handleUserAlreadyMultiFirm_shouldReturn409WithProblemDetail() {
+        UserAlreadyMultiFirmException ex = new UserAlreadyMultiFirmException("User is already a multi-firm user");
 
-        ResponseEntity<ProblemDetail> response = handler.handleConflict(ex, request);
+        ResponseEntity<ProblemDetail> response = handler.handleUserAlreadyMultiFirm(ex, request);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         assertProblemContentType(response);
@@ -163,6 +163,11 @@ class GlobalExceptionHandlerTest {
         assertEquals(409, response.getBody().status());
         assertEquals("Conflict", response.getBody().title());
         assertEquals("The request conflicts with the current resource state.", response.getBody().detail());
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getArgumentArray()).extracting(Object::toString)
+                    .contains("exception_group=user_already_multi_firm", "exception_reason=user_already_multi_firm");
+            assertThat(event.getThrowableProxy().getClassName()).isEqualTo(UserAlreadyMultiFirmException.class.getName());
+        });
     }
 
     @Test
@@ -338,7 +343,7 @@ class GlobalExceptionHandlerTest {
         String diagnostic = "secret-user secret-firm secret-role secret-config";
         List<ResponseEntity<ProblemDetail>> responses = List.of(
                 handler.handleNotFound(new ResourceNotFoundException(diagnostic), request),
-                handler.handleConflict(new ConflictException(diagnostic), request),
+                handler.handleUserAlreadyMultiFirm(new UserAlreadyMultiFirmException(diagnostic), request),
                 handler.handleInvalidUuidFormat(new InvalidUuidFormatException(diagnostic), request),
                 handler.handleReferenceDataNotFound(new ReferenceDataNotFoundException(diagnostic), request),
                 handler.handleJwtException(new JwtException(diagnostic), request),

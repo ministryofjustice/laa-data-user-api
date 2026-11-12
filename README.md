@@ -154,6 +154,8 @@ for example `active_profile_not_found`. The supported reason enums are
 `UserProfileNotFoundReason`, `InvalidActorContextReason`, `InvalidRequestException.Reason`,
 `TechServicesClientException.Reason`, and `CcmsNotificationException.Reason`.
 Exceptions without a typed reason use the same readable value as `exception_group`.
+Repeated multi-firm conversion raises `UserAlreadyMultiFirmException`, with group and reason
+`user_already_multi_firm`; the client still receives the generic HTTP 409 conflict response.
 Each of these log events also includes `exception_group`, containing the exception class name
 without the `Exception` suffix and converted to snake case (for example `user_profile_not_found`,
 `invalid_actor_context`, or `tech_services_client`), so searches can aggregate across reasons.

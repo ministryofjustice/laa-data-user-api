@@ -13,7 +13,7 @@ import uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmul
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.exception.ConflictException;
+import uk.gov.justice.laa.datauserapi.exception.UserAlreadyMultiFirmException;
 import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
 @Slf4j
@@ -42,7 +42,7 @@ public class ConvertToMultiFirmService {
 
         if (user.isMultiFirmUser()) {
             log.warn("User is already multi-firm", kv("entraOid", command.userEntraObjectId()));
-            throw new ConflictException("User is already a multi-firm user");
+            throw new UserAlreadyMultiFirmException("User is already a multi-firm user");
         }
 
         user.convertToMultiFirm(actor.entraOid());

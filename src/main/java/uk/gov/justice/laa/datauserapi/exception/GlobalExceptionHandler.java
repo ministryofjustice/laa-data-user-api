@@ -99,9 +99,9 @@ public class GlobalExceptionHandler {
         return forbiddenResponse(request);
     }
 
-    @ExceptionHandler(ConflictException.class)
-    public ResponseEntity<ProblemDetail> handleConflict(
-            ConflictException ex,
+    @ExceptionHandler(UserAlreadyMultiFirmException.class)
+    public ResponseEntity<ProblemDetail> handleUserAlreadyMultiFirm(
+            UserAlreadyMultiFirmException ex,
             HttpServletRequest request) {
         log.warn("Request conflicts with resource state",
                 ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
