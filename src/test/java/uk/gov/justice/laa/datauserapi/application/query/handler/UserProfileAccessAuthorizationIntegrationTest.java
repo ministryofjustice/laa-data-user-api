@@ -13,13 +13,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -38,6 +39,8 @@ import uk.gov.justice.laa.datauserapi.contracts.response.AppRoleViewList;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppViewList;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.security.rbac.RbacMethodSecurityConfig;
 
 /**
@@ -103,13 +106,12 @@ class UserProfileAccessAuthorizationIntegrationTest {
         stubTarget(UserType.EXTERNAL, FIRM_ID);
         AuthenticatedEntraUser otherFirm = external(UUID.randomUUID());
 
-        assertThatThrownBy(() -> appsHandler.handle(new GetUserProfileAppsQuery(PROFILE_ID), otherFirm))
-                .isInstanceOf(AccessDeniedException.class);
-        assertThatThrownBy(() -> officesHandler.handle(new GetUserProfileOfficesQuery(PROFILE_ID), otherFirm))
-                .isInstanceOf(AccessDeniedException.class);
-        assertThatThrownBy(() -> appRolesHandler.handle(
-                new GetUserProfileAppRolesQuery(PROFILE_ID, null, null), otherFirm))
-                .isInstanceOf(AccessDeniedException.class);
+        assertDeniedWith(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE,
+                () -> appsHandler.handle(new GetUserProfileAppsQuery(PROFILE_ID), otherFirm));
+        assertDeniedWith(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE,
+                () -> officesHandler.handle(new GetUserProfileOfficesQuery(PROFILE_ID), otherFirm));
+        assertDeniedWith(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE,
+                () -> appRolesHandler.handle(new GetUserProfileAppRolesQuery(PROFILE_ID, null, null), otherFirm));
 
         verifyNoInteractions(service);
     }
@@ -118,8 +120,8 @@ class UserProfileAccessAuthorizationIntegrationTest {
     void missingProfileIsDeniedTheSameWayAsAnInvisibleOne() {
         when(repository.findAccessTargetById(PROFILE_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> officesHandler.handle(new GetUserProfileOfficesQuery(PROFILE_ID), external(FIRM_ID)))
-                .isInstanceOf(AccessDeniedException.class);
+        assertDeniedWith(PolicyDenialReason.TARGET_PROFILE_NOT_FOUND,
+                () -> officesHandler.handle(new GetUserProfileOfficesQuery(PROFILE_ID), external(FIRM_ID)));
         verifyNoInteractions(service);
     }
 
@@ -128,8 +130,8 @@ class UserProfileAccessAuthorizationIntegrationTest {
         stubTarget(UserType.EXTERNAL, FIRM_ID);
         AuthenticatedEntraUser noProfile = AuthenticatedEntraUser.builder().entraOid("oid").build();
 
-        assertThatThrownBy(() -> appsHandler.handle(new GetUserProfileAppsQuery(PROFILE_ID), noProfile))
-                .isInstanceOf(AccessDeniedException.class);
+        assertDeniedWith(PolicyDenialReason.ACTOR_NO_ACTIVE_PROFILE,
+                () -> appsHandler.handle(new GetUserProfileAppsQuery(PROFILE_ID), noProfile));
         verifyNoInteractions(service);
     }
 
@@ -143,6 +145,12 @@ class UserProfileAccessAuthorizationIntegrationTest {
         assertThat(appRolesHandler.handle(new GetUserProfileAppRolesQuery(PROFILE_ID, appId, null), external(FIRM_ID)))
                 .isSameAs(roles);
         verify(service).getAppRoles(PROFILE_ID, appId, null);
+    }
+
+    private static void assertDeniedWith(PolicyDenialReason reason, ThrowingCallable call) {
+        assertThatThrownBy(call)
+                .isInstanceOfSatisfying(AuthorizationDeniedException.class, denied ->
+                        assertThat(denied.getAuthorizationResult()).isEqualTo(new PolicyAuthorizationDenial(reason)));
     }
 
     private void stubTarget(UserType type, UUID firmId) {

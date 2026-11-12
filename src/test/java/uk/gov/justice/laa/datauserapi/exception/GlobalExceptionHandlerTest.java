@@ -16,6 +16,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.HttpInputMessage;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
@@ -24,6 +26,8 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 
 import jakarta.servlet.http.HttpServletRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
 @ExtendWith(MockitoExtension.class)
 class GlobalExceptionHandlerTest {
@@ -135,6 +139,40 @@ class GlobalExceptionHandlerTest {
         assertEquals(403, response.getBody().status());
         assertEquals("Forbidden", response.getBody().title());
         assertEquals("Missing user.read or user.admin scope", response.getBody().detail());
+    }
+
+    @Test
+    void handleForbidden_shouldReturnGeneric404WhenPolicyDenialHidesResourceExistence() {
+        AccessDeniedException ex = new AuthorizationDeniedException("Access Denied",
+                new PolicyAuthorizationDenial(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE));
+
+        ResponseEntity<ProblemDetail> response = handler.handleForbidden(ex, request);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals(404, response.getBody().status());
+        assertEquals("User profile not found", response.getBody().detail());
+    }
+
+    @Test
+    void handleForbidden_shouldReturn403ForOtherPolicyDenials() {
+        AccessDeniedException ex = new AuthorizationDeniedException("Access Denied",
+                new PolicyAuthorizationDenial(PolicyDenialReason.ACTOR_NO_ACTIVE_PROFILE));
+
+        ResponseEntity<ProblemDetail> response = handler.handleForbidden(ex, request);
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+    }
+
+    @Test
+    void handleForbidden_shouldReturn403ForPlainAccessDenied() {
+        ResponseEntity<ProblemDetail> response = handler.handleForbidden(new AccessDeniedException("denied"), request);
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("You do not possess the required scopes or permissions to perform this operation.",
+                response.getBody().detail());
     }
 
     @Test

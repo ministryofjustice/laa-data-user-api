@@ -12,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -25,10 +26,13 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.justice.laa.datauserapi.contracts.response.FieldErrorDetail;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final String HIDDEN_RESOURCE_MESSAGE = "User profile not found";
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleNotFound(
@@ -37,16 +41,18 @@ public class GlobalExceptionHandler {
         log.warn("Resource not found",
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()));
-        ProblemDetail problem = new ProblemDetail(
+        return problemResponse(HttpStatus.NOT_FOUND, notFoundProblem(ex.getMessage(), request));
+    }
+
+    private ProblemDetail notFoundProblem(String detail, HttpServletRequest request) {
+        return new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/not-found"),
                 "Resource Not Found",
                 HttpStatus.NOT_FOUND.value(),
-                ex.getMessage(),
+                detail,
                 URI.create(request.getRequestURI()),
                 null
         );
-
-        return problemResponse(HttpStatus.NOT_FOUND, problem);
     }
 
     @ExceptionHandler(UserNotFoundException.class)
@@ -250,6 +256,10 @@ public class GlobalExceptionHandler {
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()));
 
+        if (hidesResourceExistence(ex)) {
+            return problemResponse(HttpStatus.NOT_FOUND, notFoundProblem(HIDDEN_RESOURCE_MESSAGE, request));
+        }
+
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/forbidden"),
                 "Forbidden",
@@ -260,6 +270,12 @@ public class GlobalExceptionHandler {
         );
 
         return problemResponse(HttpStatus.FORBIDDEN, problem);
+    }
+
+    private static boolean hidesResourceExistence(AccessDeniedException ex) {
+        return ex instanceof AuthorizationDeniedException denied
+                && denied.getAuthorizationResult() instanceof PolicyAuthorizationDenial denial
+                && denial.reason().isHidesResourceExistence();
     }
 
     @ExceptionHandler({UserAlreadyDeactivatedException.class, UserNotDeactivatedException.class})

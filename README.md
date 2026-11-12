@@ -94,9 +94,10 @@ and `/offices`) are read-only and require the `user_data.read` scope. Each query
 before the handler and its read-only transaction run. `UserProfileVisibilityPolicyInputResolver` loads the target
 profile's facts with one lookup and the pure `CanViewProfilePolicy` applies the profile visibility rules
 (the same rules as `QueryAuthorisationService.canViewProfile`, which delegates to the policy). A missing profile and
-a profile the caller cannot view both return the same generic `403` (`application/problem+json`); the response
-carries no profile identifier, and the denial reason (`TARGET_PROFILE_NOT_FOUND`, `TARGET_PROFILE_NOT_VISIBLE`,
-`ACTOR_NO_ACTIVE_PROFILE`) appears only in the server-side log.
+a profile the caller cannot view both return the same generic `404` (`application/problem+json`, detail
+"User profile not found"); the response carries no profile identifier. The denial reason
+(`TARGET_PROFILE_NOT_FOUND` or `TARGET_PROFILE_NOT_VISIBLE`) appears only in the server-side log. An actor with no
+usable active profile (`ACTOR_NO_ACTIVE_PROFILE`) and a token without the read scope still return `403`.
 All data is selected by the requested profile ID, not by the owning account. `/app-roles` accepts optional
 `app_id` (internal SiLAS app ID) and `appEntraClientId` filters; `/apps` returns distinct enabled applications
 derived from the assigned roles; `/offices` returns every office of the profile's firm when the profile has
@@ -117,7 +118,11 @@ intercepts `handle` methods on `AuthorizationEntryPoint` implementations whose m
 has `@RequiresPermission` or `@PolicyGuarded`;
 it runs before the handler, including before a handler's transaction is opened. A denial raises
 Spring Security's `AccessDeniedException` and is returned as HTTP 403 by the security/exception
-handling layer.
+handling layer. The one exception is a policy denial whose `PolicyDenialReason` sets
+`hidesResourceExistence` (currently `TARGET_PROFILE_NOT_FOUND` and `TARGET_PROFILE_NOT_VISIBLE`): the manager
+returns a `PolicyAuthorizationDenial` result, which Spring Security carries on the resulting
+`AuthorizationDeniedException`, and `GlobalExceptionHandler` answers it with a generic 404 so a caller cannot
+tell a missing resource from an inaccessible one.
 
 For `@RequiresPermission`, the manager collects the permissions from the app roles on the actor's
 active profile. By default, `Match.ANY` means the actor must have at least one listed permission;

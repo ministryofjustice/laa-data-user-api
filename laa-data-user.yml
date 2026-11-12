@@ -243,6 +243,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /api/v1/queries/user-profiles/{userProfileId}/apps:
     get:
@@ -264,6 +266,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /api/v1/queries/user-profiles/{userProfileId}/offices:
     get:
@@ -285,6 +289,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # --- Provider data queries ---
   /api/v1/queries/firms:
