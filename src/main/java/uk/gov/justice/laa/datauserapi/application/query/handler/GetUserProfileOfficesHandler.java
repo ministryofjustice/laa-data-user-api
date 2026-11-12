@@ -1,17 +1,16 @@
 package uk.gov.justice.laa.datauserapi.application.query.handler;
 
-import java.util.UUID;
-
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
+import uk.gov.justice.laa.datauserapi.application.query.queryuserprofileaccess.GetUserProfileOfficesQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserProfileAccessQueryService;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 @Component
 @Transactional(readOnly = true)
-public class GetUserProfileOfficesHandler {
+public class GetUserProfileOfficesHandler implements QueryHandler<GetUserProfileOfficesQuery, OfficeViewList> {
 
     private final UserProfileAccessQueryService service;
 
@@ -19,7 +18,8 @@ public class GetUserProfileOfficesHandler {
         this.service = service;
     }
 
-    public OfficeViewList handle(UUID userProfileId, AuthenticatedEntraUser actor) {
-        return service.getOffices(userProfileId, actor);
+    @Override
+    public OfficeViewList handle(GetUserProfileOfficesQuery query, AuthenticatedEntraUser actor) {
+        return service.getOffices(query.userProfileId());
     }
 }

@@ -88,11 +88,15 @@ queries that cannot be inspected by the rule are prohibited. Regression tests
 exercise both allowed and rejected architecture examples.
 
 The user-profile access queries (`GET /api/v1/queries/user-profiles/{userProfileId}/app-roles`, `/apps`
-and `/offices`) are read-only and require the `user_data.read` scope. `UserProfileAccessQueryService` applies the
-existing `QueryAuthorisationService.canViewProfile` visibility rules, so a missing profile and a profile the
-caller cannot view both return the same generic `404` (`application/problem+json`), whose `title` and `detail`
-carry no profile identifier or denial reason (`instance` only echoes the request path). The typed denial reason
-(`ProfileAccessDenialReason`) appears only in the server-side log; insufficient scopes still return `403`.
+and `/offices`) are read-only and require the `user_data.read` scope. Each query message
+(`GetUserProfileAppRolesQuery`, `GetUserProfileAppsQuery`, `GetUserProfileOfficesQuery`) is annotated with
+`@PolicyGuarded(policies = CanViewProfilePolicy.class)` and handled by a `QueryHandler`, so RBAC authorises it
+before the handler and its read-only transaction run. `UserProfileVisibilityPolicyInputResolver` loads the target
+profile's facts with one lookup and the pure `CanViewProfilePolicy` applies the profile visibility rules
+(the same rules as `QueryAuthorisationService.canViewProfile`, which delegates to the policy). A missing profile and
+a profile the caller cannot view both return the same generic `403` (`application/problem+json`); the response
+carries no profile identifier, and the denial reason (`TARGET_PROFILE_NOT_FOUND`, `TARGET_PROFILE_NOT_VISIBLE`,
+`ACTOR_NO_ACTIVE_PROFILE`) appears only in the server-side log.
 All data is selected by the requested profile ID, not by the owning account. `/app-roles` accepts optional
 `app_id` (internal SiLAS app ID) and `appEntraClientId` filters; `/apps` returns distinct enabled applications
 derived from the assigned roles; `/offices` returns every office of the profile's firm when the profile has

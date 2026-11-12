@@ -1,7 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.query.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -12,7 +11,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -32,12 +30,7 @@ import uk.gov.justice.laa.datauserapi.contracts.dto.AppView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppRoleViewList;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppViewList;
-import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
-import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
-import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
-import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
-import uk.gov.justice.laa.datauserapi.model.Permission;
 
 @ExtendWith(MockitoExtension.class)
 class UserProfileAccessQueryServiceTest {
@@ -50,89 +43,35 @@ class UserProfileAccessQueryServiceTest {
     @Mock
     private UserProfileAccessQueryMapper mapper;
 
-    private final QueryAuthorisationService authorisationService = new QueryAuthorisationService();
-
     private UserProfileAccessQueryService service() {
-        return new UserProfileAccessQueryService(repository, authorisationService, mapper);
+        return new UserProfileAccessQueryService(repository, mapper);
     }
 
     @Test
-    void internalActorWithViewPermissionSeesInternalProfileApps() {
-        AppViewList expected = stubActiveApps(UserType.INTERNAL, null);
+    void appsAreReadForTheRequestedProfileAndCapped() {
+        AppView app = new AppView(UUID.randomUUID().toString(), "App", "Description", "https://app", true, 1,
+                UUID.randomUUID().toString(), UUID.randomUUID().toString());
+        when(repository.findEnabledAppsByProfileId(eq(PROFILE_ID), any())).thenReturn(List.of(app));
 
-        AppViewList result = service().getApps(PROFILE_ID, internalActor(Permission.VIEW_INTERNAL_USER));
+        AppViewList result = service().getApps(PROFILE_ID);
 
-        assertThat(result).isEqualTo(expected);
+        assertThat(result.items()).containsExactly(app);
         ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
         verify(repository).findEnabledAppsByProfileId(eq(PROFILE_ID), pageable.capture());
         assertThat(pageable.getValue().getPageSize()).isEqualTo(UserProfileAccessQueryService.MAX_APPS);
     }
 
     @Test
-    void internalActorWithViewExternalPermissionSeesExternalProfile() {
-        stubActiveApps(UserType.EXTERNAL, FIRM_ID);
-
-        assertThat(service().getApps(PROFILE_ID, internalActor(Permission.VIEW_EXTERNAL_USER)).items()).hasSize(1);
-    }
-
-    @Test
-    void externalActorSeesProfileInActiveFirm() {
-        stubActiveApps(UserType.EXTERNAL, FIRM_ID);
-
-        assertThat(service().getApps(PROFILE_ID, externalActor(FIRM_ID)).items()).hasSize(1);
-    }
-
-    @Test
-    void externalActorCannotSeeProfileInAnotherFirm() {
-        stubTarget(UserType.EXTERNAL, FIRM_ID, false);
-
-        assertNotFound(() -> service().getApps(PROFILE_ID, externalActor(UUID.randomUUID())));
-    }
-
-    @Test
-    void externalActorCannotSeeInternalProfile() {
-        stubTarget(UserType.INTERNAL, null, false);
-
-        assertNotFound(() -> service().getApps(PROFILE_ID, externalActor(FIRM_ID)));
-    }
-
-    @Test
-    void internalActorWithoutViewExternalPermissionCannotSeeExternalProfile() {
-        stubTarget(UserType.EXTERNAL, FIRM_ID, false);
-
-        assertNotFound(() -> service().getApps(PROFILE_ID, internalActor(Permission.VIEW_INTERNAL_USER)));
-    }
-
-    @Test
-    void missingAndInvisibleProfilesProduceTheSameNotFound() {
-        when(repository.findAccessTargetById(PROFILE_ID)).thenReturn(Optional.empty());
-        Throwable missing = org.assertj.core.api.Assertions.catchThrowable(
-                () -> service().getOffices(PROFILE_ID, externalActor(FIRM_ID)));
-
-        UUID otherProfile = UUID.randomUUID();
-        when(repository.findAccessTargetById(otherProfile))
-                .thenReturn(Optional.of(new UserProfileAccessTarget(UserType.EXTERNAL, UUID.randomUUID(), false)));
-        Throwable invisible = org.assertj.core.api.Assertions.catchThrowable(
-                () -> service().getOffices(otherProfile, externalActor(FIRM_ID)));
-
-        assertThat(missing).isInstanceOf(UserProfileNotFoundException.class);
-        assertThat(invisible).isInstanceOf(UserProfileNotFoundException.class)
-                .hasMessage(missing.getMessage())
-                .hasMessage(UserProfileAccessQueryService.PROFILE_NOT_FOUND_MESSAGE);
-    }
-
-    @Test
     void appRolesForwardBothFiltersAndCapResults() {
         UUID appId = UUID.randomUUID();
         UUID clientId = UUID.randomUUID();
-        stubTarget(UserType.EXTERNAL, FIRM_ID, false);
         List<AppRole> entities = List.of(mock(AppRole.class));
         List<AppRoleView> views = List.of(mock(AppRoleView.class));
         when(repository.findAppRolesByProfileId(eq(PROFILE_ID), eq(appId), eq(clientId.toString()), any()))
                 .thenReturn(entities);
         when(mapper.toAppRoleViews(entities)).thenReturn(views);
 
-        AppRoleViewList result = service().getAppRoles(PROFILE_ID, appId, clientId, externalActor(FIRM_ID));
+        AppRoleViewList result = service().getAppRoles(PROFILE_ID, appId, clientId);
 
         assertThat(result.items()).isSameAs(views);
         ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
@@ -142,11 +81,10 @@ class UserProfileAccessQueryServiceTest {
 
     @Test
     void appRolesWithoutFiltersPassNulls() {
-        stubTarget(UserType.EXTERNAL, FIRM_ID, false);
         when(repository.findAppRolesByProfileId(eq(PROFILE_ID), isNull(), isNull(), any())).thenReturn(List.of());
         when(mapper.toAppRoleViews(List.of())).thenReturn(List.of());
 
-        assertThat(service().getAppRoles(PROFILE_ID, null, null, externalActor(FIRM_ID)).items()).isEmpty();
+        assertThat(service().getAppRoles(PROFILE_ID, null, null).items()).isEmpty();
     }
 
     @Test
@@ -155,7 +93,7 @@ class UserProfileAccessQueryServiceTest {
         List<OfficeView> offices = List.of(office());
         when(repository.findOfficesByFirmId(eq(FIRM_ID), any())).thenReturn(offices);
 
-        OfficeViewList result = service().getOffices(PROFILE_ID, externalActor(FIRM_ID));
+        OfficeViewList result = service().getOffices(PROFILE_ID);
 
         assertThat(result.items()).isEqualTo(offices);
         verify(repository).findAccessTargetById(PROFILE_ID);
@@ -169,7 +107,7 @@ class UserProfileAccessQueryServiceTest {
         List<OfficeView> offices = List.of(office());
         when(repository.findAssignedOfficesByProfileId(eq(PROFILE_ID), eq(FIRM_ID), any())).thenReturn(offices);
 
-        OfficeViewList result = service().getOffices(PROFILE_ID, externalActor(FIRM_ID));
+        OfficeViewList result = service().getOffices(PROFILE_ID);
 
         assertThat(result.items()).isEqualTo(offices);
         verify(repository).findAssignedOfficesByProfileId(eq(PROFILE_ID), eq(FIRM_ID), any());
@@ -179,33 +117,15 @@ class UserProfileAccessQueryServiceTest {
     void officesAreEmptyForInternalProfileWithoutFirm() {
         stubTarget(UserType.INTERNAL, null, true);
 
-        OfficeViewList result = service().getOffices(PROFILE_ID, internalActor(Permission.VIEW_INTERNAL_USER));
-
-        assertThat(result.items()).isEmpty();
+        assertThat(service().getOffices(PROFILE_ID).items()).isEmpty();
     }
 
     @Test
-    void emptyResultsAreReturnedAsEmptyLists() {
-        stubTarget(UserType.EXTERNAL, FIRM_ID, false);
-        when(repository.findEnabledAppsByProfileId(eq(PROFILE_ID), any())).thenReturn(List.of());
-        when(repository.findAssignedOfficesByProfileId(eq(PROFILE_ID), eq(FIRM_ID), any())).thenReturn(List.of());
+    void officesAreEmptyWhenTheProfileDisappearsAfterAuthorisation() {
+        when(repository.findAccessTargetById(PROFILE_ID)).thenReturn(Optional.empty());
 
-        assertThat(service().getApps(PROFILE_ID, externalActor(FIRM_ID)).items()).isEmpty();
-        assertThat(service().getOffices(PROFILE_ID, externalActor(FIRM_ID)).items()).isEmpty();
-    }
-
-    private void assertNotFound(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
-        assertThatThrownBy(call)
-                .isInstanceOf(UserProfileNotFoundException.class)
-                .hasMessage(UserProfileAccessQueryService.PROFILE_NOT_FOUND_MESSAGE);
-    }
-
-    private AppViewList stubActiveApps(UserType type, UUID firmId) {
-        stubTarget(type, firmId, false);
-        AppView app = new AppView(UUID.randomUUID().toString(), "App", "Description", "https://app", true, 1,
-                UUID.randomUUID().toString(), UUID.randomUUID().toString());
-        when(repository.findEnabledAppsByProfileId(eq(PROFILE_ID), any())).thenReturn(List.of(app));
-        return new AppViewList(List.of(app));
+        assertThat(service().getOffices(PROFILE_ID).items()).isEmpty();
+        verifyNoMoreInteractions(repository);
     }
 
     private void stubTarget(UserType type, UUID firmId, boolean unrestricted) {
@@ -215,31 +135,5 @@ class UserProfileAccessQueryServiceTest {
 
     private OfficeView office() {
         return new OfficeView(UUID.randomUUID().toString(), FIRM_ID.toString(), "AB1 2CD", "1 Street", null, null, "Town");
-    }
-
-    private AuthenticatedEntraUser internalActor(Permission permission) {
-        AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
-                .id(UUID.randomUUID())
-                .activeProfile(true)
-                .userType(UserType.INTERNAL)
-                .appRoles(Set.of(roleWith(permission)))
-                .build();
-        return AuthenticatedEntraUser.builder().entraOid(UUID.randomUUID().toString()).activeProfile(profile).build();
-    }
-
-    private AuthenticatedEntraUser externalActor(UUID firmId) {
-        AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
-                .id(UUID.randomUUID())
-                .activeProfile(true)
-                .userType(UserType.EXTERNAL)
-                .firmId(firmId)
-                .appRoles(Set.of())
-                .build();
-        return AuthenticatedEntraUser.builder().entraOid(UUID.randomUUID().toString()).activeProfile(profile).build();
-    }
-
-    private AuthenticatedAppRole roleWith(Permission permission) {
-        return new AuthenticatedAppRole(UUID.randomUUID(), "Role", 1, "ROLE", false, null, null, "Role",
-                true, null, Set.of(permission));
     }
 }

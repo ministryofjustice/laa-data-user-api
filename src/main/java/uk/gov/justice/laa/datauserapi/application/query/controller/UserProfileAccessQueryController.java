@@ -14,6 +14,9 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfileAppRolesHandler;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfileAppsHandler;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfileOfficesHandler;
+import uk.gov.justice.laa.datauserapi.application.query.queryuserprofileaccess.GetUserProfileAppRolesQuery;
+import uk.gov.justice.laa.datauserapi.application.query.queryuserprofileaccess.GetUserProfileAppsQuery;
+import uk.gov.justice.laa.datauserapi.application.query.queryuserprofileaccess.GetUserProfileOfficesQuery;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppRoleViewList;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppViewList;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -42,20 +45,21 @@ public class UserProfileAccessQueryController {
             @RequestParam(name = "app_id", required = false) UUID appId,
             @RequestParam(name = "appEntraClientId", required = false) UUID appEntraClientId,
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        return ResponseEntity.ok(appRolesHandler.handle(userProfileId, appId, appEntraClientId, authenticatedUser));
+        return ResponseEntity.ok(appRolesHandler.handle(
+                new GetUserProfileAppRolesQuery(userProfileId, appId, appEntraClientId), authenticatedUser));
     }
 
     @GetMapping("/apps")
     public ResponseEntity<AppViewList> queryUserProfileApps(
             @PathVariable UUID userProfileId,
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        return ResponseEntity.ok(appsHandler.handle(userProfileId, authenticatedUser));
+        return ResponseEntity.ok(appsHandler.handle(new GetUserProfileAppsQuery(userProfileId), authenticatedUser));
     }
 
     @GetMapping("/offices")
     public ResponseEntity<OfficeViewList> queryUserProfileOffices(
             @PathVariable UUID userProfileId,
             @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        return ResponseEntity.ok(officesHandler.handle(userProfileId, authenticatedUser));
+        return ResponseEntity.ok(officesHandler.handle(new GetUserProfileOfficesQuery(userProfileId), authenticatedUser));
     }
 }

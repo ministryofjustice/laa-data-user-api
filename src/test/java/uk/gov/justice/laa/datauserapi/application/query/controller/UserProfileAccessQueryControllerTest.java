@@ -2,7 +2,6 @@ package uk.gov.justice.laa.datauserapi.application.query.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -19,6 +18,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -26,12 +26,14 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfileAppRolesHandler;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfileAppsHandler;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfileOfficesHandler;
+import uk.gov.justice.laa.datauserapi.application.query.queryuserprofileaccess.GetUserProfileAppRolesQuery;
+import uk.gov.justice.laa.datauserapi.application.query.queryuserprofileaccess.GetUserProfileAppsQuery;
+import uk.gov.justice.laa.datauserapi.application.query.queryuserprofileaccess.GetUserProfileOfficesQuery;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppRoleViewList;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppViewList;
 import uk.gov.justice.laa.datauserapi.exception.GlobalExceptionHandler;
-import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
 
 class UserProfileAccessQueryControllerTest {
 
@@ -55,7 +57,7 @@ class UserProfileAccessQueryControllerTest {
     void appRolesPassesBothFilters() throws Exception {
         UUID appId = UUID.randomUUID();
         UUID clientId = UUID.randomUUID();
-        when(appRolesHandler.handle(eq(profileId), eq(appId), eq(clientId), any()))
+        when(appRolesHandler.handle(eq(new GetUserProfileAppRolesQuery(profileId, appId, clientId)), any()))
                 .thenReturn(new AppRoleViewList(List.of()));
 
         mockMvc.perform(get(BASE + profileId + "/app-roles")
@@ -64,12 +66,12 @@ class UserProfileAccessQueryControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items").isEmpty());
 
-        verify(appRolesHandler).handle(eq(profileId), eq(appId), eq(clientId), any());
+        verify(appRolesHandler).handle(eq(new GetUserProfileAppRolesQuery(profileId, appId, clientId)), any());
     }
 
     @Test
     void appRolesWithoutFiltersPassesNulls() throws Exception {
-        when(appRolesHandler.handle(eq(profileId), isNull(), isNull(), any()))
+        when(appRolesHandler.handle(eq(new GetUserProfileAppRolesQuery(profileId, null, null)), any()))
                 .thenReturn(new AppRoleViewList(List.of()));
 
         mockMvc.perform(get(BASE + profileId + "/app-roles")).andExpect(status().isOk());
@@ -79,7 +81,7 @@ class UserProfileAccessQueryControllerTest {
     void appsReturnsApplicationsWithBothIdentifiers() throws Exception {
         UUID appId = UUID.randomUUID();
         UUID clientId = UUID.randomUUID();
-        when(appsHandler.handle(eq(profileId), any())).thenReturn(new AppViewList(List.of(
+        when(appsHandler.handle(eq(new GetUserProfileAppsQuery(profileId)), any())).thenReturn(new AppViewList(List.of(
                 new AppView(appId.toString(), "App", "Desc", "https://app", true, 1,
                         UUID.randomUUID().toString(), clientId.toString()))));
 
@@ -92,7 +94,7 @@ class UserProfileAccessQueryControllerTest {
 
     @Test
     void officesReturnsItems() throws Exception {
-        when(officesHandler.handle(eq(profileId), any())).thenReturn(new OfficeViewList(List.of(
+        when(officesHandler.handle(eq(new GetUserProfileOfficesQuery(profileId)), any())).thenReturn(new OfficeViewList(List.of(
                 new OfficeView("o1", "f1", "AB1 2CD", "1 Street", null, null, "Town"))));
 
         mockMvc.perform(get(BASE + profileId + "/offices"))
@@ -115,13 +117,14 @@ class UserProfileAccessQueryControllerTest {
     }
 
     @Test
-    void inaccessibleProfileReturnsProblemJsonNotFoundWithoutLeakingTheId() throws Exception {
-        when(appsHandler.handle(eq(profileId), any())).thenThrow(new UserProfileNotFoundException("User profile not found"));
+    void inaccessibleProfileReturnsGenericProblemJsonForbiddenWithoutLeakingDiagnostics() throws Exception {
+        when(appsHandler.handle(eq(new GetUserProfileAppsQuery(profileId)), any())).thenThrow(new AccessDeniedException("denied"));
 
         mockMvc.perform(get(BASE + profileId + "/apps"))
-                .andExpect(status().isNotFound())
+                .andExpect(status().isForbidden())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.detail").value("User profile not found"));
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.detail").value(
+                        "You do not possess the required scopes or permissions to perform this operation."));
     }
 }

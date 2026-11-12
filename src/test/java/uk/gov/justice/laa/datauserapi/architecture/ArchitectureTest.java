@@ -30,6 +30,7 @@ import uk.gov.justice.laa.datauserapi.security.RequiresSystemAdminScope;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import uk.gov.justice.laa.datauserapi.application.query.queryuserprofileaccess.UserProfileAccessQuery;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyGuarded;
 import uk.gov.justice.laa.datauserapi.security.rbac.RequiresPermission;
@@ -84,6 +85,7 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule query_services_and_handlers_must_be_read_only = classes()
             .that().resideInAnyPackage("..application.query.service..", "..application.query.handler..")
+            .and().areNotInterfaces()
             .should(declareReadOnlyTransaction());
 
     @ArchTest
@@ -154,6 +156,12 @@ class ArchitectureTest {
             .should().beAnnotatedWith(RequiresPermission.class)
             .orShould().beAnnotatedWith(PolicyGuarded.class)
             .because("Every command must declare a required permission (or explicit policies) so RBAC cannot be skipped");
+
+    @ArchTest
+    static final ArchRule user_profile_access_queries_must_declare_their_authorisation = classes()
+            .that().implement(UserProfileAccessQuery.class)
+            .should().beAnnotatedWith(PolicyGuarded.class)
+            .because("Profile access queries are authorised by policy before the handler runs, so a new one cannot skip it");
 
     // =========================================================================
     // 2. Layer & Access Boundary Rules
