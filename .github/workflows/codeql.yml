@@ -30,8 +30,6 @@ on:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    # Skip for Dependabot PRs - SAST on dependency bumps adds little; scheduled runs cover main.
-    if: ${{ github.actor != 'dependabot[bot]' }}
     # Runner size impacts CodeQL analysis time. To learn more, please see:
     #   - https://gh.io/recommended-hardware-resources-for-running-codeql
     #   - https://gh.io/supported-runners-and-hardware-resources
@@ -94,9 +92,10 @@ jobs:
 
     - name: Build JAR
       if: matrix.build-mode == 'manual'
-      run: ./gradlew build
+      # Dependabot needs compilation for analysis, not secret-dependent tests or Sentry uploads.
+      run: ./gradlew build ${{ github.actor == 'dependabot[bot]' && '-x test -x sentryUploadSourceBundleJava' || '' }}
       env:
-        GITHUB_ACTOR: ${{ secrets.GITHUB_ACTOR }}
+        GITHUB_ACTOR: ${{ github.actor }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}

@@ -27,18 +27,23 @@ on:
 permissions:
   contents: read
   actions: read
+  packages: read
   security-events: write
 
 jobs:
   vulnerability-scan:
-    # Skip for Dependabot PRs - heavy Docker/gradle scans, and SNYK_TOKEN is not
-    # available to Dependabot PRs anyway. Scheduled and push runs still cover main.
-    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     env:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       SNYK_ORG_ID: ${{ secrets.SNYK_ORG_ID }}
     steps:
+      - name: Validate Snyk credentials
+        run: |
+          if [ -z "$SNYK_TOKEN" ] || [ -z "$SNYK_ORG_ID" ]; then
+            echo "::error::SNYK_TOKEN and SNYK_ORG_ID must be configured as Actions secrets and, for Dependabot PRs, Dependabot secrets."
+            exit 1
+          fi
+
       - name: Git checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -51,7 +56,7 @@ jobs:
       - name: Build JAR
         run: ./gradlew build -x test -x sentryUploadSourceBundleJava
         env:
-          GITHUB_ACTOR: ${{ secrets.GITHUB_ACTOR }}
+          GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Docker image
