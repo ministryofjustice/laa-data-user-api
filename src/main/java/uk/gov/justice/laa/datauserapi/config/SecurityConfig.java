@@ -2,7 +2,7 @@ package uk.gov.justice.laa.datauserapi.config;
 
 import java.net.URI;
 
-import lombok.RequiredArgsConstructor;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -16,8 +16,6 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletResponse;
@@ -33,10 +31,17 @@ import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserC
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtToAuthenticatedEntraUserConverter jwtToAuthenticatedEntraUserConverter;
+    private final ObjectMapper objectMapper;
+
+    public SecurityConfig(
+            JwtToAuthenticatedEntraUserConverter jwtToAuthenticatedEntraUserConverter,
+            ObjectMapper objectMapper) {
+        this.jwtToAuthenticatedEntraUserConverter = jwtToAuthenticatedEntraUserConverter;
+        this.objectMapper = objectMapper;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -98,7 +103,7 @@ public class SecurityConfig {
                     null
             );
 
-            response.getWriter().write(new ObjectMapper().writeValueAsString(problemDetail));
+            response.getWriter().write(objectMapper.writeValueAsString(problemDetail));
         };
     }
 
@@ -123,7 +128,7 @@ public class SecurityConfig {
                     null
             );
 
-            response.getWriter().write(new ObjectMapper().writeValueAsString(problemDetail));
+            response.getWriter().write(objectMapper.writeValueAsString(problemDetail));
         };
     }
 
