@@ -16,7 +16,9 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 import uk.gov.justice.laa.datauserapi.exception.UserAlreadyExistsException;
+import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -43,6 +45,10 @@ public class UserAccountPersistenceService {
     @Transactional
     public CreateUserAccountResponse create(CreateUserAccountCommand command, UUID identityId, String actorOid) {
         repository.lockEmail(command.email());
+        UUID firmId = UUID.fromString(command.firmId());
+        var firm = firmRepository.findEnabledByIdForUpdate(firmId)
+                .orElseThrow(() -> new CreateUserException(
+                        HttpStatus.BAD_REQUEST, "firmId does not identify an active firm", "firmId"));
         repository.findExisting(command.email()).map(mapper::toExistingResponse)
                 .ifPresent(existing -> {
                     throw new UserAlreadyExistsException(existing);
@@ -69,7 +75,7 @@ public class UserAccountPersistenceService {
                 .createdBy(actorOid)
                 .activeProfile(true)
                 .entraUser(user)
-                .firm(firmRepository.getReferenceById(UUID.fromString(command.firmId())))
+                .firm(firm)
                 .legacyUserId(UUID.randomUUID())
                 .userProfileStatus(UserProfileStatus.PENDING)
                 .userType(UserType.EXTERNAL)

@@ -93,6 +93,8 @@ Tech Services calls intentionally precede database updates; this ordering is unc
 For user creation, the controller mapper normalizes the validated request before it reaches the
 service. If Tech Services returns an existing identity, the service checks its Entra OID locally:
 it creates the local account/profile when absent and returns a conflict when that OID is already stored.
+The firm is checked before provisioning and rechecked under a pessimistic write lock in the local
+transaction, preventing a firm disabled during provisioning from receiving a new profile.
 
 ---
 

@@ -77,6 +77,11 @@ public class UserAccountCreationService {
         } catch (UserAlreadyExistsException ex) {
             logRetainedIdentity(identity.id(), "local_conflict");
             throw ex;
+        } catch (CreateUserException ex) {
+            if (ex.status() == HttpStatus.BAD_REQUEST) {
+                logRetainedIdentity(identity.id(), "firm_inactive_before_local_commit");
+            }
+            throw ex;
         } catch (DataIntegrityViolationException ex) {
             logRetainedIdentity(identity.id(), "local_constraint");
             var existing = repository.findExisting(command.email())

@@ -421,20 +421,51 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
 
     @Test
     void profileInsertFailureRollsBackUserAndLogsRetainedIdentityWithCorrelation(CapturedOutput output) throws Exception {
+        jdbc.execute("""
+                create function reject_user_profile_insert() returns trigger language plpgsql as $$
+                begin raise exception 'Simulated private profile insert failure'; end; $$
+                """);
+        jdbc.execute("""
+                create trigger reject_user_profile_insert before insert on user_profile
+                for each row when (new.entra_user_id is not null)
+                execute function reject_user_profile_insert()
+                """);
+        try {
+            when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, true));
+            var response = mvc.perform(authorizedPost(body())).andExpect(status().isInternalServerError())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.detail").value("The user could not be stored locally"))
+                    .andReturn().getResponse();
+            assertNoLocalUser();
+            assertThat(output.getOut()).contains("Identity retained; manual reconciliation required",
+                    "identityId=" + identity, "correlationId=" + response.getHeader("X-Correlation-ID"),
+                    "step=local_persistence_or_commit", "system=PostgreSQL");
+            assertThat(response.getContentAsString()).doesNotContain("insert into", "private profile", email);
+            verify(client).createUser(any());
+            verifyNoMoreInteractions(client);
+        } finally {
+            jdbc.execute("drop trigger reject_user_profile_insert on user_profile");
+            jdbc.execute("drop function reject_user_profile_insert()");
+        }
+    }
+
+    @Test
+    void firmDisabledDuringProvisioningIsRejectedBeforeLocalWrites(CapturedOutput output) throws Exception {
         when(client.createUser(any())).thenAnswer(invocation -> {
-            jdbc.update("delete from firm where id=?", firm);
+            jdbc.update("update firm set enabled=false where id=?", firm);
             return new TechServicesClient.Identity(identity, true);
         });
-        var response = mvc.perform(authorizedPost(body())).andExpect(status().isInternalServerError())
+
+        var response = mvc.perform(authorizedPost(body())).andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.detail").value("The user could not be stored locally")).andReturn().getResponse();
+                .andExpect(jsonPath("$.detail").value("firmId does not identify an active firm"))
+                .andReturn().getResponse();
+
         assertNoLocalUser();
         assertThat(output.getOut()).contains("Identity retained; manual reconciliation required",
                 "identityId=" + identity, "correlationId=" + response.getHeader("X-Correlation-ID"),
-                "step=local_constraint", "system=PostgreSQL");
-        assertThat(response.getContentAsString()).doesNotContain("insert into", "foreign key", email);
+                "step=firm_inactive_before_local_commit", "system=PostgreSQL");
         verify(client).createUser(any());
-        verifyNoMoreInteractions(client);
     }
 
     @Test
