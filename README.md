@@ -148,7 +148,41 @@ Individual deactivation retains its own permission and target policies at `Deact
 Missing users, missing profiles, access denials, and missing scopes share the same generic 403 response
 builder without synthesizing exceptions. Actor-context and profile-lookup exceptions expose typed
 reasons in structured server logs; reasons and diagnostic messages are not returned to clients.
-No new metrics are registered by these exception handlers.
+Exception metrics are derived from structured logs in Splunk; no exception counters are registered.
+`ExceptionLogFields` provides an `exception_reason` token using the lowercase typed reason,
+for example `active_profile_not_found`. The supported reason enums are
+`UserProfileNotFoundReason`, `InvalidActorContextReason`, `InvalidRequestException.Reason`,
+`TechServicesClientException.Reason`, and `CcmsNotificationException.Reason`.
+Exceptions without a typed reason use the same readable value as `exception_group`.
+Each of these log events also includes `exception_group`, containing the exception class name
+without the `Exception` suffix and converted to snake case (for example `user_profile_not_found`,
+`invalid_actor_context`, or `tech_services_client`), so searches can aggregate across reasons.
+Tokens never depend on diagnostic messages or identifiers; class names and enum constants form
+the reporting contract and should not be renamed without updating dependent searches.
+
+HTTP exception handlers and bulk, role-cleanup, and CCMS exception logs include `exception_reason`.
+Catch-block logs in the Tech Services client, JWT decoders, and refresh-task submission also include
+both fields. Library exceptions use their own readable class name when no typed reason is available.
+Wrap-and-rethrow catches do not add duplicate logs; the handling boundary records the translated exception.
+There is no `failureStage` field. CCMS send attempts and terminal failures share the same token;
+exclude the `"CCMS notification attempt failed"` message when counting terminal failures.
+A logged exception does not necessarily mean a failed HTTP request: best-effort work may continue successfully.
+Counts across all logs represent log events rather than distinct failures: lower-level diagnostics and
+handling-boundary logs may describe the same failure. Select the relevant event messages for outcome metrics.
+Stack traces and existing diagnostic fields remain in the same log event and client responses are unchanged.
+For example, after selecting the application's index/sourcetype in Splunk:
+
+```spl
+exception_reason=* NOT message="CCMS notification attempt failed"
+| stats count by exception_group exception_reason
+```
+
+For profile failures only:
+
+```spl
+exception_group=user_profile_not_found
+| timechart count by exception_reason
+```
 
 Exception handling uses domain-specific exceptions for business and integration failures.
 Tech Services exceptions distinguish downstream, response-parsing, authentication, and configuration

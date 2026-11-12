@@ -26,6 +26,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import lombok.extern.slf4j.Slf4j;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
 
 /**
  * JWT decoder for development, local, and test environments.
@@ -91,6 +92,7 @@ public class DevJwtDecoderConfig {
             claimsSet = signedJwt.getJWTClaimsSet();
         } catch (ParseException e) {
             log.warn("Failed to parse JWT payload in development decoder",
+                    ExceptionLogFields.exceptionGroup(e), ExceptionLogFields.exceptionReason(e),
                     kv("exceptionMessage", e.getMessage()),
                     e);
             throw new JwtException("Dev JWT decoder failed - unable to parse token payload", e);

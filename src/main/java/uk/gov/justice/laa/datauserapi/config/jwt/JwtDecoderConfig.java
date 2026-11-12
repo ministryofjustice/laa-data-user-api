@@ -17,6 +17,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.justice.laa.datauserapi.exception.JwtConfigurationException;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
 
 /**
  * JWT Decoder configuration for production environments.
@@ -53,6 +54,7 @@ public class JwtDecoderConfig {
             jwtDecoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
         } catch (IllegalArgumentException e) {
             log.error("JWT decoder creation failed",
+                    ExceptionLogFields.exceptionGroup(e), ExceptionLogFields.exceptionReason(e),
                     kv("exceptionMessage", e.getMessage()),
                     e);
             throw new JwtConfigurationException("JWT Decoder configuration failed", e);

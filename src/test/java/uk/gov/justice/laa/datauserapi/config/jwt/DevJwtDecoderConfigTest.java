@@ -1,5 +1,8 @@
 package uk.gov.justice.laa.datauserapi.config.jwt;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
@@ -7,6 +10,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
@@ -24,6 +28,25 @@ class DevJwtDecoderConfigTest {
     @BeforeEach
     void setUp() {
         jwtDecoder = new DevJwtDecoderConfig().jwtDecoder();
+    }
+
+    @Test
+    void malformedJwtLogsStructuredExceptionFields() {
+        Logger logger = (Logger) LoggerFactory.getLogger(DevJwtDecoderConfig.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertThatThrownBy(() -> jwtDecoder.decode("ey-invalid")).isInstanceOf(JwtException.class);
+            assertThat(appender.list).singleElement().satisfies(event -> {
+                assertThat(event.getArgumentArray()).extracting(Object::toString)
+                        .contains("exception_group=parse", "exception_reason=parse");
+                assertThat(event.getThrowableProxy()).isNotNull();
+            });
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     @Test

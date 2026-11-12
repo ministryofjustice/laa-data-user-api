@@ -25,6 +25,7 @@ import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.CcmsNotificationException;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -80,6 +81,7 @@ public class RoleChangeNotificationService {
             return sendRoleChangeNotificationToSqs(userProfile, appEntraOid, newPuiRoles, oldPuiRoles);
         } catch (CcmsNotificationException | SdkException e) {
             log.warn("CCMS notification attempt failed",
+                    ExceptionLogFields.exceptionGroup(e), ExceptionLogFields.exceptionReason(e),
                     kv("entraOid", userProfile.getEntraUser().getEntraOid()),
                     kv("applicationEntraOid", appEntraOid),
                     kv("reason", e instanceof CcmsNotificationException notification
@@ -181,6 +183,7 @@ public class RoleChangeNotificationService {
 
     private boolean recordRetryFailure(RuntimeException e, UserProfile userProfile, String appEntraOid) {
         log.error("All CCMS notification retries failed; continuing with database update",
+                ExceptionLogFields.exceptionGroup(e), ExceptionLogFields.exceptionReason(e),
                 kv("userProfileId", userProfile.getId()),
                 kv("entraOid", userProfile.getEntraUser().getEntraOid()),
                 kv("applicationEntraOid", appEntraOid),
@@ -252,6 +255,7 @@ public class RoleChangeNotificationService {
                 }
             } catch (CcmsNotificationException | SdkException | DataAccessException e) {
                 log.error("Failed to sync CCMS roles for profile",
+                        ExceptionLogFields.exceptionGroup(e), ExceptionLogFields.exceptionReason(e),
                         kv("userProfileId", profile.getId()),
                         kv("entraOid", profile.getEntraUser().getEntraOid()),
                         kv("failureType", e instanceof DataAccessException ? "DATABASE_FAILURE" : "NOTIFICATION_FAILURE"),
@@ -260,6 +264,7 @@ public class RoleChangeNotificationService {
             } catch (RuntimeException e) {
                 // Keep independent profile syncs running after an unexpected fault.
                 log.error("Unexpected CCMS role sync failure",
+                        ExceptionLogFields.exceptionGroup(e), ExceptionLogFields.exceptionReason(e),
                         kv("userProfileId", profile.getId()),
                         kv("failureType", "SYSTEM_FAILURE"),
                         e);

@@ -36,6 +36,7 @@ import uk.gov.justice.laa.datauserapi.client.ts.response.UpdateSecurityGroupsRes
 import uk.gov.justice.laa.datauserapi.config.CachingConfig;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -116,6 +117,7 @@ public class LiveTechServicesClient implements TechServicesClient {
                 TechServicesErrorResponse errorResponse = objectMapper.readValue(errorJson, TechServicesErrorResponse.class);
                 if (HttpStatus.TOO_EARLY.equals(httpEx.getStatusCode())) {
                     log.info("Tech Services deferred user reactivation",
+                            ExceptionLogFields.exceptionGroup(httpEx), ExceptionLogFields.exceptionReason(httpEx),
                             kv("entraOid", user.getEntraOid()),
                             kv("errorMessage", errorResponse.getMessage()),
                             kv("errorCode", errorResponse.getCode()),
@@ -124,6 +126,7 @@ public class LiveTechServicesClient implements TechServicesClient {
                 }
                 log.atLevel(httpEx.getStatusCode().is4xxClientError() ? Level.WARN : Level.ERROR)
                         .log("Tech Services failed to reactivate user",
+                        ExceptionLogFields.exceptionGroup(httpEx), ExceptionLogFields.exceptionReason(httpEx),
                         kv("entraOid", user.getEntraOid()),
                         kv("errorMessage", errorResponse.getMessage()),
                         kv("errorCode", errorResponse.getCode()),
@@ -131,6 +134,7 @@ public class LiveTechServicesClient implements TechServicesClient {
                 return TechServicesApiResponse.error(errorResponse);
             } catch (JsonProcessingException ex) {
                 log.error("Error sending reactivation request to Tech Services",
+                        ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                         kv("entraOid", user.getEntraOid()),
                         ex);
                 throw new TechServicesClientException(TechServicesClientException.Reason.INVALID_RESPONSE,
@@ -138,6 +142,7 @@ public class LiveTechServicesClient implements TechServicesClient {
             }
         } catch (JsonProcessingException | RestClientException ex) {
             log.error("Error sending reactivation request to Tech Services",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                     kv("entraOid", user.getEntraOid()),
                     ex);
             throw new TechServicesClientException(ex instanceof JsonProcessingException
@@ -194,6 +199,7 @@ public class LiveTechServicesClient implements TechServicesClient {
                 TechServicesErrorResponse errorResponse = objectMapper.readValue(errorJson, TechServicesErrorResponse.class);
                 if (HttpStatus.TOO_EARLY.equals(httpEx.getStatusCode())) {
                     log.info("Tech Services deferred user deactivation",
+                            ExceptionLogFields.exceptionGroup(httpEx), ExceptionLogFields.exceptionReason(httpEx),
                             kv("entraOid", user.getEntraOid()),
                             kv("errorMessage", errorResponse.getMessage()),
                             kv("errorCode", errorResponse.getCode()),
@@ -202,6 +208,7 @@ public class LiveTechServicesClient implements TechServicesClient {
                 }
                 if (HttpStatus.NOT_FOUND.equals(httpEx.getStatusCode())) {
                     log.warn("User not found in Tech Services during deactivation",
+                            ExceptionLogFields.exceptionGroup(httpEx), ExceptionLogFields.exceptionReason(httpEx),
                             kv("entraOid", user.getEntraOid()),
                             kv("errorMessage", errorResponse.getMessage()),
                             kv("errorCode", errorResponse.getCode()),
@@ -210,6 +217,7 @@ public class LiveTechServicesClient implements TechServicesClient {
                 }
                 log.atLevel(httpEx.getStatusCode().is4xxClientError() ? Level.WARN : Level.ERROR)
                         .log("Tech Services failed to deactivate user",
+                        ExceptionLogFields.exceptionGroup(httpEx), ExceptionLogFields.exceptionReason(httpEx),
                         kv("entraOid", user.getEntraOid()),
                         kv("errorMessage", errorResponse.getMessage()),
                         kv("errorCode", errorResponse.getCode()),
@@ -217,6 +225,7 @@ public class LiveTechServicesClient implements TechServicesClient {
                 return TechServicesApiResponse.error(errorResponse);
             } catch (JsonProcessingException ex) {
                 log.error("Error sending deactivation request to Tech Services",
+                        ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                         kv("entraOid", user.getEntraOid()),
                         ex);
                 throw new TechServicesClientException(TechServicesClientException.Reason.INVALID_RESPONSE,
@@ -224,6 +233,7 @@ public class LiveTechServicesClient implements TechServicesClient {
             }
         } catch (JsonProcessingException | RestClientException ex) {
             log.error("Error sending deactivation request to Tech Services",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                     kv("entraOid", user.getEntraOid()),
                     ex);
             throw new TechServicesClientException(ex instanceof JsonProcessingException
@@ -278,13 +288,15 @@ public class LiveTechServicesClient implements TechServicesClient {
             // Do not throw error for 404, user may already be deleted in entra
             if (httpEx.getStatusCode() == HttpStatus.NOT_FOUND) {
                 log.warn("Tech Services returned 404 during group removal; continuing with local deletion",
+                        ExceptionLogFields.exceptionGroup(httpEx), ExceptionLogFields.exceptionReason(httpEx),
                         kv("userId", entraUser.getId()),
                         kv("entraOid", entraUser.getEntraOid()),
-                        kv("responseBody", errorJson));
+                        kv("responseBody", errorJson), httpEx);
                 return;
             }
             log.atLevel(httpEx.getStatusCode().is4xxClientError() ? Level.WARN : Level.ERROR)
                     .log("Tech Services group removal request failed",
+                    ExceptionLogFields.exceptionGroup(httpEx), ExceptionLogFields.exceptionReason(httpEx),
                     kv("userId", entraUser.getId()),
                     kv("entraOid", entraUser.getEntraOid()),
                     kv("status", httpEx.getStatusCode()),
@@ -293,6 +305,7 @@ public class LiveTechServicesClient implements TechServicesClient {
             throw new TechServicesClientException("Error while sending security group removal to Tech Services: " + httpEx.getStatusCode(), httpEx);
         } catch (RestClientException ex) {
             log.error("Error sending security group removal request to Tech Services",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                     kv("userId", entraUser.getId()),
                     kv("entraOid", entraUser.getEntraOid()),
                     ex);
@@ -317,10 +330,12 @@ public class LiveTechServicesClient implements TechServicesClient {
                 }
             } catch (JwtException ex) {
                 log.warn("Cached Tech Services access token is invalid",
+                        ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                         kv("cacheName", CachingConfig.TECH_SERVICES_DETAILS_CACHE), ex);
             } catch (RuntimeException ex) {
                 // Cache failures must not prevent obtaining a fresh token.
                 log.info("Could not retrieve a valid Tech Services access token from cache",
+                        ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                         kv("cacheName", CachingConfig.TECH_SERVICES_DETAILS_CACHE),
                         ex);
             }
@@ -386,11 +401,13 @@ public class LiveTechServicesClient implements TechServicesClient {
             }
             log.atLevel(httpEx.getStatusCode().is4xxClientError() ? Level.WARN : Level.ERROR)
                     .log("Tech Services user details update failed",
+                    ExceptionLogFields.exceptionGroup(httpEx), ExceptionLogFields.exceptionReason(httpEx),
                     kv("entraOid", entraOid), kv("status", httpEx.getStatusCode()),
                     kv("errorCode", errorResponse.getCode()), httpEx);
             return TechServicesApiResponse.error(errorResponse);
         } catch (RestClientException ex) {
             log.error("Unexpected error updating user details in Tech Services",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                     kv("entraOid", entraOid),
                     ex);
             throw new TechServicesClientException("Unexpected error while updating users details from Tech Services.", ex);

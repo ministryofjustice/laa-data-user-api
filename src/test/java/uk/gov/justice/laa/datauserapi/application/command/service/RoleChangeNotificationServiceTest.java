@@ -3,6 +3,11 @@ package uk.gov.justice.laa.datauserapi.application.command.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.slf4j.LoggerFactory;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,9 +63,15 @@ class RoleChangeNotificationServiceTest {
 
     private RoleChangeNotificationService service;
     private UserProfile profile;
+    private Logger logger;
+    private ListAppender<ILoggingEvent> appender;
 
     @BeforeEach
     void setUp() {
+        logger = (Logger) LoggerFactory.getLogger(RoleChangeNotificationService.class);
+        appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
         service = new RoleChangeNotificationService(registry,
                 new ObjectMapper().registerModule(new JavaTimeModule()), repository);
         EntraUser user = EntraUser.builder().entraOid("oid").firstName("A").lastName("B").email("a@b.com").build();
@@ -157,13 +168,17 @@ class RoleChangeNotificationServiceTest {
         ObjectMapper mapper = mock(ObjectMapper.class);
         JsonProcessingException failure = new JsonProcessingException("invalid JSON") {};
         when(mapper.writeValueAsString(any())).thenThrow(failure);
-        RoleChangeNotificationService notification = new RoleChangeNotificationService(registry, mapper, repository);
+        RoleChangeNotificationService notification =
+                new RoleChangeNotificationService(registry, mapper, repository);
         when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
         when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
 
         assertThatThrownBy(() -> notification.sendMessage(profile, APP, Set.of("R"), Set.of()))
                 .isInstanceOf(CcmsNotificationException.class).hasCause(failure);
         verifyNoInteractions(sqsClient);
+        assertFailureEvents("CCMS notification attempt failed", "SERIALIZATION_FAILURE", 1);
+        assertFailureEvents("All CCMS notification retries failed; continuing with database update",
+                "SERIALIZATION_FAILURE", 0);
     }
 
     @Test
@@ -194,6 +209,32 @@ class RoleChangeNotificationServiceTest {
 
         verify(mapper, times(3)).writeValueAsString(any());
         verifyNoInteractions(sqsClient);
+        assertFailureEvents("CCMS notification attempt failed", "SERIALIZATION_FAILURE", 3);
+        assertFailureEvents("All CCMS notification retries failed; continuing with database update",
+                "SERIALIZATION_FAILURE", 1);
+    }
+
+    @Test
+    void successfulRetryDoesNotLogHandledFailure() throws JsonProcessingException {
+        ObjectMapper mapper = mock(ObjectMapper.class);
+        when(mapper.writeValueAsString(any()))
+                .thenThrow(new JsonProcessingException("temporary serialization failure") {})
+                .thenReturn("{}");
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+        when(sqsClient.sendMessage(any(SendMessageRequest.class)))
+                .thenReturn(SendMessageResponse.builder().messageId("m").build());
+
+        try (AnnotationConfigApplicationContext context = retryContext(mapper)) {
+            assertThat(context.getBean(RoleChangeNotificationService.class)
+                    .sendMessage(profile, APP, Set.of("R"), Set.of())).isTrue();
+        }
+
+        verify(mapper, times(2)).writeValueAsString(any());
+        verify(sqsClient).sendMessage(any(SendMessageRequest.class));
+        assertFailureEvents("CCMS notification attempt failed", "SERIALIZATION_FAILURE", 1);
+        assertFailureEvents("All CCMS notification retries failed; continuing with database update",
+                "SERIALIZATION_FAILURE", 0);
     }
 
     @Test
@@ -305,5 +346,24 @@ class RoleChangeNotificationServiceTest {
         service.ccmsRoleSync();
 
         verify(repository, never()).save(any());
+        assertFailureEvents("Failed to sync CCMS roles for profile", "INVALID_PROFILE", 1);
+    }
+
+    @AfterEach
+    void tearDown() {
+        logger.detachAppender(appender);
+        appender.stop();
+    }
+
+    private void assertFailureEvents(String message, String reason, int expectedCount) {
+        List<ILoggingEvent> events = appender.list.stream()
+                .filter(event -> message.equals(event.getMessage()))
+                .toList();
+        assertThat(events).hasSize(expectedCount).allSatisfy(event -> {
+            assertThat(event.getArgumentArray()).extracting(Object::toString)
+                    .contains("exception_group=ccms_notification",
+                            "exception_reason=" + reason.toLowerCase(java.util.Locale.ROOT));
+            assertThat(event.getThrowableProxy()).isNotNull();
+        });
     }
 }

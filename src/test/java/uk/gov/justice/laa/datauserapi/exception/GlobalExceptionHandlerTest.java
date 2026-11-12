@@ -114,6 +114,9 @@ class GlobalExceptionHandlerTest {
                 .contains("reason=" + reason);
         assertThat(appender.list.getFirst().getThrowableProxy().getClassName())
                 .isEqualTo(UserProfileNotFoundException.class.getName());
+        assertThat(appender.list.getFirst().getArgumentArray()).extracting(Object::toString)
+                .contains("exception_group=user_profile_not_found",
+                        "exception_reason=" + reason.name().toLowerCase(java.util.Locale.ROOT));
         assertEquals(handler.handleAccessDenied(new org.springframework.security.access.AccessDeniedException("Access denied"),
                 request).getBody(), response.getBody());
     }
@@ -215,6 +218,9 @@ class GlobalExceptionHandlerTest {
         assertThat(appender.list.getFirst().getArgumentArray()).extracting(Object::toString)
                 .contains("reason=" + reason);
         assertThat(response.getBody().toString()).doesNotContain(reason.name(), "11111111-1111-1111-1111-111111111111");
+        assertThat(appender.list.getFirst().getArgumentArray()).extracting(Object::toString)
+                .contains("exception_group=invalid_actor_context",
+                        "exception_reason=" + reason.name().toLowerCase(java.util.Locale.ROOT));
     }
 
     @Test
@@ -361,6 +367,36 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().detail()).isEqualTo("One or more request parameters failed validation.");
         assertThat(appender.list.getFirst().getArgumentArray()).extracting(Object::toString)
                 .contains("reason=" + reason);
+        assertThat(appender.list.getFirst().getArgumentArray()).extracting(Object::toString)
+                .contains("exception_group=invalid_request", "exception_reason=" + reason.name().toLowerCase(java.util.Locale.ROOT));
+    }
+
+    @ParameterizedTest
+    @EnumSource(TechServicesClientException.Reason.class)
+    void logsHandledTechServicesFailureToken(TechServicesClientException.Reason reason) {
+        handler.handleTechServicesFailure(new TechServicesClientException(reason, "private diagnostic"), request);
+
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getArgumentArray()).extracting(Object::toString)
+                    .contains("exception_group=tech_services_client",
+                            "exception_reason=" + reason.name().toLowerCase(java.util.Locale.ROOT));
+            assertThat(event.getThrowableProxy()).isNotNull();
+        });
+    }
+
+    @ParameterizedTest
+    @EnumSource(CcmsNotificationException.Reason.class)
+    void logsHandledCcmsFailureToken(CcmsNotificationException.Reason reason) {
+        var response = handler.handleCcmsNotificationFailure(
+                new CcmsNotificationException(reason, "private diagnostic", null), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(response.getBody().detail()).doesNotContain("private diagnostic", reason.name());
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getArgumentArray()).extracting(Object::toString)
+                    .contains("exception_group=ccms_notification", "exception_reason=" + reason.name().toLowerCase(java.util.Locale.ROOT));
+            assertThat(event.getThrowableProxy()).isNotNull();
+        });
     }
 
     @Test

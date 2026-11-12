@@ -38,6 +38,7 @@ public class GlobalExceptionHandler {
             ResourceNotFoundException ex,
             HttpServletRequest request) {
         log.warn("Resource not found",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -58,6 +59,7 @@ public class GlobalExceptionHandler {
             UserNotFoundException ex,
             HttpServletRequest request) {
         log.warn("User lookup failed",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -69,6 +71,7 @@ public class GlobalExceptionHandler {
             FirmNotFoundException ex,
             HttpServletRequest request) {
         log.warn("Firm not found",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -88,6 +91,7 @@ public class GlobalExceptionHandler {
             UserProfileNotFoundException ex,
             HttpServletRequest request) {
         log.warn("User profile lookup failed",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("reason", ex.reason()),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
@@ -100,6 +104,7 @@ public class GlobalExceptionHandler {
             ConflictException ex,
             HttpServletRequest request) {
         log.warn("Request conflicts with resource state",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("exceptionMessage", ex.getMessage()), kv("requestUri", request.getRequestURI()), ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/conflict"),
@@ -118,6 +123,7 @@ public class GlobalExceptionHandler {
             ReferenceDataNotFoundException ex,
             HttpServletRequest request) {
         log.warn("Reference data not found",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -138,6 +144,7 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException ex,
             HttpServletRequest request) {
         log.warn("Request body validation failed",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -164,6 +171,7 @@ public class GlobalExceptionHandler {
             ConstraintViolationException ex,
             HttpServletRequest request) {
         log.warn("Request constraint validation failed",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -189,6 +197,7 @@ public class GlobalExceptionHandler {
             HttpMessageNotReadableException ex,
             HttpServletRequest request) {
         log.warn("Request body is missing or malformed",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("exceptionMessage", ex.getMessage()), kv("requestUri", request.getRequestURI()), ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
@@ -207,6 +216,7 @@ public class GlobalExceptionHandler {
             MissingServletRequestParameterException ex,
             HttpServletRequest request) {
         log.warn("Required request parameter is missing",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("parameterName", ex.getParameterName()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -227,6 +237,7 @@ public class GlobalExceptionHandler {
             InvalidUuidFormatException ex,
             HttpServletRequest request) {
         log.warn("UUID format validation failed",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -248,6 +259,7 @@ public class GlobalExceptionHandler {
             MethodArgumentTypeMismatchException ex,
             HttpServletRequest request) {
         log.warn("Request parameter type validation failed",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("parameterName", ex.getName()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -286,6 +298,7 @@ public class GlobalExceptionHandler {
             AccessDeniedException ex,
             HttpServletRequest request) {
         log.warn("Request access denied",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -311,6 +324,7 @@ public class GlobalExceptionHandler {
             RuntimeException ex,
             HttpServletRequest request) {
         log.warn("User account status conflict",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -332,6 +346,7 @@ public class GlobalExceptionHandler {
             JwtException ex,
             HttpServletRequest request) {
         log.warn("JWT validation failed",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -353,6 +368,7 @@ public class GlobalExceptionHandler {
             ScopeMissingException ex,
             HttpServletRequest request) {
         log.warn("Required scope is missing",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -365,6 +381,7 @@ public class GlobalExceptionHandler {
             InvalidActorContextException ex,
             HttpServletRequest request) {
         log.warn("Actor context is invalid",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("reason", ex.reason()),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
@@ -387,6 +404,7 @@ public class GlobalExceptionHandler {
             TaskRejectedException ex,
             HttpServletRequest request) {
         log.warn("Background task rejected because the executor is saturated",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("requestUri", request.getRequestURI()), ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/service-unavailable"),
@@ -405,6 +423,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
 
         log.error("Unhandled request error",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                 kv("exceptionMessage", ex.getMessage()),
                 kv("requestUri", request.getRequestURI()),
                 ex);
@@ -414,7 +433,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidRequestException.class)
     public ResponseEntity<ProblemDetail> handleInvalidRequest(
             InvalidRequestException ex, HttpServletRequest request) {
-        log.warn("Request validation failed", kv("reason", ex.reason()),
+        log.warn("Request validation failed", ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
+                kv("reason", ex.reason()),
                 kv("exceptionMessage", ex.getMessage()), kv("requestUri", request.getRequestURI()), ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
@@ -426,7 +446,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(TechServicesClientException.class)
     public ResponseEntity<ProblemDetail> handleTechServicesFailure(
             TechServicesClientException ex, HttpServletRequest request) {
-        log.error("Tech Services request failed", kv("reason", ex.getReason()),
+        log.error("Tech Services request failed", ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
+                kv("reason", ex.getReason()),
+                kv("requestUri", request.getRequestURI()), ex);
+        return internalServerErrorResponse(request);
+    }
+
+    @ExceptionHandler(CcmsNotificationException.class)
+    public ResponseEntity<ProblemDetail> handleCcmsNotificationFailure(
+            CcmsNotificationException ex, HttpServletRequest request) {
+        log.error("CCMS notification failed", ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
+                kv("reason", ex.reason()),
                 kv("requestUri", request.getRequestURI()), ex);
         return internalServerErrorResponse(request);
     }

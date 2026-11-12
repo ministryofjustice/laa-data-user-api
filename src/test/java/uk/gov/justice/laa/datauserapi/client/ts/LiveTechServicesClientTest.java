@@ -105,6 +105,11 @@ class LiveTechServicesClientTest {
     @AfterEach
     void tearDown() {
         logger.detachAppender(listAppender);
+        listAppender.stop();
+        assertThat(listAppender.list.stream().filter(event -> event.getThrowableProxy() != null).toList())
+                .allSatisfy(event -> assertThat(event.getArgumentArray()).extracting(Object::toString)
+                        .anyMatch(value -> value.startsWith("exception_group=") && !value.endsWith("="))
+                        .anyMatch(value -> value.startsWith("exception_reason=") && !value.endsWith("=")));
     }
 
     private void mockTokenGeneration() {

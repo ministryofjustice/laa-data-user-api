@@ -27,6 +27,7 @@ import uk.gov.justice.laa.datauserapi.exception.FirmNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.InvalidUuidFormatException;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
 
 @Slf4j
 @Service
@@ -134,9 +135,11 @@ public class BulkDeactivateFirmUsersService {
         outcomes.add(new UserOutcome(entraOid, status));
         if (status == Status.SYSTEM_FAILURE || status == Status.DATABASE_FAILURE) {
             log.error("Unexpected bulk deactivation failure",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                     kv("entraOid", entraOid), kv("firmCode", firmCode), kv("failureType", status), ex);
         } else {
             log.warn("Bulk deactivation failed for user",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                     kv("entraOid", entraOid), kv("firmCode", firmCode), kv("failureType", status), ex);
         }
     }
@@ -145,10 +148,12 @@ public class BulkDeactivateFirmUsersService {
                                Status status, RuntimeException ex) {
         if (status == Status.SYSTEM_FAILURE || status == Status.DATABASE_FAILURE) {
             log.error("Bulk deactivation aborted",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                     kv("firmCode", command.firmId()), kv("actorEntraOid", actor.entraOid()),
                     kv("failureType", status), ex);
         } else {
             log.warn("Bulk deactivation aborted",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                     kv("firmCode", command.firmId()), kv("actorEntraOid", actor.entraOid()),
                     kv("failureType", status), ex);
         }

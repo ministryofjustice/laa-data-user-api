@@ -28,6 +28,8 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.exception.FirmNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundReason;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
@@ -168,6 +170,48 @@ class BulkDeactivateFirmUsersServiceTest {
 
         assertThat(service.deactivate(command, actor).outcomes()).isEmpty();
         verifyNoInteractions(deactivateService);
+    }
+
+    @ParameterizedTest
+    @EnumSource(UserProfileNotFoundReason.class)
+    void logsConsumedProfileFailureTokenOnceAndContinues(UserProfileNotFoundReason reason) {
+        UUID failedId = UUID.randomUUID();
+        UUID successfulId = UUID.randomUUID();
+        UserProfileNotFoundException failure = switch (reason) {
+            case PROFILE_ID_NOT_FOUND -> new UserProfileNotFoundException(failedId);
+            case ACTIVE_PROFILE_NOT_FOUND -> UserProfileNotFoundException.activeProfileForUser(failedId.toString());
+        };
+        when(firmRepository.existsByCode(command.firmId())).thenReturn(true);
+        when(userRepository.findUserEntraOidsByFirmCode(command.firmId()))
+                .thenReturn(List.of(failedId.toString(), successfulId.toString()));
+        when(deactivateService.deactivate(failedId, command.deactivateReason(), actor)).thenThrow(failure);
+        when(deactivateService.deactivate(successfulId, command.deactivateReason(), actor))
+                .thenReturn(CommandResult.success("done"));
+
+        service.deactivateAsync(command, actor);
+
+        assertThat(appender.list.stream().filter(event -> event.getThrowableProxy() != null).toList())
+                .singleElement().satisfies(event -> assertThat(event.getArgumentArray()).extracting(Object::toString)
+                        .contains("exception_group=user_profile_not_found",
+                                "exception_reason=" + reason.name().toLowerCase(java.util.Locale.ROOT)));
+        verify(deactivateService).deactivate(successfulId, command.deactivateReason(), actor);
+    }
+
+    @ParameterizedTest
+    @EnumSource(TechServicesClientException.Reason.class)
+    void logsConsumedTechServicesFailureTokenOnce(TechServicesClientException.Reason reason) {
+        UUID id = UUID.randomUUID();
+        TechServicesClientException failure = new TechServicesClientException(reason, "private diagnostic");
+        when(firmRepository.existsByCode(command.firmId())).thenReturn(true);
+        when(userRepository.findUserEntraOidsByFirmCode(command.firmId())).thenReturn(List.of(id.toString()));
+        when(deactivateService.deactivate(id, command.deactivateReason(), actor)).thenThrow(failure);
+
+        service.deactivateAsync(command, actor);
+
+        assertThat(appender.list.stream().filter(event -> event.getThrowableProxy() != null).toList())
+                .singleElement().satisfies(event -> assertThat(event.getArgumentArray()).extracting(Object::toString)
+                        .contains("exception_group=tech_services_client",
+                                "exception_reason=" + reason.name().toLowerCase(java.util.Locale.ROOT)));
     }
 
     @Test
