@@ -52,14 +52,21 @@ class ZapPreparePlanTest(unittest.TestCase):
             result = self.prepare(directory, "write")
             self.assertEqual(result.returncode, 0, result.stderr)
             plan = self.plan(directory)
-            self.assertNotIn("openapi", [job["type"] for job in plan["jobs"]])
-            requests = next(job["requests"] for job in plan["jobs"] if job["type"] == "requestor")
+            job_types = [job["type"] for job in plan["jobs"]]
+            self.assertNotIn("openapi", job_types)
+            self.assertNotIn("requestor", job_types)
+            self.assertLess(job_types.index("import"), job_types.index("activeScan"))
+            importer = next(job for job in plan["jobs"] if job["type"] == "import")
+            self.assertEqual(importer["parameters"], {
+                "type": "har", "fileName": "/zap/wrk/write-baseline.har", "sendRequests": False,
+            })
+            baseline = json.loads((Path(directory) / "build/zap/read-baseline-requests.json").read_text())
+            requests = [request for request in baseline if request["method"] == "POST"]
             self.assertEqual(len(requests), 3)
             for request in requests:
                 self.assertEqual(request["method"], "POST")
                 self.assertNotIn("00000000-0000-0000-0000-000000000001", request["data"])
                 self.assertTrue(request["url"].endswith(("/convert-to-multi-firm", "/update-offices")))
-            baseline = json.loads((Path(directory) / "build/zap/read-baseline-requests.json").read_text())
             self.assertEqual(len(baseline), 14)
 
     def test_anonymous_removes_authorization_and_covers_reads_and_local_writes(self):

@@ -45,8 +45,15 @@ read_requests = requestor.fetch('requests')
 baseline = read_requests.dup
 if mode == 'write'
   context['includePaths'] = write_paths.map { |path| Regexp.escape(target + path) + '$' }
-  requestor['requests'] = write_requests
-  # Explicit bodies exercise both variants without an import mutating the fixture first.
+  # Import baseline traffic without replaying writes against the reset fixture.
+  requestor.replace(
+    'type' => 'import',
+    'parameters' => {
+      'type' => 'har',
+      'fileName' => '/zap/wrk/write-baseline.har',
+      'sendRequests' => false
+    }
+  )
   plan['jobs'].reject! { |job| job['type'] == 'openapi' }
   baseline += write_requests
 elsif mode == 'anonymous'

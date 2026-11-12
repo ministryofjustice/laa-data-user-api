@@ -96,13 +96,64 @@ class ZapScanBaselineTest(unittest.TestCase):
         with patch.object(baseline.urllib.request, "build_opener") as build:
             response = build.return_value.open.return_value.__enter__.return_value
             response.status = 200
-            with patch.object(baseline.json, "load", return_value={"success": False}), \
-                    contextlib.redirect_stdout(io.StringIO()):
-                self.assertEqual(baseline.check_routes([request], "token", "write")[0][1],
-                                 "command failed")
+            response.read.return_value = b'{"success": false}'
+            captured = []
+            with contextlib.redirect_stdout(io.StringIO()):
+                results = baseline.check_routes(
+                    [request], "token", "write", captured_writes=captured
+                )
+                self.assertEqual(results[0][1], "command failed")
+            self.assertEqual(captured, [])
             sent = build.return_value.open.call_args.args[0]
             self.assertEqual(sent.method, "POST")
             self.assertEqual(sent.data, request["data"].encode())
+
+    def test_write_baseline_captures_successful_traffic_without_replaying(self):
+        seen = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                seen.append(self.rfile.read(int(self.headers["Content-Length"])).decode())
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"success":true}')
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                work = Path(directory)
+                request = {
+                    "method": "POST",
+                    "url": f"http://127.0.0.1:{server.server_port}/api/v1/commands/users/convert-to-multi-firm",
+                    "data": '{"userEntraObjectId":"00000000-0000-0000-0000-000000000006"}',
+                }
+                (work / "read-baseline-requests.json").write_text(json.dumps([request]))
+                with patch.object(baseline, "WORK", work), patch.dict(os.environ, {
+                    "SCAN_MODE": "write", "BASELINE_PHASE": "pre",
+                    "ZAP_AUTH_TOKEN": "synthetic-token",
+                    "GITHUB_STEP_SUMMARY": str(work / "summary"),
+                }), contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(baseline.main(), 0)
+                entries = json.loads((work / "write-baseline.har").read_text())["log"]["entries"]
+                self.assertEqual(len(entries), 1)
+                self.assertEqual(entries[0]["request"]["postData"]["text"], request["data"])
+                self.assertIn(
+                    {"name": "Authorization", "value": "Bearer synthetic-token"},
+                    entries[0]["request"]["headers"],
+                )
+                self.assertEqual(entries[0]["response"]["status"], 200)
+                self.assertEqual(json.loads(entries[0]["response"]["content"]["text"]), {"success": True})
+                self.assertEqual(seen, [request["data"]])
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
 
 
 if __name__ == "__main__":

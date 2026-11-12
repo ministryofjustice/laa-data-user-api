@@ -5,6 +5,7 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -21,7 +22,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def check_routes(requests, token, mode="read"):
+def check_routes(requests, token, mode="read", captured_writes=None):
     if mode not in ("read", "write", "anonymous"):
         raise ValueError(f"Unknown scan mode: {mode}")
     if (mode == "anonymous" and token) or (mode != "anonymous" and not token):
@@ -55,9 +56,37 @@ def check_routes(requests, token, mode="read"):
             with opener.open(req, timeout=30) as response:
                 status = response.status
                 if request["method"] == "POST" and mode == "write":
-                    if json.load(response).get("success") is not True:
+                    body = response.read().decode("utf-8")
+                    if json.loads(body).get("success") is not True:
                         print(f"::error::Baseline {path} returned an unsuccessful command result")
                         status = "command failed"
+                    elif captured_writes is not None:
+                        captured_writes.append({
+                            "startedDateTime": datetime.now(timezone.utc).isoformat(),
+                            "time": 0,
+                            "request": {
+                                "method": req.method, "url": req.full_url,
+                                "httpVersion": "HTTP/1.1",
+                                "headers": [{"name": name, "value": value}
+                                            for name, value in req.header_items()],
+                                "queryString": [], "cookies": [],
+                                "headersSize": -1, "bodySize": len(req.data),
+                                "postData": {"mimeType": "application/json", "text": data},
+                            },
+                            "response": {
+                                "status": response.status, "statusText": response.reason,
+                                "httpVersion": "HTTP/1.1",
+                                "headers": [{"name": name, "value": value}
+                                            for name, value in response.headers.items()],
+                                "cookies": [], "redirectURL": "",
+                                "headersSize": -1, "bodySize": len(body.encode("utf-8")),
+                                "content": {
+                                    "size": len(body.encode("utf-8")),
+                                    "mimeType": "application/json", "text": body,
+                                },
+                            },
+                            "cache": {}, "timings": {"send": 0, "wait": 0, "receive": 0},
+                        })
         except urllib.error.HTTPError as error:
             status = error.code
         except (urllib.error.URLError, TimeoutError) as error:
@@ -77,7 +106,10 @@ def main():
     if phase == "post":
         requests = [request for request in requests
                     if request["method"] == "GET" and urlsplit(request["url"]).path == "/api/v1/me"]
-    results = check_routes(requests, os.environ.get("ZAP_AUTH_TOKEN", ""), mode)
+    captured_writes = [] if mode == "write" and phase == "pre" else None
+    results = check_routes(
+        requests, os.environ.get("ZAP_AUTH_TOKEN", ""), mode, captured_writes=captured_writes
+    )
     expected = 401 if mode == "anonymous" else 200
     lines = [
         f"### {mode.capitalize()} access check ({phase}-scan)", "",
@@ -91,7 +123,15 @@ def main():
     with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as summary:
         summary.write(text)
     print(text)
-    return 0 if all(status == expected for _, status in results) else 1
+    success = all(status == expected for _, status in results)
+    if success and captured_writes is not None:
+        (WORK / "write-baseline.har").write_text(json.dumps({
+            "log": {
+                "version": "1.2", "creator": {"name": "ZAP scan baseline", "version": "1"},
+                "entries": captured_writes,
+            },
+        }))
+    return 0 if success else 1
 
 
 if __name__ == "__main__":
