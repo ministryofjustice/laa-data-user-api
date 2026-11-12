@@ -10,7 +10,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -21,10 +20,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
 
 import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserProfileAccessTarget;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserProfileAccessQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileAccessQueryRepository;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
@@ -88,49 +85,24 @@ class UserProfileAccessQueryServiceTest {
     }
 
     @Test
-    void unrestrictedOfficeAccessReturnsAllFirmOffices() {
-        stubTarget(UserType.EXTERNAL, FIRM_ID, true);
+    void officesAreReadForTheRequestedProfileWithOneQueryAndCapped() {
         List<OfficeView> offices = List.of(office());
-        when(repository.findOfficesByFirmId(eq(FIRM_ID), any())).thenReturn(offices);
+        when(repository.findAccessibleOfficesByProfileId(eq(PROFILE_ID), any())).thenReturn(offices);
 
         OfficeViewList result = service().getOffices(PROFILE_ID);
 
         assertThat(result.items()).isEqualTo(offices);
-        verify(repository).findAccessTargetById(PROFILE_ID);
-        verify(repository).findOfficesByFirmId(eq(FIRM_ID), any());
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(repository).findAccessibleOfficesByProfileId(eq(PROFILE_ID), pageable.capture());
+        assertThat(pageable.getValue().getPageSize()).isEqualTo(UserProfileAccessQueryService.MAX_OFFICES);
         verifyNoMoreInteractions(repository);
     }
 
     @Test
-    void restrictedOfficeAccessReturnsOnlyAssignedOfficesWithinTheProfileFirm() {
-        stubTarget(UserType.EXTERNAL, FIRM_ID, false);
-        List<OfficeView> offices = List.of(office());
-        when(repository.findAssignedOfficesByProfileId(eq(PROFILE_ID), eq(FIRM_ID), any())).thenReturn(offices);
-
-        OfficeViewList result = service().getOffices(PROFILE_ID);
-
-        assertThat(result.items()).isEqualTo(offices);
-        verify(repository).findAssignedOfficesByProfileId(eq(PROFILE_ID), eq(FIRM_ID), any());
-    }
-
-    @Test
-    void officesAreEmptyForInternalProfileWithoutFirm() {
-        stubTarget(UserType.INTERNAL, null, true);
+    void noAccessibleOfficesIsAnEmptyList() {
+        when(repository.findAccessibleOfficesByProfileId(eq(PROFILE_ID), any())).thenReturn(List.of());
 
         assertThat(service().getOffices(PROFILE_ID).items()).isEmpty();
-    }
-
-    @Test
-    void officesAreEmptyWhenTheProfileDisappearsAfterAuthorisation() {
-        when(repository.findAccessTargetById(PROFILE_ID)).thenReturn(Optional.empty());
-
-        assertThat(service().getOffices(PROFILE_ID).items()).isEmpty();
-        verifyNoMoreInteractions(repository);
-    }
-
-    private void stubTarget(UserType type, UUID firmId, boolean unrestricted) {
-        when(repository.findAccessTargetById(PROFILE_ID))
-                .thenReturn(Optional.of(new UserProfileAccessTarget(type, firmId, unrestricted)));
     }
 
     private OfficeView office() {

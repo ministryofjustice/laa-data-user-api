@@ -21,7 +21,7 @@ public interface UserProfileAccessQueryRepository extends Repository<UserProfile
 
     @Query("""
         SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.UserProfileAccessTarget(
-            up.userType, f.id, up.unrestrictedOfficeAccess)
+            up.userType, f.id)
         FROM UserProfile up
         LEFT JOIN up.firm f
         WHERE up.id = :profileId
@@ -63,23 +63,11 @@ public interface UserProfileAccessQueryRepository extends Repository<UserProfile
             CAST(o.id AS STRING), CAST(f.id AS STRING),
             o.address.postcode, o.address.addressLine1, o.address.addressLine2, o.address.addressLine3, o.address.city)
         FROM UserProfile up
-        JOIN up.offices o
-        JOIN o.firm f
+        JOIN up.firm f
+        JOIN Office o ON o.firm = f
         WHERE up.id = :profileId
-            AND f.id = :firmId
+            AND (up.unrestrictedOfficeAccess = true OR o MEMBER OF up.offices)
         ORDER BY o.code, o.id
         """)
-    List<OfficeView> findAssignedOfficesByProfileId(
-            @Param("profileId") UUID profileId, @Param("firmId") UUID firmId, Pageable pageable);
-
-    @Query("""
-        SELECT new uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView(
-            CAST(o.id AS STRING), CAST(f.id AS STRING),
-            o.address.postcode, o.address.addressLine1, o.address.addressLine2, o.address.addressLine3, o.address.city)
-        FROM Office o
-        JOIN o.firm f
-        WHERE f.id = :firmId
-        ORDER BY o.code, o.id
-        """)
-    List<OfficeView> findOfficesByFirmId(@Param("firmId") UUID firmId, Pageable pageable);
+    List<OfficeView> findAccessibleOfficesByProfileId(@Param("profileId") UUID profileId, Pageable pageable);
 }

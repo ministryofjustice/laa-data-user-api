@@ -5,6 +5,7 @@ import static net.logstash.logback.argument.StructuredArguments.kv;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
@@ -27,12 +28,11 @@ import lombok.extern.slf4j.Slf4j;
 import uk.gov.justice.laa.datauserapi.contracts.response.FieldErrorDetail;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-    private static final String HIDDEN_RESOURCE_MESSAGE = "User profile not found";
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleNotFound(
@@ -40,19 +40,18 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.warn("Resource not found",
                 kv("exceptionMessage", ex.getMessage()),
-                kv("requestUri", request.getRequestURI()));
-        return problemResponse(HttpStatus.NOT_FOUND, notFoundProblem(ex.getMessage(), request));
-    }
-
-    private ProblemDetail notFoundProblem(String detail, HttpServletRequest request) {
-        return new ProblemDetail(
+                kv("requestUri", request.getRequestURI()),
+                ex);
+        ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/not-found"),
                 "Resource Not Found",
                 HttpStatus.NOT_FOUND.value(),
-                detail,
+                ex.getMessage(),
                 URI.create(request.getRequestURI()),
                 null
         );
+
+        return problemResponse(HttpStatus.NOT_FOUND, problem);
     }
 
     @ExceptionHandler(UserNotFoundException.class)
@@ -73,7 +72,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleConflict(
             ConflictException ex,
             HttpServletRequest request) {
-        log.warn(ex.getMessage());
+        log.warn(ex.getMessage(), ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/conflict"),
                 "Conflict",
@@ -112,7 +111,8 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.warn("Request body validation failed",
                 kv("exceptionMessage", ex.getMessage()),
-                kv("requestUri", request.getRequestURI()));
+                kv("requestUri", request.getRequestURI()),
+                ex);
         List<FieldErrorDetail> fieldErrors = ex.getBindingResult()
                 .getFieldErrors()
                 .stream()
@@ -137,7 +137,8 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.warn("Request constraint validation failed",
                 kv("exceptionMessage", ex.getMessage()),
-                kv("requestUri", request.getRequestURI()));
+                kv("requestUri", request.getRequestURI()),
+                ex);
         List<FieldErrorDetail> fieldErrors = ex.getConstraintViolations()
                 .stream()
                 .map(this::toFieldErrorDetail)
@@ -159,7 +160,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleUnreadableBody(
             HttpMessageNotReadableException ex,
             HttpServletRequest request) {
-        log.warn(ex.getMessage());
+        log.warn(ex.getMessage(), ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
                 "Validation Error",
@@ -178,7 +179,8 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.warn("Required request parameter is missing",
                 kv("parameterName", ex.getParameterName()),
-                kv("requestUri", request.getRequestURI()));
+                kv("requestUri", request.getRequestURI()),
+                ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
                 "Validation Error",
@@ -197,7 +199,8 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.warn("UUID format validation failed",
                 kv("exceptionMessage", ex.getMessage()),
-                kv("requestUri", request.getRequestURI()));
+                kv("requestUri", request.getRequestURI()),
+                ex);
 
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
@@ -217,7 +220,8 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.warn("Request parameter type validation failed",
                 kv("parameterName", ex.getName()),
-                kv("requestUri", request.getRequestURI()));
+                kv("requestUri", request.getRequestURI()),
+                ex);
 
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/validation-error"),
@@ -252,12 +256,22 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleForbidden(
             AccessDeniedException ex,
             HttpServletRequest request) {
+        Optional<PolicyDenialReason> policyDenial = policyDenialReason(ex);
         log.warn("Request access denied",
                 kv("exceptionMessage", ex.getMessage()),
-                kv("requestUri", request.getRequestURI()));
+                kv("requestUri", request.getRequestURI()),
+                kv("reasonCode", policyDenial.orElse(null)),
+                ex);
 
-        if (hidesResourceExistence(ex)) {
-            return problemResponse(HttpStatus.NOT_FOUND, notFoundProblem(HIDDEN_RESOURCE_MESSAGE, request));
+        if (policyDenial.filter(PolicyDenialReason::hidesResourceExistence).isPresent()) {
+            return problemResponse(HttpStatus.NOT_FOUND, new ProblemDetail(
+                    URI.create("https://silas.laa.gov.uk/errors/not-found"),
+                    "Resource Not Found",
+                    HttpStatus.NOT_FOUND.value(),
+                    policyDenial.get().getNotFoundMessage(),
+                    URI.create(request.getRequestURI()),
+                    null
+            ));
         }
 
         ProblemDetail problem = new ProblemDetail(
@@ -272,10 +286,11 @@ public class GlobalExceptionHandler {
         return problemResponse(HttpStatus.FORBIDDEN, problem);
     }
 
-    private static boolean hidesResourceExistence(AccessDeniedException ex) {
+    private static Optional<PolicyDenialReason> policyDenialReason(AccessDeniedException ex) {
         return ex instanceof AuthorizationDeniedException denied
                 && denied.getAuthorizationResult() instanceof PolicyAuthorizationDenial denial
-                && denial.reason().isHidesResourceExistence();
+                ? Optional.of(denial.reason())
+                : Optional.empty();
     }
 
     @ExceptionHandler({UserAlreadyDeactivatedException.class, UserNotDeactivatedException.class})
@@ -284,7 +299,8 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.info("User account status conflict",
                 kv("exceptionMessage", ex.getMessage()),
-                kv("requestUri", request.getRequestURI()));
+                kv("requestUri", request.getRequestURI()),
+                ex);
 
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/conflict"),
@@ -304,7 +320,8 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.warn("JWT validation failed",
                 kv("exceptionMessage", ex.getMessage()),
-                kv("requestUri", request.getRequestURI()));
+                kv("requestUri", request.getRequestURI()),
+                ex);
 
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/unauthorized"),
@@ -324,7 +341,8 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.warn("Required scope is missing",
                 kv("exceptionMessage", ex.getMessage()),
-                kv("requestUri", request.getRequestURI()));
+                kv("requestUri", request.getRequestURI()),
+                ex);
 
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/forbidden"),
@@ -344,7 +362,8 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.warn("Actor context is invalid",
                 kv("exceptionMessage", ex.getMessage()),
-                kv("requestUri", request.getRequestURI()));
+                kv("requestUri", request.getRequestURI()),
+                ex);
 
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://silas.laa.gov.uk/errors/forbidden"),

@@ -28,7 +28,7 @@ class UserProfileVisibilityPolicyInputResolverTest {
         UUID profileId = UUID.randomUUID();
         UUID firmId = UUID.randomUUID();
         when(repository.findAccessTargetById(profileId))
-                .thenReturn(Optional.of(new UserProfileAccessTarget(UserType.EXTERNAL, firmId, true)));
+                .thenReturn(Optional.of(new UserProfileAccessTarget(UserType.EXTERNAL, firmId)));
 
         ProfileVisibilityContext context = resolver.resolve(new GetUserProfileAppsQuery(profileId));
 

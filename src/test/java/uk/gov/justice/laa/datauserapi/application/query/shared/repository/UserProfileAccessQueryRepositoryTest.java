@@ -47,6 +47,8 @@ class UserProfileAccessQueryRepositoryTest {
     private static final UUID USER_ID = new UUID(0, 1);
     private static final UUID PROFILE_ID = new UUID(0, 2);
     private static final UUID OTHER_PROFILE_ID = new UUID(0, 3);
+    private static final UUID UNRESTRICTED_PROFILE_ID = new UUID(0, 4);
+    private static final UUID FIRMLESS_PROFILE_ID = new UUID(0, 5);
     private static final UUID FIRM_ID = new UUID(0, 10);
     private static final UUID OTHER_FIRM_ID = new UUID(0, 11);
     private static final UUID APP_A = new UUID(0, 20);
@@ -75,6 +77,8 @@ class UserProfileAccessQueryRepositoryTest {
             """, USER_ID, USER_ID.toString());
         insertProfile(PROFILE_ID, FIRM_ID, true, false);
         insertProfile(OTHER_PROFILE_ID, OTHER_FIRM_ID, false, true);
+        insertProfile(UNRESTRICTED_PROFILE_ID, FIRM_ID, false, true);
+        insertProfile(FIRMLESS_PROFILE_ID, null, false, true);
 
         insertApp(APP_A, "App A", 1, true, CLIENT_A);
         insertApp(APP_B, "App B", 2, true, CLIENT_B);
@@ -100,10 +104,10 @@ class UserProfileAccessQueryRepositoryTest {
     }
 
     @Test
-    void accessTargetExposesTypeFirmAndOfficeMode() {
+    void accessTargetExposesTypeAndFirm() {
         UserProfileAccessTarget target = repository.findAccessTargetById(PROFILE_ID).orElseThrow();
 
-        assertThat(target).isEqualTo(new UserProfileAccessTarget(UserType.EXTERNAL, FIRM_ID, false));
+        assertThat(target).isEqualTo(new UserProfileAccessTarget(UserType.EXTERNAL, FIRM_ID));
         assertThat(repository.findAccessTargetById(UUID.randomUUID())).isEmpty();
     }
 
@@ -171,20 +175,32 @@ class UserProfileAccessQueryRepositoryTest {
     }
 
     @Test
-    void assignedOfficesExcludeOfficesOfOtherFirmsAndOfOtherProfiles() {
-        List<OfficeView> offices = repository.findAssignedOfficesByProfileId(
-                PROFILE_ID, FIRM_ID, PageRequest.ofSize(100));
+    void restrictedProfileSeesOnlyItsAssignedOfficesWithinItsFirm() {
+        List<OfficeView> offices = repository.findAccessibleOfficesByProfileId(PROFILE_ID, PageRequest.ofSize(100));
 
         assertThat(offices).extracting(OfficeView::officeId).containsExactly(OFFICE_1.toString());
         assertThat(offices.getFirst().firmId()).isEqualTo(FIRM_ID.toString());
     }
 
     @Test
-    void firmOfficesReturnEveryOfficeOfTheFirmOnly() {
-        List<OfficeView> offices = repository.findOfficesByFirmId(FIRM_ID, PageRequest.ofSize(100));
+    void unrestrictedProfileSeesEveryOfficeOfItsFirmOnly() {
+        List<OfficeView> offices = repository.findAccessibleOfficesByProfileId(
+                UNRESTRICTED_PROFILE_ID, PageRequest.ofSize(100));
 
         assertThat(offices).extracting(OfficeView::officeId)
                 .containsExactly(OFFICE_1.toString(), OFFICE_2.toString());
+    }
+
+    @Test
+    void profileWithoutFirmHasNoOffices() {
+        assertThat(repository.findAccessibleOfficesByProfileId(FIRMLESS_PROFILE_ID, PageRequest.ofSize(100)))
+                .isEmpty();
+    }
+
+    @Test
+    void officesAreCapped() {
+        assertThat(repository.findAccessibleOfficesByProfileId(UNRESTRICTED_PROFILE_ID, PageRequest.ofSize(1)))
+                .hasSize(1);
     }
 
     private void insertProfile(UUID id, UUID firmId, boolean active, boolean unrestricted) {

@@ -155,7 +155,7 @@ class UserProfileAccessAuthorizationIntegrationTest {
 
     private void stubTarget(UserType type, UUID firmId) {
         when(repository.findAccessTargetById(PROFILE_ID))
-                .thenReturn(Optional.of(new UserProfileAccessTarget(type, firmId, false)));
+                .thenReturn(Optional.of(new UserProfileAccessTarget(type, firmId)));
     }
 
     private static AuthenticatedEntraUser external(UUID firmId) {

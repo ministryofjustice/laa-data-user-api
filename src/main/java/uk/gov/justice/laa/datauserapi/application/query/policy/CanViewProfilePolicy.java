@@ -16,6 +16,10 @@ import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
  * An actor may view a profile when they are external and it belongs to their own firm, or internal with
  * {@code VIEW_INTERNAL_USER} for an internal profile, or internal with {@code VIEW_EXTERNAL_USER} for an
  * external profile. A missing profile is denied, so existence is not revealed.
+ *
+ * <p>Being internal is not enough to view other internal users: per the SiLAS roles matrix, External User Manager and
+ * External User Admin are internal roles without {@code VIEW_INTERNAL_USER}. This is the same rule the profile detail
+ * queries use, so {@code QueryAuthorisationService.canViewProfile} delegates here.
  */
 @Component
 public class CanViewProfilePolicy implements AuthorizationPolicy<ProfileVisibilityContext> {

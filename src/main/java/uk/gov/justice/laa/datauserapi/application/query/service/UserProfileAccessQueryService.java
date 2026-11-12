@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import uk.gov.justice.laa.datauserapi.application.query.dto.OfficeViewList;
-import uk.gov.justice.laa.datauserapi.application.query.dto.UserProfileAccessTarget;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserProfileAccessQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileAccessQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppView;
@@ -51,13 +50,7 @@ public class UserProfileAccessQueryService {
     }
 
     public OfficeViewList getOffices(UUID userProfileId) {
-        UserProfileAccessTarget target = repository.findAccessTargetById(userProfileId).orElse(null);
-        if (target == null || target.firmId() == null) {
-            return new OfficeViewList(List.of());
-        }
-        List<OfficeView> offices = target.unrestrictedOfficeAccess()
-                ? repository.findOfficesByFirmId(target.firmId(), limit(MAX_OFFICES))
-                : repository.findAssignedOfficesByProfileId(userProfileId, target.firmId(), limit(MAX_OFFICES));
+        List<OfficeView> offices = repository.findAccessibleOfficesByProfileId(userProfileId, limit(MAX_OFFICES));
         return new OfficeViewList(offices);
     }
 
