@@ -31,6 +31,8 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CreateUserAccountHandler;
+import uk.gov.justice.laa.datauserapi.application.command.dto.UserAccountCreationData;
+import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserCreationRepository;
 import uk.gov.justice.laa.datauserapi.application.command.service.UserAccountCreationService;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
@@ -44,6 +46,7 @@ import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 import uk.gov.justice.laa.datauserapi.exception.UserAlreadyExistsException;
 
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -81,6 +84,7 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private ObjectMapper mapper;
     @Autowired private CreateUserAccountHandler handler;
+    @Autowired private UserCreationRepository creationRepository;
     @Autowired private JwtToAuthenticatedEntraUserConverter converter;
     @MockitoBean private TechServicesClient client;
     @MockitoBean(name = "jwtDecoder") private JwtDecoder decoder;
@@ -406,6 +410,37 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("private provider failure"))));
         assertThat(creationLogs.list).isEmpty();
         assertNoLocalUser();
+    }
+
+    @Test
+    void creationLookupsReturnIdentityWithoutProfile() {
+        jdbc.update("delete from user_profile_app_role where user_profile_id=?", actorProfile);
+        jdbc.update("delete from user_profile where id=?", actorProfile);
+        jdbc.update("update entra_user set entra_oid=? where id=?", actorOid.toString().toUpperCase(Locale.ROOT), actorId);
+        var expected = new UserAccountCreationData(actorOid.toString().toUpperCase(Locale.ROOT), null);
+
+        assertThat(creationRepository.findExisting((actorOid + "@example.com").toUpperCase(Locale.ROOT)))
+                .contains(expected);
+        assertThat(creationRepository.findExistingByEntraOid(actorOid)).contains(expected);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"activeFirst", "activeTie", "inactiveTie"})
+    void creationLookupsSelectOneProfileInDeterministicOrder(String scenario) {
+        UUID lowerProfileId = new UUID(0, UUID.randomUUID().getLeastSignificantBits());
+        boolean active = !scenario.equals("inactiveTie");
+        jdbc.update("update user_profile set active_profile=? where id=?", active, actorProfile);
+        jdbc.update("""
+                insert into user_profile (id, entra_user_id, active_profile, user_type, status, silas_status,
+                last_sync_successful, unrestricted_office_access, created_date, created_by)
+                values (?, ?, ?, 'INTERNAL', 'COMPLETE', 'COMPLETE', false, false, current_timestamp, 'fixture')
+                """, lowerProfileId, actorId, scenario.equals("activeTie"));
+        UUID expectedProfileId = scenario.equals("activeFirst") ? actorProfile : lowerProfileId;
+        var expected = new UserAccountCreationData(actorOid.toString(), expectedProfileId);
+
+        assertThat(creationRepository.findExisting((actorOid + "@example.com").toUpperCase(Locale.ROOT)))
+                .contains(expected);
+        assertThat(creationRepository.findExistingByEntraOid(actorOid)).contains(expected);
     }
 
     @Test

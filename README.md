@@ -159,6 +159,9 @@ client Problem Details use fixed safe messages, never exception diagnostics. Loc
 creation endpoint's JSON 409 response containing existing IDs, after its internal-actor and create-permission checks.
 When `TECH_SERVICES_CALLS_ENABLED=false`, user creation returns HTTP 503 without creating a simulated
 identity or persisting local account/profile records.
+Creation lookups use Spring Data `@Query` DTO projections, limited to one result with active profiles first
+and profile ID as a deterministic tie-breaker. The normalised email advisory lock remains a native PostgreSQL
+query held within the local persistence transaction.
 Provisioning failures are logged only at the HTTP handling boundary. If a local write fails after provisioning,
 a separate `event=identity_reconciliation_required` records the retained identity and reconciliation step without
 duplicating the exception stack trace. Creation events use structured fields and the request's MDC `correlationId`.
