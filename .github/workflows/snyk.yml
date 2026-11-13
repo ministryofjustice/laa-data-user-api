@@ -32,8 +32,8 @@ permissions:
 
 jobs:
   vulnerability-scan:
-    # Dependabot can upload SARIF on pull_request events, but not on pushes.
-    if: ${{ github.event_name != 'push' || github.actor != 'dependabot[bot]' }}
+    # Match landing-page: skip Dependabot; scheduled and other push runs cover main.
+    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     env:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -42,7 +42,7 @@ jobs:
       - name: Validate Snyk credentials
         run: |
           if [ -z "$SNYK_TOKEN" ] || [ -z "$SNYK_ORG_ID" ]; then
-            echo "::error::SNYK_TOKEN and SNYK_ORG_ID must be configured as Actions secrets and, for Dependabot PRs, Dependabot secrets."
+            echo "::error::SNYK_TOKEN and SNYK_ORG_ID must be configured as Actions secrets."
             exit 1
           fi
 
