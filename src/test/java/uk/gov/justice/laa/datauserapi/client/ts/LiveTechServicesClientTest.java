@@ -1,694 +1,174 @@
 package uk.gov.justice.laa.datauserapi.client.ts;
 
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
-import com.azure.core.credential.AccessToken;
-import com.azure.core.credential.TokenRequestContext;
-import com.azure.identity.ClientSecretCredential;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.slf4j.LoggerFactory;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.RestClient;
-import reactor.core.publisher.Mono;
 import uk.gov.justice.laa.datauserapi.client.ts.request.ChangeAccountReactivationRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateSecurityGroupsRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateUserDetailsRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
-import uk.gov.justice.laa.datauserapi.client.ts.response.UpdateSecurityGroupsResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
-import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorResponse;
-import uk.gov.justice.laa.datauserapi.config.CachingConfig;
-import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
+import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorCode;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import uk.gov.justice.laa.datauserapi.exception.MissingEntraOidException;
+import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 
 @ExtendWith(MockitoExtension.class)
 class LiveTechServicesClientTest {
+    @Mock
+    private AccessTokenProvider accessTokenProvider;
+    @Mock
+    private TechServicesApi techServicesApi;
 
-    private final String mockToken = "mocked-jwt-token";
-    @Mock
-    private ClientSecretCredential clientSecretCredential;
-    @Mock
-    private RestClient restClient;
-    @Mock
-    private ObjectMapper objectMapper;
-    @Mock
-    private CacheManager cacheManager;
-    @Mock
-    private Cache cache;
-    @Mock
-    private JwtDecoder jwtDecoder;
-    @Mock
-    private RestClient.RequestBodyUriSpec requestBodyUriSpec;
-    @Mock
-    private RestClient.RequestBodySpec requestBodySpec;
-    @Mock
-    private RestClient.ResponseSpec responseSpec;
     private LiveTechServicesClient client;
-    private EntraUserDto validUser;
-    private ListAppender<ILoggingEvent> listAppender;
-    private Logger logger;
+    private EntraUserDto user;
 
     @BeforeEach
     void setUp() {
-        client = new LiveTechServicesClient(clientSecretCredential, restClient, objectMapper, cacheManager, jwtDecoder);
-        ReflectionTestUtils.setField(client, "laaBusinessUnit", "test-unit");
-        ReflectionTestUtils.setField(client, "accessTokenRequestScope", "test-scope");
-
-        validUser = new EntraUserDto();
-        validUser.setEntraOid("user-123");
-        validUser.setFirstName("John");
-        validUser.setLastName("Doe");
-
-        logger = (Logger) LoggerFactory.getLogger(LiveTechServicesClient.class);
-        listAppender = new ListAppender<>();
-        listAppender.start();
-        logger.addAppender(listAppender);
+        client = new LiveTechServicesClient(accessTokenProvider, techServicesApi,
+                new TechServicesResultMapper(new ObjectMapper()), new EntraOidValidator(), "test-unit");
+        user = new EntraUserDto();
+        user.setId("local-id");
+        user.setEntraOid("user-123");
     }
 
-    @AfterEach
-    void tearDown() {
-        logger.detachAppender(listAppender);
+    @Test
+    void reactivationUsesCommonEndpointAndMapsSuccessfulResponse() {
+        when(accessTokenProvider.getAccessToken()).thenReturn("test-token");
+        when(techServicesApi.patch(eq("test-unit/users/user-123"), any(ChangeAccountReactivationRequest.class), eq("test-token")))
+                .thenReturn(ResponseEntity.ok("{\"success\":true,\"message\":\"reactivated\"}"));
+
+        TechServicesApiResponse<ChangeAccountReactivationResponse> response = client.reactivateUser(user);
+
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getData().getMessage()).isEqualTo("reactivated");
     }
 
-    private void mockTokenGeneration() {
-        when(cacheManager.getCache(CachingConfig.TECH_SERVICES_DETAILS_CACHE)).thenReturn(cache);
-        when(cache.get(LiveTechServicesClient.ACCESS_TOKEN, String.class)).thenReturn(null);
+    @Test
+    void deactivationPreservesNullableReasonAndMapsHttpError() {
+        when(accessTokenProvider.getAccessToken()).thenReturn("test-token");
+        when(techServicesApi.patch(eq("test-unit/users/user-123"), any(ChangeAccountReactivationRequest.class), eq("test-token")))
+                .thenReturn(ResponseEntity.status(HttpStatus.TOO_EARLY)
+                        .body("{\"code\":\"TOO_EARLY\",\"message\":\"wait\"}"));
 
-        AccessToken accessToken = mock(AccessToken.class);
-        when(accessToken.getToken()).thenReturn(mockToken);
-        when(clientSecretCredential.getToken(any(TokenRequestContext.class))).thenReturn(Mono.just(accessToken));
+        TechServicesApiResponse<ChangeAccountReactivationResponse> response = client.deactivateUser(user, null);
+
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getError().getCode()).isEqualTo(new TechServicesErrorCode("TOO_EARLY"));
+        verify(techServicesApi).patch(eq("test-unit/users/user-123"), any(ChangeAccountReactivationRequest.class), eq("test-token"));
     }
 
-    private void mockFluentRestClient(ResponseEntity<String> responseEntity) {
-        when(restClient.patch()).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-        when(requestBodySpec.header(eq(HttpHeaders.AUTHORIZATION), eq("Bearer " + mockToken))).thenReturn(requestBodySpec);
-        when(requestBodySpec.contentType(MediaType.APPLICATION_JSON)).thenReturn(requestBodySpec);
-        when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
-        when(requestBodySpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.toEntity(String.class)).thenReturn(responseEntity);
+    @Test
+    void deletesRoleAssignmentOnSuccessAndIgnoresNotFound() {
+        when(accessTokenProvider.getAccessToken()).thenReturn("test-token");
+        when(techServicesApi.patch(eq("test-unit/users/user-123"), any(UpdateSecurityGroupsRequest.class), eq("test-token")))
+                .thenReturn(ResponseEntity.ok("{\"success\":true,\"groupsRemoved\":[]}"))
+                .thenReturn(ResponseEntity.status(HttpStatus.NOT_FOUND).body(""));
+
+        assertThatCode(() -> client.deleteRoleAssignment(user)).doesNotThrowAnyException();
+        assertThatCode(() -> client.deleteRoleAssignment(user)).doesNotThrowAnyException();
     }
 
-    @Nested
-    class ReactivateUserTests {
+    @Test
+    void deleteRoleAssignmentRequiresSuccessBodyAndRejectsOtherErrors() {
+        when(accessTokenProvider.getAccessToken()).thenReturn("test-token");
+        when(techServicesApi.patch(any(), any(), any())).thenReturn(ResponseEntity.status(HttpStatus.BAD_REQUEST).body("{}"));
 
-        @Test
-        void shouldReturnSuccessAndLogWhenApiReturns2xx() throws Exception {
-            mockTokenGeneration();
-            String jsonResponse = "{\"status\":\"success\"}";
-            mockFluentRestClient(new ResponseEntity<>(jsonResponse, HttpStatus.OK));
-
-            ChangeAccountReactivationResponse expectedDto = new ChangeAccountReactivationResponse();
-            when(objectMapper.readValue(jsonResponse, ChangeAccountReactivationResponse.class)).thenReturn(expectedDto);
-
-            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.reactivateUser(validUser);
-
-            assertThat(result).isNotNull();
-            assertThat(result.isSuccess()).isTrue();
-            assertThat(result.getData()).isEqualTo(expectedDto);
-            verify(cache).put(LiveTechServicesClient.ACCESS_TOKEN, mockToken);
-
-            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending user reactivation request to Tech Services",
-                            "Tech Services reactivated user");
-        }
-
-        @Test
-        void shouldReturnErrorAndLogWhenApiReturnsNon2xx() throws Exception {
-            mockTokenGeneration();
-            String jsonErrorResponse = "{\"code\":\"ERR01\",\"message\":\"Invalid user state\"}";
-            mockFluentRestClient(new ResponseEntity<>(jsonErrorResponse, HttpStatus.BAD_REQUEST));
-
-            TechServicesErrorResponse expectedError = TechServicesErrorResponse.builder()
-                    .success(false).code("ERR01").message("Invalid user state").build();
-            when(objectMapper.readValue(jsonErrorResponse, TechServicesErrorResponse.class)).thenReturn(expectedError);
-
-            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.reactivateUser(validUser);
-
-            assertThat(result).isNotNull();
-            assertThat(result.isSuccess()).isFalse();
-            assertThat(result.getError()).isEqualTo(expectedError);
-
-            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Tech Services rejected user reactivation");
-        }
-
-        @Test
-        void shouldLogInfoOnHttpClientErrorExceptionTooEarly() throws Exception {
-            mockTokenGeneration();
-            String jsonError = "{\"code\":\"TOO_EARLY\",\"message\":\"Request too early\"}";
-            HttpClientErrorException ex = HttpClientErrorException.create(HttpStatus.TOO_EARLY, "Too Early", HttpHeaders.EMPTY, jsonError.getBytes(), null);
-
-            when(restClient.patch()).thenReturn(requestBodyUriSpec);
-            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-            when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
-            when(requestBodySpec.retrieve()).thenReturn(responseSpec);
-            when(responseSpec.toEntity(String.class)).thenThrow(ex);
-
-            TechServicesErrorResponse expectedError = TechServicesErrorResponse.builder()
-                    .success(false).code("TOO_EARLY").message("Request too early").build();
-            when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenReturn(expectedError);
-
-            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.reactivateUser(validUser);
-
-            assertThat(result.isSuccess()).isFalse();
-            assertThat(result.getError()).isEqualTo(expectedError);
-            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Tech Services deferred user reactivation");
-        }
-
-        @Test
-        void shouldLogInfoOnHttpClientErrorException() throws Exception {
-            mockTokenGeneration();
-            String jsonError = "{\"code\":\"ERROR\",\"message\":\"Error\"}";
-            HttpClientErrorException ex = HttpClientErrorException.create(HttpStatus.BAD_REQUEST, "Error",
-                    HttpHeaders.EMPTY, jsonError.getBytes(), null);
-
-            when(restClient.patch()).thenReturn(requestBodyUriSpec);
-            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-            when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
-            when(requestBodySpec.retrieve()).thenReturn(responseSpec);
-            when(responseSpec.toEntity(String.class)).thenThrow(ex);
-
-            TechServicesErrorResponse expectedError = TechServicesErrorResponse.builder()
-                    .success(false).code("ERROR").message("Error").build();
-            when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenReturn(expectedError);
-
-            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.reactivateUser(validUser);
-
-            assertThat(result.isSuccess()).isFalse();
-            assertThat(result.getError()).isEqualTo(expectedError);
-            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending user reactivation request to Tech Services",
-                            "Tech Services failed to reactivate user");
-        }
-
-        @Test
-        void shouldLogInfoOnHttpClientErrorExceptionUnexpectedResponse() throws Exception {
-            mockTokenGeneration();
-            String jsonError = "{\"code\":\"ERROR\"}";
-            HttpClientErrorException ex = HttpClientErrorException.create(HttpStatus.BAD_REQUEST, "Error",
-                    HttpHeaders.EMPTY, jsonError.getBytes(), null);
-
-            when(restClient.patch()).thenReturn(requestBodyUriSpec);
-            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-            when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
-            when(requestBodySpec.retrieve()).thenReturn(responseSpec);
-            when(responseSpec.toEntity(String.class)).thenThrow(ex);
-
-            when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenThrow(new RuntimeException("Error Parsing"));
-
-            assertThatThrownBy(() -> client.reactivateUser(validUser)).isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Error while sending reactivate user request to Tech Services.");
-        }
-
-        @Test
-        void shouldThrowRuntimeExceptionWhenUserIsNull() {
-            assertThatThrownBy(() -> client.reactivateUser(null)).isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Invalid user details provided for reactivate user request to Tech Services.");
-        }
-
-        @Test
-        void shouldThrowRuntimeExceptionWhenUserOidIsNull() {
-            EntraUserDto userNoOid = new EntraUserDto();
-            assertThatThrownBy(() -> client.reactivateUser(userNoOid)).isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Invalid user details provided for reactivate user request to Tech Services.");
-        }
+        assertThatThrownBy(() -> client.deleteRoleAssignment(user))
+                .isInstanceOf(TechServicesClientException.class)
+                .hasMessageContaining("400");
     }
 
-    @Nested
-    class DeactivateUserTests {
+    @Test
+    void updatesUserDetailsAndMaps200Response() {
+        when(accessTokenProvider.getAccessToken()).thenReturn("test-token");
+        when(techServicesApi.patch(eq("test-unit/users/user-123"), any(UpdateUserDetailsRequest.class), eq("test-token")))
+                .thenReturn(ResponseEntity.ok("{\"success\":true,\"message\":\"updated\"}"));
 
-        @Test
-        void shouldReturnSuccessWhenApiReturns2xx() throws Exception {
-            mockTokenGeneration();
-            String jsonResponse = "{\"status\":\"deactivated\"}";
-            mockFluentRestClient(new ResponseEntity<>(jsonResponse, HttpStatus.OK));
+        TechServicesApiResponse<ChangeAccountEnabledResponse> response =
+                client.updateUserDetails("user-123", "A", "B", "a@b.test");
 
-            ChangeAccountReactivationResponse expectedDto = new ChangeAccountReactivationResponse();
-            when(objectMapper.readValue(jsonResponse, ChangeAccountReactivationResponse.class)).thenReturn(expectedDto);
-
-            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.deactivateUser(validUser, "Leaver");
-
-            assertThat(result).isNotNull();
-            assertThat(result.isSuccess()).isTrue();
-            assertThat(result.getData()).isEqualTo(expectedDto);
-        }
-
-        @Test
-        void shouldLogWarnWhenNotFoundOccurs() throws Exception {
-            mockTokenGeneration();
-            String jsonError = "{\"code\":\"404\",\"message\":\"Not Found\"}";
-            HttpClientErrorException ex = HttpClientErrorException.create(HttpStatus.NOT_FOUND, "Not Found", HttpHeaders.EMPTY, jsonError.getBytes(), null);
-
-            when(restClient.patch()).thenReturn(requestBodyUriSpec);
-            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-            when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
-            when(requestBodySpec.retrieve()).thenReturn(responseSpec);
-            when(responseSpec.toEntity(String.class)).thenThrow(ex);
-
-            TechServicesErrorResponse expectedError = TechServicesErrorResponse.builder()
-                    .success(false).code("404").message("Not Found").build();
-            when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenReturn(expectedError);
-
-            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.deactivateUser(validUser, "Leaver");
-
-            assertThat(result.isSuccess()).isFalse();
-            assertThat(result.getError()).isEqualTo(expectedError);
-
-            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending user deactivation request to Tech Services",
-                            "User not found in Tech Services during deactivation");
-        }
-
-        @Test
-        void shouldReturnErrorAndLogWhenApiReturnsNon2xx() throws Exception {
-            mockTokenGeneration();
-            String jsonErrorResponse = "{\"code\":\"ERR01\",\"message\":\"Invalid user state\"}";
-            mockFluentRestClient(new ResponseEntity<>(jsonErrorResponse, HttpStatus.BAD_REQUEST));
-
-            TechServicesErrorResponse expectedError = TechServicesErrorResponse.builder()
-                    .success(false).code("ERR01").message("Invalid user state").build();
-            when(objectMapper.readValue(jsonErrorResponse, TechServicesErrorResponse.class)).thenReturn(expectedError);
-
-            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.deactivateUser(validUser, "test");
-
-            assertThat(result).isNotNull();
-            assertThat(result.isSuccess()).isFalse();
-            assertThat(result.getError()).isEqualTo(expectedError);
-
-            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending user deactivation request to Tech Services",
-                            "Tech Services rejected user deactivation");
-        }
-
-        @Test
-        void shouldLogInfoOnHttpClientErrorExceptionTooEarly() throws Exception {
-            mockTokenGeneration();
-            String jsonError = "{\"code\":\"TOO_EARLY\",\"message\":\"Request too early\"}";
-            HttpClientErrorException ex = HttpClientErrorException.create(HttpStatus.TOO_EARLY, "Too Early", HttpHeaders.EMPTY, jsonError.getBytes(), null);
-
-            when(restClient.patch()).thenReturn(requestBodyUriSpec);
-            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-            when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
-            when(requestBodySpec.retrieve()).thenReturn(responseSpec);
-            when(responseSpec.toEntity(String.class)).thenThrow(ex);
-
-            TechServicesErrorResponse expectedError = TechServicesErrorResponse.builder()
-                    .success(false).code("TOO_EARLY").message("Request too early").build();
-            when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenReturn(expectedError);
-
-            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.deactivateUser(validUser, "test");
-
-            assertThat(result.isSuccess()).isFalse();
-            assertThat(result.getError()).isEqualTo(expectedError);
-            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending user deactivation request to Tech Services",
-                            "Tech Services deferred user deactivation");
-        }
-
-        @Test
-        void shouldLogInfoOnHttpClientErrorExceptionBadRequest() throws Exception {
-            mockTokenGeneration();
-            String jsonError = "{\"code\":\"ERROR\"}";
-            HttpClientErrorException ex = HttpClientErrorException.create(HttpStatus.BAD_REQUEST, "Error",
-                    HttpHeaders.EMPTY, jsonError.getBytes(), null);
-
-            when(restClient.patch()).thenReturn(requestBodyUriSpec);
-            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-            when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
-            when(requestBodySpec.retrieve()).thenReturn(responseSpec);
-            when(responseSpec.toEntity(String.class)).thenThrow(ex);
-
-            TechServicesErrorResponse expectedError = TechServicesErrorResponse.builder()
-                    .success(false).code("BAD_REQUEST").message("Bad Request").build();
-            when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenReturn(expectedError);
-
-            TechServicesApiResponse<ChangeAccountReactivationResponse> result = client.deactivateUser(validUser, "test");
-
-            assertThat(result.isSuccess()).isFalse();
-            assertThat(result.getError()).isEqualTo(expectedError);
-            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Sending user deactivation request to Tech Services",
-                            "Tech Services failed to deactivate user");
-        }
-
-        @Test
-        void shouldLogInfoOnHttpClientErrorExceptionParsingError() throws Exception {
-            mockTokenGeneration();
-            String jsonError = "{\"code\":\"ERROR\"}";
-            HttpClientErrorException ex = HttpClientErrorException.create(HttpStatus.BAD_REQUEST, "Error",
-                    HttpHeaders.EMPTY, jsonError.getBytes(), null);
-
-            when(restClient.patch()).thenReturn(requestBodyUriSpec);
-            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-            when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
-            when(requestBodySpec.retrieve()).thenReturn(responseSpec);
-            when(responseSpec.toEntity(String.class)).thenThrow(ex);
-            when(objectMapper.readValue(jsonError, TechServicesErrorResponse.class)).thenThrow(new RuntimeException("Error Parsing"));
-
-            assertThatThrownBy(() -> client.deactivateUser(validUser, "test")).isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Error while sending deactivate user request to Tech Services.");
-        }
-
-        @Test
-        void shouldThrowRuntimeExceptionWhenUserIsNull() {
-            assertThatThrownBy(() -> client.deactivateUser(null, "Reason"))
-                    .isInstanceOf(RuntimeException.class).hasMessageContaining("Invalid user details provided for deactivate user request to Tech Services.");
-        }
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getData().getMessage()).isEqualTo("updated");
     }
 
-    @Nested
-    class TokenCachingAndResilienceTests {
+    @Test
+    void updateUserDetailsMapsHttpErrorAndUsesStatusFallbackWhenBodyIsEmpty() {
+        when(accessTokenProvider.getAccessToken()).thenReturn("test-token");
+        when(techServicesApi.patch(eq("test-unit/users/user-123"), any(UpdateUserDetailsRequest.class), eq("test-token")))
+                .thenReturn(ResponseEntity.status(HttpStatus.NOT_FOUND).body(""));
 
-        @Test
-        void shouldReturnCachedTokenIfValidAndNotExpired() {
-            when(cacheManager.getCache(CachingConfig.TECH_SERVICES_DETAILS_CACHE)).thenReturn(cache);
-            when(cache.get(LiveTechServicesClient.ACCESS_TOKEN, String.class)).thenReturn("cached-token");
+        TechServicesApiResponse<ChangeAccountEnabledResponse> response =
+                client.updateUserDetails("user-123", "A", "B", "a@b.test");
 
-            Jwt mockJwt = mock(Jwt.class);
-            when(mockJwt.getExpiresAt()).thenReturn(Instant.now().plus(60, ChronoUnit.SECONDS));
-            when(jwtDecoder.decode("cached-token")).thenReturn(mockJwt);
-
-            ResponseEntity<String> responseEntity = new ResponseEntity<>("{}", HttpStatus.OK);
-
-            when(restClient.patch()).thenReturn(requestBodyUriSpec);
-            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-            when(requestBodySpec.header(eq(HttpHeaders.AUTHORIZATION), eq("Bearer cached-token"))).thenReturn(requestBodySpec);
-            when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(ChangeAccountReactivationRequest.class))).thenReturn(requestBodySpec);
-            when(requestBodySpec.retrieve()).thenReturn(responseSpec);
-            when(responseSpec.toEntity(String.class)).thenReturn(responseEntity);
-
-            client.reactivateUser(validUser);
-
-            verifyNoInteractions(clientSecretCredential);
-        }
-
-        @Test
-        void shouldGenerateNewTokenIfCachedTokenIsExpired() {
-            when(cacheManager.getCache(CachingConfig.TECH_SERVICES_DETAILS_CACHE)).thenReturn(cache);
-            when(cache.get(LiveTechServicesClient.ACCESS_TOKEN, String.class)).thenReturn("expired-token");
-
-            Jwt mockJwt = mock(Jwt.class);
-            when(mockJwt.getExpiresAt()).thenReturn(Instant.now().plus(5, ChronoUnit.SECONDS));
-            when(jwtDecoder.decode("expired-token")).thenReturn(mockJwt);
-
-            AccessToken newAccessToken = mock(AccessToken.class);
-            when(newAccessToken.getToken()).thenReturn(mockToken);
-            when(clientSecretCredential.getToken(any(TokenRequestContext.class))).thenReturn(Mono.just(newAccessToken));
-
-            ResponseEntity<String> responseEntity = new ResponseEntity<>("{}", HttpStatus.OK);
-            mockFluentRestClient(responseEntity);
-
-            client.reactivateUser(validUser);
-
-            verify(clientSecretCredential, times(1)).getToken(any(TokenRequestContext.class));
-            verify(cache).put(LiveTechServicesClient.ACCESS_TOKEN, mockToken);
-        }
-
-        @Test
-        void shouldLogInfoOnCacheExceptionHandling() {
-            when(cacheManager.getCache(CachingConfig.TECH_SERVICES_DETAILS_CACHE)).thenReturn(cache);
-            when(cache.get(LiveTechServicesClient.ACCESS_TOKEN, String.class)).thenThrow(new RuntimeException("Cache layer offline"));
-
-            AccessToken accessToken = mock(AccessToken.class);
-            when(accessToken.getToken()).thenReturn(mockToken);
-            when(clientSecretCredential.getToken(any(TokenRequestContext.class))).thenReturn(Mono.just(accessToken));
-
-            ResponseEntity<String> responseEntity = new ResponseEntity<>("{}", HttpStatus.OK);
-            mockFluentRestClient(responseEntity);
-
-            client.reactivateUser(validUser);
-
-            assertThat(listAppender.list).extracting(ILoggingEvent::getFormattedMessage)
-                    .contains("Could not retrieve a valid Tech Services access token from cache");
-        }
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getError().getCode().value()).isEqualTo("404 NOT_FOUND");
+        assertThat(response.getError().getMessage()).isEqualTo("Not Found");
     }
 
-    @Nested
-    class UpdateUserDetailsTests {
+    @Test
+    void updateUserDetailsRejectsUnexpectedHttpStatus() {
+        when(accessTokenProvider.getAccessToken()).thenReturn("test-token");
+        when(techServicesApi.patch(eq("test-unit/users/user-123"), any(UpdateUserDetailsRequest.class), eq("test-token")))
+                .thenReturn(ResponseEntity.status(HttpStatus.ACCEPTED).body("{\"success\":true}"));
 
-        private void mockPatch() {
-            when(restClient.patch()).thenReturn(requestBodyUriSpec);
-            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-            when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(UpdateUserDetailsRequest.class))).thenReturn(requestBodySpec);
-            when(requestBodySpec.retrieve()).thenReturn(responseSpec);
-        }
-
-        private HttpClientErrorException clientError(HttpStatus status, String body) {
-            return HttpClientErrorException.create(status, status.getReasonPhrase(), HttpHeaders.EMPTY, body.getBytes(), null);
-        }
-
-        @Test
-        void returnsSuccessOn200WithBody() {
-            mockTokenGeneration();
-            mockPatch();
-            ChangeAccountEnabledResponse body = ChangeAccountEnabledResponse.builder().success(true).message("ok").build();
-            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenReturn(ResponseEntity.ok(body));
-
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
-                    client.updateUserDetails("user-123", "John", "Doe", "j@d.com");
-
-            assertThat(result.isSuccess()).isTrue();
-            assertThat(result.getData()).isSameAs(body);
-            verify(requestBodyUriSpec).uri("test-unit/users/user-123");
-            ArgumentCaptor<UpdateUserDetailsRequest> captor = ArgumentCaptor.forClass(UpdateUserDetailsRequest.class);
-            verify(requestBodySpec).body(captor.capture());
-            assertThat(captor.getValue().toString()).contains("givenName=John", "surname=Doe", "mail=j@d.com");
-        }
-
-        @Test
-        void returnsUnexpectedResponseErrorWhenBodyMissing() {
-            mockTokenGeneration();
-            mockPatch();
-            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenReturn(ResponseEntity.ok().build());
-
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
-                    client.updateUserDetails("user-123", "John", null, null);
-
-            assertThat(result.isSuccess()).isFalse();
-            assertThat(result.getError().getCode()).isEqualTo("UNEXPECTED_RESPONSE");
-        }
-
-        @Test
-        void returnsUnexpectedResponseErrorWhenStatusNotOk() {
-            mockTokenGeneration();
-            mockPatch();
-            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenReturn(
-                    new ResponseEntity<>(ChangeAccountEnabledResponse.builder().build(), HttpStatus.ACCEPTED));
-
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
-                    client.updateUserDetails("user-123", "John", null, null);
-
-            assertThat(result.isSuccess()).isFalse();
-            assertThat(result.getError().getCode()).isEqualTo("UNEXPECTED_RESPONSE");
-        }
-
-        @Test
-        void returnsParsedErrorOn4xx() throws Exception {
-            mockTokenGeneration();
-            mockPatch();
-            String json = "{\"code\":\"ERR\",\"message\":\"bad\"}";
-            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(clientError(HttpStatus.BAD_REQUEST, json));
-            TechServicesErrorResponse error = TechServicesErrorResponse.builder().success(false).code("ERR").message("bad").build();
-            when(objectMapper.readValue(json, TechServicesErrorResponse.class)).thenReturn(error);
-
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
-                    client.updateUserDetails("user-123", "John", null, null);
-
-            assertThat(result.isSuccess()).isFalse();
-            assertThat(result.getError()).isSameAs(error);
-        }
-
-        @Test
-        void buildsErrorFromStatusWhenBodyEmpty() {
-            mockTokenGeneration();
-            mockPatch();
-            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(clientError(HttpStatus.NOT_FOUND, ""));
-
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
-                    client.updateUserDetails("user-123", "John", null, null);
-
-            assertThat(result.isSuccess()).isFalse();
-            assertThat(result.getError().getCode()).contains("404");
-            assertThat(result.getError().getMessage()).isEqualTo("Not Found");
-            verifyNoInteractions(objectMapper);
-        }
-
-        @Test
-        void returnsErrorOn5xx() {
-            mockTokenGeneration();
-            mockPatch();
-            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(HttpServerErrorException.create(
-                    HttpStatus.SERVICE_UNAVAILABLE, "Unavailable", HttpHeaders.EMPTY, new byte[0], null));
-
-            TechServicesApiResponse<ChangeAccountEnabledResponse> result =
-                    client.updateUserDetails("user-123", "John", null, null);
-
-            assertThat(result.isSuccess()).isFalse();
-            assertThat(result.getError().getCode()).contains("503");
-        }
-
-        @Test
-        void wrapsErrorWhenErrorBodyCannotBeParsed() throws Exception {
-            mockTokenGeneration();
-            mockPatch();
-            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(clientError(HttpStatus.BAD_REQUEST, "oops"));
-            when(objectMapper.readValue("oops", TechServicesErrorResponse.class)).thenThrow(new RuntimeException("parse"));
-
-            assertThatThrownBy(() -> client.updateUserDetails("user-123", "John", null, null))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessage("Error while getting users from Tech Services.");
-        }
-
-        @Test
-        void wrapsUnexpectedErrors() {
-            mockTokenGeneration();
-            mockPatch();
-            when(responseSpec.toEntity(ChangeAccountEnabledResponse.class)).thenThrow(new IllegalStateException("boom"));
-
-            assertThatThrownBy(() -> client.updateUserDetails("user-123", "John", null, null))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessage("Unexpected error while updating users details from Tech Services.");
-        }
+        assertThatThrownBy(() -> client.updateUserDetails("user-123", "A", "B", "a@b.test"))
+                .isInstanceOf(TechServicesClientException.class)
+                .hasMessageContaining("unexpected response status");
     }
 
-    @Nested
-    class DeleteRoleAssignmentTests {
-
-        private void mockPatch() {
-            when(restClient.patch()).thenReturn(requestBodyUriSpec);
-            when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-            when(requestBodySpec.header(any(), any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.contentType(any())).thenReturn(requestBodySpec);
-            when(requestBodySpec.body(any(UpdateSecurityGroupsRequest.class))).thenReturn(requestBodySpec);
-            when(requestBodySpec.retrieve()).thenReturn(responseSpec);
-        }
-
-        @Test
-        void succeedsOn2xx() {
-            mockTokenGeneration();
-            mockPatch();
-            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class))
-                    .thenReturn(ResponseEntity.ok(UpdateSecurityGroupsResponse.builder().success(true).build()));
-
-            assertThatCode(() -> client.deleteRoleAssignment(validUser)).doesNotThrowAnyException();
-
-            verify(requestBodySpec).body(any(UpdateSecurityGroupsRequest.class));
-        }
-
-        @Test
-        void ignoresNotFound() {
-            mockTokenGeneration();
-            mockPatch();
-            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class)).thenThrow(
-                    HttpClientErrorException.create(HttpStatus.NOT_FOUND, "Not Found", HttpHeaders.EMPTY, "{}".getBytes(), null));
-
-            assertThatCode(() -> client.deleteRoleAssignment(validUser)).doesNotThrowAnyException();
-        }
-
-        @Test
-        void throwsOnOtherHttpError() {
-            mockTokenGeneration();
-            mockPatch();
-            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class)).thenThrow(
-                    HttpClientErrorException.create(HttpStatus.BAD_REQUEST, "Bad", HttpHeaders.EMPTY, "{}".getBytes(), null));
-
-            assertThatThrownBy(() -> client.deleteRoleAssignment(validUser))
-                    .isInstanceOf(TechServicesClientException.class)
-                    .hasMessageContaining("400");
-        }
-
-        @Test
-        void throwsOnNon2xxResponse() {
-            mockTokenGeneration();
-            mockPatch();
-            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class))
-                    .thenReturn(new ResponseEntity<>(HttpStatus.FOUND));
-
-            assertThatThrownBy(() -> client.deleteRoleAssignment(validUser))
-                    .isInstanceOf(TechServicesClientException.class);
-        }
-
-        @Test
-        void wrapsUnexpectedErrors() {
-            mockTokenGeneration();
-            mockPatch();
-            when(responseSpec.toEntity(UpdateSecurityGroupsResponse.class)).thenThrow(new IllegalStateException("boom"));
-
-            assertThatThrownBy(() -> client.deleteRoleAssignment(validUser))
-                    .isInstanceOf(TechServicesClientException.class)
-                    .hasMessageContaining("security group removal");
-        }
+    @Test
+    void rejectsNullOrBlankOidWithoutCallingApi() {
+        assertThatThrownBy(() -> client.updateUserDetails(null, "A", "B", "a@b.test"))
+                .isInstanceOf(MissingEntraOidException.class);
+        assertThatThrownBy(() -> client.reactivateUser(userWithOid("  ")))
+                .isInstanceOf(MissingEntraOidException.class);
+        assertThatThrownBy(() -> client.deactivateUser(null, null))
+                .isInstanceOf(MissingEntraOidException.class);
+        verifyNoInteractions(accessTokenProvider, techServicesApi);
     }
 
-    @Nested
-    class EdgeCaseTests {
+    @Test
+    void commonPipelinePreservesActivationFlagAndDeactivationReason() {
+        when(accessTokenProvider.getAccessToken()).thenReturn("test-token");
+        when(techServicesApi.patch(any(), any(), any()))
+                .thenReturn(ResponseEntity.ok("{\"success\":true}"));
 
-        @Test
-        void deactivateRejectsNullUser() {
-            assertThatThrownBy(() -> client.deactivateUser(null, "r")).isInstanceOf(TechServicesClientException.class);
-            assertThatThrownBy(() -> client.deactivateUser(new EntraUserDto(), "r"))
-                    .isInstanceOf(TechServicesClientException.class);
-        }
+        client.reactivateUser(user);
+        client.deactivateUser(user, "USER_REQUEST");
 
-        @Test
-        void fetchesNewTokenWhenCacheMissing() {
-            when(cacheManager.getCache(CachingConfig.TECH_SERVICES_DETAILS_CACHE)).thenReturn(null);
+        ArgumentCaptor<Object> requests = ArgumentCaptor.forClass(Object.class);
+        verify(techServicesApi, times(2)).patch(eq("test-unit/users/user-123"), requests.capture(), eq("test-token"));
+        ObjectMapper objectMapper = new ObjectMapper();
+        var activationBody = objectMapper.valueToTree(requests.getAllValues().get(0)).path("accountReactivationdBody");
+        var deactivationBody = objectMapper.valueToTree(requests.getAllValues().get(1)).path("accountReactivationdBody");
+        assertThat(activationBody.path("active").booleanValue()).isTrue();
+        assertThat(activationBody.path("deactivationReason").isNull()).isTrue();
+        assertThat(deactivationBody.path("active").booleanValue()).isFalse();
+        assertThat(deactivationBody.path("deactivationReason").textValue()).isEqualTo("USER_REQUEST");
+    }
 
-            assertThatThrownBy(() -> client.reactivateUser(validUser)).isInstanceOf(RuntimeException.class);
-        }
+    private EntraUserDto userWithOid(String oid) {
+        EntraUserDto invalid = mock(EntraUserDto.class);
+        when(invalid.getEntraOid()).thenReturn(oid);
+        return invalid;
     }
 }

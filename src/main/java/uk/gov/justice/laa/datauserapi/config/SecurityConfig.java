@@ -1,8 +1,11 @@
 package uk.gov.justice.laa.datauserapi.config;
 
-import org.springframework.beans.factory.annotation.Qualifier;
+import java.net.URI;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -14,8 +17,9 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
 
-import jakarta.servlet.ServletException;
-import org.springframework.web.servlet.HandlerExceptionResolver;
+import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.http.HttpServletResponse;
+import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
 
 /**
@@ -30,12 +34,13 @@ import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserC
 public class SecurityConfig {
 
     private final JwtToAuthenticatedEntraUserConverter jwtToAuthenticatedEntraUserConverter;
-    private final HandlerExceptionResolver exceptionResolver;
+    private final ObjectMapper objectMapper;
 
-    public SecurityConfig(JwtToAuthenticatedEntraUserConverter converter,
-                          @Qualifier("handlerExceptionResolver") HandlerExceptionResolver exceptionResolver) {
-        this.jwtToAuthenticatedEntraUserConverter = converter;
-        this.exceptionResolver = exceptionResolver;
+    public SecurityConfig(
+            JwtToAuthenticatedEntraUserConverter jwtToAuthenticatedEntraUserConverter,
+            ObjectMapper objectMapper) {
+        this.jwtToAuthenticatedEntraUserConverter = jwtToAuthenticatedEntraUserConverter;
+        this.objectMapper = objectMapper;
     }
 
     @Bean
@@ -69,9 +74,6 @@ public class SecurityConfig {
                     .hasAnyAuthority("SCOPE_user_data.read", "SCOPE_user_data.admin")
                 .anyRequest().authenticated()
             )
-            .exceptionHandling(exceptions -> exceptions
-                .authenticationEntryPoint(authenticationEntryPoint())
-                .accessDeniedHandler(accessDeniedHandler()))
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtToAuthenticatedEntraUserConverter))
                 .authenticationEntryPoint(authenticationEntryPoint())
@@ -83,18 +85,50 @@ public class SecurityConfig {
     @Bean
     public AuthenticationEntryPoint authenticationEntryPoint() {
         return (request, response, authException) -> {
-            if (exceptionResolver.resolveException(request, response, null, authException) == null) {
-                throw new ServletException("Authentication failure could not be resolved", authException);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/problem+json");
+
+            String requestUri = request.getRequestURI();
+            String originalUri = (String) request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI);
+            if (originalUri != null) {
+                requestUri = originalUri;
             }
+
+            ProblemDetail problemDetail = new ProblemDetail(
+                    URI.create("https://silas.laa.gov.uk/errors/unauthorized"),
+                    "Unauthorized",
+                    HttpStatus.UNAUTHORIZED.value(),
+                    "Malformed or missing token",
+                    URI.create(requestUri),
+                    null
+            );
+
+            response.getWriter().write(objectMapper.writeValueAsString(problemDetail));
         };
     }
 
     @Bean
     public AccessDeniedHandler accessDeniedHandler() {
         return (request, response, accessDeniedException) -> {
-            if (exceptionResolver.resolveException(request, response, null, accessDeniedException) == null) {
-                throw new ServletException("Access denial could not be resolved", accessDeniedException);
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType("application/problem+json");
+
+            String requestUri = request.getRequestURI();
+            String originalUri = (String) request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI);
+            if (originalUri != null) {
+                requestUri = originalUri;
             }
+
+            ProblemDetail problemDetail = new ProblemDetail(
+                    URI.create("https://silas.laa.gov.uk/errors/forbidden"),
+                    "Forbidden",
+                    HttpStatus.FORBIDDEN.value(),
+                    "You do not possess the required scopes or permissions to perform this operation.",
+                    URI.create(requestUri),
+                    null
+            );
+
+            response.getWriter().write(objectMapper.writeValueAsString(problemDetail));
         };
     }
 

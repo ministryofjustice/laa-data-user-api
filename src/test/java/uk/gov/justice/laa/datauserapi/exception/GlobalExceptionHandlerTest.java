@@ -267,6 +267,19 @@ class GlobalExceptionHandlerTest {
         assertEquals("Invalid or malformed authentication token", response.getBody().detail());
     }
 
+    @Test
+    void handleMissingOid_shouldReturn401WithProblemDetail() {
+        MissingOidException ex = new MissingOidException();
+
+        ResponseEntity<ProblemDetail> response = handler.handleMissingOid(ex, request);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals(401, response.getBody().status());
+        assertEquals("Authenticated user is missing the required OID claim.", response.getBody().detail());
+    }
+
     private void assertProblemContentType(ResponseEntity<ProblemDetail> response) {
         assertEquals(MediaType.APPLICATION_PROBLEM_JSON, response.getHeaders().getContentType());
     }

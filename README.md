@@ -395,7 +395,7 @@ The application relies on several environment variables for configuration. Below
 
 Note there are two distinct Azure AD app registrations in play here, each with its own credentials: the values under `AZURE_*` validate JWTs presented *to* this API (inbound), while `TECH_SERVICES_AZURE_*`/`TECH_SERVICES_TENANT_ID` authenticate this API's outbound calls *to* the Tech Services API. There's currently no `AZURE_CLIENT_SECRET` — the inbound-validation app registration only needs the tenant and client ID.
 
-> **Orphaned secret:** a Kubernetes Secret named `laa-data-user-api-azure-client-secret-k8s` also exists in the namespace,  However, nothing in this repo — chart or code — consumes it: there's no `secretKeyRef` for it in `templates/deployment.yaml`, and no `AZURE_CLIENT_SECRET` env var or `@Value` binding anywhere in the codebase (the only client secret actually read by the code is `TECH_SERVICES_AZURE_CLIENT_SECRET`, via `TechServicesConfig`). 
+> **Orphaned secret:** a Kubernetes Secret named `laa-data-user-api-azure-client-secret-k8s` also exists in the namespace,  However, nothing in this repo — chart or code — consumes it: there's no `secretKeyRef` for it in `templates/deployment.yaml`, and no `AZURE_CLIENT_SECRET` env var or `@Value` binding anywhere in the codebase (the only client secret actually read by the code is `TECH_SERVICES_AZURE_CLIENT_SECRET`, bound by `TechServicesProperties` and consumed by `TechServicesAuthConfig`).
 </details>
 
 ### Adding a New Environment Variable
