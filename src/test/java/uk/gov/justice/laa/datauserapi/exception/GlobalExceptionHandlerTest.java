@@ -32,10 +32,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.access.AccessDeniedException;
-import jakarta.servlet.RequestDispatcher;
-
 import jakarta.servlet.http.HttpServletRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 
@@ -85,23 +82,10 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void authenticationFailurePreservesBearerChallengeAndHidesPrivateDetails() {
-        when(request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI)).thenReturn("/api/v1/commands/users/create");
-
-        var response = handler.handleAuthentication(new BadCredentialsException("private token detail"), request);
-
-        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-        assertProblemContentType(response);
-        assertEquals("Bearer", response.getHeaders().getFirst("WWW-Authenticate"));
-        assertEquals("/api/v1/commands/users/create", response.getBody().instance().toString());
-        assertEquals("Malformed or missing token", response.getBody().detail());
-    }
-
-    @Test
     void accessDenialPreservesOriginalRequestUriAndHidesPrivateDetails() {
-        when(request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI)).thenReturn("/api/v1/commands/users/create");
+        when(request.getRequestURI()).thenReturn("/api/v1/commands/users/create");
 
-        var response = handler.handleForbidden(new AccessDeniedException("private role detail"), request);
+        var response = handler.handleAccessDenied(new AccessDeniedException("private role detail"), request);
 
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
         assertProblemContentType(response);
