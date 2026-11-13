@@ -27,11 +27,11 @@ class UserProfileVisibilityPolicyInputResolverTest {
         UUID profileId = UUID.randomUUID();
         UUID firmId = UUID.randomUUID();
         when(repository.findVisibilityContextById(profileId))
-                .thenReturn(Optional.of(new ProfileVisibilityContext(true, UserType.EXTERNAL, firmId)));
+                .thenReturn(Optional.of(new ProfileVisibilityContext(true, profileId, UserType.EXTERNAL, firmId)));
 
         ProfileVisibilityContext context = resolver.resolve(new GetUserProfileAppsQuery(profileId));
 
-        assertThat(context).isEqualTo(new ProfileVisibilityContext(true, UserType.EXTERNAL, firmId));
+        assertThat(context).isEqualTo(new ProfileVisibilityContext(true, profileId, UserType.EXTERNAL, firmId));
         verify(repository).findVisibilityContextById(profileId);
         verifyNoMoreInteractions(repository);
     }

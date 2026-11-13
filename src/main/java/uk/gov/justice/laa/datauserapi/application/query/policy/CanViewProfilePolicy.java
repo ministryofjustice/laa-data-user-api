@@ -14,14 +14,21 @@ import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
 /**
- * An actor may view a profile when they are external and it belongs to their own firm, or internal with
- * {@code VIEW_INTERNAL_USER} for an internal profile, or internal with {@code VIEW_EXTERNAL_USER} for an
- * external profile. A missing profile is denied, so existence is not revealed.
+ * An actor may view a profile when:
+ * <ul>
+ *     <li>they are external and it is their own active profile;</li>
+ *     <li>they are external with {@code VIEW_EXTERNAL_USER} and it belongs to their own firm;</li>
+ *     <li>they are internal with {@code VIEW_INTERNAL_USER} and it is an internal profile; or</li>
+ *     <li>they are internal with {@code VIEW_EXTERNAL_USER} and it is an external profile.</li>
+ * </ul>
+ * A missing profile is denied, so existence is not revealed.
  *
  * <p>Being internal is not enough to view other internal users: per the SiLAS roles matrix, External User Manager and
- * External User Admin are internal roles without {@code VIEW_INTERNAL_USER}. The rule mirrors
- * {@code QueryAuthorisationService.canViewProfile}, which the profile detail queries use; a parity test keeps the two
- * in step.
+ * External User Admin are internal roles without {@code VIEW_INTERNAL_USER}.
+ *
+ * <p>This is deliberately stricter than {@code QueryAuthorisationService.canViewProfile}, which the profile detail
+ * queries use: that rule lets any external actor view profiles in their own firm without a permission. The two agree
+ * for internal actors, and a test keeps them in step.
  */
 @Component
 public class CanViewProfilePolicy implements AuthorizationPolicy<ProfileVisibilityContext> {
@@ -42,7 +49,8 @@ public class CanViewProfilePolicy implements AuthorizationPolicy<ProfileVisibili
 
     private boolean canView(AuthenticatedEntraUser actor, ProfileVisibilityContext target) {
         return isInternalViewingInternal(actor, target)
-                || isExternalViewingOwnFirm(actor.activeProfile(), target)
+                || isExternalViewingOwnProfile(actor.activeProfile(), target)
+                || isExternalViewingOwnFirm(actor, target)
                 || isInternalWithExternalViewPermission(actor, target);
     }
 
@@ -52,10 +60,18 @@ public class CanViewProfilePolicy implements AuthorizationPolicy<ProfileVisibili
                 && ActorPermissions.has(actor, Permission.VIEW_INTERNAL_USER);
     }
 
-    private boolean isExternalViewingOwnFirm(AuthenticatedUserProfile actorProfile, ProfileVisibilityContext target) {
+    private boolean isExternalViewingOwnProfile(AuthenticatedUserProfile actorProfile, ProfileVisibilityContext target) {
+        return actorProfile.userType() == UserType.EXTERNAL
+                && actorProfile.id() != null
+                && actorProfile.id().equals(target.profileId());
+    }
+
+    private boolean isExternalViewingOwnFirm(AuthenticatedEntraUser actor, ProfileVisibilityContext target) {
+        AuthenticatedUserProfile actorProfile = actor.activeProfile();
         return actorProfile.userType() == UserType.EXTERNAL
                 && actorProfile.firmId() != null
-                && actorProfile.firmId().equals(target.firmId());
+                && actorProfile.firmId().equals(target.firmId())
+                && ActorPermissions.has(actor, Permission.VIEW_EXTERNAL_USER);
     }
 
     private boolean isInternalWithExternalViewPermission(AuthenticatedEntraUser actor,

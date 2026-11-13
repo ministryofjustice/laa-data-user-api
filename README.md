@@ -61,10 +61,13 @@ and `/offices`) are read-only and require the `user_data.read` scope. Each query
 (`GetUserProfileAppRolesQuery`, `GetUserProfileAppsQuery`, `GetUserProfileOfficesQuery`) is annotated with
 `@PolicyGuarded(policies = CanViewProfilePolicy.class)` and handled by a `QueryHandler`, so RBAC authorises it
 before the handler and its read-only transaction run. `UserProfileVisibilityPolicyInputResolver` loads the target
-profile's facts with one lookup and the pure `CanViewProfilePolicy` applies the profile visibility rules (the same
-rules as `QueryAuthorisationService.canViewProfile`, kept in step by a parity test): an external actor may view
-profiles in their own firm, an internal actor with `VIEW_INTERNAL_USER` may view internal profiles, and an internal
-actor with `VIEW_EXTERNAL_USER` may view external profiles. Being internal alone is not enough: per the SiLAS roles
+profile's facts with one lookup and the pure `CanViewProfilePolicy` applies the profile visibility rules: an
+external actor may always view their own profile, and may view other profiles in their own firm only if they hold
+`VIEW_EXTERNAL_USER`; an internal actor with `VIEW_INTERNAL_USER` may view internal profiles, and an internal
+actor with `VIEW_EXTERNAL_USER` may view external profiles. The internal rules match
+`QueryAuthorisationService.canViewProfile` (kept in step by a test). The external same-firm rule is deliberately
+stricter than the profile detail queries, which let any external actor view profiles in their own firm without a
+permission. Being internal alone is not enough: per the SiLAS roles
 matrix, External User Manager and External User Admin are internal roles without `VIEW_INTERNAL_USER`. A missing
 profile and a profile the caller cannot view both return the same generic `403` (`application/problem+json`, detail
 "You do not possess the required scopes or permissions to perform this operation."); the `title` and `detail`

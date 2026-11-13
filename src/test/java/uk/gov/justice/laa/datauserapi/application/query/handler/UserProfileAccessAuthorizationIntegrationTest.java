@@ -38,7 +38,9 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppRoleViewList;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppViewList;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
+import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.security.rbac.RbacMethodSecurityConfig;
@@ -93,18 +95,34 @@ class UserProfileAccessAuthorizationIntegrationTest {
     }
 
     @Test
-    void externalActorInTheProfilesFirmReachesTheService() {
+    void externalActorWithViewExternalPermissionInTheProfilesFirmReachesTheService() {
         stubTarget(UserType.EXTERNAL, FIRM_ID);
         AppViewList apps = new AppViewList(List.of());
         when(service.getApps(PROFILE_ID)).thenReturn(apps);
 
-        assertThat(appsHandler.handle(new GetUserProfileAppsQuery(PROFILE_ID), external(FIRM_ID))).isSameAs(apps);
+        assertThat(appsHandler.handle(new GetUserProfileAppsQuery(PROFILE_ID),
+                external(UUID.randomUUID(), FIRM_ID, Permission.VIEW_EXTERNAL_USER))).isSameAs(apps);
+    }
+
+    @Test
+    void externalActorWithoutThePermissionCannotViewColleagueButCanViewTheirOwnProfile() {
+        stubTarget(UserType.EXTERNAL, FIRM_ID);
+        AppViewList apps = new AppViewList(List.of());
+        when(service.getApps(PROFILE_ID)).thenReturn(apps);
+
+        assertDeniedWith(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE,
+                () -> appsHandler.handle(new GetUserProfileAppsQuery(PROFILE_ID),
+                        external(UUID.randomUUID(), FIRM_ID)));
+        verifyNoInteractions(service);
+
+        assertThat(appsHandler.handle(new GetUserProfileAppsQuery(PROFILE_ID),
+                external(PROFILE_ID, FIRM_ID))).isSameAs(apps);
     }
 
     @Test
     void externalActorInAnotherFirmIsDeniedOnEveryEndpointBeforeTheServiceRuns() {
         stubTarget(UserType.EXTERNAL, FIRM_ID);
-        AuthenticatedEntraUser otherFirm = external(UUID.randomUUID());
+        AuthenticatedEntraUser otherFirm = external(UUID.randomUUID(), UUID.randomUUID(), Permission.VIEW_EXTERNAL_USER);
 
         assertDeniedWith(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE,
                 () -> appsHandler.handle(new GetUserProfileAppsQuery(PROFILE_ID), otherFirm));
@@ -121,7 +139,8 @@ class UserProfileAccessAuthorizationIntegrationTest {
         when(repository.findVisibilityContextById(PROFILE_ID)).thenReturn(Optional.empty());
 
         assertDeniedWith(PolicyDenialReason.TARGET_PROFILE_NOT_FOUND,
-                () -> officesHandler.handle(new GetUserProfileOfficesQuery(PROFILE_ID), external(FIRM_ID)));
+                () -> officesHandler.handle(new GetUserProfileOfficesQuery(PROFILE_ID),
+                        external(UUID.randomUUID(), FIRM_ID, Permission.VIEW_EXTERNAL_USER)));
         verifyNoInteractions(service);
     }
 
@@ -142,8 +161,8 @@ class UserProfileAccessAuthorizationIntegrationTest {
         AppRoleViewList roles = new AppRoleViewList(List.of());
         when(service.getAppRoles(PROFILE_ID, appId, null)).thenReturn(roles);
 
-        assertThat(appRolesHandler.handle(new GetUserProfileAppRolesQuery(PROFILE_ID, appId, null), external(FIRM_ID)))
-                .isSameAs(roles);
+        assertThat(appRolesHandler.handle(new GetUserProfileAppRolesQuery(PROFILE_ID, appId, null),
+                external(UUID.randomUUID(), FIRM_ID, Permission.VIEW_EXTERNAL_USER))).isSameAs(roles);
         verify(service).getAppRoles(PROFILE_ID, appId, null);
     }
 
@@ -155,16 +174,19 @@ class UserProfileAccessAuthorizationIntegrationTest {
 
     private void stubTarget(UserType type, UUID firmId) {
         when(repository.findVisibilityContextById(PROFILE_ID))
-                .thenReturn(Optional.of(new ProfileVisibilityContext(true, type, firmId)));
+                .thenReturn(Optional.of(new ProfileVisibilityContext(true, PROFILE_ID, type, firmId)));
     }
 
-    private static AuthenticatedEntraUser external(UUID firmId) {
+    private static AuthenticatedEntraUser external(UUID profileId, UUID firmId, Permission... permissions) {
+        Set<AuthenticatedAppRole> roles = permissions.length == 0 ? Set.of()
+                : Set.of(new AuthenticatedAppRole(UUID.randomUUID(), "Role", 1, "ROLE", false, null, null, "Role",
+                        true, null, Set.of(permissions)));
         AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
-                .id(UUID.randomUUID())
+                .id(profileId)
                 .activeProfile(true)
                 .userType(UserType.EXTERNAL)
                 .firmId(firmId)
-                .appRoles(Set.of())
+                .appRoles(roles)
                 .build();
         return AuthenticatedEntraUser.builder().entraOid(UUID.randomUUID().toString()).activeProfile(profile).build();
     }

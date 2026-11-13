@@ -21,7 +21,7 @@ public interface UserProfileAccessQueryRepository extends Repository<UserProfile
 
     @Query("""
         SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext(
-            true, up.userType, f.id)
+            true, up.id, up.userType, f.id)
         FROM UserProfile up
         LEFT JOIN up.firm f
         WHERE up.id = :profileId

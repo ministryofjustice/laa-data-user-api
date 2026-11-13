@@ -39,19 +39,37 @@ class CanViewProfilePolicyTest {
     }
 
     @Test
-    void externalActorMayViewProfileInOwnFirm() {
-        assertGranted(policy.evaluate(profile(UserType.EXTERNAL, FIRM_ID), external(FIRM_ID)));
+    void externalActorWithViewExternalPermissionMayViewProfileInOwnFirm() {
+        assertGranted(policy.evaluate(profile(UserType.EXTERNAL, FIRM_ID),
+                external(FIRM_ID, Permission.VIEW_EXTERNAL_USER)));
     }
 
     @Test
-    void externalActorMayNotViewProfileInAnotherFirm() {
-        assertDenied(policy.evaluate(profile(UserType.EXTERNAL, FIRM_ID), external(UUID.randomUUID())),
+    void externalActorWithoutViewExternalPermissionMayNotViewColleagueInOwnFirm() {
+        assertDenied(policy.evaluate(profile(UserType.EXTERNAL, FIRM_ID), external(FIRM_ID)),
                 PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE);
     }
 
     @Test
-    void externalActorMayNotViewInternalProfile() {
-        assertDenied(policy.evaluate(profile(UserType.INTERNAL, null), external(FIRM_ID)),
+    void externalActorMayViewTheirOwnProfileWithoutViewExternalPermission() {
+        AuthenticatedEntraUser actor = external(FIRM_ID);
+        ProfileVisibilityContext ownProfile =
+                new ProfileVisibilityContext(true, actor.activeProfile().id(), UserType.EXTERNAL, FIRM_ID);
+
+        assertGranted(policy.evaluate(ownProfile, actor));
+    }
+
+    @Test
+    void externalActorWithViewExternalPermissionMayNotViewProfileInAnotherFirm() {
+        assertDenied(policy.evaluate(profile(UserType.EXTERNAL, FIRM_ID),
+                        external(UUID.randomUUID(), Permission.VIEW_EXTERNAL_USER)),
+                PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE);
+    }
+
+    @Test
+    void externalActorMayNotViewInternalProfileEvenWithViewExternalPermission() {
+        assertDenied(policy.evaluate(profile(UserType.INTERNAL, null),
+                        external(FIRM_ID, Permission.VIEW_EXTERNAL_USER)),
                 PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE);
     }
 
@@ -96,13 +114,12 @@ class CanViewProfilePolicyTest {
     }
 
     @Test
-    void agreesWithTheProfileDetailVisibilityRuleForEveryActorAndTarget() {
+    void agreesWithTheProfileDetailVisibilityRuleForEveryInternalActorAndTarget() {
         QueryAuthorisationService detailRule = new QueryAuthorisationService();
         UUID otherFirm = UUID.randomUUID();
         List<AuthenticatedEntraUser> actors = List.of(
                 internalWith(), internalWith(Permission.VIEW_INTERNAL_USER), internalWith(Permission.VIEW_EXTERNAL_USER),
-                internalWith(Permission.VIEW_INTERNAL_USER, Permission.VIEW_EXTERNAL_USER),
-                external(FIRM_ID), external(otherFirm), external(null));
+                internalWith(Permission.VIEW_INTERNAL_USER, Permission.VIEW_EXTERNAL_USER));
         List<ProfileVisibilityContext> targets = List.of(
                 profile(UserType.INTERNAL, null), profile(UserType.EXTERNAL, FIRM_ID),
                 profile(UserType.EXTERNAL, otherFirm), profile(UserType.EXTERNAL, null));
@@ -119,6 +136,16 @@ class CanViewProfilePolicyTest {
         }
     }
 
+    @Test
+    void isStricterThanTheProfileDetailRuleForExternalActorsWithoutViewExternalPermission() {
+        AuthenticatedEntraUser colleagueViewer = external(FIRM_ID);
+        ProfileVisibilityContext colleague = profile(UserType.EXTERNAL, FIRM_ID);
+
+        assertThat(new QueryAuthorisationService().canViewProfile(
+                colleagueViewer.activeProfile(), colleague.userType(), FIRM_ID.toString())).isTrue();
+        assertThat(policy.evaluate(colleague, colleagueViewer).granted()).isFalse();
+    }
+
     private static AuthenticatedEntraUser internalWith(Permission... permissions) {
         Set<AuthenticatedAppRole> roles = permissions.length == 0 ? Set.of()
                 : Set.of(new AuthenticatedAppRole(UUID.randomUUID(), "Role", 1, "ROLE", false, null, null, "Role",
@@ -128,7 +155,7 @@ class CanViewProfilePolicyTest {
     }
 
     private static ProfileVisibilityContext profile(UserType type, UUID firmId) {
-        return new ProfileVisibilityContext(true, type, firmId);
+        return new ProfileVisibilityContext(true, UUID.randomUUID(), type, firmId);
     }
 
     private static AuthenticatedEntraUser internal(Permission permission) {
@@ -138,9 +165,12 @@ class CanViewProfilePolicyTest {
                 .userType(UserType.INTERNAL).appRoles(Set.of(role)).build());
     }
 
-    private static AuthenticatedEntraUser external(UUID firmId) {
+    private static AuthenticatedEntraUser external(UUID firmId, Permission... permissions) {
+        Set<AuthenticatedAppRole> roles = permissions.length == 0 ? Set.of()
+                : Set.of(new AuthenticatedAppRole(UUID.randomUUID(), "Role", 1, "ROLE", false, null, null, "Role",
+                        true, null, Set.of(permissions)));
         return actor(AuthenticatedUserProfile.builder().id(UUID.randomUUID()).activeProfile(true)
-                .userType(UserType.EXTERNAL).firmId(firmId).appRoles(Set.of()).build());
+                .userType(UserType.EXTERNAL).firmId(firmId).appRoles(roles).build());
     }
 
     private static AuthenticatedEntraUser actor(AuthenticatedUserProfile profile) {

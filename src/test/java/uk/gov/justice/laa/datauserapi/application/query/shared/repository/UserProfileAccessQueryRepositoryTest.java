@@ -104,10 +104,10 @@ class UserProfileAccessQueryRepositoryTest {
     }
 
     @Test
-    void visibilityContextExposesTypeAndFirm() {
+    void visibilityContextExposesIdTypeAndFirm() {
         ProfileVisibilityContext target = repository.findVisibilityContextById(PROFILE_ID).orElseThrow();
 
-        assertThat(target).isEqualTo(new ProfileVisibilityContext(true, UserType.EXTERNAL, FIRM_ID));
+        assertThat(target).isEqualTo(new ProfileVisibilityContext(true, PROFILE_ID, UserType.EXTERNAL, FIRM_ID));
         assertThat(repository.findVisibilityContextById(UUID.randomUUID())).isEmpty();
     }
 
