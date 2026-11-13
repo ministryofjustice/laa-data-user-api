@@ -1,6 +1,10 @@
 package uk.gov.justice.laa.datauserapi.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,6 +17,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -25,6 +31,7 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CreateUserAccountHandler;
+import uk.gov.justice.laa.datauserapi.application.command.service.UserAccountCreationService;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -78,6 +85,8 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
     @MockitoBean private TechServicesClient client;
     @MockitoBean(name = "jwtDecoder") private JwtDecoder decoder;
     private MockMvc mvc;
+    private Logger creationLogger;
+    private ListAppender<ILoggingEvent> creationLogs;
     private UUID actorId;
     private UUID actorOid;
     private UUID actorProfile;
@@ -88,6 +97,10 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        creationLogger = (Logger) LoggerFactory.getLogger(UserAccountCreationService.class);
+        creationLogs = new ListAppender<>();
+        creationLogs.start();
+        creationLogger.addAppender(creationLogs);
         mvc = MockMvcBuilders.webAppContextSetup(context).addFilters(context.getBean(CorrelationIdFilter.class))
                 .apply(springSecurity()).build();
         actorId = UUID.randomUUID();
@@ -120,6 +133,12 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
                 """, actorProfile, actorId);
         jdbc.update("insert into user_profile_app_role (user_profile_id, app_role_id) values (?, ?)", actorProfile, role);
         jdbc.update("insert into role_permission (app_role_id, permission) values (?, 'CREATE_EXTERNAL_USER')", role);
+    }
+
+    @AfterEach
+    void tearDown() {
+        creationLogger.detachAppender(creationLogs);
+        creationLogs.stop();
     }
 
     private Map<String, Object> body() {
@@ -378,10 +397,14 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
     @ParameterizedTest
     @ValueSource(ints = {409, 502, 503, 504})
     void downstreamFailuresAreProblemDetailsWithoutLocalWrites(int status) throws Exception {
-        when(client.createUser(any())).thenThrow(new CreateUserException(HttpStatus.valueOf(status), "Identity provider failed"));
+        var reason = status == 409 ? CreateUserException.Reason.IDENTITY_ALREADY_EXISTS
+                : CreateUserException.Reason.IDENTITY_PROVIDER_FAILURE;
+        when(client.createUser(any())).thenThrow(new CreateUserException(reason, HttpStatus.valueOf(status), "private provider failure"));
         mvc.perform(authorizedPost(body())).andExpect(status().is(status))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status").value(status));
+                .andExpect(jsonPath("$.status").value(status))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("private provider failure"))));
+        assertThat(creationLogs.list).isEmpty();
         assertNoLocalUser();
     }
 
@@ -437,9 +460,8 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
                     .andExpect(jsonPath("$.detail").value("The user could not be stored locally"))
                     .andReturn().getResponse();
             assertNoLocalUser();
-            assertThat(output.getOut()).contains("Identity retained; manual reconciliation required",
-                    "identityId=" + identity, "correlationId=" + response.getHeader("X-Correlation-ID"),
-                    "step=local_persistence_or_commit", "system=PostgreSQL");
+            assertThat(output.getOut()).contains("Identity retained; manual reconciliation required");
+            assertReconciliationLog(response, "local_persistence_or_commit");
             assertThat(response.getContentAsString()).doesNotContain("insert into", "private profile", email);
             verify(client).createUser(any());
             verifyNoMoreInteractions(client);
@@ -458,13 +480,12 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
 
         var response = mvc.perform(authorizedPost(body())).andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.detail").value("firmId does not identify an active firm"))
+                .andExpect(jsonPath("$.detail").value("One or more request parameters failed validation."))
                 .andReturn().getResponse();
 
         assertNoLocalUser();
-        assertThat(output.getOut()).contains("Identity retained; manual reconciliation required",
-                "identityId=" + identity, "correlationId=" + response.getHeader("X-Correlation-ID"),
-                "step=firm_inactive_before_local_commit", "system=PostgreSQL");
+        assertThat(output.getOut()).contains("Identity retained; manual reconciliation required");
+        assertReconciliationLog(response, "firm_inactive_before_local_commit");
         verify(client).createUser(any());
     }
 
@@ -485,8 +506,8 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
                     .andExpect(jsonPath("$.detail").value("The user could not be stored locally"))
                     .andReturn().getResponse();
             assertNoLocalUser();
-            assertThat(output.getOut()).contains("Identity retained; manual reconciliation required",
-                    "identityId=" + identity, "correlationId=" + response.getHeader("X-Correlation-ID"));
+            assertThat(output.getOut()).contains("Identity retained; manual reconciliation required");
+            assertReconciliationLog(response, "local_persistence_or_commit");
             assertThat(response.getContentAsString()).doesNotContain("Simulated private commit failure");
         } finally {
             jdbc.execute("drop trigger reject_user_creation_commit on entra_user");
@@ -532,5 +553,17 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
                 select count(*) from user_profile up join entra_user eu on eu.id=up.entra_user_id
                 where lower(eu.email)=?
                 """, Integer.class, email)).isZero();
+    }
+
+    private void assertReconciliationLog(MockHttpServletResponse response, String step) {
+        assertThat(creationLogs.list).filteredOn(event ->
+                event.getMessage().equals("Identity retained; manual reconciliation required"))
+                .singleElement().satisfies(event -> {
+                    assertThat(event.getArgumentArray()).extracting(Object::toString)
+                            .contains("event=identity_reconciliation_required", "identityId=" + identity,
+                                    "step=" + step, "system=PostgreSQL");
+                    assertThat(event.getMDCPropertyMap()).containsEntry("correlationId", response.getHeader("X-Correlation-ID"));
+                    assertThat(event.getThrowableProxy()).isNull();
+                });
     }
 }

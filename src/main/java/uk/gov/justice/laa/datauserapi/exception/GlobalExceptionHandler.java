@@ -42,27 +42,38 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         if (ex.status().is5xxServerError()) {
             log.error("User creation failed",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                     kv("status", ex.status().value()), kv("requestUri", request.getRequestURI()), ex);
         } else {
             log.warn("User creation rejected",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                     kv("status", ex.status().value()), kv("requestUri", request.getRequestURI()), ex);
         }
+        String detail = switch (ex.reason()) {
+            case INVALID_REQUEST -> REQUEST_PARAMETER_VALIDATION_DETAIL;
+            case IDENTITY_ALREADY_EXISTS -> "A user with this email already exists.";
+            case IDENTITY_PROVIDER_FAILURE -> "The identity provider could not complete the request.";
+            case LOCAL_PERSISTENCE_FAILURE -> "The user could not be stored locally";
+        };
         List<FieldErrorDetail> errors = ex.field() == null
                 ? null
-                : List.of(new FieldErrorDetail(ex.field(), ex.getMessage()));
+                : List.of(new FieldErrorDetail(ex.field(), "The field is invalid."));
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://laa.gov.uk/problems/" + ex.status().value()),
                 ex.status().getReasonPhrase(),
                 ex.status().value(),
-                ex.getMessage(),
+                detail,
                 URI.create(request.getRequestURI()),
                 errors);
         return problemResponse(ex.status(), problem);
     }
 
     @ExceptionHandler(UserAlreadyExistsException.class)
-    public ResponseEntity<CreateUserAccountResponse> handleUserAlreadyExists(UserAlreadyExistsException ex) {
-        log.warn("User creation rejected: user already exists");
+    public ResponseEntity<CreateUserAccountResponse> handleUserAlreadyExists(
+            UserAlreadyExistsException ex, HttpServletRequest request) {
+        log.warn("User creation rejected: user already exists",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
+                kv("requestUri", request.getRequestURI()), ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(ex.result());
@@ -72,7 +83,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleUnsupportedMediaType(
             HttpMediaTypeNotSupportedException ex,
             HttpServletRequest request) {
-        log.warn("Request content type is not supported", kv("requestUri", request.getRequestURI()));
+        log.warn("Request content type is not supported",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
+                kv("requestUri", request.getRequestURI()), ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("https://laa.gov.uk/errors/validation-error"),
                 "Unsupported Media Type",
@@ -87,6 +100,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleMethodNotAllowed(
             HttpRequestMethodNotSupportedException ex,
             HttpServletRequest request) {
+        log.warn("Request method is not supported",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
+                kv("requestUri", request.getRequestURI()), ex);
         ProblemDetail problem = new ProblemDetail(
                 URI.create("about:blank"),
                 "Method Not Allowed",

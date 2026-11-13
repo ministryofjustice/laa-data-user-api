@@ -62,6 +62,7 @@ public class LiveTechServicesClient implements TechServicesClient {
     public Identity createUser(Registration registration) {
         if (defaultSecurityGroup == null || defaultSecurityGroup.isBlank()) {
             throw new CreateUserException(
+                    CreateUserException.Reason.IDENTITY_PROVIDER_FAILURE,
                     HttpStatus.SERVICE_UNAVAILABLE, "Identity provisioning has no default access group configured");
         }
 
@@ -73,6 +74,7 @@ public class LiveTechServicesClient implements TechServicesClient {
         }
         if (accessToken == null || accessToken.isBlank()) {
             throw new CreateUserException(
+                    CreateUserException.Reason.IDENTITY_PROVIDER_FAILURE,
                     HttpStatus.BAD_GATEWAY, "Identity provider authentication returned no token");
         }
 
@@ -92,16 +94,19 @@ public class LiveTechServicesClient implements TechServicesClient {
 
         int status = response.getStatusCode().value();
         if (status == HttpStatus.CONFLICT.value()) {
-            throw new CreateUserException(HttpStatus.CONFLICT, "Identity provider reported an existing user");
+            throw new CreateUserException(CreateUserException.Reason.IDENTITY_ALREADY_EXISTS,
+                    HttpStatus.CONFLICT, "Identity provider reported an existing user");
         }
         if (status != HttpStatus.CREATED.value() && status != HttpStatus.OK.value()) {
-            throw new CreateUserException(HttpStatus.BAD_GATEWAY, "Identity provider returned an unexpected response");
+            throw new CreateUserException(CreateUserException.Reason.IDENTITY_PROVIDER_FAILURE,
+                    HttpStatus.BAD_GATEWAY, "Identity provider returned an unexpected response");
         }
         try {
             UUID entraOid = resultMapper.mapCreatedUserId(response.getBody());
             return new Identity(entraOid, status == HttpStatus.CREATED.value());
         } catch (TechServicesResponseMappingException ex) {
-            throw new CreateUserException(HttpStatus.BAD_GATEWAY, "Identity provider returned an invalid identity", ex);
+            throw new CreateUserException(CreateUserException.Reason.IDENTITY_PROVIDER_FAILURE,
+                    HttpStatus.BAD_GATEWAY, "Identity provider returned an invalid identity", ex);
         }
     }
 
@@ -110,7 +115,7 @@ public class LiveTechServicesClient implements TechServicesClient {
         String message = status == HttpStatus.GATEWAY_TIMEOUT
                 ? "Identity provider did not respond in time"
                 : "Identity provider is unavailable";
-        return new CreateUserException(status, message, ex);
+        return new CreateUserException(CreateUserException.Reason.IDENTITY_PROVIDER_FAILURE, status, message, ex);
     }
 
     private boolean isTimeout(Throwable failure) {

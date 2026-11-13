@@ -2,6 +2,8 @@ package uk.gov.justice.laa.datauserapi.exception;
 
 import org.springframework.http.HttpStatus;
 
+import java.util.Objects;
+
 public class CreateUserException extends RuntimeException implements LaaDataApiException<CreateUserException.Reason> {
     public enum Reason {
         INVALID_REQUEST,
@@ -14,29 +16,26 @@ public class CreateUserException extends RuntimeException implements LaaDataApiE
     private final String field;
     private final Reason reason;
 
-    public CreateUserException(HttpStatus status, String message, String field) {
+    public CreateUserException(Reason reason, HttpStatus status, String message, String field) {
         super(message);
-        this.status = status;
+        this.status = Objects.requireNonNull(status, "status");
         this.field = field;
-        this.reason = reasonFor(status, field);
+        this.reason = Objects.requireNonNull(reason, "reason");
     }
 
     public String field() {
         return field;
     }
 
-    public CreateUserException(HttpStatus status, String message) {
-        super(message);
-        this.status = status;
-        this.field = null;
-        this.reason = reasonFor(status, null);
+    public CreateUserException(Reason reason, HttpStatus status, String message) {
+        this(reason, status, message, (String) null);
     }
 
-    public CreateUserException(HttpStatus status, String message, Throwable cause) {
+    public CreateUserException(Reason reason, HttpStatus status, String message, Throwable cause) {
         super(message, cause);
-        this.status = status;
+        this.status = Objects.requireNonNull(status, "status");
         this.field = null;
-        this.reason = reasonFor(status, null);
+        this.reason = Objects.requireNonNull(reason, "reason");
     }
 
     public HttpStatus status() {
@@ -51,19 +50,5 @@ public class CreateUserException extends RuntimeException implements LaaDataApiE
     @Override
     public Reason reason() {
         return reason;
-    }
-
-    private static Reason reasonFor(HttpStatus status, String field) {
-        if (field != null || status == HttpStatus.BAD_REQUEST) {
-            return Reason.INVALID_REQUEST;
-        }
-        if (status == HttpStatus.CONFLICT) {
-            return Reason.IDENTITY_ALREADY_EXISTS;
-        }
-        if (status.is5xxServerError() && status != HttpStatus.BAD_GATEWAY
-                && status != HttpStatus.SERVICE_UNAVAILABLE && status != HttpStatus.GATEWAY_TIMEOUT) {
-            return Reason.LOCAL_PERSISTENCE_FAILURE;
-        }
-        return Reason.IDENTITY_PROVIDER_FAILURE;
     }
 }

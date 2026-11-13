@@ -1,7 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.command.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -17,6 +16,8 @@ import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 import uk.gov.justice.laa.datauserapi.exception.UserAlreadyExistsException;
 
 import java.util.UUID;
+
+import static net.logstash.logback.argument.StructuredArguments.kv;
 
 @Slf4j
 @Service
@@ -44,25 +45,15 @@ public class UserAccountCreationService {
                 });
         UUID firmId = UUID.fromString(command.firmId());
         if (!firmRepository.existsByIdAndEnabledTrue(firmId)) {
-            throw new CreateUserException(HttpStatus.BAD_REQUEST, "firmId does not identify an active firm", "firmId");
+            throw new CreateUserException(CreateUserException.Reason.INVALID_REQUEST,
+                    HttpStatus.BAD_REQUEST, "firmId does not identify an active firm", "firmId");
         }
 
-        final TechServicesClient.Identity identity;
-        try {
-            identity = client.createUser(new TechServicesClient.Registration(command.email(), command.firstName(), command.lastName()));
-        } catch (CreateUserException ex) {
-            if (ex.status().is5xxServerError()) {
-                log.error("User creation failed correlationId={} step=identity_registration system=TechServices/Entra status={}",
-                        MDC.get("correlationId"), ex.status().value());
-            } else {
-                log.warn("User creation rejected correlationId={} step=identity_registration system=TechServices/Entra status={}",
-                        MDC.get("correlationId"), ex.status().value());
-            }
-            throw ex;
-        }
+        TechServicesClient.Identity identity = client.createUser(
+                new TechServicesClient.Registration(command.email(), command.firstName(), command.lastName()));
         if (!identity.created()) {
-            log.info("Existing identity detected correlationId={} step=identity_registration system=TechServices/Entra identityId={}",
-                    MDC.get("correlationId"), identity.id());
+            log.info("Existing identity detected", kv("event", "existing_identity_detected"),
+                    kv("step", "identity_registration"), kv("system", "TechServices/Entra"), kv("identityId", identity.id()));
             repository.findExistingByEntraOid(identity.id()).map(mapper::toExistingResponse)
                     .ifPresent(existing -> {
                         throw new UserAlreadyExistsException(existing);
@@ -71,14 +62,14 @@ public class UserAccountCreationService {
         try {
             // The downstream operation is intentionally outside the local transaction and is never compensated.
             CreateUserAccountResponse result = persistence.create(command, identity.id(), actorOid);
-            log.info("User created correlationId={} step=local_commit system=PostgreSQL identityId={} profileId={}",
-                    MDC.get("correlationId"), identity.id(), result.userProfileId());
+            log.info("User created", kv("event", "user_created"), kv("step", "local_commit"),
+                    kv("system", "PostgreSQL"), kv("identityId", identity.id()), kv("profileId", result.userProfileId()));
             return result;
         } catch (UserAlreadyExistsException ex) {
             logRetainedIdentity(identity.id(), "local_conflict");
             throw ex;
         } catch (CreateUserException ex) {
-            if (ex.status() == HttpStatus.BAD_REQUEST) {
+            if (ex.reason() == CreateUserException.Reason.INVALID_REQUEST) {
                 logRetainedIdentity(identity.id(), "firm_inactive_before_local_commit");
             }
             throw ex;
@@ -90,15 +81,18 @@ public class UserAccountCreationService {
             if (existing.isPresent()) {
                 throw new UserAlreadyExistsException(existing.get());
             }
-            throw new CreateUserException(HttpStatus.INTERNAL_SERVER_ERROR, "The user could not be stored locally", ex);
+            throw new CreateUserException(CreateUserException.Reason.LOCAL_PERSISTENCE_FAILURE,
+                    HttpStatus.INTERNAL_SERVER_ERROR, "The user could not be stored locally", ex);
         } catch (DataAccessException | TransactionException ex) {
             logRetainedIdentity(identity.id(), "local_persistence_or_commit");
-            throw new CreateUserException(HttpStatus.INTERNAL_SERVER_ERROR, "The user could not be stored locally", ex);
+            throw new CreateUserException(CreateUserException.Reason.LOCAL_PERSISTENCE_FAILURE,
+                    HttpStatus.INTERNAL_SERVER_ERROR, "The user could not be stored locally", ex);
         }
     }
 
     private void logRetainedIdentity(UUID identityId, String step) {
-        log.error("Identity retained; manual reconciliation required correlationId={} step={} system=PostgreSQL identityId={}",
-                MDC.get("correlationId"), step, identityId);
+        log.error("Identity retained; manual reconciliation required",
+                kv("event", "identity_reconciliation_required"),
+                kv("step", step), kv("system", "PostgreSQL"), kv("identityId", identityId));
     }
 }

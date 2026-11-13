@@ -14,7 +14,8 @@ public class DoNothingTechServicesClient implements TechServicesClient {
 
     @Override
     public Identity createUser(Registration registration) {
-        throw new CreateUserException(HttpStatus.SERVICE_UNAVAILABLE, "Identity provisioning is disabled");
+        throw new CreateUserException(CreateUserException.Reason.IDENTITY_PROVIDER_FAILURE,
+                HttpStatus.SERVICE_UNAVAILABLE, "Identity provisioning is disabled");
     }
 
     @Override

@@ -48,6 +48,7 @@ public class UserAccountPersistenceService {
         UUID firmId = UUID.fromString(command.firmId());
         var firm = firmRepository.findEnabledByIdForUpdate(firmId)
                 .orElseThrow(() -> new CreateUserException(
+                        CreateUserException.Reason.INVALID_REQUEST,
                         HttpStatus.BAD_REQUEST, "firmId does not identify an active firm", "firmId"));
         repository.findExisting(command.email()).map(mapper::toExistingResponse)
                 .ifPresent(existing -> {
