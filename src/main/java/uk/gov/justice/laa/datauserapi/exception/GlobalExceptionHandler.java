@@ -5,7 +5,6 @@ import static net.logstash.logback.argument.StructuredArguments.kv;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -35,11 +34,6 @@ import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-    /** Policy denials answered with a generic 404 so a caller cannot tell a missing resource from an inaccessible one. */
-    private static final Map<PolicyDenialReason, String> HIDDEN_RESOURCE_MESSAGES = Map.of(
-            PolicyDenialReason.TARGET_PROFILE_NOT_FOUND, "User profile not found",
-            PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE, "User profile not found");
 
     private static final String REQUEST_PARAMETER_VALIDATION_DETAIL = "One or more request parameters failed validation.";
 
@@ -310,7 +304,7 @@ public class GlobalExceptionHandler {
         Optional<PolicyDenialReason> policyDenial = policyDenialReason(ex);
         policyDenial.ifPresentOrElse(
                 reason -> log.warn("Request access denied",
-                        ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
+                        ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(reason),
                         kv("exceptionMessage", ex.getMessage()),
                         kv("requestUri", request.getRequestURI()),
                         kv("reasonCode", reason),
@@ -320,18 +314,6 @@ public class GlobalExceptionHandler {
                         kv("exceptionMessage", ex.getMessage()),
                         kv("requestUri", request.getRequestURI()),
                         ex));
-
-        Optional<String> hiddenResourceMessage = policyDenial.map(HIDDEN_RESOURCE_MESSAGES::get);
-        if (hiddenResourceMessage.isPresent()) {
-            return problemResponse(HttpStatus.NOT_FOUND, new ProblemDetail(
-                    URI.create("https://silas.laa.gov.uk/errors/not-found"),
-                    "Resource Not Found",
-                    HttpStatus.NOT_FOUND.value(),
-                    hiddenResourceMessage.get(),
-                    URI.create(request.getRequestURI()),
-                    null
-            ));
-        }
 
         return forbiddenResponse(request);
     }

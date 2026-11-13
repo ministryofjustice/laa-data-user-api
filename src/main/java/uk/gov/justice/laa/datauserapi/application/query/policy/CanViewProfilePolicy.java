@@ -8,6 +8,7 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.model.Permission;
+import uk.gov.justice.laa.datauserapi.security.rbac.ActorPermissions;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
@@ -34,21 +35,21 @@ public class CanViewProfilePolicy implements AuthorizationPolicy<ProfileVisibili
         if (!context.profileExists()) {
             return PolicyDecision.deny(PolicyDenialReason.TARGET_PROFILE_NOT_FOUND);
         }
-        return canView(actorProfile, context)
+        return canView(actor, context)
                 ? PolicyDecision.allow()
                 : PolicyDecision.deny(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE);
     }
 
-    private boolean canView(AuthenticatedUserProfile actorProfile, ProfileVisibilityContext target) {
-        return isInternalViewingInternal(actorProfile, target)
-                || isExternalViewingOwnFirm(actorProfile, target)
-                || isInternalWithExternalViewPermission(actorProfile, target);
+    private boolean canView(AuthenticatedEntraUser actor, ProfileVisibilityContext target) {
+        return isInternalViewingInternal(actor, target)
+                || isExternalViewingOwnFirm(actor.activeProfile(), target)
+                || isInternalWithExternalViewPermission(actor, target);
     }
 
-    private boolean isInternalViewingInternal(AuthenticatedUserProfile actorProfile, ProfileVisibilityContext target) {
-        return actorProfile.userType() == UserType.INTERNAL
+    private boolean isInternalViewingInternal(AuthenticatedEntraUser actor, ProfileVisibilityContext target) {
+        return actor.activeProfile().userType() == UserType.INTERNAL
                 && target.userType() == UserType.INTERNAL
-                && holds(actorProfile, Permission.VIEW_INTERNAL_USER);
+                && ActorPermissions.has(actor, Permission.VIEW_INTERNAL_USER);
     }
 
     private boolean isExternalViewingOwnFirm(AuthenticatedUserProfile actorProfile, ProfileVisibilityContext target) {
@@ -57,16 +58,10 @@ public class CanViewProfilePolicy implements AuthorizationPolicy<ProfileVisibili
                 && actorProfile.firmId().equals(target.firmId());
     }
 
-    private boolean isInternalWithExternalViewPermission(AuthenticatedUserProfile actorProfile,
+    private boolean isInternalWithExternalViewPermission(AuthenticatedEntraUser actor,
                                                          ProfileVisibilityContext target) {
-        return actorProfile.userType() == UserType.INTERNAL
+        return actor.activeProfile().userType() == UserType.INTERNAL
                 && target.userType() == UserType.EXTERNAL
-                && holds(actorProfile, Permission.VIEW_EXTERNAL_USER);
-    }
-
-    private boolean holds(AuthenticatedUserProfile actorProfile, Permission permission) {
-        return actorProfile.appRoles().stream()
-                .flatMap(role -> role.permissions().stream())
-                .anyMatch(granted -> granted == permission);
+                && ActorPermissions.has(actor, Permission.VIEW_EXTERNAL_USER);
     }
 }

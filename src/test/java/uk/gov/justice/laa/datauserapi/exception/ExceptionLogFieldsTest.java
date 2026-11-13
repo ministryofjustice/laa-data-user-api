@@ -6,6 +6,8 @@ import net.logstash.logback.argument.StructuredArgument;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import uk.gov.justice.laa.datauserapi.logging.ExceptionGroup;
 
 import java.io.IOException;
@@ -16,6 +18,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 class ExceptionLogFieldsTest {
+
+    @Test
+    void plainAuthorizationDenialsRetainTheirFallbackReason() {
+        assertToken(new AuthorizationDeniedException("private diagnostic", new AuthorizationDecision(false)),
+                "authorization_denied", "authorization_denied");
+    }
 
     @Test
     void discoversNewLaaDataApiExceptionsWithoutLoggingChanges() {

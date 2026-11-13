@@ -62,12 +62,13 @@ and `/offices`) are read-only and require the `user_data.read` scope. Each query
 `@PolicyGuarded(policies = CanViewProfilePolicy.class)` and handled by a `QueryHandler`, so RBAC authorises it
 before the handler and its read-only transaction run. `UserProfileVisibilityPolicyInputResolver` loads the target
 profile's facts with one lookup and the pure `CanViewProfilePolicy` applies the profile visibility rules (the same
-rules as `QueryAuthorisationService.canViewProfile`, which delegates to the policy): an external actor may view
+rules as `QueryAuthorisationService.canViewProfile`, kept in step by a parity test): an external actor may view
 profiles in their own firm, an internal actor with `VIEW_INTERNAL_USER` may view internal profiles, and an internal
 actor with `VIEW_EXTERNAL_USER` may view external profiles. Being internal alone is not enough: per the SiLAS roles
 matrix, External User Manager and External User Admin are internal roles without `VIEW_INTERNAL_USER`. A missing
-profile and a profile the caller cannot view both return the same generic `404` (`application/problem+json`, detail
-"User profile not found"); the response carries no profile identifier. The denial reason
+profile and a profile the caller cannot view both return the same generic `403` (`application/problem+json`, detail
+"You do not possess the required scopes or permissions to perform this operation."); the `title` and `detail`
+carry no profile identifier (`instance` echoes the request path, as for every error response). The denial reason
 (`TARGET_PROFILE_NOT_FOUND` or `TARGET_PROFILE_NOT_VISIBLE`) appears only in the server-side log. An actor with no
 usable active profile (`ACTOR_NO_ACTIVE_PROFILE`) and a token without the read scope still return `403`.
 All data is selected by the requested profile ID, not by the owning account. `/app-roles` accepts optional
@@ -90,11 +91,10 @@ intercepts `handle` methods on `AuthorizationEntryPoint` implementations whose m
 has `@RequiresPermission` or `@PolicyGuarded`;
 it runs before the handler, including before a handler's transaction is opened. A denial raises
 Spring Security's `AccessDeniedException` and is returned as HTTP 403 by the security/exception
-handling layer. The one exception is a policy denial whose `PolicyDenialReason` declares a `notFoundMessage`
-(currently `TARGET_PROFILE_NOT_FOUND` and `TARGET_PROFILE_NOT_VISIBLE`): the manager returns a
-`PolicyAuthorizationDenial` result, which Spring Security carries on the resulting `AuthorizationDeniedException`,
-and `GlobalExceptionHandler` answers it with a 404 using that fixed message, so a caller cannot tell a missing
-resource from an inaccessible one. The handler's WARN log includes the `reasonCode`.
+handling layer. For policy denials, the manager returns a `PolicyAuthorizationDenial` result, which Spring
+Security carries on the resulting `AuthorizationDeniedException`. `GlobalExceptionHandler` returns the same
+generic 403 for missing and inaccessible profiles. Its WARN log includes the lowercase policy outcome as
+`exception_reason`, alongside `exception_group=authorization_denied` and the existing enum-valued `reasonCode`.
 
 Missing firms raise `FirmNotFoundException` on both command and query paths and retain the
 standard HTTP 404 Problem Detail response.
@@ -179,6 +179,9 @@ for example `active_profile_not_found`. The supported reason enums are
 `TechServicesClientException.Reason`, and `CcmsNotificationException.Reason`.
 Project exceptions with typed reasons implement `LaaDataApiException<R>` and provide a non-null `reason()`.
 Logging reads this contract automatically; adding an exception requires no logging switch updates.
+The access-denied handling boundary extracts the typed `PolicyAuthorizationDenial` reason and passes it to
+the logging helper's generic enum overload for the same `exception_reason` field. The helper does not inspect
+security-specific exceptions; ordinary access denials retain their class-derived fallback reason.
 An ArchUnit rule rejects project exceptions exposing enum fields or enum-returning methods without
 the contract. Constructors reject null explicit reasons, and tests cover factories and legacy defaults.
 Exceptions without a typed reason use the same readable value as `exception_group`.

@@ -226,6 +226,7 @@ paths:
       operationId: queryUserProfileAppRoles
       tags: [User Profiles]
       summary: Get all app roles for a user profile, can be filtered by app_id or appEntraClientId
+      description: Missing and inaccessible profiles return the same generic 403 response.
       parameters:
         - $ref: '#/components/parameters/UserProfileId'
         - $ref: '#/components/parameters/ProfileAppSilasIdFilter'
@@ -243,14 +244,13 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /api/v1/queries/user-profiles/{userProfileId}/apps:
     get:
       operationId: queryUserProfileApps
       tags: [User Profiles]
       summary: Get all apps for a user profile
+      description: Missing and inaccessible profiles return the same generic 403 response.
       parameters:
         - $ref: '#/components/parameters/UserProfileId'
       responses:
@@ -266,14 +266,13 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /api/v1/queries/user-profiles/{userProfileId}/offices:
     get:
       operationId: queryUserProfileOffices
       tags: [User Profiles]
       summary: Get offices for a user profile
+      description: Missing and inaccessible profiles return the same generic 403 response.
       parameters:
         - $ref: '#/components/parameters/UserProfileId'
       responses:
@@ -289,8 +288,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   # --- Provider data queries ---
   /api/v1/queries/firms:

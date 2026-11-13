@@ -19,6 +19,8 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.http.MediaType;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
@@ -36,6 +38,7 @@ import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppRoleViewList;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppViewList;
 import uk.gov.justice.laa.datauserapi.exception.GlobalExceptionHandler;
+import uk.gov.justice.laa.datauserapi.exception.ForbiddenResponseConstants;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
@@ -120,18 +123,28 @@ class UserProfileAccessQueryControllerTest {
         verifyNoInteractions(appRolesHandler, appsHandler, officesHandler);
     }
 
-    @Test
-    void inaccessibleProfileReturnsGenericProblemJsonNotFoundWithoutLeakingDiagnostics() throws Exception {
-        when(appsHandler.handle(eq(new GetUserProfileAppsQuery(profileId)), any())).thenThrow(
-                new AuthorizationDeniedException("Access Denied",
-                        new PolicyAuthorizationDenial(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE)));
+    @ParameterizedTest
+    @EnumSource(value = PolicyDenialReason.class, names = {"TARGET_PROFILE_NOT_FOUND", "TARGET_PROFILE_NOT_VISIBLE"})
+    void missingOrInaccessibleProfileReturnsGenericForbiddenWithoutLeakingDiagnostics(PolicyDenialReason reason)
+            throws Exception {
+        AuthorizationDeniedException denial = new AuthorizationDeniedException(
+                "private diagnostic", new PolicyAuthorizationDenial(reason));
+        when(appRolesHandler.handle(eq(new GetUserProfileAppRolesQuery(profileId, null, null)), any())).thenThrow(denial);
+        when(appsHandler.handle(eq(new GetUserProfileAppsQuery(profileId)), any())).thenThrow(denial);
+        when(officesHandler.handle(eq(new GetUserProfileOfficesQuery(profileId)), any())).thenThrow(denial);
 
-        mockMvc.perform(get(BASE + profileId + "/apps"))
-                .andExpect(status().isNotFound())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.title").value(not(containsString(profileId.toString()))))
-                .andExpect(jsonPath("$.detail").value("User profile not found"));
+        for (String endpoint : List.of("app-roles", "apps", "offices")) {
+            String path = BASE + profileId + "/" + endpoint;
+            mockMvc.perform(get(path))
+                    .andExpect(status().isForbidden())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.status").value(403))
+                    .andExpect(jsonPath("$.title").value(ForbiddenResponseConstants.TITLE))
+                    .andExpect(jsonPath("$.detail").value(ForbiddenResponseConstants.DETAIL))
+                    .andExpect(jsonPath("$.instance").value(path))
+                    .andExpect(content().string(not(containsString(reason.name()))))
+                    .andExpect(content().string(not(containsString("private diagnostic"))));
+        }
     }
 
     @Test

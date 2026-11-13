@@ -204,28 +204,29 @@ class GlobalExceptionHandlerTest {
                 response.getBody().detail());
     }
 
-    @Test
-    void handleAccessDenied_shouldReturnGeneric404WhenPolicyDenialHidesResourceExistence() {
+    @ParameterizedTest
+    @EnumSource(PolicyDenialReason.class)
+    void handleAccessDenied_shouldReturnGeneric403AndLogTypedPolicyReason(PolicyDenialReason reason) {
         AccessDeniedException ex = new AuthorizationDeniedException("Access Denied",
-                new PolicyAuthorizationDenial(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE));
-
-        ResponseEntity<ProblemDetail> response = handler.handleAccessDenied(ex, request);
-
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertProblemContentType(response);
-        assertNotNull(response.getBody());
-        assertEquals(404, response.getBody().status());
-        assertEquals("User profile not found", response.getBody().detail());
-    }
-
-    @Test
-    void handleAccessDenied_shouldReturn403ForOtherPolicyDenials() {
-        AccessDeniedException ex = new AuthorizationDeniedException("Access Denied",
-                new PolicyAuthorizationDenial(PolicyDenialReason.ACTOR_NO_ACTIVE_PROFILE));
+                new PolicyAuthorizationDenial(reason));
 
         ResponseEntity<ProblemDetail> response = handler.handleAccessDenied(ex, request);
 
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals(403, response.getBody().status());
+        assertEquals("Forbidden", response.getBody().title());
+        assertEquals(ForbiddenResponseConstants.DETAIL, response.getBody().detail());
+        assertThat(response.getBody().toString()).doesNotContain(reason.name(), "Access Denied");
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getArgumentArray()).extracting(Object::toString)
+                    .contains("exception_group=authorization_denied",
+                            "exception_reason=" + reason.name().toLowerCase(java.util.Locale.ROOT),
+                            "reasonCode=" + reason);
+            assertThat(event.getThrowableProxy().getClassName()).isEqualTo(AuthorizationDeniedException.class.getName());
+        });
+        assertEquals(handler.handleAccessDenied(new AccessDeniedException("denied"), request).getBody(), response.getBody());
     }
 
     @Test

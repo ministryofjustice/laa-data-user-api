@@ -3,10 +3,14 @@ package uk.gov.justice.laa.datauserapi.application.query.policy;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Collections;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext;
 import uk.gov.justice.laa.datauserapi.application.query.service.QueryAuthorisationService;
@@ -71,6 +75,24 @@ class CanViewProfilePolicyTest {
 
         assertDenied(policy.evaluate(profile(UserType.EXTERNAL, FIRM_ID), noProfile),
                 PolicyDenialReason.ACTOR_NO_ACTIVE_PROFILE);
+    }
+
+    @ParameterizedTest
+    @MethodSource("rolesWithoutPermissions")
+    void missingRoleDataDeniesInternalActorWithoutThrowing(Set<AuthenticatedAppRole> roles) {
+        AuthenticatedEntraUser actor = actor(AuthenticatedUserProfile.builder()
+                .userType(UserType.INTERNAL).appRoles(roles).build());
+
+        assertDenied(policy.evaluate(profile(UserType.INTERNAL, null), actor),
+                PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE);
+        assertDenied(policy.evaluate(profile(UserType.EXTERNAL, FIRM_ID), actor),
+                PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE);
+    }
+
+    private static Stream<Set<AuthenticatedAppRole>> rolesWithoutPermissions() {
+        return Stream.of(null, Collections.singleton(null),
+                Set.of(new AuthenticatedAppRole(UUID.randomUUID(), "Role", 1, "ROLE", false, null, null,
+                        "Role", true, null, null)));
     }
 
     @Test
