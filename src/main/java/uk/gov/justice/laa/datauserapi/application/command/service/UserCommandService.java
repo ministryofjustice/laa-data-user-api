@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.dto.UserDeactivationContext;
+import uk.gov.justice.laa.datauserapi.application.command.dto.UserLifecycleAuthorizationContext;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
@@ -79,6 +80,26 @@ public class UserCommandService {
     public UserDeactivationContext getDeactivationContext(UUID userEntraObjectId) {
         EntraUser user = findEntraUser(userEntraObjectId);
         return new UserDeactivationContext(!user.isActive(), Optional.ofNullable(user.getDeactivationType()));
+    }
+
+    @Transactional(readOnly = true)
+    public UserLifecycleAuthorizationContext getLifecycleAuthorizationContext(UUID userEntraObjectId) {
+        EntraUser user = findEntraUser(userEntraObjectId);
+        UserProfile primaryProfile = Optional.ofNullable(user.getUserProfiles()).stream()
+                .flatMap(Collection::stream)
+                .findFirst()
+                .orElse(null);
+        UserProfile activeProfile = Optional.ofNullable(user.getUserProfiles()).stream()
+                .flatMap(Collection::stream)
+                .filter(UserProfile::isActiveProfile)
+                .findFirst()
+                .orElse(null);
+        return new UserLifecycleAuthorizationContext(
+                primaryProfile == null ? null : primaryProfile.getUserType(),
+                activeProfile == null || activeProfile.getFirm() == null ? null : activeProfile.getFirm().getId(),
+                user.isMultiFirmUser(),
+                user.isActive(),
+                Optional.ofNullable(user.getDeactivationType()));
     }
 
     @Transactional(readOnly = true)

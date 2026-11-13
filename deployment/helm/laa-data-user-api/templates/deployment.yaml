@@ -18,6 +18,10 @@ spec:
     metadata:
       labels:
         app: laa-data-user-api
+      {{- if .Values.authorization.opaEnabled }}
+      annotations:
+        laa-data-user-api/opa-bundle-ref: {{ .Values.opa.bundleRef | quote }}
+      {{- end }}
     spec:
       securityContext:
         runAsUser: 10000
@@ -71,6 +75,12 @@ spec:
               value: {{ .Values.sentryEnabled | quote }}
             - name: SENTRY_SAMPLE_RATE
               value: {{ .Values.sentrySampleRate | quote }}
+            - name: OPA_URL
+              value: {{ .Values.opa.url | quote }}
+            - name: APP_AUTHORIZATION_LEGACY_POLICIES_ENABLED
+              value: {{ .Values.authorization.legacyPoliciesEnabled | quote }}
+            - name: APP_AUTHORIZATION_OPA_ENABLED
+              value: {{ .Values.authorization.opaEnabled | quote }}
             - name: POSTGRES_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -116,3 +126,54 @@ spec:
               port: 8080
             failureThreshold: 15
             periodSeconds: 10
+        {{- if .Values.authorization.opaEnabled }}
+        - name: opa
+          image: "{{ .Values.opa.image }}"
+          imagePullPolicy: IfNotPresent
+          args:
+            - run
+            - --server
+            - --addr=127.0.0.1:8181
+            - --diagnostic-addr=0.0.0.0:8182
+            - --bundle
+            - /bundle/bundle.tar.gz
+            - --log-format=json
+          ports:
+            - name: opa-diagnostics
+              containerPort: 8182
+          readinessProbe:
+            httpGet:
+              path: /health?bundles=true
+              port: opa-diagnostics
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 1
+          securityContext:
+            runAsUser: 10000
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              memory: "{{ .Values.opa.resources.requests.memory }}"
+              cpu: "{{ .Values.opa.resources.requests.cpu }}"
+            limits:
+              memory: "{{ .Values.opa.resources.limits.memory }}"
+              cpu: "{{ .Values.opa.resources.limits.cpu }}"
+          volumeMounts:
+            - name: opa-tmp
+              mountPath: /tmp
+            - name: opa-bundle
+              mountPath: /bundle
+              readOnly: true
+      volumes:
+        - name: opa-tmp
+          emptyDir: {}
+        - name: opa-bundle
+          configMap:
+            name: laa-data-user-api-opa-bundle-{{ .Values.opa.bundleRef | sha256sum | trunc 12 }}
+        {{- end }}

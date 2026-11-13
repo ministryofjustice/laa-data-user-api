@@ -50,6 +50,8 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
     private final Function<Class<? extends AuthorizationPolicy>, AuthorizationPolicy<?>> policyResolver;
     private final Supplier<List<GlobalAuthorizationPolicy<?>>> globalPolicies;
     private final Supplier<List<AuthorizationPolicyInputResolver<?, ?>>> inputResolvers;
+    private final boolean legacyPoliciesEnabled;
+    private final boolean opaEnabled;
 
     @SuppressWarnings("rawtypes")
     public RequiresPermissionAuthorizationManager(
@@ -63,9 +65,21 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
             Function<Class<? extends AuthorizationPolicy>, AuthorizationPolicy<?>> policyResolver,
             Supplier<List<GlobalAuthorizationPolicy<?>>> globalPolicies,
             Supplier<List<AuthorizationPolicyInputResolver<?, ?>>> inputResolvers) {
+        this(policyResolver, globalPolicies, inputResolvers, true, true);
+    }
+
+    @SuppressWarnings("rawtypes")
+    public RequiresPermissionAuthorizationManager(
+            Function<Class<? extends AuthorizationPolicy>, AuthorizationPolicy<?>> policyResolver,
+            Supplier<List<GlobalAuthorizationPolicy<?>>> globalPolicies,
+            Supplier<List<AuthorizationPolicyInputResolver<?, ?>>> inputResolvers,
+            boolean legacyPoliciesEnabled,
+            boolean opaEnabled) {
         this.policyResolver = policyResolver;
         this.globalPolicies = globalPolicies;
         this.inputResolvers = inputResolvers;
+        this.legacyPoliciesEnabled = legacyPoliciesEnabled || !opaEnabled;
+        this.opaEnabled = opaEnabled;
     }
 
     @Override
@@ -114,8 +128,10 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
 
     private boolean evaluatePolicies(Requirement required, Object obj,
                                      AuthenticatedEntraUser actor, String operation) {
+        boolean legacyEnabledForMessage = isLegacyEnabledFor(required);
         if (obj == null) {
-            boolean anyPolicies = required.policies().length > 0 || !globalPolicies.get().isEmpty();
+            boolean anyPolicies = required.policies().length > 0
+                    || (legacyEnabledForMessage && !globalPolicies.get().isEmpty());
             if (anyPolicies) {
                 log.info("RBAC authorization denied: object is null and policies cannot be evaluated",
                         kv(EVENT, AUTHORIZATION_DENIED),
@@ -124,14 +140,16 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
             }
             return !anyPolicies;
         }
-        return evaluateGlobalPolicies(obj, actor, operation)
-                && evaluateDeclaredPolicies(required, obj, actor, operation);
+        return evaluateGlobalPolicies(legacyEnabledForMessage, obj, actor, operation)
+                && evaluateDeclaredPolicies(required, legacyEnabledForMessage, obj, actor, operation);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private boolean evaluateGlobalPolicies(Object obj, AuthenticatedEntraUser actor, String operation) {
+    private boolean evaluateGlobalPolicies(boolean legacyEnabledForMessage, Object obj,
+                                           AuthenticatedEntraUser actor, String operation) {
         for (GlobalAuthorizationPolicy policy : globalPolicies.get()) {
-            if (supports(policy, obj) && policy.appliesTo(obj, actor)
+            if (isFeatureEnabled(policy.feature(), legacyEnabledForMessage)
+                    && supports(policy, obj) && policy.appliesTo(obj, actor)
                     && !isGranted(policy, policy.getClass(), obj, actor, operation)) {
                 return false;
             }
@@ -140,10 +158,13 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
     }
 
     @SuppressWarnings({"rawtypes"})
-    private boolean evaluateDeclaredPolicies(Requirement required, Object obj,
+    private boolean evaluateDeclaredPolicies(Requirement required, boolean legacyEnabledForMessage, Object obj,
                                              AuthenticatedEntraUser actor, String operation) {
         for (Class<? extends AuthorizationPolicy> policyType : required.policies()) {
             AuthorizationPolicy policy = policyResolver.apply(policyType);
+            if (!isFeatureEnabled(policy.feature(), legacyEnabledForMessage)) {
+                continue;
+            }
             Object input = resolveInput(policyType, obj);
             if (input == null || !supports(policy, input)) {
                 log.error("RBAC authorization misconfiguration: policy does not support object",
@@ -154,6 +175,26 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
                 return false;
             }
             if (!isGranted(policy, policyType, input, actor, operation)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isFeatureEnabled(AuthorizationPolicyFeature feature, boolean legacyEnabledForMessage) {
+        return switch (feature) {
+            case LEGACY -> legacyEnabledForMessage;
+            case OPA -> opaEnabled;
+        };
+    }
+
+    @SuppressWarnings("rawtypes")
+    private boolean isLegacyEnabledFor(Requirement required) {
+        if (legacyPoliciesEnabled || !opaEnabled) {
+            return true;
+        }
+        for (Class<? extends AuthorizationPolicy> policyType : required.policies()) {
+            if (AnnotatedElementUtils.hasAnnotation(policyType, OpaReplacement.class)) {
                 return false;
             }
         }

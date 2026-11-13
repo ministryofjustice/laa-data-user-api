@@ -269,6 +269,25 @@ public class GlobalExceptionHandler {
         return problemResponse(HttpStatus.FORBIDDEN, problem);
     }
 
+    @ExceptionHandler(OpaUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handleOpaUnavailable(
+            OpaUnavailableException ex,
+            HttpServletRequest request) {
+        log.error("OPA authorization service is unavailable",
+                kv("exceptionMessage", ex.getMessage()),
+                kv("requestUri", request.getRequestURI()),
+                ex);
+        ProblemDetail problem = new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/service-unavailable"),
+                "Service Unavailable",
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
+                "The authorization service is temporarily unavailable.",
+                URI.create(request.getRequestURI()),
+                null
+        );
+        return problemResponse(HttpStatus.SERVICE_UNAVAILABLE, problem);
+    }
+
     @ExceptionHandler({UserAlreadyDeactivatedException.class, UserNotDeactivatedException.class})
     public ResponseEntity<ProblemDetail> handleUserAccountStatusConflict(
             RuntimeException ex,

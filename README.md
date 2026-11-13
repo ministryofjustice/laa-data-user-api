@@ -134,13 +134,13 @@ scoped and fail closed if they have no firm.
 
 Other reusable command-side policies in `application.command.policy` are:
 
-| Policy                            | Capability           | Rule                                                                                                      |
-|-----------------------------------|----------------------|-----------------------------------------------------------------------------------------------------------|
-| `NotSelfTargetPolicy`             | `TargetsUser`        | The actor cannot target their own Entra account.                                                          |
-| `ExternalTargetOnlyPolicy`        | `TargetsUser`        | The target user must not be an internal user.                                                             |
+| Policy                            | Capability                                              | Rule                                                                                                                    |
+|-----------------------------------|---------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `NotSelfTargetPolicy`             | `TargetsUser`                                           | The actor cannot target their own Entra account.                                                                        |
+| `ExternalTargetOnlyPolicy`        | `TargetsUser`                                           | The target user must not be an internal user.                                                                           |
 | `ReactivationHierarchyPolicy`     | `UserDeactivationContext` (resolved from `TargetsUser`) | The target must be deactivated, and the actor's authorization roles must permit reactivation for its deactivation type. |
-| `NotSelfProfileTargetPolicy`      | `TargetsUserProfile` | The actor cannot target a profile belonging to their own account.                                         |
-| `ExternalProfileTargetOnlyPolicy` | `TargetsUserProfile` | The target profile must not belong to an internal user.                                                   |
+| `NotSelfProfileTargetPolicy`      | `TargetsUserProfile`                                    | The actor cannot target a profile belonging to their own account.                                                       |
+| `ExternalProfileTargetOnlyPolicy` | `TargetsUserProfile`                                    | The target profile must not belong to an internal user.                                                                 |
 
 For example, `DeactivateUserCommand` requires `DISABLE_EXTERNAL_USER`, cannot target the actor,
 must target an external user, and is subject to the global
@@ -193,6 +193,45 @@ delegate to the read-only `UserProfileDetailsService`, with shared actor-context
 rejected work returns a failure result, while unexpected submission failures propagate.
 Failures after asynchronous work starts are logged by the configured uncaught-exception handler;
 previously committed batches remain updated.
+
+### OPA lifecycle trial
+
+Deactivate and reactivate commands additionally send the actor's role and permission context and the target's
+account, firm, and deactivation facts to the OPA sidecar. OPA applies the same-firm, self-target, external-user,
+and reactivation-hierarchy rules in `opa/policies/authz/lifecycle.rego`. The existing Java RBAC checks remain
+in place during this trial; OPA is an additional enforcing gate, and an unavailable or malformed OPA response
+fails closed with HTTP 503. Only a JSON boolean `result` is accepted; strings, numbers, nulls, and
+other result types are rejected rather than coerced into authorization decisions.
+
+Enforcement can be controlled independently with `APP_AUTHORIZATION_OPA_ENABLED` and
+`APP_AUTHORIZATION_LEGACY_POLICIES_ENABLED` (or the matching `authorization.opaEnabled` and
+`authorization.legacyPoliciesEnabled` Helm values). Both default to `true` to preserve current behavior.
+When both engines are enabled, both policy sets run. Disabling legacy policies skips them only for commands
+that declare an enabled OPA replacement; legacy policies remain enforced for commands without one. If OPA is
+disabled, legacy policies are automatically enabled as a fallback. Declared permissions and OAuth scope checks
+remain active whichever policy engine is enabled.
+Setting the Helm value `authorization.opaEnabled=false` also omits the OPA sidecar, bundle ConfigMap,
+bundle annotation, and OPA volumes, so Java-only deployments do not require a policy bundle.
+The deployment workflow resolves this setting from the merged base, environment, and generated Helm values.
+Older release charts without `authorization.opaEnabled` default to OPA disabled; explicitly supplied settings
+must still be booleans.
+When disabled, it skips bundle creation, S3 publication, and bundle-specific Helm arguments.
+When enabled, OPA's readiness probe checks `/health?bundles=true` on a separate diagnostic listener
+on port 8182. The pod is not Ready if OPA is unresponsive or its bundle is not ready; the policy API
+remains bound to loopback on port 8181.
+
+Locally, start OPA with the policy directory before running the API:
+
+```bash
+opa run --server --addr=127.0.0.1:8181 opa/policies
+```
+
+The `OPA_URL` environment variable can override the default `http://localhost:8181`. Policy tests run with
+`opa test opa/policies opa/tests -v`. Deployments build and publish the policy bundle to
+an environment-, image-version-, and content-addressed S3 key. The deploy workflow passes that exact reference
+and bundle to Helm; Helm stores each bundle in a versioned immutable ConfigMap, and the OPA sidecar loads it
+from a shared local volume. This keeps policy data aligned with the deployed image and allows Helm rollback to
+restore the matching bundle.
 
 ### Using existing permissions and policies
 
@@ -381,6 +420,7 @@ The application relies on several environment variables for configuration. Below
 | `TECH_SERVICES_AZURE_CLIENT_SECRET` | The Azure AD client secret for the Tech Services API.                                                                                             | None                      | GitHub Actions secret                                              |
 | `TECH_SERVICES_TENANT_ID`           | The Azure AD tenant ID for the Tech Services API.                                                                                                 | None                      | GitHub Actions secret                                              |
 | `TECH_SERVICES_BASE_URL`            | The base URL for the Tech Services API.                                                                                                           | None                      | GitHub Actions secret                                              |
+| `OPA_URL`                           | Base URL for the local OPA sidecar used by lifecycle authorization.                                                                               | `http://localhost:8181`   | Helm value / environment variable                                  |
 | `SLACK_WEBHOOK_URL`                 | Slack Incoming Webhook URL the `laa-data-user-api-uptime-check` CronJob posts to on a failed external health check. Not consumed by the main app. | None                      | K8s Secret `slack-alert-webhook-secret`                            |
 | `TECH_SERVICES_CALLS_ENABLED`       | Whether to enable calls to the Tech Services API.                                                                                                 | `false`                   | Not yet wired into the Helm chart (`application.yml` default only) |
 | `TECH_SERVICES_LAA_BUSINESS_UNIT`   | The business unit for the Tech Services API.                                                                                                      | `laa`                     | Not yet wired into the Helm chart (`application.yml` default only) |
@@ -505,11 +545,11 @@ gpr.token=your-classic-token-with-read:packages-scope
 
 ### Versioning policy
 
-| Change type | Version bump | Example |
-|---|---|---|
-| Bug fix, no API surface change | Patch | `1.0.0` → `1.0.1` |
-| New optional field added to a record | Minor | `1.0.0` → `1.1.0` |
-| Field removed, renamed, or type changed | **Major** | `1.0.0` → `2.0.0` |
+| Change type                             | Version bump | Example           |
+|-----------------------------------------|--------------|-------------------|
+| Bug fix, no API surface change          | Patch        | `1.0.0` → `1.0.1` |
+| New optional field added to a record    | Minor        | `1.0.0` → `1.1.0` |
+| Field removed, renamed, or type changed | **Major**    | `1.0.0` → `2.0.0` |
 
 Breaking changes (major bumps) require coordinating with all consumers before merging.
 

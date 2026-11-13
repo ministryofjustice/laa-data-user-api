@@ -6,6 +6,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -45,6 +46,7 @@ import uk.gov.justice.laa.datauserapi.application.command.policy.ExternalProfile
 import uk.gov.justice.laa.datauserapi.application.command.policy.ExternalTargetOnlyPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.NotSelfProfileTargetPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.NotSelfTargetPolicy;
+import uk.gov.justice.laa.datauserapi.application.command.policy.OpaLifecycleAuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ProviderAdminFirmScopePolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ProviderAdminOwnFirmPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ProviderAdminProfileFirmScopePolicy;
@@ -72,6 +74,7 @@ import uk.gov.justice.laa.datauserapi.entity.DeleteUserReasonEntity;
 import uk.gov.justice.laa.datauserapi.model.AuthzRole;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 import uk.gov.justice.laa.datauserapi.model.Permission;
+import uk.gov.justice.laa.datauserapi.exception.OpaUnavailableException;
 import uk.gov.justice.laa.datauserapi.service.DeactivationTypeResolver;
 
 import java.util.Optional;
@@ -85,13 +88,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.any;
 
 /**
  * Verifies the advisor is wired into the Spring proxy chain and gates the real user account commands
@@ -101,12 +105,68 @@ import static org.mockito.ArgumentMatchers.any;
 @SpringJUnitConfig(RbacMethodSecurityIntegrationTest.TestConfig.class)
 class RbacMethodSecurityIntegrationTest {
 
+    @ParameterizedTest
+    @CsvSource({
+        "true,false,false", "true,true,false", "false,false,false", "false,true,false",
+        "true,false,true", "true,true,true", "false,false,true", "false,true,true"
+    })
+    void opaDenialAndOutageBlockHandlerWrites(boolean legacyEnabled, boolean reactivate, boolean outage) {
+        new ApplicationContextRunner().withUserConfiguration(TestConfig.class)
+                .withPropertyValues("app.authorization.legacy-policies-enabled=" + legacyEnabled,
+                        "app.authorization.opa-enabled=true")
+                .run(context -> {
+                    UUID targetId = UUID.randomUUID();
+                    AuthenticatedEntraUser actor = RbacTestActors.actorWith(
+                            Permission.DISABLE_EXTERNAL_USER, Permission.ENABLE_EXTERNAL_USER);
+                    UserCommandService users = context.getBean(UserCommandService.class);
+                    when(users.isInternalUser(targetId)).thenReturn(false);
+                    when(users.getDeactivationContext(targetId))
+                            .thenReturn(new UserDeactivationContext(true, Optional.of(DeactivationType.NONE)));
+                    OpaLifecycleAuthorizationPolicy opa = context.getBean(OpaLifecycleAuthorizationPolicy.class);
+                    OpaUnavailableException failure = new OpaUnavailableException("OPA is unavailable");
+                    if (outage) {
+                        when(opa.evaluate(any(), eq(actor))).thenThrow(failure);
+                    } else {
+                        when(opa.evaluate(any(), eq(actor))).thenReturn(PolicyDecision.DENY);
+                    }
+                    PlatformTransactionManager transactions = context.getBean(PlatformTransactionManager.class);
+                    clearInvocations(transactions);
+
+                    Runnable invoke = reactivate
+                            ? () -> context.getBean(ReactivateUserHandler.class)
+                                    .handle(new ReactivateUserCommand(targetId, "verified"), actor)
+                            : () -> context.getBean(DeactivateUserHandler.class)
+                                    .handle(new DeactivateUserCommand(targetId, DeactivateUserReason.Absence), actor);
+                    if (outage) {
+                        assertThatThrownBy(invoke::run).isSameAs(failure);
+                    } else {
+                        assertThatThrownBy(invoke::run).isInstanceOf(AccessDeniedException.class);
+                    }
+
+                    verify(opa).evaluate(any(), eq(actor));
+                    verify(transactions, never()).getTransaction(argThat(definition -> !definition.isReadOnly()));
+                    verifyNoInteractions(context.getBean(UserAccountLifecycleService.class),
+                            context.getBean(TechServicesClient.class),
+                            context.getBean(EntraUserCommandRepository.class),
+                            AopTestUtils.getUltimateTargetObject(context.getBean(ReactivateUserService.class)));
+                    if (legacyEnabled) {
+                        verify(users).isInternalUser(targetId);
+                        if (reactivate) {
+                            verify(users).getDeactivationContext(targetId);
+                        }
+                    } else {
+                        verifyNoInteractions(users);
+                    }
+                });
+    }
+
     @Configuration
     @EnableMethodSecurity(proxyTargetClass = true)
     @EnableTransactionManagement(proxyTargetClass = true)
     @Import({RbacMethodSecurityConfig.class, UpdateUserDetailsHandler.class,
         UpdateUserProfileOfficesHandler.class, UpdateUserProfileUnrestrictedOfficesHandler.class,
-        ReactivateUserHandler.class, ConvertToMultiFirmHandler.class, InternalActorOnlyPolicy.class})
+        ReactivateUserHandler.class, ConvertToMultiFirmHandler.class, InternalActorOnlyPolicy.class,
+        BulkDeactivateFirmUsersMapper.class})
     static class TestConfig {
         @Bean
         PlatformTransactionManager transactionManager() {
@@ -177,11 +237,6 @@ class RbacMethodSecurityIntegrationTest {
         }
 
         @Bean
-        BulkDeactivateFirmUsersMapper bulkMapper() {
-            return new BulkDeactivateFirmUsersMapper();
-        }
-
-        @Bean
         BulkDeactivateFirmUsersService bulkDeactivateFirmUsersService(
                 FirmCommandRepository firmCommandRepository,
                 EntraUserCommandRepository entraUserCommandRepository,
@@ -214,6 +269,14 @@ class RbacMethodSecurityIntegrationTest {
         @Bean
         ReactivationHierarchyPolicy reactivationHierarchyPolicy() {
             return new ReactivationHierarchyPolicy();
+        }
+
+        @Bean
+        OpaLifecycleAuthorizationPolicy opaLifecycleAuthorizationPolicy() {
+            OpaLifecycleAuthorizationPolicy policy = mock(OpaLifecycleAuthorizationPolicy.class);
+            when(policy.feature()).thenReturn(AuthorizationPolicyFeature.OPA);
+            when(policy.evaluate(any(), any())).thenReturn(PolicyDecision.allow());
+            return policy;
         }
 
         @Bean

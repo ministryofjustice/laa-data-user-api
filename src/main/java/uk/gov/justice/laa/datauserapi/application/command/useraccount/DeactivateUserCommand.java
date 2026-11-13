@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import uk.gov.justice.laa.datauserapi.application.command.policy.ExternalTargetOnlyPolicy;
 import uk.gov.justice.laa.datauserapi.application.command.policy.NotSelfTargetPolicy;
+import uk.gov.justice.laa.datauserapi.application.command.policy.OpaLifecycleAuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.security.rbac.RequiresPermission;
@@ -14,7 +15,8 @@ import java.util.UUID;
 @Builder
 @RequiresPermission(value = Permission.DISABLE_EXTERNAL_USER,
         policies = {NotSelfTargetPolicy.class,
-                    ExternalTargetOnlyPolicy.class})
+                    ExternalTargetOnlyPolicy.class,
+                    OpaLifecycleAuthorizationPolicy.class})
 public record DeactivateUserCommand(
         @NotNull UUID userEntraObjectId,
         @NotNull DeactivateUserReason deactivateReason
