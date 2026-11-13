@@ -13,6 +13,7 @@ import uk.gov.justice.laa.datauserapi.application.command.shared.repository.Firm
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserCreationRepository;
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.CreateUserAccountCommand;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResponse;
 import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 import uk.gov.justice.laa.datauserapi.exception.UserAlreadyExistsException;
@@ -41,7 +42,7 @@ class UserAccountCreationServiceTest {
     private final UUID identity = UUID.randomUUID();
     private final UserAccountCreationMapper mapper = new UserAccountCreationMapper();
     private final CreateUserAccountCommand command = new CreateUserAccountCommand(
-            "person@example.com", "First", "Last", "EXTERNAL", true, firm.toString());
+            "person@example.com", "First", "Last", UserType.EXTERNAL, true, firm.toString());
 
     @BeforeEach
     void setUp() {

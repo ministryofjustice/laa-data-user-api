@@ -2146,8 +2146,11 @@ components:
           minLength: 1
           maxLength: 255
         userType:
-          type: string
-          enum: [EXTERNAL]
+          allOf:
+            - $ref: '#/components/schemas/UserType'
+            - type: string
+              enum: [EXTERNAL]
+          description: Must be EXTERNAL for this request.
         firmId:
           type: string
           format: uuid

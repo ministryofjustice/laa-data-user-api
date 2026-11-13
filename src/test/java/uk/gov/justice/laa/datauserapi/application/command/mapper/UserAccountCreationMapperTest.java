@@ -1,6 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.command.mapper;
 
 import org.junit.jupiter.api.Test;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.request.CreateUserAccountRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -11,14 +12,14 @@ class UserAccountCreationMapperTest {
     @Test
     void mapsRequestToCommandAndNormalizesEmail() {
         var request = new CreateUserAccountRequest(
-                "Person@Example.com", "First", "Last", "EXTERNAL", true, "firm-id");
+                "Person@Example.com", "First", "Last", UserType.EXTERNAL, true, "firm-id");
 
         var command = mapper.toCommand(request);
 
         assertThat(command.email()).isEqualTo("person@example.com");
         assertThat(command.firstName()).isEqualTo("First");
         assertThat(command.lastName()).isEqualTo("Last");
-        assertThat(command.userType()).isEqualTo("EXTERNAL");
+        assertThat(command.userType()).isEqualTo(UserType.EXTERNAL);
         assertThat(command.multiFirmUser()).isTrue();
         assertThat(command.firmId()).isEqualTo("firm-id");
     }

@@ -128,7 +128,7 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
     }
 
     private CreateUserAccountCommand command() {
-        return new CreateUserAccountCommand(email, "First", "Last", "EXTERNAL", true, firm.toString());
+        return new CreateUserAccountCommand(email, "First", "Last", UserType.EXTERNAL, true, firm.toString());
     }
 
     private MockHttpServletRequestBuilder authorizedPost(Map<String, Object> body) throws Exception {
@@ -505,7 +505,7 @@ class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
         try (var executor = Executors.newFixedThreadPool(2)) {
             var first = executor.submit(() -> createOrConflict(command(), actor));
             var secondCommand = new CreateUserAccountCommand(email.toUpperCase(java.util.Locale.ROOT),
-                    "First", "Last", "EXTERNAL", true, firm.toString());
+                    "First", "Last", UserType.EXTERNAL, true, firm.toString());
             var second = executor.submit(() -> createOrConflict(secondCommand, actor));
             var results = java.util.List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS));
             assertThat(results).extracting(CreateUserAccountResponse::success).containsExactlyInAnyOrder(true, false);

@@ -4,9 +4,8 @@ import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
 import uk.gov.justice.laa.datauserapi.application.command.dto.UserAccountCreationData;
 
-import java.util.Optional;
-import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -18,26 +17,29 @@ public class UserCreationRepository {
     }
 
     public Optional<UserAccountCreationData> findExisting(String email) {
-        return findExistingByPredicate("lower(eu.email) = lower(:lookupValue)", email);
+        return entityManager.createQuery("""
+                select new uk.gov.justice.laa.datauserapi.application.command.dto.UserAccountCreationData(
+                    eu.entraOid, up.id)
+                from EntraUser eu left join eu.userProfiles up
+                where lower(eu.email) = lower(:email)
+                order by case when up.activeProfile = true then 0 else 1 end, up.id
+                """, UserAccountCreationData.class)
+                .setParameter("email", email)
+                .setMaxResults(1)
+                .getResultList().stream().findFirst();
     }
 
     public Optional<UserAccountCreationData> findExistingByEntraOid(UUID entraOid) {
-        return findExistingByPredicate("eu.entra_oid = :lookupValue", entraOid.toString());
-    }
-
-    private Optional<UserAccountCreationData> findExistingByPredicate(String predicate, String lookupValue) {
-        List<?> rows = entityManager.createNativeQuery("""
-                select eu.entra_oid, up.id as profile_id
-                from entra_user eu left join user_profile up on up.entra_user_id = eu.id
-                where %s
-                order by up.active_profile desc nulls last, up.id
-                limit 1
-                """.formatted(predicate)).setParameter("lookupValue", lookupValue).getResultList();
-        if (rows.isEmpty()) {
-            return Optional.empty();
-        }
-        Object[] row = (Object[]) rows.getFirst();
-        return Optional.of(new UserAccountCreationData((String) row[0], (UUID) row[1]));
+        return entityManager.createQuery("""
+                select new uk.gov.justice.laa.datauserapi.application.command.dto.UserAccountCreationData(
+                    eu.entraOid, up.id)
+                from EntraUser eu left join eu.userProfiles up
+                where lower(eu.entraOid) = lower(:entraOid)
+                order by case when up.activeProfile = true then 0 else 1 end, up.id
+                """, UserAccountCreationData.class)
+                .setParameter("entraOid", entraOid.toString())
+                .setMaxResults(1)
+                .getResultList().stream().findFirst();
     }
 
     public void lockEmail(String email) {
@@ -45,5 +47,4 @@ public class UserCreationRepository {
         entityManager.createNativeQuery("select pg_advisory_xact_lock(hashtextextended(:email, 0))")
                 .setParameter("email", email.strip().toLowerCase(Locale.ROOT)).getSingleResult();
     }
-
 }

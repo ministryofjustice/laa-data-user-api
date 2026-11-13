@@ -8,6 +8,7 @@ import uk.gov.justice.laa.datauserapi.application.command.useraccount.convertmul
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
@@ -50,7 +51,7 @@ class InternalActorOnlyPolicyTest {
     private static Stream<Object> messages() {
         return Stream.of(
                 new ConvertToMultiFirmCommand(UUID.randomUUID()),
-                new CreateUserAccountCommand("person@example.com", "First", "Last", "EXTERNAL", false, "firm-id"),
+                new CreateUserAccountCommand("person@example.com", "First", "Last", UserType.EXTERNAL, false, "firm-id"),
                 new Object(),
                 null);
     }
