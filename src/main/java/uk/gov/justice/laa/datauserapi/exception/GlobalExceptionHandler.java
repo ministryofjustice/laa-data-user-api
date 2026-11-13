@@ -5,6 +5,7 @@ import static net.logstash.logback.argument.StructuredArguments.kv;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.core.task.TaskRejectedException;
@@ -13,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
@@ -380,11 +382,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleAccessDenied(
             AccessDeniedException ex,
             HttpServletRequest request) {
-        log.warn("Request access denied",
-                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
-                kv("exceptionMessage", ex.getMessage()),
-                kv("requestUri", request.getRequestURI()),
-                ex);
+        Optional<Enum<?>> denialReason = denialReason(ex);
+        denialReason.ifPresentOrElse(
+                reason -> log.warn("Request access denied",
+                        ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(reason),
+                        kv("exceptionMessage", ex.getMessage()),
+                        kv("requestUri", request.getRequestURI()),
+                        kv("reasonCode", reason),
+                        ex),
+                () -> log.warn("Request access denied",
+                        ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
+                        kv("exceptionMessage", ex.getMessage()),
+                        kv("requestUri", request.getRequestURI()),
+                        ex));
 
         return forbiddenResponse(request);
     }
@@ -400,6 +410,13 @@ public class GlobalExceptionHandler {
         );
 
         return problemResponse(HttpStatus.FORBIDDEN, problem);
+    }
+
+    private static Optional<Enum<?>> denialReason(AccessDeniedException ex) {
+        return ex instanceof AuthorizationDeniedException denied
+                && denied.getAuthorizationResult() instanceof TypedDenial denial
+                ? Optional.of(denial.reason())
+                : Optional.empty();
     }
 
     @ExceptionHandler({UserAlreadyDeactivatedException.class, UserNotDeactivatedException.class})

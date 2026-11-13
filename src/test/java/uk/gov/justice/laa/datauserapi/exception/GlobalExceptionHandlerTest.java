@@ -25,6 +25,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.HttpInputMessage;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
@@ -37,6 +39,8 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.security.access.AccessDeniedException;
 import jakarta.servlet.http.HttpServletRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResponse;
 
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
@@ -306,6 +310,41 @@ class GlobalExceptionHandlerTest {
         assertNotNull(response.getBody());
         assertEquals(403, response.getBody().status());
         assertEquals("Forbidden", response.getBody().title());
+        assertEquals("You do not possess the required scopes or permissions to perform this operation.",
+                response.getBody().detail());
+    }
+
+    @ParameterizedTest
+    @EnumSource(PolicyDenialReason.class)
+    void handleAccessDenied_shouldReturnGeneric403AndLogTypedPolicyReason(PolicyDenialReason reason) {
+        AccessDeniedException ex = new AuthorizationDeniedException("Access Denied",
+                new PolicyAuthorizationDenial(reason));
+
+        ResponseEntity<ProblemDetail> response = handler.handleAccessDenied(ex, request);
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals(403, response.getBody().status());
+        assertEquals("Forbidden", response.getBody().title());
+        assertEquals(ForbiddenResponseConstants.DETAIL, response.getBody().detail());
+        assertThat(response.getBody().toString()).doesNotContain(reason.name(), "Access Denied");
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getArgumentArray()).extracting(Object::toString)
+                    .contains("exception_group=authorization_denied",
+                            "exception_reason=" + reason.name().toLowerCase(java.util.Locale.ROOT),
+                            "reasonCode=" + reason);
+            assertThat(event.getThrowableProxy().getClassName()).isEqualTo(AuthorizationDeniedException.class.getName());
+        });
+        assertEquals(handler.handleAccessDenied(new AccessDeniedException("denied"), request).getBody(), response.getBody());
+    }
+
+    @Test
+    void handleAccessDenied_shouldReturn403ForPlainAccessDenied() {
+        ResponseEntity<ProblemDetail> response = handler.handleAccessDenied(new AccessDeniedException("denied"), request);
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertNotNull(response.getBody());
         assertEquals("You do not possess the required scopes or permissions to perform this operation.",
                 response.getBody().detail());
     }

@@ -33,9 +33,12 @@ public final class ExceptionLogFields {
     }
 
     public static StructuredArgument exceptionReason(Throwable exception) {
-        String reason = exception instanceof LaaDataApiException<?> failure
-                ? failure.reason().name().toLowerCase(Locale.ROOT)
-                : groupName(exception);
-        return kv("exception_reason", reason);
+        return exception instanceof LaaDataApiException<?> failure
+                ? exceptionReason(failure.reason())
+                : kv("exception_reason", groupName(exception));
+    }
+
+    public static StructuredArgument exceptionReason(Enum<?> reason) {
+        return kv("exception_reason", reason.name().toLowerCase(Locale.ROOT));
     }
 }
