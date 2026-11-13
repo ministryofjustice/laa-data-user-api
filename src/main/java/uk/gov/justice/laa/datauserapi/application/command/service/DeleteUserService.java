@@ -22,7 +22,7 @@ import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.ReferenceDataNotFoundException;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -82,8 +82,7 @@ public class DeleteUserService {
                 .orElseThrow(() -> new ReferenceDataNotFoundException(
                         "Unknown delete reason code: " + command.deleteReason()));
         EntraUser entraUser = entraUserCommandRepository.findByEntraOid(String.valueOf(command.userEntraObjectId()))
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "User account not found for oid: " + command.userEntraObjectId()));
+                .orElseThrow(() -> new UserNotFoundException(command.userEntraObjectId()));
 
         log.info("Deleting external user",
                 kv("actorEntraOid", actor.entraOid()),

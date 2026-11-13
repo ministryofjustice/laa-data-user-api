@@ -30,7 +30,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.exception.ConflictException;
+import uk.gov.justice.laa.datauserapi.exception.UserAlreadyMultiFirmException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 
 import javax.sql.DataSource;
@@ -103,7 +103,7 @@ class ConvertToMultiFirmIntegrationTest {
         OverlappingConversions run = convertOverlapping(false, false);
 
         assertThat(run.first().success()).isTrue();
-        assertThat(run.secondFailure()).isInstanceOf(ConflictException.class);
+        assertThat(run.secondFailure()).isInstanceOf(UserAlreadyMultiFirmException.class);
         assertThat(jdbc.queryForMap("SELECT multi_firm_user, last_modified_by FROM entra_user WHERE id = ?", TARGET_ID))
                 .containsEntry("multi_firm_user", true)
                 .containsEntry("last_modified_by", "actor-1");
@@ -125,7 +125,7 @@ class ConvertToMultiFirmIntegrationTest {
         OverlappingConversions run = convertOverlapping(false, true);
 
         assertThat(run.first().success()).isTrue();
-        assertThat(run.secondFailure()).isInstanceOf(ConflictException.class);
+        assertThat(run.secondFailure()).isInstanceOf(UserAlreadyMultiFirmException.class);
         assertThat(jdbc.queryForMap("SELECT multi_firm_user, last_modified_by FROM entra_user WHERE id = ?", TARGET_ID))
                 .containsEntry("multi_firm_user", true)
                 .containsEntry("last_modified_by", "actor-1");

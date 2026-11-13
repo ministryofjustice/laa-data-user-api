@@ -19,37 +19,6 @@ export GITHUB_ACTOR="<your-github-username>"
 export GITHUB_TOKEN="<your-personal-access-token>"
 ```
 
-### Enable Pre-commit Hooks
-
-Secret scanning is run on pre-commit hooks to prevent secrets being committed to the repository, via Gitleaks and GitGuardian Shield. These are enabled via the [pre-commit](https://pre-commit.com/) framework, configured via [.pre-commit-config.yaml](./.pre-commit-config.yaml).
-
-The pre-commit hooks will only be enabled for this repository, and won't affect others. The secret scanner CLI utilities themselves - `gitleaks` & `ggshield` - will be available in your shells to be ran against anything you wish.
-
-To enable the pre-commit hooks:
-1. Download and install [Homebrew](https://github.com/Homebrew/brew/releases/latest)
-2. Authorise GitGuardian with your Ministry of Justice GitHub user account [here](https://dashboard.gitguardian.com/api/v1/auth/user/github_login/authorize) (you only have to link your account, you do not need to go on to grant GitGuardian access to any personal or MoJ repository in this step as it shouldn't be necessary for running GitGuardian Shield locally)
-3. Run the setup script (will take a few minutes to complete the first time it is run):
-
-```sh
-./setup_precommits.sh
-```
-
-4. Acquire a GitGuardian Shield personal access token (will open authorisation in your browser), this is used to allow `ggshield` access to GitGuardian's API for scanning, and only needs to be performed once on your local machine:
-
-```sh
-ggshield auth login
-```
-
-The pre-commit hooks will now run as and when you commit your changes.
-
-To run the pre-commit secret scanners on everything in the repository:
-
-```sh
-pre-commit run --all-files
-```
-
-The hooks and dependencies can be updated by running the `setup_precommits.sh` script whenever needed (there is also an updater for the hooks alone that automatically runs on each pre-commit).
-
 ---
 
 ## Running Locally
@@ -90,11 +59,6 @@ exercise both allowed and rejected architecture examples.
 Query service, handler, and controller results are checked recursively for entity
 leakage through collections, wrappers, DTO fields, and projection accessors.
 Tech Services calls intentionally precede database updates; this ordering is unchanged.
-For user creation, the controller mapper normalizes the validated request before it reaches the
-service. If Tech Services returns an existing identity, the service checks its Entra OID locally:
-it creates the local account/profile when absent and returns a conflict when that OID is already stored.
-The firm is checked before provisioning and rechecked under a pessimistic write lock in the local
-transaction, preventing a firm disabled during provisioning from receiving a new profile.
 
 ---
 
@@ -107,6 +71,13 @@ has `@RequiresPermission` or `@PolicyGuarded`;
 it runs before the handler, including before a handler's transaction is opened. A denial raises
 Spring Security's `AccessDeniedException` and is returned as HTTP 403 by the security/exception
 handling layer.
+
+Missing firms raise `FirmNotFoundException` on both command and query paths and retain the
+standard HTTP 404 Problem Detail response.
+
+Configuration failures, invalid actor context, missing scopes, and unexpected system failures
+return fixed client-safe error details. Original exception diagnostics remain in server logs;
+actor identifiers, profile-state diagnostics, and reference-data codes are not echoed in these responses.
 
 For `@RequiresPermission`, the manager collects the permissions from the app roles on the actor's
 active profile. By default, `Match.ANY` means the actor must have at least one listed permission;
@@ -157,6 +128,14 @@ calls Tech Services and creates an audit entry. The target is locked and refresh
 and the lock is held through the local update. For an already disabled user, the `entra_user` row is updated
 only when the actor's resolved deactivation type is equal to or higher than the stored type:
 `null/NONE < SYNC < FIRM < LAA < PRIVILEGED`. Lower privilege leaves the entire row unchanged.
+Bulk deactivation is asynchronous: the handler checks permission, firm scope and firm existence, then
+returns 202 Accepted while `BulkDeactivateFirmUsersService.deactivateAsync` runs on the
+`bulkDeactivationExecutor` pool (a full queue returns 503). Per-user outcomes and a summary are logged only.
+Bulk failure logs classify invalid user IDs, missing resources, access denials, downstream failures,
+database/transaction failures, validation failures, executor rejections, unsuccessful results, and
+unexpected runtime faults using the structured `failureType` field. Known per-user failures do not
+stop subsequent users; an unexpected runtime-failure guard preserves best-effort processing.
+Aborted asynchronous runs also log a classified failure and the original exception.
 Bulk and individual deactivation delegate to the shared transactional `DeactivateUserService` workflow
 using a target ID, reason, and actor, not another command. Bulk never invokes another handler
 or constructs `DeactivateUserCommand`.
@@ -166,51 +145,117 @@ user's row changes only for an equal or higher deactivation type. Bulk authoriza
 `DISABLE_EXTERNAL_USER` or apply individual self-target, internal-target, multi-firm, or active-profile
 firm-scope policies. Only users returned by the target firm's membership query are processed.
 Individual deactivation retains its own permission and target policies at `DeactivateUserHandler`.
-Each user is processed in an independent transaction. Internal per-user outcomes distinguish
-invalid identifiers, denied access, missing users, downstream failures, rejected operations, and
-unexpected system failures; the HTTP response retains its aggregate counts. Expected failures
-are logged at `WARN`, unexpected runtime failures at `ERROR`, and remaining users still run.
+Missing users, missing profiles, access denials, and missing scopes share the same generic 403 response
+builder without synthesizing exceptions. Actor-context and profile-lookup exceptions expose typed
+reasons in structured server logs; reasons and diagnostic messages are not returned to clients.
+Exception metrics are derived from structured logs in Splunk; no exception counters are registered.
+`ExceptionLogFields` provides an `exception_reason` token using the lowercase typed reason,
+for example `active_profile_not_found`. The supported reason enums are
+`UserProfileNotFoundReason`, `InvalidActorContextReason`, `InvalidRequestException.Reason`,
+`TechServicesClientException.Reason`, and `CcmsNotificationException.Reason`.
+Project exceptions with typed reasons implement `LaaDataApiException<R>` and provide a non-null `reason()`.
+Logging reads this contract automatically; adding an exception requires no logging switch updates.
+An ArchUnit rule rejects project exceptions exposing enum fields or enum-returning methods without
+the contract. Constructors reject null explicit reasons, and tests cover factories and legacy defaults.
+Exceptions without a typed reason use the same readable value as `exception_group`.
+Repeated multi-firm conversion raises `UserAlreadyMultiFirmException`, with group and reason
+`user_already_multi_firm`; the client still receives the generic HTTP 409 conflict response.
+Each of these log events also includes `exception_group`. Every project exception declares a stable
+snake-case value through `ExceptionGroup.groupName()` (for example `user_profile_not_found`,
+`invalid_actor_context`, or `tech_services_client`). `LaaDataApiException` extends this contract.
+An ArchUnit rule requires every concrete project exception to declare its own group, including subclasses.
+Renaming a project exception does not change its group. Only third-party exceptions derive groups
+from their class names, removing the `Exception` suffix and converting to snake case.
+Tokens never depend on diagnostic messages or identifiers; explicit group values and reason enum
+constants form the reporting contract and should not change without updating dependent searches.
 
-Deletion delegates to `DeleteUserService`, with outbound account removal isolated in
-`DeleteUserTechServicesService`. The service resolves the delete reason once and passes it to
-`DeleteUserMapper`; the mapper no longer accesses persistence.
+HTTP exception handlers and bulk, role-cleanup, and CCMS exception logs include `exception_reason`.
+Catch-block logs in the Tech Services token provider, JWT decoders, and refresh-task submission also include
+both fields. Library exceptions use their own readable class name when no typed reason is available.
+Wrap-and-rethrow catches do not add duplicate logs; the handling boundary records the translated exception.
+There is no `failureStage` field. CCMS send attempts and terminal failures share the same token;
+exclude the `"CCMS notification attempt failed"` message when counting terminal failures.
+A logged exception does not necessarily mean a failed HTTP request: best-effort work may continue successfully.
+Counts across all logs represent log events rather than distinct failures: lower-level diagnostics and
+handling-boundary logs may describe the same failure. Select the relevant event messages for outcome metrics.
+Stack traces and existing diagnostic fields remain in the same log event and client responses are unchanged.
+For example, after selecting the application's index/sourcetype in Splunk:
+
+```spl
+exception_reason=* NOT message="CCMS notification attempt failed"
+| stats count by exception_group exception_reason
+```
+
+For profile failures only:
+
+```spl
+exception_group=user_profile_not_found
+| timechart count by exception_reason
+```
+
+Exception handling uses domain-specific exceptions for business and integration failures.
+Tech Services transport, response-mapping, and token exceptions retain distinct groups and typed
+downstream, invalid-response, and authentication reasons through the shared exception base.
+Invalid deactivation reasons and firm sorting use typed request-validation reasons.
+Missing users/profiles return generic 403 responses; other missing resources return 404.
+Mapping a target user without an active profile raises `UserProfileNotFoundException` with
+`ACTIVE_PROFILE_NOT_FOUND`, not an actor-context exception.
+Conflict, invalid-identifier, configuration, and unexpected-error responses use fixed client-safe
+details, never exception messages. Structured server logs retain reasons, context, and stack traces.
+ArchUnit rejects construction of generic `Exception` and `RuntimeException` in application code.
+Spring-proxied CCMS notifications retry serialization and AWS SDK failures up to three times and recover to a logged failure;
+unexpected programming faults are neither retried nor treated as successful delivery.
+Missing CCMS clients or queues return an unsuccessful notification result, never a successful delivery.
+Role-cleanup downstream failures remain best-effort during user deletion; unexpected faults propagate.
+Empty, blank, or JSON-null successful group-removal responses are classified as `INVALID_RESPONSE`
+and remain best-effort during deletion. Regression tests exercise the real Spring async proxy and
+configured bulk executor: submissions return 202 while workers are blocked, and a full pool/queue returns 503.
+Deliberate last-resort runtime guards remain at best-effort bulk/profile-processing boundaries,
+where they log diagnostics. The token provider replaces invalid cached JWTs, acquires an uncached token
+when the cache is absent, and propagates cache infrastructure faults.
+The generic HTTP exception handler remains a final safety net.
+
 User-details updates delegate to `UpdateUserDetailsService`, preserving email validation and the
 Tech Services call before local changes. Assigned-office and unrestricted-office commands use
 separate methods on `UserProfileOfficeService`, sharing profile lookup and modification metadata.
 Their handlers retain message-level authorization and transaction boundaries.
 Reactivation delegates to `ReactivateUserService`; locked target loading, the hierarchy recheck,
-Tech Services, and the local update remain in one transaction. The lifecycle service loads and
-refreshes the target once, invokes the outbound step using a DTO, then updates the same locked
-entity without another lookup.
-`UserSearchService` owns trusted search criteria and pagination preparation, and
-`UserAccountDetailsService` coordinates account retrieval. Both query services are read-only and
-use `QueryAuthorisationService` for active actor context. Existing visibility rules and not-found
-responses are unchanged.
-Multi-firm conversion requires both `EDIT_EXTERNAL_USER` and `CONVERT_USER_TO_MULTI_FIRM` through
-the command's `@RequiresPermission(match = ALL)` declaration. `InternalActorOnlyPolicy` requires an
-active account with an active internal actor profile, independent of the command or target. Account
-creation uses the same policy; the existing self-target and external-target policies also apply to conversion.
-These checks run at the handler boundary before the write transaction opens.
-`ConvertToMultiFirmService` owns the lock-refresh-check-update sequence, including the
-already-converted conflict check under the row lock. Active-profile retrieval and profile-list filtering
-delegate to the read-only `UserProfileDetailsService`, with shared actor-context validation in
-`QueryAuthorisationService` and entity mapping confined to `UserProfileQueryMapper`.
-`RefreshSilasStatusHandler` retains scheduling-rejection handling at the submission boundary:
-rejected work returns a failure result, while unexpected submission failures propagate.
-Failures after asynchronous work starts are logged by the configured uncaught-exception handler;
-previously committed batches remain updated.
-
-### Using existing permissions and policies
+Tech Services, and the local update remain in one transaction. `UserSearchService` owns trusted
+search criteria and pagination preparation, and `UserAccountDetailsService` coordinates account
+retrieval. Both query services are read-only and use `QueryAuthorisationService` for active actor
+context; denied account or active-profile visibility returns a generic 403 response.
+The lifecycle service loads and refreshes the target once per deactivation or reactivation transaction,
+invokes the outbound step using a DTO, then updates the same locked entity without another lookup.
+Reactivation still reads authorization facts before execution and rechecks the refreshed state under
+the row lock; these separate reads protect against concurrent deactivation.
+Each user is processed in an independent transaction. Internal per-user outcomes distinguish
+invalid identifiers, denied access, missing users, downstream failures, rejected operations, and
+unexpected system failures; the HTTP response retains its aggregate counts. Expected failures
+are logged at `WARN`, unexpected runtime failures at `ERROR`, and remaining users still run.
 
 `ReactivationPolicyInputResolver` loads active state and the recorded deactivation type with one
 lookup after permission and global-policy checks. `ReactivationHierarchyPolicy` evaluates that
-immutable `UserDeactivationContext` without persistence access. Reactivation then rechecks the
-current hierarchy under the lifecycle write lock before calling Tech Services.
-An empty type represents legacy, unattributed deactivation and remains distinct from `NONE`.
-Reactivation and deactivation-type resolution map only roles marked `authzRole` to `AuthzRole` enums;
-ordinary application roles with matching names cannot influence the hierarchy.
-Multi-firm conversion refreshes the target after acquiring its write lock so pre-handler cached state
-cannot bypass the already-converted check.
+immutable context without persistence access. An empty deactivation type represents legacy,
+unattributed deactivation, not `NONE`: firm user managers remain unable to reactivate legacy
+accounts. Authorization roles are mapped to `AuthzRole` only from roles marked `authzRole`.
+`DeactivationTypeResolver` applies the same filtering and enum-based hierarchy; ordinary application
+roles with matching names do not affect the recorded deactivation type.
+The reactivation handler repeats the same hierarchy check under the target row lock before
+calling Tech Services, so a changed deactivation type cannot bypass the hierarchy.
+Multi-firm conversion also refreshes its target after acquiring the write lock, so state cached
+by pre-handler policies cannot bypass the already-converted check.
+
+User and profile lookups use `UserNotFoundException` and `UserProfileNotFoundException` with
+identifier-based, fixed message templates for server-side diagnostics. Missing users or profiles
+and existing but inaccessible accounts or active profiles return the same generic 403 Problem Detail,
+without returning account, firm, role, or profile details. Typed user/profile not-found exceptions
+map to this response on both command and query paths to conceal resource existence.
+Firm and other resource not-found responses remain 404. Profile-list queries continue filtering
+inaccessible profiles.
+Security filters and exception advice share the forbidden response type, title, and detail through
+`ForbiddenResponseConstants`; actor-profile diagnostics use named `InvalidActorContextException` factories.
+
+### Using existing permissions and policies
 
 Put `@RequiresPermission` on the message and include any applicable message-specific policies.
 The global firm-scope policy is automatic when the message implements its target capability;
@@ -327,6 +372,11 @@ Global policies run after a required permission check and before message-specifi
 
 ### Required coverage and checks
 
+ArchUnit prohibits command/query cross-dependencies, handler-to-handler dependencies, and
+service dependencies on handlers or controllers. Query handlers must delegate to query services
+instead of accessing repositories directly, and only query controllers may call query handlers.
+Regression tests cover rejected dependencies in both CQRS directions and allow independent handlers.
+
 Every command must declare either `@RequiresPermission` or `@PolicyGuarded`; the ArchUnit
 `every_command_must_declare_its_authorisation` rule enforces this. Add tests for a granted decision,
 each denial path, and the global-policy behavior relevant to the target capability. Run the
@@ -390,8 +440,6 @@ The application relies on several environment variables for configuration. Below
 | `SLACK_WEBHOOK_URL`                 | Slack Incoming Webhook URL the `laa-data-user-api-uptime-check` CronJob posts to on a failed external health check. Not consumed by the main app. | None                      | K8s Secret `slack-alert-webhook-secret`                            |
 | `TECH_SERVICES_CALLS_ENABLED`       | Whether to enable calls to the Tech Services API.                                                                                                 | `false`                   | Not yet wired into the Helm chart (`application.yml` default only) |
 | `TECH_SERVICES_LAA_BUSINESS_UNIT`   | The business unit for the Tech Services API.                                                                                                      | `laa`                     | Not yet wired into the Helm chart (`application.yml` default only) |
-| `APP_DEFAULT_USER_ACC_SEC_GROUP`    | Default Tech Services access group assigned when provisioning an external user.                                                                   | Empty                     | Helm value `defaultUserAccessSecurityGroup`                        |
-| `TECH_SERVICES_VERIFICATION_METHOD` | Verification method included when provisioning an external user.                                                                                  | `activation_code_email`   | Not yet wired into the Helm chart (`application.yml` default only) |
 | `TECH_SERVICES_REQ_READ_TIMEOUT`    | The read timeout for the Tech Services API.                                                                                                       | `30`                      | Not yet wired into the Helm chart (`application.yml` default only) |
 | `TECH_SERVICES_REQ_CONNECT_TIMEOUT` | The connect timeout for the Tech Services API.                                                                                                    | `30`                      | Not yet wired into the Helm chart (`application.yml` default only) |
 

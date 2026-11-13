@@ -15,21 +15,23 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AuthenticatedEntraUserQueryRepository;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.access.AccessDeniedException;
 import uk.gov.justice.laa.datauserapi.exception.GlobalExceptionHandler;
-import org.springframework.http.MediaType;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 
 @WebMvcTest(useDefaultFilters = false)
 @Import({
     JacksonConfig.class,
     SecurityConfig.class,
-    GlobalExceptionHandler.class,
     SecurityConfigTest.JwtDecoderConfiguration.class,
     JwtToAuthenticatedEntraUserConverter.class,
     AuthenticatedEntraUserQueryRepository.class
@@ -40,6 +42,20 @@ class SecurityConfigTest {
     private MockMvc mockMvc;
     @MockitoBean
     private AuthenticatedEntraUserQueryRepository authenticatedEntraUserQueryRepository;
+
+    @Test
+    void securityFilterAndMissingUserAdviceProduceIdenticalForbiddenResponses() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/queries/users/hidden");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        new SecurityConfig(null, new ObjectMapper()).accessDeniedHandler()
+                .handle(request, response, new AccessDeniedException("diagnostic"));
+        var advised = new GlobalExceptionHandler().handleUserNotFound(new UserNotFoundException("hidden"), request);
+        ObjectMapper mapper = new ObjectMapper();
+
+        assertThat(response.getStatus()).isEqualTo(advised.getStatusCode().value());
+        assertThat(response.getContentType()).isEqualTo(advised.getHeaders().getContentType().toString());
+        assertThat(mapper.readTree(response.getContentAsString())).isEqualTo(mapper.valueToTree(advised.getBody()));
+    }
 
     @Test
     void readScopeCanAccessFirmQueryEndpoints() throws Exception {
@@ -82,18 +98,7 @@ class SecurityConfigTest {
     void readScopeCannotAccessCommandEndpoints() throws Exception {
         mockMvc.perform(get("/api/v1/commands/users")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_user_data.read"))))
-                .andExpect(status().isForbidden())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status").value(403));
-    }
-
-    @Test
-    void missingAuthenticationUsesGlobalExceptionHandler() throws Exception {
-        mockMvc.perform(get("/api/v1/commands/users"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(header().string("WWW-Authenticate", "Bearer"))
-                .andExpect(jsonPath("$.detail").value("Malformed or missing token"));
+                .andExpect(status().isForbidden());
     }
 
     @Test

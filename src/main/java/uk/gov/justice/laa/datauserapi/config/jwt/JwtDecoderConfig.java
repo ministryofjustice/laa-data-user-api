@@ -16,6 +16,8 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
 import lombok.extern.slf4j.Slf4j;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
+import uk.gov.justice.laa.datauserapi.exception.JwtConfigurationException;
 
 /**
  * JWT Decoder configuration for production environments.
@@ -39,7 +41,14 @@ public class JwtDecoderConfig {
         OAuth2TokenValidator<Jwt> timestampValidator = new JwtTimestampValidator();
         OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(properties.issuerUri());
 
-        NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withJwkSetUri(properties.jwkSetUri()).build();
+        NimbusJwtDecoder jwtDecoder;
+        try {
+            jwtDecoder = NimbusJwtDecoder.withJwkSetUri(properties.jwkSetUri()).build();
+        } catch (IllegalArgumentException ex) {
+            log.error("JWT decoder creation failed",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex), ex);
+            throw new JwtConfigurationException("JWT Decoder configuration failed", ex);
+        }
         jwtDecoder.setJwtValidator(
             new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator, timestampValidator));
         return jwtDecoder;

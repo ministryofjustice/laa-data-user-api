@@ -14,6 +14,9 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.ArgumentCaptor;
@@ -30,6 +33,7 @@ import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorCode;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.exception.MissingEntraOidException;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
+import uk.gov.justice.laa.datauserapi.application.command.service.DeleteUserTechServicesService;
 
 @ExtendWith(MockitoExtension.class)
 class LiveTechServicesClientTest {
@@ -96,6 +100,25 @@ class LiveTechServicesClientTest {
         assertThatThrownBy(() -> client.deleteRoleAssignment(user))
                 .isInstanceOf(TechServicesClientException.class)
                 .hasMessageContaining("400");
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "null"})
+    void emptyGroupRemovalResponseIsTypedAndDoesNotPreventLocalCleanup(String body) {
+        when(accessTokenProvider.getAccessToken()).thenReturn("test-token");
+        when(techServicesApi.patch(any(), any(UpdateSecurityGroupsRequest.class), any()))
+                .thenReturn(ResponseEntity.ok(body));
+
+        assertThatThrownBy(() -> client.deleteRoleAssignment(user))
+                .isInstanceOfSatisfying(TechServicesClientException.class,
+                        failure -> assertThat(failure.reason())
+                                .isEqualTo(TechServicesClientException.Reason.INVALID_RESPONSE));
+
+        when(techServicesApi.patch(any(), any(ChangeAccountReactivationRequest.class), any()))
+                .thenReturn(ResponseEntity.ok("{\"success\":true}"));
+        assertThatCode(() -> new DeleteUserTechServicesService(client).deactivateUserAndDeleteRoleAssignment(user))
+                .doesNotThrowAnyException();
     }
 
     @Test

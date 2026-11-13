@@ -19,6 +19,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesTokenException;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
 
 @Slf4j
 public class AzureTechServicesTokenProvider implements AccessTokenProvider {
@@ -71,6 +72,7 @@ public class AzureTechServicesTokenProvider implements AccessTokenProvider {
             jwt = jwtDecoder.decode(token);
         } catch (JwtException ex) {
             log.info("Invalid Tech Services access token found in cache; acquiring a replacement",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                     kv("cacheName", TOKEN_CACHE_NAME), ex);
             return false;
         }

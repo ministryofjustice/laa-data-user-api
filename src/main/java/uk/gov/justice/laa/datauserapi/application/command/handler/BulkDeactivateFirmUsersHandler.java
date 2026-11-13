@@ -23,6 +23,8 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
     @Override
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public CommandResult handle(BulkDeactivateFirmUsersCommand command, AuthenticatedEntraUser actor) {
-        return mapper.toCommandResult(command.firmId(), bulkService.deactivate(command, actor));
+        bulkService.requireFirmExists(command.firmId());
+        bulkService.deactivateAsync(command, actor);
+        return mapper.toAcceptedResult();
     }
 }
