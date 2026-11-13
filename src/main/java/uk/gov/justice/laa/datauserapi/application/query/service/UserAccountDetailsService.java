@@ -1,6 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.query.service;
 
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserView;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
@@ -8,7 +9,7 @@ import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAcc
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 import uk.gov.justice.laa.datauserapi.exception.InvalidUuidFormatException;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.ForbiddenResponseConstants;
 
 import java.util.UUID;
 
@@ -38,7 +39,7 @@ public class UserAccountDetailsService {
                         query.userEntraObjectId());
 
         if (!authorisationService.canViewAccount(actorProfile, target)) {
-            throw new ResourceNotFoundException("User not found: " + query.userEntraObjectId());
+            throw new AccessDeniedException(ForbiddenResponseConstants.ACCESS_DENIED_MESSAGE);
         }
 
         return userViewMapper.mapToUserView(target);

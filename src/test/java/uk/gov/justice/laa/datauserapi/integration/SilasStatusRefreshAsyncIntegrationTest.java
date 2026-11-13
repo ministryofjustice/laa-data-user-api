@@ -15,6 +15,7 @@ import uk.gov.justice.laa.datauserapi.application.command.handler.RefreshSilasSt
 import uk.gov.justice.laa.datauserapi.application.command.service.SilasStatusRefreshBatchService;
 import uk.gov.justice.laa.datauserapi.application.command.service.SilasStatusRefreshService;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.RefreshSilasStatusCommand;
+import uk.gov.justice.laa.datauserapi.config.AsyncConfig;
 import uk.gov.justice.laa.datauserapi.config.SilasStatusRefreshConfig;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
@@ -118,7 +119,7 @@ class SilasStatusRefreshAsyncIntegrationTest {
     }
 
     @Configuration(proxyBeanMethods = false)
-    @Import({SilasStatusRefreshConfig.class, SilasStatusRefreshService.class, RefreshSilasStatusHandler.class})
+    @Import({AsyncConfig.class, SilasStatusRefreshConfig.class, SilasStatusRefreshService.class, RefreshSilasStatusHandler.class})
     static class Config {
         @Bean
         SilasStatusRefreshBatchService batchService() {

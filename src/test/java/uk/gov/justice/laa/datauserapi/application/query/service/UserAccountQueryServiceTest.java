@@ -19,7 +19,7 @@ import uk.gov.justice.laa.datauserapi.application.query.shared.repository.EntraU
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserAccountQueryRepository;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
 import java.util.List;
 import java.util.Optional;
@@ -93,8 +93,8 @@ class UserAccountQueryServiceTest {
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getUserStatus(oid))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("User not found: " + oid);
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User not found with ID: " + oid);
     }
 
     @Test
@@ -128,8 +128,8 @@ class UserAccountQueryServiceTest {
 
         assertThatThrownBy(() ->
                 service.findByEntraOid(entraOid))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("User not found: " + entraOid);
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User not found with ID: " + entraOid);
     }
 
     @Test
@@ -160,8 +160,8 @@ class UserAccountQueryServiceTest {
 
         assertThatThrownBy(() ->
                 service.findUserAccountSummaryByUserEntraObjectId(entraOid))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("User not found: " + entraOid);
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User not found with ID: " + entraOid);
     }
 
     @Test

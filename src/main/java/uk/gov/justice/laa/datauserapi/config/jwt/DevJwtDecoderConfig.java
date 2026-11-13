@@ -19,6 +19,8 @@ import org.springframework.security.oauth2.jwt.JwtException;
 
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import lombok.extern.slf4j.Slf4j;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
 
 /**
  * JWT decoder for development, local, and test environments.
@@ -26,6 +28,7 @@ import com.nimbusds.jwt.SignedJWT;
  * from an unverified JWT (e.g. from laa-landing-page OBO/access tokens).
  * Does not validate cryptographic signatures and must not be used in production.
  */
+@Slf4j
 @Configuration
 @Profile({ "dev", "local", "test" })
 public class DevJwtDecoderConfig {
@@ -105,6 +108,8 @@ public class DevJwtDecoderConfig {
     }
 
     private JwtException payloadException(Exception cause) {
+        log.warn("Failed to parse JWT payload in development decoder",
+                ExceptionLogFields.exceptionGroup(cause), ExceptionLogFields.exceptionReason(cause), cause);
         return new JwtException("Dev JWT decoder failed - unable to parse token payload", cause);
     }
 }

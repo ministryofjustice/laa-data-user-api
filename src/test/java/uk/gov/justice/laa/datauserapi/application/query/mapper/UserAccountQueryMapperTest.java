@@ -9,7 +9,7 @@ import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.config.MapperConfig;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
 import java.util.List;
 import java.util.Set;
@@ -38,8 +38,8 @@ class UserAccountQueryMapperTest {
     @Test
     void reportsMissingUserWithoutMapping() {
         assertThatThrownBy(() -> mapper.toDto(Optional.empty(), "missing"))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("User not found: missing");
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User not found with ID: missing");
         verifyNoInteractions(modelMapper);
     }
 

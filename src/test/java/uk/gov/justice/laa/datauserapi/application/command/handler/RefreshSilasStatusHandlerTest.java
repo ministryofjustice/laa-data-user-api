@@ -1,6 +1,12 @@
 package uk.gov.justice.laa.datauserapi.application.command.handler;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.task.TaskRejectedException;
 import uk.gov.justice.laa.datauserapi.application.command.service.SilasStatusRefreshService;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.RefreshSilasStatusCommand;
@@ -17,6 +23,22 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 class RefreshSilasStatusHandlerTest {
     private final SilasStatusRefreshService refreshService = mock(SilasStatusRefreshService.class);
     private final RefreshSilasStatusHandler handler = new RefreshSilasStatusHandler(refreshService);
+    private Logger logger;
+    private ListAppender<ILoggingEvent> appender;
+
+    @BeforeEach
+    void setUp() {
+        logger = (Logger) LoggerFactory.getLogger(RefreshSilasStatusHandler.class);
+        appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+    }
+
+    @AfterEach
+    void tearDown() {
+        logger.detachAppender(appender);
+        appender.stop();
+    }
 
     @Test
     void handle_returnsAcceptedWhenRefreshIsStarted() {
@@ -38,6 +60,11 @@ class RefreshSilasStatusHandlerTest {
 
         assertThat(result).isEqualTo(CommandResult.failure(
                 "SiLAS status refresh is already running or the worker is unavailable."));
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getArgumentArray()).extracting(Object::toString)
+                    .contains("exception_group=task_rejected", "exception_reason=task_rejected");
+            assertThat(event.getThrowableProxy()).isNotNull();
+        });
         verify(refreshService).refresh("actor-oid");
         verifyNoMoreInteractions(refreshService);
     }
