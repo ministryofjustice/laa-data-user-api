@@ -46,6 +46,7 @@ final class RbacTestActors {
                 .appRoles(Set.of(role))
                 .build();
         return AuthenticatedEntraUser.builder()
+                .active(true)
                 .id(UUID.randomUUID())
                 .entraOid(UUID.randomUUID().toString())
                 .userProfiles(Set.of(profile))

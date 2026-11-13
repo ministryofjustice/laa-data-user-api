@@ -9,7 +9,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 
 @Component
-public class ReactivateUserHandler implements CommandHandler<ReactivateUserCommand> {
+public class ReactivateUserHandler implements CommandHandler<ReactivateUserCommand, CommandResult> {
 
     private final ReactivateUserService service;
 

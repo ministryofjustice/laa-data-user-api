@@ -9,7 +9,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 
 @Component
-public class UpdateUserDetailsHandler implements CommandHandler<UpdateUserDetailsCommand> {
+public class UpdateUserDetailsHandler implements CommandHandler<UpdateUserDetailsCommand, CommandResult> {
 
     private final UpdateUserDetailsService service;
 

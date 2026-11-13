@@ -9,7 +9,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 @Component
 public class UpdateUserProfileUnrestrictedOfficesHandler
-        implements CommandHandler<UpdateUserProfileUnrestrictedOfficesCommand> {
+        implements CommandHandler<UpdateUserProfileUnrestrictedOfficesCommand, CommandResult> {
 
     private final UserProfileOfficeService service;
 

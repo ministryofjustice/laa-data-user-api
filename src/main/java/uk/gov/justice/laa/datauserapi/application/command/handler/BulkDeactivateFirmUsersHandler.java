@@ -10,7 +10,7 @@ import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 @Component
-public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeactivateFirmUsersCommand> {
+public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeactivateFirmUsersCommand, CommandResult> {
 
     private final BulkDeactivateFirmUsersService bulkService;
     private final BulkDeactivateFirmUsersMapper mapper;

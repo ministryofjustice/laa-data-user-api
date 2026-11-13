@@ -8,7 +8,7 @@ import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 @Component
-public class UpdateUserProfileOfficesHandler implements CommandHandler<UpdateUserProfileOfficesCommand> {
+public class UpdateUserProfileOfficesHandler implements CommandHandler<UpdateUserProfileOfficesCommand, CommandResult> {
 
     private final UserProfileOfficeService service;
 

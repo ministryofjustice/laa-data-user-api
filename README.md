@@ -153,6 +153,18 @@ Exception metrics are derived from structured logs in Splunk; no exception count
 for example `active_profile_not_found`. The supported reason enums are
 `UserProfileNotFoundReason`, `InvalidActorContextReason`, `InvalidRequestException.Reason`,
 `TechServicesClientException.Reason`, and `CcmsNotificationException.Reason`.
+User creation failures use explicit `CreateUserException.Reason` values rather than deriving outcomes from HTTP
+status codes. Their handling-boundary logs include `exception_group=user_creation` and `exception_reason`;
+client Problem Details use fixed safe messages, never exception diagnostics. Local duplicate users retain the
+creation endpoint's JSON 409 response containing existing IDs, after its internal-actor and create-permission checks.
+When `TECH_SERVICES_CALLS_ENABLED=false`, user creation returns HTTP 503 without creating a simulated
+identity or persisting local account/profile records.
+Creation lookups use Spring Data `@Query` DTO projections, limited to one result with active profiles first
+and profile ID as a deterministic tie-breaker. The normalised email advisory lock remains a native PostgreSQL
+query held within the local persistence transaction.
+Provisioning failures are logged only at the HTTP handling boundary. If a local write fails after provisioning,
+a separate `event=identity_reconciliation_required` records the retained identity and reconciliation step without
+duplicating the exception stack trace. Creation events use structured fields and the request's MDC `correlationId`.
 Project exceptions with typed reasons implement `LaaDataApiException<R>` and provide a non-null `reason()`.
 Logging reads this contract automatically; adding an exception requires no logging switch updates.
 An ArchUnit rule rejects project exceptions exposing enum fields or enum-returning methods without

@@ -39,6 +39,14 @@ class ExceptionLogFieldsTest {
 
     @Test
     void explicitReasonConstructorsRejectNull() {
+        assertThatNullPointerException().isThrownBy(() ->
+                new CreateUserException(null, org.springframework.http.HttpStatus.BAD_REQUEST, "diagnostic"));
+        assertThatNullPointerException().isThrownBy(() ->
+                new CreateUserException(null, org.springframework.http.HttpStatus.BAD_REQUEST, "diagnostic", "field"));
+        assertThatNullPointerException().isThrownBy(() ->
+                new CreateUserException(null, org.springframework.http.HttpStatus.BAD_REQUEST, "diagnostic", new RuntimeException()));
+        assertThatNullPointerException().isThrownBy(() ->
+                new CreateUserException(CreateUserException.Reason.INVALID_REQUEST, null, "diagnostic"));
         assertThatNullPointerException().isThrownBy(() -> new InvalidRequestException(null, "diagnostic"));
         assertThatNullPointerException().isThrownBy(() -> new InvalidRequestException(null, "diagnostic", null));
         assertThatNullPointerException().isThrownBy(() -> new CcmsNotificationException(null, "diagnostic", null));
@@ -98,6 +106,13 @@ class ExceptionLogFieldsTest {
                 "invalid_request", reason.name().toLowerCase(java.util.Locale.ROOT));
         assertToken(new InvalidRequestException(reason, "changed diagnostic"),
                 "invalid_request", reason.name().toLowerCase(java.util.Locale.ROOT));
+    }
+
+    @ParameterizedTest
+    @EnumSource(CreateUserException.Reason.class)
+    void creationTokensUseExplicitReasonsRatherThanHttpStatus(CreateUserException.Reason reason) {
+        assertToken(new CreateUserException(reason, org.springframework.http.HttpStatus.BAD_GATEWAY, "private diagnostic"),
+                "user_creation", reason.name().toLowerCase(java.util.Locale.ROOT));
     }
 
     @ParameterizedTest
