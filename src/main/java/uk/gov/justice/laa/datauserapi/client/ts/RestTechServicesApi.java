@@ -16,6 +16,17 @@ public class RestTechServicesApi implements TechServicesApi {
     }
 
     @Override
+    public ResponseEntity<String> post(String endpoint, Object request, String accessToken) {
+        RestClient.ResponseSpec response = restClient.post()
+                .uri(endpoint)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve();
+        return toResponse(response);
+    }
+
+    @Override
     public ResponseEntity<String> patch(String endpoint, Object request, String accessToken) {
         RestClient.ResponseSpec response = restClient.patch()
                 .uri(endpoint)
@@ -23,6 +34,10 @@ public class RestTechServicesApi implements TechServicesApi {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve();
+        return toResponse(response);
+    }
+
+    private ResponseEntity<String> toResponse(RestClient.ResponseSpec response) {
         try {
             return response.toEntity(String.class);
         } catch (HttpStatusCodeException ex) {

@@ -1,12 +1,6 @@
 package uk.gov.justice.laa.datauserapi.client.ts;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.azure.core.credential.AccessToken;
-import com.azure.identity.ClientSecretCredential;
-import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
-import org.springframework.test.util.ReflectionTestUtils;
-import reactor.core.publisher.Mono;
-import uk.gov.justice.laa.datauserapi.config.CachingConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -17,18 +11,15 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
+import uk.gov.justice.laa.datauserapi.exception.TechServicesTokenException;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.util.UUID;
-import java.time.OffsetDateTime;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.anything;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
@@ -61,16 +52,9 @@ class LiveTechServicesClientCreateUserTest {
         if (!enabled) {
             return new DoNothingTechServicesClient();
         }
-        var credential = mock(ClientSecretCredential.class);
-        lenient().when(credential.getToken(any())).thenAnswer(invocation ->
-                Mono.just(new AccessToken(token.get(), OffsetDateTime.now().plusHours(1))));
-        var liveClient = new LiveTechServicesClient(credential, restClient, new ObjectMapper(),
-                new ConcurrentMapCacheManager(CachingConfig.TECH_SERVICES_DETAILS_CACHE), null);
-        ReflectionTestUtils.setField(liveClient, "laaBusinessUnit", businessUnit);
-        ReflectionTestUtils.setField(liveClient, "verificationMethod", verificationMethod);
-        ReflectionTestUtils.setField(liveClient, "defaultSecurityGroup", group);
-        ReflectionTestUtils.setField(liveClient, "accessTokenRequestScope", "test-scope");
-        return liveClient;
+        return new LiveTechServicesClient(token::get, new RestTechServicesApi(restClient),
+                new TechServicesResultMapper(new ObjectMapper()), new EntraOidValidator(),
+                businessUnit, verificationMethod, group);
     }
 
     private String response() {
@@ -162,7 +146,7 @@ class LiveTechServicesClientCreateUserTest {
     void authenticationFailureIsUnavailable() {
         client = client(
                 () -> {
-                    throw new IllegalStateException("private credentials");
+                    throw new TechServicesTokenException("private credentials");
                 }, "LAA", "activation_code_email", DEFAULT_GROUP, true);
         assertStatus(503);
     }
@@ -171,10 +155,23 @@ class LiveTechServicesClientCreateUserTest {
     void nestedAuthenticationTimeoutIsGatewayTimeout() {
         client = client(
                 () -> {
-                    throw new IllegalStateException(new java.util.concurrent.TimeoutException());
+                    throw new TechServicesTokenException(
+                            "private credentials", new java.util.concurrent.TimeoutException());
                 },
                 "LAA", "activation_code_email", DEFAULT_GROUP, true);
         assertStatus(504);
+    }
+
+    @Test
+    void unexpectedTokenProviderFailureIsNotMappedAsAnAvailabilityFailure() {
+        client = client(
+                () -> {
+                    throw new IllegalStateException("unexpected failure");
+                }, "LAA", "activation_code_email", DEFAULT_GROUP, true);
+
+        assertThatThrownBy(() -> client.createUser(command))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("unexpected failure");
     }
 
     @Test

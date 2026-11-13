@@ -2,10 +2,16 @@ package uk.gov.justice.laa.datauserapi.client.ts;
 
 import static net.logstash.logback.argument.StructuredArguments.kv;
 
+import java.net.SocketTimeoutException;
+import java.net.http.HttpTimeoutException;
 import java.util.Collections;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import uk.gov.justice.laa.datauserapi.client.ts.request.CreateUserRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.request.ChangeAccountReactivationRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateSecurityGroupsRequest;
 import uk.gov.justice.laa.datauserapi.client.ts.request.UpdateUserDetailsRequest;
@@ -18,28 +24,103 @@ import uk.gov.justice.laa.datauserapi.client.ts.response.UpdateSecurityGroupsRes
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesResponseMappingException;
+import uk.gov.justice.laa.datauserapi.exception.TechServicesTokenException;
+import uk.gov.justice.laa.datauserapi.exception.TechServicesTransportException;
+import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
 
 @Slf4j
 public class LiveTechServicesClient implements TechServicesClient {
 
     private static final String USER_ENDPOINT = "%s/users/%s";
+    private static final String USERS_ENDPOINT = "%s/users";
     private final AccessTokenProvider accessTokenProvider;
     private final TechServicesApi techServicesApi;
     private final TechServicesResultMapper resultMapper;
     private final EntraOidValidator validator;
     private final String laaBusinessUnit;
+    private final String verificationMethod;
+    private final String defaultSecurityGroup;
 
     public LiveTechServicesClient(
             AccessTokenProvider accessTokenProvider,
             TechServicesApi techServicesApi,
             TechServicesResultMapper resultMapper,
             EntraOidValidator validator,
-            String laaBusinessUnit) {
+            String laaBusinessUnit,
+            String verificationMethod,
+            String defaultSecurityGroup) {
         this.accessTokenProvider = accessTokenProvider;
         this.techServicesApi = techServicesApi;
         this.resultMapper = resultMapper;
         this.validator = validator;
         this.laaBusinessUnit = laaBusinessUnit;
+        this.verificationMethod = verificationMethod;
+        this.defaultSecurityGroup = defaultSecurityGroup;
+    }
+
+    @Override
+    public Identity createUser(Registration registration) {
+        if (defaultSecurityGroup == null || defaultSecurityGroup.isBlank()) {
+            throw new CreateUserException(
+                    HttpStatus.SERVICE_UNAVAILABLE, "Identity provisioning has no default access group configured");
+        }
+
+        String accessToken;
+        try {
+            accessToken = accessTokenProvider.getAccessToken();
+        } catch (TechServicesTokenException ex) {
+            throw identityProviderUnavailable(ex);
+        }
+        if (accessToken == null || accessToken.isBlank()) {
+            throw new CreateUserException(
+                    HttpStatus.BAD_GATEWAY, "Identity provider authentication returned no token");
+        }
+
+        CreateUserRequest request = new CreateUserRequest(
+                registration.firstName(),
+                registration.lastName(),
+                registration.email(),
+                verificationMethod,
+                Set.of(defaultSecurityGroup));
+        ResponseEntity<String> response;
+        try {
+            response = techServicesApi.post(
+                    String.format(USERS_ENDPOINT, laaBusinessUnit), request, accessToken);
+        } catch (TechServicesTransportException ex) {
+            throw identityProviderUnavailable(ex);
+        }
+
+        int status = response.getStatusCode().value();
+        if (status == HttpStatus.CONFLICT.value()) {
+            throw new CreateUserException(HttpStatus.CONFLICT, "Identity provider reported an existing user");
+        }
+        if (status != HttpStatus.CREATED.value() && status != HttpStatus.OK.value()) {
+            throw new CreateUserException(HttpStatus.BAD_GATEWAY, "Identity provider returned an unexpected response");
+        }
+        try {
+            UUID entraOid = resultMapper.mapCreatedUserId(response.getBody());
+            return new Identity(entraOid, status == HttpStatus.CREATED.value());
+        } catch (TechServicesResponseMappingException ex) {
+            throw new CreateUserException(HttpStatus.BAD_GATEWAY, "Identity provider returned an invalid identity", ex);
+        }
+    }
+
+    private CreateUserException identityProviderUnavailable(TechServicesClientException ex) {
+        HttpStatus status = isTimeout(ex) ? HttpStatus.GATEWAY_TIMEOUT : HttpStatus.SERVICE_UNAVAILABLE;
+        String message = status == HttpStatus.GATEWAY_TIMEOUT
+                ? "Identity provider did not respond in time"
+                : "Identity provider is unavailable";
+        return new CreateUserException(status, message, ex);
+    }
+
+    private boolean isTimeout(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SocketTimeoutException || cause instanceof HttpTimeoutException
+                    || cause instanceof TimeoutException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
