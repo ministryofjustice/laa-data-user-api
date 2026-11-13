@@ -96,7 +96,7 @@ dependencies {
         exclude group: 'com.fasterxml.jackson.core'
     }
     implementation 'com.azure:azure-identity'
-    implementation 'org.modelmapper:modelmapper:3.2.6'
+    implementation 'org.modelmapper:modelmapper:3.2.8'
     implementation 'org.postgresql:postgresql'
 
     implementation platform('software.amazon.awssdk:bom:2.56.0')
