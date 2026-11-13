@@ -149,10 +149,8 @@ Missing users, missing profiles, access denials, and missing scopes share the sa
 builder without synthesizing exceptions. Actor-context and profile-lookup exceptions expose typed
 reasons in structured server logs; reasons and diagnostic messages are not returned to clients.
 Exception metrics are derived from structured logs in Splunk; no exception counters are registered.
-Console logs use readable text only when the `local` profile is active, with
-`[correlationId=...]` (or `none` outside a request) and stack traces. All other profiles use one JSON event per
-line via the Logstash encoder, including MDC fields and structured arguments automatically.
-Do not enable `local` in deployed environments that require JSON ingestion.
+Console logs use one JSON event per line in every profile, including `local`, via the Logstash encoder.
+MDC fields, structured arguments and stack traces are included automatically.
 `CorrelationIdFilter` reuses a single incoming `X-Correlation-ID` containing 1-128 ASCII letters, digits, dots,
 underscores or hyphens. Missing, invalid or repeated headers are replaced with a generated UUID. The chosen value
 is stored as MDC `correlationId` and returned in `X-Correlation-ID`. IDs are diagnostic metadata, not trusted identity.

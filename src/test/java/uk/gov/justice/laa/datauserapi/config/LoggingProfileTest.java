@@ -1,7 +1,6 @@
 package uk.gov.justice.laa.datauserapi.config;
 
 import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.LoggingEvent;
 import ch.qos.logback.core.ConsoleAppender;
@@ -15,10 +14,10 @@ import org.springframework.boot.logging.LoggingInitializationContext;
 import org.springframework.boot.logging.logback.LogbackLoggingSystem;
 import org.springframework.core.env.StandardEnvironment;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static net.logstash.logback.argument.StructuredArguments.kv;
 
 class LoggingProfileTest {
 
@@ -30,22 +29,8 @@ class LoggingProfileTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"local"})
-    void developmentProfilesUseReadableTextWithCorrelationIdAndStackTrace(String profile) {
-        configure(profile);
-        ConsoleAppender<ILoggingEvent> appender = console();
-        assertThat(appender.getEncoder()).isInstanceOf(PatternLayoutEncoder.class);
-
-        String output = new String(appender.getEncoder().encode(event()), StandardCharsets.UTF_8);
-
-        assertThat(output).contains("[correlationId=upstream-123]", "Operation failed",
-                "IllegalStateException: diagnostic");
-        assertThat(output).doesNotStartWith("{");
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"dev", "test", "prod", "staging"})
-    void otherProfilesUseJsonWithCorrelationIdAndStackTrace(String profile) throws Exception {
+    @ValueSource(strings = {"local", "dev", "test", "prod", "staging"})
+    void allProfilesRetainJsonCorrelationStructuredArgumentsAndStackTrace(String profile) throws Exception {
         configure(profile);
         ConsoleAppender<ILoggingEvent> appender = console();
         assertThat(appender.getEncoder()).isInstanceOf(LogstashEncoder.class);
@@ -54,6 +39,9 @@ class LoggingProfileTest {
 
         assertThat(json.path("correlationId").asText()).isEqualTo("upstream-123");
         assertThat(json.path("message").asText()).isEqualTo("Operation failed");
+        assertThat(json.path("exception_group").asText()).isEqualTo("invalid_request");
+        assertThat(json.path("exception_reason").asText()).isEqualTo("invalid_firm_sort");
+        assertThat(json.path("requestUri").asText()).isEqualTo("/api/v1/queries/firms");
         assertThat(json.path("stack_trace").asText()).contains("IllegalStateException: diagnostic");
     }
 
@@ -73,7 +61,9 @@ class LoggingProfileTest {
     private LoggingEvent event() {
         Logger logger = (Logger) LoggerFactory.getLogger(LoggingProfileTest.class);
         LoggingEvent event = new LoggingEvent(getClass().getName(), logger, ch.qos.logback.classic.Level.WARN,
-                "Operation failed", new IllegalStateException("diagnostic"), null);
+                "Operation failed", new IllegalStateException("diagnostic"),
+                new Object[]{kv("exception_group", "invalid_request"),
+                    kv("exception_reason", "invalid_firm_sort"), kv("requestUri", "/api/v1/queries/firms")});
         event.setMDCPropertyMap(Map.of("correlationId", "upstream-123"));
         return event;
     }
