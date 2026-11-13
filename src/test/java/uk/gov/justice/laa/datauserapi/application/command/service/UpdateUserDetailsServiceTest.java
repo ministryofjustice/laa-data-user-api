@@ -11,11 +11,12 @@ import uk.gov.justice.laa.datauserapi.application.command.useraccount.UpdateUser
 import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
+import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorCode;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesErrorResponse;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -62,8 +63,7 @@ class UpdateUserDetailsServiceTest {
         when(repository.findByEntraOid(target)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.update(new UpdateUserDetailsCommand(targetId, "A", null, null), actor))
-                .isExactlyInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("User account not found for oid: " + targetId);
+                .isInstanceOf(UserNotFoundException.class);
         verifyNoInteractions(techServicesClient);
     }
 
@@ -128,7 +128,8 @@ class UpdateUserDetailsServiceTest {
     void throwsAndDoesNotSaveWhenTechServicesFails() {
         when(repository.findByEntraOid(target)).thenReturn(Optional.of(user));
         when(techServicesClient.updateUserDetails(target, "New", null, null)).thenReturn(TechServicesApiResponse.error(
-                TechServicesErrorResponse.builder().success(false).code("ERR").message("failed").build()));
+                TechServicesErrorResponse.builder().success(false)
+                        .code(new TechServicesErrorCode("ERR")).message("failed").build()));
 
         assertThatThrownBy(() -> service.update(new UpdateUserDetailsCommand(targetId, "New", null, null), actor))
                 .isInstanceOf(RuntimeException.class)

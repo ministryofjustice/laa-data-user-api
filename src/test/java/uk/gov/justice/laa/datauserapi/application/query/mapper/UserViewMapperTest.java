@@ -12,7 +12,8 @@ import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.FirmDto;
 import uk.gov.justice.laa.datauserapi.dto.OfficeDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
-import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundReason;
 import uk.gov.justice.laa.datauserapi.model.AppRoleUserType;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
@@ -137,9 +138,10 @@ class UserViewMapperTest {
         dto.setEntraOid(UUID.randomUUID().toString());
         dto.setUserProfiles(Set.of(profile));
 
-        assertThrows(
-                InvalidActorContextException.class,
+        UserProfileNotFoundException failure = assertThrows(
+                UserProfileNotFoundException.class,
                 () -> mapper.mapToUserView(dto));
+        assertEquals(UserProfileNotFoundReason.ACTIVE_PROFILE_NOT_FOUND, failure.reason());
     }
 
     @Test

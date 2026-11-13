@@ -1,7 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.query.service;
 
 import org.junit.jupiter.api.Test;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import org.springframework.security.access.AccessDeniedException;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserAccountHandler;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -68,8 +68,8 @@ class UserAccountDetailsServiceTest {
 
         assertThatThrownBy(() -> handler().handle(
                 new GetUserAccountQuery(TARGET_ID, ACTOR_ID)))
-                .isExactlyInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("User not found: " + TARGET_ID);
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("Access denied");
         verifyNoInteractions(userViewMapper);
     }
 
@@ -141,8 +141,8 @@ class UserAccountDetailsServiceTest {
 
         assertThatThrownBy(() ->
                 handler().handle(new GetUserAccountQuery(targetId, ACTOR_ID)))
-                .isExactlyInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("User not found: " + targetId);
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("Access denied");
         verifyNoInteractions(userViewMapper);
     }
 

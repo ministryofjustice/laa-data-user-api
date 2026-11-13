@@ -25,7 +25,7 @@ import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Office;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.ReferenceDataNotFoundException;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
@@ -89,8 +89,7 @@ class DeleteUserServiceTest {
         when(deleteUserReasonRepository.findByCode(DeleteUserReason.LeftFirm.name())).thenReturn(Optional.of(DeleteUserReasonEntity.builder().build()));
 
         assertThatThrownBy(() -> service.delete(command, actorUser))
-                .isExactlyInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("User account not found for oid: " + targetId);
+                .isInstanceOf(UserNotFoundException.class);
     }
 
 
@@ -256,20 +255,16 @@ class DeleteUserServiceTest {
     }
 
     private AuthenticatedEntraUser internalActor() {
-        return actor(UserType.INTERNAL, null);
+        return actor();
     }
 
-    private AuthenticatedEntraUser externalActor(UUID firmId) {
-        return actor(UserType.EXTERNAL, firmId);
-    }
-
-    private AuthenticatedEntraUser actor(UserType userType, UUID firmId) {
+    private AuthenticatedEntraUser actor() {
         return AuthenticatedEntraUser.builder()
                 .id(actorId)
                 .entraOid(actorId.toString())
                 .email("actor@example.com")
                 .active(true)
-                .activeProfile(AuthenticatedUserProfile.builder().userType(userType).firmId(firmId).build())
+                .activeProfile(AuthenticatedUserProfile.builder().userType(UserType.INTERNAL).firmId(null).build())
                 .build();
     }
 }

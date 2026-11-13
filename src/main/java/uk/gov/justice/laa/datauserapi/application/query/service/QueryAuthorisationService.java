@@ -3,8 +3,8 @@ package uk.gov.justice.laa.datauserapi.application.query.service;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
-import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
@@ -17,10 +17,10 @@ public class QueryAuthorisationService {
     public AuthenticatedUserProfile requireActiveProfile(AuthenticatedEntraUser actor) {
         AuthenticatedUserProfile profile = actor.activeProfile();
         if (profile == null) {
-            throw new InvalidActorContextException("Actor has no active profile: " + actor.entraOid());
+            throw InvalidActorContextException.noActiveProfile(String.valueOf(actor.entraOid()));
         }
         if (profile.userType() == null) {
-            throw new InvalidActorContextException("Actor user type cannot be determined");
+            throw InvalidActorContextException.undeterminedUserType();
         }
         return profile;
     }
@@ -29,9 +29,9 @@ public class QueryAuthorisationService {
         UserProfileDto profile = actor.getUserProfiles().stream()
                 .filter(UserProfileDto::isActiveProfile)
                 .findFirst()
-                .orElseThrow(() -> new InvalidActorContextException("Actor has no active profile: " + actorOid));
+                .orElseThrow(() -> InvalidActorContextException.noActiveProfile(actorOid));
         if (profile.getUserType() == null) {
-            throw new InvalidActorContextException("Actor user type cannot be determined");
+            throw InvalidActorContextException.undeterminedUserType();
         }
         return profile;
     }

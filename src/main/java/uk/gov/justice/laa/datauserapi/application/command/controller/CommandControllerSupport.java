@@ -9,20 +9,22 @@ public interface CommandControllerSupport {
 
     default String resolveActor(Jwt jwt) {
         if (jwt == null) {
-            throw new InvalidActorContextException("Authentication token is missing the actor identity");
+            throw InvalidActorContextException.missingActorIdentity();
         }
 
         String oid = jwt.getClaimAsString("oid");
         if (oid == null || oid.isBlank()) {
-            throw new InvalidActorContextException("Authentication token is missing the actor identity");
+            throw InvalidActorContextException.missingActorIdentity();
         }
 
+        if (oid.length() != 36) {
+            throw InvalidActorContextException.invalidActorIdentity(
+                    new IllegalArgumentException("Actor identity must use canonical UUID format"));
+        }
         try {
-            assert oid.length() == 36;
-            // Validate that the oid is a valid UUID
             UUID.fromString(oid);
-        } catch (AssertionError | IllegalArgumentException ex) {
-            throw new InvalidActorContextException("Authentication token contains an invalid actor identity", ex);
+        } catch (IllegalArgumentException ex) {
+            throw InvalidActorContextException.invalidActorIdentity(ex);
         }
 
         return oid;

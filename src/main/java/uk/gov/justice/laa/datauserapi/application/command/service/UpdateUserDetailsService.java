@@ -14,7 +14,7 @@ import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 
 import java.time.LocalDateTime;
@@ -43,8 +43,7 @@ public class UpdateUserDetailsService {
         String actorId = String.valueOf(actor.entraOid());
 
         EntraUser user = entraUserCommandRepository.findByEntraOid(String.valueOf(command.userEntraObjectId()))
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "User account not found for oid: " + command.userEntraObjectId()));
+                .orElseThrow(() -> new UserNotFoundException(command.userEntraObjectId()));
 
         if (command.email() != null && !command.email().equalsIgnoreCase(user.getEmail())
                 && entraUserCommandRepository.existsByEmailIgnoreCaseAndIdNot(command.email(), user.getId())) {
@@ -75,7 +74,7 @@ public class UpdateUserDetailsService {
                     kv("actorEntraOid", actorId));
             return updateUserDetailsMapper.toCommandResult(user);
         } else {
-            throw new RuntimeException("Tech Services API call failed: " + response.getError());
+            throw new TechServicesClientException("Tech Services API call failed: " + response.getError());
         }
 
     }

@@ -8,6 +8,8 @@ import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
+import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
 
 @Slf4j
 @Service
@@ -19,7 +21,7 @@ public class DeleteUserTechServicesService {
         this.techServicesClient = techServicesClient;
     }
 
-    /** Tech Services failures are logged only, so the local delete always proceeds. */
+    /** A rejected deactivation or failed role cleanup does not prevent local deletion. */
     public void deactivateUserAndDeleteRoleAssignment(EntraUserDto userDto) {
         TechServicesApiResponse<ChangeAccountReactivationResponse> deactivation =
                 techServicesClient.deactivateUser(userDto, "RoleChangeorNoLongerRequired");
@@ -31,9 +33,11 @@ public class DeleteUserTechServicesService {
 
         try {
             techServicesClient.deleteRoleAssignment(userDto);
-        } catch (Exception ex) {
+        } catch (TechServicesClientException ex) {
             log.warn("Failed to delete role assignment in Tech Services; continuing with local deletion",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                     kv("entraOid", userDto.getEntraOid()),
+                    kv("reason", ex.getReason()),
                     kv("exceptionMessage", ex.getMessage()),
                     ex);
         }

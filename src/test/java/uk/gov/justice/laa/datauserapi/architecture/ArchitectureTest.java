@@ -23,6 +23,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandler;
+import uk.gov.justice.laa.datauserapi.application.query.handler.QueryHandler;
+import uk.gov.justice.laa.datauserapi.exception.LaaDataApiException;
+import uk.gov.justice.laa.datauserapi.logging.ExceptionGroup;
 import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 import uk.gov.justice.laa.datauserapi.security.RequiresSystemAdminScope;
@@ -35,6 +38,7 @@ import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyGuarded;
 import uk.gov.justice.laa.datauserapi.security.rbac.RequiresPermission;
 
+import static com.tngtech.archunit.base.DescribedPredicate.not;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
@@ -47,6 +51,41 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
         importOptions = ImportOption.DoNotIncludeTests.class
 )
 class ArchitectureTest {
+
+    @ArchTest
+    static final ArchRule project_exceptions_must_declare_explicit_groups = classes()
+            .that().areAssignableTo(Throwable.class)
+            .and().doNotHaveModifier(JavaModifier.ABSTRACT)
+            .should(new ArchCondition<>("implement ExceptionGroup and declare their own groupName") {
+                @Override
+                public void check(JavaClass item, ConditionEvents events) {
+                    boolean declaresGroup = item.getMethods().stream()
+                            .anyMatch(method -> method.getName().equals("groupName")
+                                    && method.getRawParameterTypes().isEmpty()
+                                    && method.getRawReturnType().isEquivalentTo(String.class)
+                                    && method.getModifiers().contains(JavaModifier.PUBLIC)
+                                    && !method.getModifiers().contains(JavaModifier.STATIC));
+                    if (!item.isAssignableTo(ExceptionGroup.class) || !declaresGroup) {
+                        events.add(SimpleConditionEvent.violated(item,
+                                item.getName() + " must implement ExceptionGroup and declare its own groupName"));
+                    }
+                }
+            });
+
+    @ArchTest
+    static final ArchRule exceptions_with_enum_reasons_must_implement_laa_data_api_exception = classes()
+            .that().areAssignableTo(Throwable.class)
+            .should(new ArchCondition<>("implement LaaDataApiException when exposing enum facts") {
+                @Override
+                public void check(JavaClass item, ConditionEvents events) {
+                    boolean hasEnum = item.getAllFields().stream().anyMatch(field -> field.getRawType().isEnum())
+                            || item.getAllMethods().stream().anyMatch(method -> method.getRawReturnType().isEnum());
+                    if (hasEnum && !item.isAssignableTo(LaaDataApiException.class)) {
+                        events.add(SimpleConditionEvent.violated(item,
+                                item.getName() + " exposes enum facts but does not implement LaaDataApiException"));
+                    }
+                }
+            });
 
     private static final String COMMAND_PACKAGE = "..application.command..";
     private static final String QUERY_PACKAGE = "..application.query..";
@@ -69,6 +108,39 @@ class ArchitectureTest {
             .that().resideInAPackage(QUERY_PACKAGE)
             .should().dependOnClassesThat().resideInAPackage(COMMAND_PACKAGE)
             .because("In CQRS Lite, Query side must not depend on Command execution or state modification");
+
+    @ArchTest
+    static final ArchRule command_handlers_must_not_depend_on_other_command_handlers = noClasses()
+            .that().resideInAPackage("..application.command.handler..")
+            .and().doNotHaveSimpleName("CommandHandler")
+            .should().dependOnClassesThat(JavaClass.Predicates.resideInAPackage("..application.command.handler..")
+                    .and(not(JavaClass.Predicates.simpleName("CommandHandler"))))
+            .because("Command handlers are entry points; shared workflows belong in services");
+
+    @ArchTest
+    static final ArchRule query_handlers_must_not_depend_on_other_query_handlers = noClasses()
+            .that().resideInAPackage("..application.query.handler..")
+            .and().doNotHaveFullyQualifiedName(QueryHandler.class.getName())
+            .should().dependOnClassesThat(
+                    JavaClass.Predicates.resideInAPackage("..application.query.handler..")
+                            .and(not(JavaClass.Predicates.equivalentTo(QueryHandler.class))))
+            .because("Query handlers are entry points; shared workflows belong in services");
+
+    @ArchTest
+    static final ArchRule query_handlers_must_not_access_repositories = noClasses()
+            .that().resideInAPackage("..application.query.handler..")
+            .should().dependOnClassesThat().resideInAPackage("..application.query.shared.repository..")
+            .because("Query handlers delegate reads to query services rather than access repositories directly");
+
+    @ArchTest
+    static final ArchRule services_must_not_depend_on_handlers_or_controllers = noClasses()
+            .that().resideInAnyPackage("..application.command.service..", "..application.query.service..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                    "..application.command.handler..",
+                    "..application.query.handler..",
+                    "..application.command.controller..",
+                    "..application.query.controller..")
+            .because("Services implement workflows below the handler and controller entry points");
 
     @ArchTest
     static final ArchRule query_side_must_not_access_external_mutation_clients = noClasses()
@@ -227,8 +299,9 @@ class ArchitectureTest {
             .layer("Authorisation").definedBy("..authorisation..")
 
             .whereLayer("QueryController").mayNotBeAccessedByAnyLayer()
+            .whereLayer("QueryHandler").mayOnlyBeAccessedByLayers("QueryController")
             .whereLayer("QueryService").mayOnlyBeAccessedByLayers("QueryController", "QueryHandler")
-            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation", "QueryHandler");
+            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation");
 
     // =========================================================================
     // 5. Naming Conventions & Stereotype Annotations
@@ -287,6 +360,22 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule no_autowired_field_injection_should_be_used = noFields()
             .should().beAnnotatedWith(Autowired.class);
+
+    @ArchTest
+    static final ArchRule application_code_must_use_specific_exceptions = classes()
+            .that().areNotAssignableTo(Throwable.class)
+            .should(new ArchCondition<>("use specific exceptions rather than Exception or RuntimeException") {
+                @Override
+                public void check(JavaClass item, ConditionEvents events) {
+                    item.getConstructorCallsFromSelf().forEach(call -> {
+                        if (call.getTargetOwner().isEquivalentTo(Exception.class)
+                                || call.getTargetOwner().isEquivalentTo(RuntimeException.class)) {
+                            events.add(SimpleConditionEvent.violated(call, call.getDescription()
+                                    + " must construct a specific exception type"));
+                        }
+                    });
+                }
+            });
 
 
     @ArchTest

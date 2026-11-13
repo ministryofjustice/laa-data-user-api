@@ -9,6 +9,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import uk.gov.justice.laa.datauserapi.exception.InvalidRequestException;
 import org.mockito.ArgumentCaptor;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -39,11 +42,20 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.model.Permission;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.FirmNotFoundException;
 import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
 
 @ExtendWith(MockitoExtension.class)
 class FirmQueryServiceTest {
+
+    @ParameterizedTest
+    @ValueSource(strings = {"unknown,asc", "name,", "name,ascending", "name,asc,extra"})
+    void invalidSortsExposeTypedValidationFailures(String sort) {
+        firmQueryService = new FirmQueryService(firmQueryRepository, officeQueryRepository, authorisationService);
+        assertThatThrownBy(() -> firmQueryService.listFirms(authenticatedUser, null, null, 0, 20, sort))
+                .isInstanceOfSatisfying(InvalidRequestException.class,
+                        ex -> assertThat(ex.reason()).isEqualTo(InvalidRequestException.Reason.INVALID_FIRM_SORT));
+    }
 
     @Mock
     private FirmQueryRepository firmQueryRepository;
@@ -180,7 +192,8 @@ class FirmQueryServiceTest {
         when(firmQueryRepository.findViewByCode("999999")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> firmQueryService.getFirmById(authenticatedUser, "999999"))
-                .isInstanceOf(ResourceNotFoundException.class);
+                .isInstanceOf(FirmNotFoundException.class)
+                .hasMessage("Firm not found with ID: 999999");
     }
 
     @Test
@@ -249,7 +262,8 @@ class FirmQueryServiceTest {
         when(firmQueryRepository.existsByCode("999999")).thenReturn(false);
 
         assertThatThrownBy(() -> firmQueryService.getFirmOffices(authenticatedUser, "999999"))
-                .isInstanceOf(ResourceNotFoundException.class);
+                .isInstanceOf(FirmNotFoundException.class)
+                .hasMessage("Firm not found with ID: 999999");
     }
 
     private static AuthenticatedEntraUser authenticatedUser(

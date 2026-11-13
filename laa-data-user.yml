@@ -1092,6 +1092,7 @@ paths:
       operationId: commandFirmBulkDeactivateUsers
       tags: [User Account Security Audit & Management]
       summary: Bulk deactivate users for firm
+      description: Validates the firm and starts deactivation asynchronously. Per-user outcomes are logged, not returned.
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
@@ -1101,8 +1102,8 @@ paths:
             schema:
               $ref: '#/components/schemas/BulkDeactivateFirmUsersCommand'
       responses:
-        '200':
-          description: All users in firm deactivated
+        '202':
+          description: Bulk deactivation accepted and running in the background
           content:
             application/json:
               schema:
