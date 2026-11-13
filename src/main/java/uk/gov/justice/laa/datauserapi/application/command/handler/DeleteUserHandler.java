@@ -12,7 +12,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
  * {@link DeleteUserCommand} via {@code @RequiresPermission} and its policies before this handler runs.
  */
 @Component
-public class DeleteUserHandler implements CommandHandler<DeleteUserCommand> {
+public class DeleteUserHandler implements CommandHandler<DeleteUserCommand, CommandResult> {
 
     private final DeleteUserService deleteUserService;
 

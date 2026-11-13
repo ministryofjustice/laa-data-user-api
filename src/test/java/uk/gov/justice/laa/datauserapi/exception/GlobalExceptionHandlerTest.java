@@ -32,13 +32,18 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
-
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.security.access.AccessDeniedException;
 import jakarta.servlet.http.HttpServletRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
+import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResponse;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class GlobalExceptionHandlerTest {
 
     private GlobalExceptionHandler handler;
@@ -62,6 +67,110 @@ class GlobalExceptionHandlerTest {
     void tearDown() {
         logger.detachAppender(appender);
         appender.stop();
+    }
+
+    @Test
+    void createUserBusinessFailureIsLoggedAtWarn(CapturedOutput output) {
+        var response = handler.handleCreateUser(
+                new CreateUserException(CreateUserException.Reason.INVALID_REQUEST,
+                        HttpStatus.BAD_REQUEST, "Invalid firm", "firmId"), request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("firmId", response.getBody().errors().getFirst().field());
+        assertThat(output.getOut()).containsPattern("WARN[^\\r\\n]*User creation rejected");
+    }
+
+    @Test
+    void createUserSystemFailureIsLoggedAtError(CapturedOutput output) {
+        var response = handler.handleCreateUser(
+                new CreateUserException(CreateUserException.Reason.IDENTITY_PROVIDER_FAILURE,
+                        HttpStatus.BAD_GATEWAY, "Identity provider failed"), request);
+
+        assertEquals(HttpStatus.BAD_GATEWAY, response.getStatusCode());
+        assertThat(output.getOut()).containsPattern("ERROR[^\\r\\n]*User creation failed");
+    }
+
+    @ParameterizedTest
+    @EnumSource(CreateUserException.Reason.class)
+    void createUserFailureHidesDiagnosticsAndLogsTypedReason(CreateUserException.Reason reason) {
+        var failure = new CreateUserException(reason, HttpStatus.BAD_GATEWAY,
+                "private configuration, firm and identity details", new IllegalStateException("private cause"));
+
+        var response = handler.handleCreateUser(failure, request);
+
+        assertProblemContentType(response);
+        assertThat(response.getBody().detail()).doesNotContain("private", "configuration", "firm and identity", reason.name());
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getArgumentArray()).extracting(Object::toString)
+                    .contains("exception_group=user_creation",
+                            "exception_reason=" + reason.name().toLowerCase(java.util.Locale.ROOT));
+            assertThat(event.getThrowableProxy().getClassName()).isEqualTo(CreateUserException.class.getName());
+        });
+    }
+
+    @Test
+    void invalidCreationFieldDoesNotExposeDiagnosticMessage() {
+        var response = handler.handleCreateUser(new CreateUserException(CreateUserException.Reason.INVALID_REQUEST,
+                HttpStatus.BAD_REQUEST, "private firm details", "firmId"), request);
+
+        assertThat(response.getBody().detail()).isEqualTo("One or more request parameters failed validation.");
+        assertThat(response.getBody().errors().getFirst().detail()).isEqualTo("The field is invalid.");
+    }
+
+    @Test
+    void duplicateUserRetainsResponseAndLogsExceptionFields() {
+        var result = new CreateUserAccountResponse(false, "User already exists", UUID.randomUUID().toString(), UUID.randomUUID());
+        var failure = new UserAlreadyExistsException(result);
+
+        var response = handler.handleUserAlreadyExists(failure, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).isSameAs(result);
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getArgumentArray()).extracting(Object::toString)
+                    .contains("exception_group=user_already_exists", "exception_reason=user_already_exists");
+            assertThat(event.getThrowableProxy().getClassName()).isEqualTo(UserAlreadyExistsException.class.getName());
+        });
+    }
+
+    @Test
+    void unsupportedContentTypeLogsExceptionFields() {
+        var failure = new HttpMediaTypeNotSupportedException(MediaType.TEXT_PLAIN, List.of(MediaType.APPLICATION_JSON));
+
+        assertThat(handler.handleUnsupportedMediaType(failure, request).getStatusCode())
+                .isEqualTo(HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getArgumentArray()).extracting(Object::toString)
+                    .contains("exception_group=http_media_type_not_supported", "exception_reason=http_media_type_not_supported");
+            assertThat(event.getThrowableProxy().getClassName()).isEqualTo(HttpMediaTypeNotSupportedException.class.getName());
+        });
+    }
+
+    @Test
+    void unsupportedMethodPreservesAllowHeaderAndLogsExceptionFields() {
+        var failure = new HttpRequestMethodNotSupportedException("GET", List.of("POST"));
+
+        var response = handler.handleMethodNotAllowed(failure, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
+        assertThat(response.getHeaders().getFirst("Allow")).isEqualTo("POST");
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getArgumentArray()).extracting(Object::toString)
+                    .contains("exception_group=http_request_method_not_supported", "exception_reason=http_request_method_not_supported");
+            assertThat(event.getThrowableProxy().getClassName()).isEqualTo(HttpRequestMethodNotSupportedException.class.getName());
+        });
+    }
+
+    @Test
+    void accessDenialPreservesOriginalRequestUriAndHidesPrivateDetails() {
+        when(request.getRequestURI()).thenReturn("/api/v1/commands/users/create");
+
+        var response = handler.handleAccessDenied(new AccessDeniedException("private role detail"), request);
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertProblemContentType(response);
+        assertEquals("/api/v1/commands/users/create", response.getBody().instance().toString());
+        assertThat(response.getBody().detail()).doesNotContain("private");
     }
 
     @Test
@@ -187,6 +296,7 @@ class GlobalExceptionHandlerTest {
         assertEquals(400, response.getBody().status());
         assertEquals("Validation Error", response.getBody().title());
         assertEquals("The request body is missing or malformed.", response.getBody().detail());
+        assertThat(response.getBody().errors()).isNull();
     }
 
     @Test

@@ -1,0 +1,604 @@
+package uk.gov.justice.laa.datauserapi.integration;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.oauth2.jwt.BadJwtException;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import uk.gov.justice.laa.datauserapi.application.command.handler.CreateUserAccountHandler;
+import uk.gov.justice.laa.datauserapi.application.command.dto.UserAccountCreationData;
+import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserCreationRepository;
+import uk.gov.justice.laa.datauserapi.application.command.service.UserAccountCreationService;
+import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
+import uk.gov.justice.laa.datauserapi.client.ts.TechServicesClient;
+import uk.gov.justice.laa.datauserapi.config.CorrelationIdFilter;
+import uk.gov.justice.laa.datauserapi.application.command.useraccount.CreateUserAccountCommand;
+import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResponse;
+import uk.gov.justice.laa.datauserapi.exception.CreateUserException;
+import uk.gov.justice.laa.datauserapi.exception.UserAlreadyExistsException;
+
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@ExtendWith(OutputCaptureExtension.class)
+@SpringBootTest(properties = {
+    "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.liquibase.LiquibaseAutoConfiguration",
+    "spring.jpa.hibernate.ddl-auto=none",
+    "spring.sql.init.mode=always",
+    "spring.sql.init.schema-locations=classpath:create-user-schema.sql"
+})
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+class CreateUserAccountIntegrationTest extends BaseIntegrationTest {
+    private static final String PATH = "/api/v1/commands/users/create";
+    @Autowired private WebApplicationContext context;
+    @Autowired private JdbcTemplate jdbc;
+    @Autowired private ObjectMapper mapper;
+    @Autowired private CreateUserAccountHandler handler;
+    @Autowired private UserCreationRepository creationRepository;
+    @Autowired private JwtToAuthenticatedEntraUserConverter converter;
+    @MockitoBean private TechServicesClient client;
+    @MockitoBean(name = "jwtDecoder") private JwtDecoder decoder;
+    private MockMvc mvc;
+    private Logger creationLogger;
+    private ListAppender<ILoggingEvent> creationLogs;
+    private UUID actorId;
+    private UUID actorOid;
+    private UUID actorProfile;
+    private UUID firm;
+    private UUID role;
+    private UUID identity;
+    private String email;
+
+    @BeforeEach
+    void setUp() {
+        creationLogger = (Logger) LoggerFactory.getLogger(UserAccountCreationService.class);
+        creationLogs = new ListAppender<>();
+        creationLogs.start();
+        creationLogger.addAppender(creationLogs);
+        mvc = MockMvcBuilders.webAppContextSetup(context).addFilters(context.getBean(CorrelationIdFilter.class))
+                .apply(springSecurity()).build();
+        actorId = UUID.randomUUID();
+        actorOid = UUID.randomUUID();
+        actorProfile = UUID.randomUUID();
+        firm = UUID.randomUUID();
+        role = UUID.randomUUID();
+        identity = UUID.randomUUID();
+        email = UUID.randomUUID() + "@example.com";
+        UUID app = UUID.randomUUID();
+        jdbc.update("insert into firm (id, name, type, enabled) values (?, ?, 'LEGAL_SERVICES_PROVIDER', true)",
+                firm, "Firm " + firm);
+        jdbc.update("""
+                insert into app (id, name, description, app_type, ordinal, url, enabled, security_group_oid)
+                values (?, ?, ?, 'AUTHZ', 0, ?, true, ?)
+                """, app, "App " + app, "Description " + app, "https://example.com/" + app, app.toString());
+        jdbc.update("""
+                insert into app_role (id, name, description, ordinal, role_identifier, legacy_sync, authz_role, app_id)
+                values (?, 'Internal admin', 'Internal admin', 0, 'internal-admin', false, true, ?)
+                """, role, app);
+        jdbc.update("""
+                insert into entra_user (id, entra_oid, email, first_name, last_name, status, multi_firm_user,
+                enabled, mail_only, ccms_ebs_user, created_date, created_by)
+                values (?, ?, ?, 'Admin', 'User', 'ACTIVE', false, true, false, false, current_timestamp, 'fixture')
+                """, actorId, actorOid.toString(), actorOid + "@example.com");
+        jdbc.update("""
+                insert into user_profile (id, entra_user_id, active_profile, user_type, status, silas_status,
+                last_sync_successful, unrestricted_office_access, created_date, created_by)
+                values (?, ?, true, 'INTERNAL', 'COMPLETE', 'COMPLETE', false, false, current_timestamp, 'fixture')
+                """, actorProfile, actorId);
+        jdbc.update("insert into user_profile_app_role (user_profile_id, app_role_id) values (?, ?)", actorProfile, role);
+        jdbc.update("insert into role_permission (app_role_id, permission) values (?, 'CREATE_EXTERNAL_USER')", role);
+    }
+
+    @AfterEach
+    void tearDown() {
+        creationLogger.detachAppender(creationLogs);
+        creationLogs.stop();
+    }
+
+    private Map<String, Object> body() {
+        return new LinkedHashMap<>(Map.of("email", email, "firstName", "First", "lastName", "Last",
+                "userType", "EXTERNAL", "multiFirmUser", true, "firmId", firm.toString()));
+    }
+
+    private CreateUserAccountCommand command() {
+        return new CreateUserAccountCommand(email, "First", "Last", UserType.EXTERNAL, true, firm.toString());
+    }
+
+    private MockHttpServletRequestBuilder authorizedPost(Map<String, Object> body) throws Exception {
+        return post(PATH).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body))
+                .header("Authorization", "Bearer " + stubToken("user_data.admin"));
+    }
+
+    private String stubToken(String scope) {
+        String token = UUID.randomUUID().toString();
+        when(decoder.decode(token)).thenReturn(Jwt.withTokenValue(token).header("alg", "RS256")
+                .subject("subject-is-not-the-actor-oid")
+                .claim("oid", actorOid.toString()).claim("scp", scope)
+                .claim("roles", "CREATE_EXTERNAL_USER").build());
+        return token;
+    }
+
+    @Test
+    void createsInitialProfileAndRetryReturnsExistingIdsWithoutProvisioningAgain() throws Exception {
+        when(client.createUser(any())).thenAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return new TechServicesClient.Identity(identity, true);
+        });
+        var result = mvc.perform(authorizedPost(body()))
+                .andExpect(status().isCreated())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.userEntraObjectId").value(identity.toString()))
+                .andExpect(jsonPath("$.userProfileId").isNotEmpty())
+                .andExpect(header().exists("X-Correlation-ID")).andReturn();
+        UUID profile = UUID.fromString(mapper.readTree(result.getResponse().getContentAsString()).path("userProfileId").asText());
+        var stored = jdbc.queryForMap("""
+                select eu.multi_firm_user, eu.enabled, eu.status as account_status, eu.created_by as account_creator,
+                up.firm_id, up.user_type, up.status, up.silas_status, up.active_profile, up.created_by,
+                up.unrestricted_office_access
+                from entra_user eu join user_profile up on up.entra_user_id=eu.id where up.id=?
+                """, profile);
+        assertThat(stored).containsEntry("multi_firm_user", true).containsEntry("enabled", true)
+                .containsEntry("account_status", "ACTIVATION_REQUIRED").containsEntry("account_creator", actorOid.toString())
+                .containsEntry("firm_id", firm).containsEntry("user_type", "EXTERNAL").containsEntry("status", "PENDING")
+                .containsEntry("silas_status", "ACTIVATION_REQUIRED").containsEntry("active_profile", true)
+                .containsEntry("created_by", actorOid.toString()).containsEntry("unrestricted_office_access", false);
+        assertThat(jdbc.queryForObject("select count(*) from user_profile_app_role where user_profile_id=?", Integer.class, profile)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from user_profile_office where user_profile_id=?", Integer.class, profile)).isZero();
+        var retry = body();
+        retry.put("email", email.toUpperCase(java.util.Locale.ROOT));
+        mvc.perform(authorizedPost(retry)).andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.userEntraObjectId").value(identity.toString()))
+                .andExpect(jsonPath("$.userProfileId").value(profile.toString()));
+        verify(client, times(1)).createUser(any());
+    }
+
+    @Test
+    void singleFirmFlagIsPersisted() throws Exception {
+        when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, true));
+        var body = body();
+        body.put("multiFirmUser", false);
+        mvc.perform(authorizedPost(body)).andExpect(status().isCreated());
+        assertThat(jdbc.queryForObject("select multi_firm_user from entra_user where entra_oid=?",
+                Boolean.class, identity.toString())).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"email", "firstName", "lastName", "userType", "multiFirmUser", "firmId"})
+    void missingRequiredFieldIsRejectedBeforeSideEffects(String field) throws Exception {
+        var body = body();
+        body.remove(field);
+        mvc.perform(authorizedPost(body)).andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.errors[0].field").value(field));
+        verifyNoInteractions(client);
+        assertNoLocalUser();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"email", "firstName", "lastName", "userType", "firmId"})
+    void invalidFieldIsRejectedBeforeSideEffects(String field) throws Exception {
+        var body = body();
+        body.put(field, switch (field) {
+            case "email" -> "invalid-email";
+            case "userType" -> "INTERNAL";
+            case "firmId" -> "1-1-1-1-1";
+            default -> " ";
+        });
+        mvc.perform(authorizedPost(body)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value(field));
+        verifyNoInteractions(client);
+        assertNoLocalUser();
+    }
+
+    @Test
+    void unknownFirmIsFieldLevelBadRequest() throws Exception {
+        var body = body();
+        body.put("firmId", UUID.randomUUID().toString());
+        mvc.perform(authorizedPost(body)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("firmId"));
+        verifyNoInteractions(client);
+        assertNoLocalUser();
+    }
+
+    @Test
+    void malformedJsonIsBadRequestRatherThanInternalError() throws Exception {
+        mvc.perform(authorizedPost(body()).content("{")).andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value("The request body is missing or malformed."))
+                .andExpect(jsonPath("$.errors").doesNotExist());
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void unsupportedContentTypeReturnsProblemDetail() throws Exception {
+        mvc.perform(authorizedPost(body()).contentType(MediaType.TEXT_PLAIN))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value("Request Content-Type must be application/json"));
+        verifyNoInteractions(client);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"external", "inactive", "disabled", "noPermission"})
+    void rejectsActorsWithoutInternalDatabasePermissionDespiteForgedRoleClaims(String mode) throws Exception {
+        switch (mode) {
+            case "external" -> jdbc.update("update user_profile set user_type='EXTERNAL', firm_id=? where id=?", firm, actorProfile);
+            case "inactive" -> jdbc.update("update user_profile set active_profile=false where id=?", actorProfile);
+            case "disabled" -> jdbc.update("update entra_user set enabled=false where id=?", actorId);
+            case "noPermission" -> jdbc.update("delete from role_permission where app_role_id=?", role);
+            default -> throw new AssertionError(mode);
+        }
+        mvc.perform(authorizedPost(body()))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+        verifyNoInteractions(client);
+        assertNoLocalUser();
+    }
+
+    @Test
+    void allowsEligibleInternalActorWithFirmScopedProfile() throws Exception {
+        jdbc.update("update user_profile set firm_id=? where id=?", firm, actorProfile);
+        when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, true));
+
+        mvc.perform(authorizedPost(body())).andExpect(status().isCreated());
+
+        verify(client).createUser(any());
+    }
+
+    @Test
+    void allowsPermissionGrantedThroughNonAuthorizationRole() throws Exception {
+        jdbc.update("update app_role set authz_role=false where id=?", role);
+        when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, true));
+
+        mvc.perform(authorizedPost(body())).andExpect(status().isCreated());
+
+        verify(client).createUser(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"noPermission", "external", "disabled", "inactive", "noProfile"})
+    void sharedRbacRejectsIneligiblePrincipalEvenWhenDatabaseActorIsEligible(String mode) {
+        var authenticated = (AuthenticatedEntraUser) converter.convert(decoder.decode(stubToken("user_data.admin"))).getPrincipal();
+        var profile = authenticated.activeProfile();
+        var changedProfile = mode.equals("noProfile") ? null : AuthenticatedUserProfile.builder()
+                .id(profile.id())
+                .activeProfile(!mode.equals("inactive"))
+                .userType(mode.equals("external") ? UserType.EXTERNAL : UserType.INTERNAL)
+                .appRoles(mode.equals("noPermission") ? Set.of() : profile.appRoles())
+                .build();
+        var actor = AuthenticatedEntraUser.builder()
+                .id(actorId).entraOid(actorOid.toString())
+                .active(!mode.equals("disabled")).activeProfile(changedProfile).build();
+
+        assertThatThrownBy(() -> handler.handle(command(), actor)).isInstanceOf(AccessDeniedException.class);
+
+        verifyNoInteractions(client);
+        assertNoLocalUser();
+    }
+
+    @Test
+    void requiresAdminScope() throws Exception {
+        mvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body()))
+                        .header("Authorization", "Bearer " + stubToken("user_data.read")))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(403));
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void roleClaimDoesNotReplaceMissingScope() throws Exception {
+        mvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body()))
+                        .header("Authorization", "Bearer " + stubToken("")))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(403));
+        verifyNoInteractions(client);
+        assertNoLocalUser();
+    }
+
+    @Test
+    void unknownActorIsRejectedByBearerAuthentication() throws Exception {
+        String token = UUID.randomUUID().toString();
+        when(decoder.decode(token)).thenReturn(Jwt.withTokenValue(token).header("alg", "RS256")
+                .claim("oid", UUID.randomUUID().toString()).claim("scp", "user_data.admin").build());
+        mvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body()))
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(header().string("WWW-Authenticate", "Bearer"))
+                .andExpect(jsonPath("$.status").value(401));
+        verify(decoder).decode(token);
+        verifyNoInteractions(client);
+        assertNoLocalUser();
+    }
+
+    @Test
+    void missingTokenIsUnauthorized() throws Exception {
+        mvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body())))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(header().string("WWW-Authenticate", "Bearer"))
+                .andExpect(jsonPath("$.status").value(401));
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void rejectedSignedTokenUsesSameProblemResponse() throws Exception {
+        when(decoder.decode("invalid")).thenThrow(new BadJwtException("private validation detail"));
+        mvc.perform(post(PATH).header("Authorization", "Bearer invalid").contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(body())))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(header().exists("X-Correlation-ID"));
+        verifyNoInteractions(client);
+        verify(decoder).decode("invalid");
+    }
+
+    @Test
+    void getIsMethodNotAllowedRatherThanInternalError() throws Exception {
+        mvc.perform(get(PATH).header("Authorization", "Bearer " + stubToken("user_data.admin")))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(header().string("Allow", "POST"))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+        verifyNoInteractions(client);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {409, 502, 503, 504})
+    void downstreamFailuresAreProblemDetailsWithoutLocalWrites(int status) throws Exception {
+        var reason = status == 409 ? CreateUserException.Reason.IDENTITY_ALREADY_EXISTS
+                : CreateUserException.Reason.IDENTITY_PROVIDER_FAILURE;
+        when(client.createUser(any())).thenThrow(new CreateUserException(reason, HttpStatus.valueOf(status), "private provider failure"));
+        mvc.perform(authorizedPost(body())).andExpect(status().is(status))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(status))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("private provider failure"))));
+        assertThat(creationLogs.list).isEmpty();
+        assertNoLocalUser();
+    }
+
+    @Test
+    void creationLookupsReturnIdentityWithoutProfile() {
+        jdbc.update("delete from user_profile_app_role where user_profile_id=?", actorProfile);
+        jdbc.update("delete from user_profile where id=?", actorProfile);
+        jdbc.update("update entra_user set entra_oid=? where id=?", actorOid.toString().toUpperCase(Locale.ROOT), actorId);
+        var expected = new UserAccountCreationData(actorOid.toString().toUpperCase(Locale.ROOT), null);
+
+        assertThat(creationRepository.findExisting((actorOid + "@example.com").toUpperCase(Locale.ROOT)))
+                .contains(expected);
+        assertThat(creationRepository.findExistingByEntraOid(actorOid)).contains(expected);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"activeFirst", "activeTie", "inactiveTie"})
+    void creationLookupsSelectOneProfileInDeterministicOrder(String scenario) {
+        UUID lowerProfileId = new UUID(0, UUID.randomUUID().getLeastSignificantBits());
+        boolean active = !scenario.equals("inactiveTie");
+        jdbc.update("update user_profile set active_profile=? where id=?", active, actorProfile);
+        jdbc.update("""
+                insert into user_profile (id, entra_user_id, active_profile, user_type, status, silas_status,
+                last_sync_successful, unrestricted_office_access, created_date, created_by)
+                values (?, ?, ?, 'INTERNAL', 'COMPLETE', 'COMPLETE', false, false, current_timestamp, 'fixture')
+                """, lowerProfileId, actorId, scenario.equals("activeTie"));
+        UUID expectedProfileId = scenario.equals("activeFirst") ? actorProfile : lowerProfileId;
+        var expected = new UserAccountCreationData(actorOid.toString(), expectedProfileId);
+
+        assertThat(creationRepository.findExisting((actorOid + "@example.com").toUpperCase(Locale.ROOT)))
+                .contains(expected);
+        assertThat(creationRepository.findExistingByEntraOid(actorOid)).contains(expected);
+    }
+
+    @Test
+    void existingDownstreamIdentityCreatesLocalAccountWhenOidIsNotStored() throws Exception {
+        when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, false));
+        var response = mvc.perform(authorizedPost(body())).andExpect(status().isCreated())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.userEntraObjectId").value(identity.toString()))
+                .andExpect(jsonPath("$.userProfileId").isNotEmpty()).andReturn().getResponse();
+        UUID profile = UUID.fromString(mapper.readTree(response.getContentAsString()).path("userProfileId").asText());
+        assertThat(jdbc.queryForObject("select count(*) from entra_user where entra_oid=?", Integer.class,
+                identity.toString())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from user_profile where id=?", Integer.class, profile)).isEqualTo(1);
+        verify(client).createUser(any());
+    }
+
+    @Test
+    void existingDownstreamIdentityWithLocallyStoredOidReturnsConflict() throws Exception {
+        jdbc.update("""
+                insert into entra_user
+                (id, created_date, created_by, email, entra_oid, first_name, last_name,
+                 status, multi_firm_user, enabled, mail_only, ccms_ebs_user)
+                values (?, current_timestamp, 'fixture', ?, ?, 'Existing', 'User',
+                        'ACTIVATION_REQUIRED', false, true, false, false)
+                """, UUID.randomUUID(), identity + "@example.com", identity.toString());
+        when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, false));
+
+        mvc.perform(authorizedPost(body())).andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.userEntraObjectId").value(identity.toString()))
+                .andExpect(jsonPath("$.userProfileId").doesNotExist());
+        assertNoLocalUser();
+    }
+
+    @Test
+    void profileInsertFailureRollsBackUserAndLogsRetainedIdentityWithCorrelation(CapturedOutput output) throws Exception {
+        jdbc.execute("""
+                create function reject_user_profile_insert() returns trigger language plpgsql as $$
+                begin raise exception 'Simulated private profile insert failure'; end; $$
+                """);
+        jdbc.execute("""
+                create trigger reject_user_profile_insert before insert on user_profile
+                for each row when (new.entra_user_id is not null)
+                execute function reject_user_profile_insert()
+                """);
+        try {
+            when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, true));
+            var response = mvc.perform(authorizedPost(body())).andExpect(status().isInternalServerError())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.detail").value("The user could not be stored locally"))
+                    .andReturn().getResponse();
+            assertNoLocalUser();
+            assertThat(output.getOut()).contains("Identity retained; manual reconciliation required");
+            assertReconciliationLog(response, "local_persistence_or_commit");
+            assertThat(response.getContentAsString()).doesNotContain("insert into", "private profile", email);
+            verify(client).createUser(any());
+            verifyNoMoreInteractions(client);
+        } finally {
+            jdbc.execute("drop trigger reject_user_profile_insert on user_profile");
+            jdbc.execute("drop function reject_user_profile_insert()");
+        }
+    }
+
+    @Test
+    void firmDisabledDuringProvisioningIsRejectedBeforeLocalWrites(CapturedOutput output) throws Exception {
+        when(client.createUser(any())).thenAnswer(invocation -> {
+            jdbc.update("update firm set enabled=false where id=?", firm);
+            return new TechServicesClient.Identity(identity, true);
+        });
+
+        var response = mvc.perform(authorizedPost(body())).andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value("One or more request parameters failed validation."))
+                .andReturn().getResponse();
+
+        assertNoLocalUser();
+        assertThat(output.getOut()).contains("Identity retained; manual reconciliation required");
+        assertReconciliationLog(response, "firm_inactive_before_local_commit");
+        verify(client).createUser(any());
+    }
+
+    @Test
+    void deferredCommitFailureRollsBackBothRowsAndLogsRetainedIdentity(CapturedOutput output) throws Exception {
+        jdbc.execute("""
+                create function reject_user_creation_commit() returns trigger language plpgsql as $$
+                begin raise exception 'Simulated private commit failure'; end; $$
+                """);
+        jdbc.execute("""
+                create constraint trigger reject_user_creation_commit after insert on entra_user
+                deferrable initially deferred for each row when (new.entra_oid = '%s')
+                execute function reject_user_creation_commit()
+                """.formatted(identity));
+        try {
+            when(client.createUser(any())).thenReturn(new TechServicesClient.Identity(identity, true));
+            var response = mvc.perform(authorizedPost(body())).andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.detail").value("The user could not be stored locally"))
+                    .andReturn().getResponse();
+            assertNoLocalUser();
+            assertThat(output.getOut()).contains("Identity retained; manual reconciliation required");
+            assertReconciliationLog(response, "local_persistence_or_commit");
+            assertThat(response.getContentAsString()).doesNotContain("Simulated private commit failure");
+        } finally {
+            jdbc.execute("drop trigger reject_user_creation_commit on entra_user");
+            jdbc.execute("drop function reject_user_creation_commit()");
+        }
+    }
+
+    @Test
+    void concurrentCaseInsensitiveCreatesCommitOnlyOneLocalUserAndProfile() throws Exception {
+        var barrier = new CyclicBarrier(2);
+        var actor = (AuthenticatedEntraUser) converter.convert(decoder.decode(stubToken("user_data.admin"))).getPrincipal();
+        when(client.createUser(any())).thenAnswer(invocation -> {
+            barrier.await(10, TimeUnit.SECONDS);
+            return new TechServicesClient.Identity(UUID.randomUUID(), true);
+        });
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> createOrConflict(command(), actor));
+            var secondCommand = new CreateUserAccountCommand(email.toUpperCase(java.util.Locale.ROOT),
+                    "First", "Last", UserType.EXTERNAL, true, firm.toString());
+            var second = executor.submit(() -> createOrConflict(secondCommand, actor));
+            var results = java.util.List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS));
+            assertThat(results).extracting(CreateUserAccountResponse::success).containsExactlyInAnyOrder(true, false);
+            assertThat(results.getFirst().userEntraObjectId()).isEqualTo(results.getLast().userEntraObjectId());
+        }
+        assertThat(jdbc.queryForObject("select count(*) from entra_user where lower(email)=?", Integer.class, email)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                select count(*) from user_profile up join entra_user eu on eu.id=up.entra_user_id
+                where lower(eu.email)=?
+                """, Integer.class, email)).isEqualTo(1);
+    }
+
+    private CreateUserAccountResponse createOrConflict(CreateUserAccountCommand request, AuthenticatedEntraUser actor) {
+        try {
+            return handler.handle(request, actor);
+        } catch (UserAlreadyExistsException ex) {
+            return ex.result();
+        }
+    }
+
+    private void assertNoLocalUser() {
+        assertThat(jdbc.queryForObject("select count(*) from entra_user where lower(email)=?", Integer.class, email)).isZero();
+        assertThat(jdbc.queryForObject("""
+                select count(*) from user_profile up join entra_user eu on eu.id=up.entra_user_id
+                where lower(eu.email)=?
+                """, Integer.class, email)).isZero();
+    }
+
+    private void assertReconciliationLog(MockHttpServletResponse response, String step) {
+        assertThat(creationLogs.list).filteredOn(event ->
+                event.getMessage().equals("Identity retained; manual reconciliation required"))
+                .singleElement().satisfies(event -> {
+                    assertThat(event.getArgumentArray()).extracting(Object::toString)
+                            .contains("event=identity_reconciliation_required", "identityId=" + identity,
+                                    "step=" + step, "system=PostgreSQL");
+                    assertThat(event.getMDCPropertyMap()).containsEntry("correlationId", response.getHeader("X-Correlation-ID"));
+                    assertThat(event.getThrowableProxy()).isNull();
+                });
+    }
+}
