@@ -49,6 +49,7 @@ public class TechServicesHttpConfig {
                                 @Qualifier("getClientHttpRequestFactory") ClientHttpRequestFactory requestFactory) {
         return RestClient.builder()
                 .requestFactory(requestFactory)
+                .requestInterceptor(new CorrelationIdInterceptor())
                 .baseUrl(properties.getBaseUrl())
                 .defaultHeader("Content-Type", "application/json")
                 .defaultHeader("Accept", "application/json")

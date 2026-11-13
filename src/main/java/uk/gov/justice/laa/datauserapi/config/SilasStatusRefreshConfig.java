@@ -18,6 +18,7 @@ public class SilasStatusRefreshConfig implements AsyncConfigurer {
     @Bean
     public ThreadPoolTaskExecutor silasStatusRefreshExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setTaskDecorator(new MdcTaskDecorator());
         executor.setCorePoolSize(1);
         executor.setMaxPoolSize(1);
         executor.setQueueCapacity(0);
