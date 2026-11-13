@@ -1,7 +1,5 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
-import uk.gov.justice.laa.datauserapi.logging.ExceptionGroup;
-
 public class ScopeMissingException extends RuntimeException implements ExceptionGroup {
 
     @Override

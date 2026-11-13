@@ -179,9 +179,10 @@ for example `active_profile_not_found`. The supported reason enums are
 `TechServicesClientException.Reason`, and `CcmsNotificationException.Reason`.
 Project exceptions with typed reasons implement `LaaDataApiException<R>` and provide a non-null `reason()`.
 Logging reads this contract automatically; adding an exception requires no logging switch updates.
-The access-denied handling boundary extracts the typed `PolicyAuthorizationDenial` reason and passes it to
-the logging helper's generic enum overload for the same `exception_reason` field. The helper does not inspect
-security-specific exceptions; ordinary access denials retain their class-derived fallback reason.
+The access-denied handling boundary reads the typed reason of a policy denial through the `TypedDenial` contract
+(implemented by `PolicyAuthorizationDenial`, so the exception package does not depend on the security package)
+and passes it to the logging helper's generic enum overload for the same `exception_reason` field. The helper
+does not inspect security-specific exceptions; ordinary access denials retain their class-derived fallback reason.
 An ArchUnit rule rejects project exceptions exposing enum fields or enum-returning methods without
 the contract. Constructors reject null explicit reasons, and tests cover factories and legacy defaults.
 Exceptions without a typed reason use the same readable value as `exception_group`.
@@ -190,8 +191,6 @@ Repeated multi-firm conversion raises `UserAlreadyMultiFirmException`, with grou
 Each of these log events also includes `exception_group`. Every project exception declares a stable
 snake-case value through `ExceptionGroup.groupName()` (for example `user_profile_not_found`,
 `invalid_actor_context`, or `tech_services_client`). `LaaDataApiException` extends this contract.
-`ExceptionGroup` lives in the neutral `logging` package so security exceptions can share the contract
-without creating a dependency cycle with HTTP exception handling.
 An ArchUnit rule requires every concrete project exception to declare its own group, including subclasses.
 Renaming a project exception does not change its group. Only third-party exceptions derive groups
 from their class names, removing the `Exception` suffix and converting to snake case.

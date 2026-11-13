@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandler;
 import uk.gov.justice.laa.datauserapi.application.query.handler.QueryHandler;
 import uk.gov.justice.laa.datauserapi.exception.LaaDataApiException;
-import uk.gov.justice.laa.datauserapi.logging.ExceptionGroup;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionGroup;
 import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 import uk.gov.justice.laa.datauserapi.security.RequiresSystemAdminScope;

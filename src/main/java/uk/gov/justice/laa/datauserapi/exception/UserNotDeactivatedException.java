@@ -1,7 +1,6 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
 import java.util.UUID;
-import uk.gov.justice.laa.datauserapi.logging.ExceptionGroup;
 
 public class UserNotDeactivatedException extends RuntimeException implements ExceptionGroup {
 

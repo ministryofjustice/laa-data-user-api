@@ -8,7 +8,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationDeniedException;
-import uk.gov.justice.laa.datauserapi.logging.ExceptionGroup;
 
 import java.io.IOException;
 import java.io.StringWriter;

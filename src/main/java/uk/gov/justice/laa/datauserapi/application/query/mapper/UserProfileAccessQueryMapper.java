@@ -37,12 +37,18 @@ public class UserProfileAccessQueryMapper {
                 toFirmTypeRestrictions(role.getFirmTypeRestriction()));
     }
 
-    /** A role restricted to a single user type exposes that type; anything else is {@code BOTH}. */
+    /** A role restricted to exactly one user type exposes that type; no restriction or both types is {@code BOTH}. */
     private AppRoleUserType toUserTypeRestriction(UserType[] restrictions) {
-        if (restrictions == null || Arrays.stream(restrictions).distinct().count() != 1) {
+        boolean internal = permits(restrictions, UserType.INTERNAL);
+        boolean external = permits(restrictions, UserType.EXTERNAL);
+        if (internal == external) {
             return AppRoleUserType.BOTH;
         }
-        return AppRoleUserType.valueOf(restrictions[0].name());
+        return internal ? AppRoleUserType.INTERNAL : AppRoleUserType.EXTERNAL;
+    }
+
+    private boolean permits(UserType[] restrictions, UserType type) {
+        return restrictions != null && Arrays.asList(restrictions).contains(type);
     }
 
     private List<String> toFirmTypeRestrictions(FirmType[] restrictions) {

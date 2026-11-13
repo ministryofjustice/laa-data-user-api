@@ -1,4 +1,4 @@
-package uk.gov.justice.laa.datauserapi.logging;
+package uk.gov.justice.laa.datauserapi.exception;
 
 public interface ExceptionGroup {
 

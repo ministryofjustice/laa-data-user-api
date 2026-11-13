@@ -1,7 +1,6 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
 import net.logstash.logback.argument.StructuredArgument;
-import uk.gov.justice.laa.datauserapi.logging.ExceptionGroup;
 
 import java.util.Locale;
 

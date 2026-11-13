@@ -28,8 +28,6 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.justice.laa.datauserapi.contracts.response.FieldErrorDetail;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
-import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
-import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
 @Slf4j
 @RestControllerAdvice
@@ -301,8 +299,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleAccessDenied(
             AccessDeniedException ex,
             HttpServletRequest request) {
-        Optional<PolicyDenialReason> policyDenial = policyDenialReason(ex);
-        policyDenial.ifPresentOrElse(
+        Optional<Enum<?>> denialReason = denialReason(ex);
+        denialReason.ifPresentOrElse(
                 reason -> log.warn("Request access denied",
                         ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(reason),
                         kv("exceptionMessage", ex.getMessage()),
@@ -331,9 +329,9 @@ public class GlobalExceptionHandler {
         return problemResponse(HttpStatus.FORBIDDEN, problem);
     }
 
-    private static Optional<PolicyDenialReason> policyDenialReason(AccessDeniedException ex) {
+    private static Optional<Enum<?>> denialReason(AccessDeniedException ex) {
         return ex instanceof AuthorizationDeniedException denied
-                && denied.getAuthorizationResult() instanceof PolicyAuthorizationDenial denial
+                && denied.getAuthorizationResult() instanceof TypedDenial denial
                 ? Optional.of(denial.reason())
                 : Optional.empty();
     }

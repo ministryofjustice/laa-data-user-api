@@ -1,6 +1,6 @@
 package uk.gov.justice.laa.datauserapi.security.rbac;
 
-import uk.gov.justice.laa.datauserapi.logging.ExceptionGroup;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionGroup;
 
 public class InvalidAuthorizationConfigurationException extends IllegalStateException implements ExceptionGroup {
 
