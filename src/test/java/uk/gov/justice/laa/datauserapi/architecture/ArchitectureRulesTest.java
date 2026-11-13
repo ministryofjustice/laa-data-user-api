@@ -13,6 +13,8 @@ import uk.gov.justice.laa.datauserapi.application.command.controller.CommandCont
 import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandlerBoundaryFixtures;
 import uk.gov.justice.laa.datauserapi.application.command.service.CommandServiceBoundaryFixtures;
 import uk.gov.justice.laa.datauserapi.application.query.handler.QueryHandlerBoundaryFixtures;
+import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfileAppsHandler;
+import uk.gov.justice.laa.datauserapi.application.query.handler.QueryHandler;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.QueryRepositoryBoundaryFixtures;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 
@@ -116,6 +118,8 @@ class ArchitectureRulesTest {
                 importClasses(CommandHandlerBoundaryFixtures.IndependentCommandHandler.class));
         ArchitectureTest.query_handlers_must_not_depend_on_other_query_handlers.check(
                 importClasses(QueryHandlerBoundaryFixtures.IndependentQueryHandler.class));
+        ArchitectureTest.query_handlers_must_not_depend_on_other_query_handlers.check(
+                importClasses(GetUserProfileAppsHandler.class, QueryHandler.class));
     }
 
     @Test

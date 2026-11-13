@@ -92,6 +92,8 @@ jobs:
             | .techServicesTenantId = strenv(TECH_SERVICES_TENANT_ID)
             | .techServicesAzureClientSecret = strenv(TECH_SERVICES_AZURE_CLIENT_SECRET)
             | .techServicesBaseUrl = strenv(TECH_SERVICES_BASE_URL)
+            | .techServicesCallsEnabled = strenv(TECH_SERVICES_CALLS_ENABLED)
+            | .defaultUserAccessSecurityGroup = strenv(DEFAULT_USER_ACCESS_SECURITY_GROUP)
             | .allowlist.cidr = strenv(ALLOWLIST_CIDR)
             | .azureAppUri = strenv(AZURE_APP_URI)
           ' > deployment/helm/laa-data-user-api/values-secrets.generated.yaml
@@ -107,6 +109,8 @@ jobs:
           TECH_SERVICES_TENANT_ID: ${{ secrets.TECH_SERVICES_TENANT_ID }}
           TECH_SERVICES_AZURE_CLIENT_SECRET: ${{ secrets.TECH_SERVICES_AZURE_CLIENT_SECRET }}
           TECH_SERVICES_BASE_URL: ${{ secrets.TECH_SERVICES_BASE_URL }}
+          TECH_SERVICES_CALLS_ENABLED: ${{ vars.TECH_SERVICES_CALLS_ENABLED || 'false' }}
+          DEFAULT_USER_ACCESS_SECURITY_GROUP: ${{ vars.DEFAULT_USER_ACCESS_SECURITY_GROUP || '' }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           ALLOWLIST_CIDR: ${{ inputs.allowlist_cidr }}
           AZURE_APP_URI: ${{ secrets.AZURE_APP_URI }}

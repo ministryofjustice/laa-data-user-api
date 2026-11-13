@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -89,6 +90,7 @@ public class SecurityConfig {
         return (request, response, authException) -> {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+            response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
 
             String requestUri = request.getRequestURI();
             String originalUri = (String) request.getAttribute(RequestDispatcher.FORWARD_REQUEST_URI);

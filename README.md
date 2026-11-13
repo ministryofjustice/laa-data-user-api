@@ -56,6 +56,30 @@ names and SELECT queries; write methods, `@Modifying`, stored procedures, and na
 queries that cannot be inspected by the rule are prohibited. Regression tests
 exercise both allowed and rejected architecture examples.
 
+The user-profile access queries (`GET /api/v1/queries/user-profiles/{userProfileId}/app-roles`, `/apps`
+and `/offices`) are read-only and require the `user_data.read` scope. Each query message
+(`GetUserProfileAppRolesQuery`, `GetUserProfileAppsQuery`, `GetUserProfileOfficesQuery`) is annotated with
+`@PolicyGuarded(policies = CanViewProfilePolicy.class)` and handled by a `QueryHandler`, so RBAC authorises it
+before the handler and its read-only transaction run. `UserProfileVisibilityPolicyInputResolver` loads the target
+profile's facts with one lookup and the pure `CanViewProfilePolicy` applies the profile visibility rules: an
+external actor may always view their own profile, and may view other profiles in their own firm only if they hold
+`VIEW_EXTERNAL_USER`; an internal actor with `VIEW_INTERNAL_USER` may view internal profiles, and an internal
+actor with `VIEW_EXTERNAL_USER` may view external profiles. The internal rules match
+`QueryAuthorisationService.canViewProfile` (kept in step by a test). The external same-firm rule is deliberately
+stricter than the profile detail queries, which let any external actor view profiles in their own firm without a
+permission. Being internal alone is not enough: per the SiLAS roles
+matrix, External User Manager and External User Admin are internal roles without `VIEW_INTERNAL_USER`. A missing
+profile and a profile the caller cannot view both return the same generic `403` (`application/problem+json`, detail
+"You do not possess the required scopes or permissions to perform this operation."); the `title` and `detail`
+carry no profile identifier (`instance` echoes the request path, as for every error response). The denial reason
+(`TARGET_PROFILE_NOT_FOUND` or `TARGET_PROFILE_NOT_VISIBLE`) appears only in the server-side log. An actor with no
+usable active profile (`ACTOR_NO_ACTIVE_PROFILE`) and a token without the read scope still return `403`.
+All data is selected by the requested profile ID, not by the owning account. `/app-roles` accepts optional
+`app_id` (internal SiLAS app ID) and `appEntraClientId` filters; `/apps` returns distinct enabled applications
+derived from the assigned roles; `/offices` returns every office of the profile's firm when the profile has
+unrestricted office access, otherwise only its assigned offices belonging to that firm. Results are not
+paginated and are capped at 500 roles, 100 applications and 100 offices, ordered deterministically.
+
 Query service, handler, and controller results are checked recursively for entity
 leakage through collections, wrappers, DTO fields, and projection accessors.
 Tech Services calls intentionally precede database updates; this ordering is unchanged.
@@ -70,7 +94,10 @@ intercepts `handle` methods on `AuthorizationEntryPoint` implementations whose m
 has `@RequiresPermission` or `@PolicyGuarded`;
 it runs before the handler, including before a handler's transaction is opened. A denial raises
 Spring Security's `AccessDeniedException` and is returned as HTTP 403 by the security/exception
-handling layer.
+handling layer. For policy denials, the manager returns a `PolicyAuthorizationDenial` result, which Spring
+Security carries on the resulting `AuthorizationDeniedException`. `GlobalExceptionHandler` returns the same
+generic 403 for missing and inaccessible profiles. Its WARN log includes the lowercase policy outcome as
+`exception_reason`, alongside `exception_group=authorization_denied` and the existing enum-valued `reasonCode`.
 
 Missing firms raise `FirmNotFoundException` on both command and query paths and retain the
 standard HTTP 404 Problem Detail response.
@@ -168,8 +195,24 @@ requests and SQS messages are not covered by this HTTP interceptor.
 for example `active_profile_not_found`. The supported reason enums are
 `UserProfileNotFoundReason`, `InvalidActorContextReason`, `InvalidRequestException.Reason`,
 `TechServicesClientException.Reason`, and `CcmsNotificationException.Reason`.
+User creation failures use explicit `CreateUserException.Reason` values rather than deriving outcomes from HTTP
+status codes. Their handling-boundary logs include `exception_group=user_creation` and `exception_reason`;
+client Problem Details use fixed safe messages, never exception diagnostics. Local duplicate users retain the
+creation endpoint's JSON 409 response containing existing IDs, after its internal-actor and create-permission checks.
+When `TECH_SERVICES_CALLS_ENABLED=false`, user creation returns HTTP 503 without creating a simulated
+identity or persisting local account/profile records.
+Creation lookups use Spring Data `@Query` DTO projections, limited to one result with active profiles first
+and profile ID as a deterministic tie-breaker. The normalised email advisory lock remains a native PostgreSQL
+query held within the local persistence transaction.
+Provisioning failures are logged only at the HTTP handling boundary. If a local write fails after provisioning,
+a separate `event=identity_reconciliation_required` records the retained identity and reconciliation step without
+duplicating the exception stack trace. Creation events use structured fields and the request's MDC `correlationId`.
 Project exceptions with typed reasons implement `LaaDataApiException<R>` and provide a non-null `reason()`.
 Logging reads this contract automatically; adding an exception requires no logging switch updates.
+The access-denied handling boundary reads the typed reason of a policy denial through the `TypedDenial` contract
+(implemented by `PolicyAuthorizationDenial`, so the exception package does not depend on the security package)
+and passes it to the logging helper's generic enum overload for the same `exception_reason` field. The helper
+does not inspect security-specific exceptions; ordinary access denials retain their class-derived fallback reason.
 An ArchUnit rule rejects project exceptions exposing enum fields or enum-returning methods without
 the contract. Constructors reject null explicit reasons, and tests cover factories and legacy defaults.
 Exceptions without a typed reason use the same readable value as `exception_group`.

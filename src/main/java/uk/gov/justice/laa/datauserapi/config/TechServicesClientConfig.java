@@ -1,5 +1,6 @@
 package uk.gov.justice.laa.datauserapi.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -25,8 +26,13 @@ public class TechServicesClientConfig {
     @ConditionalOnProperty(value = "app.enable.tech.services.call", havingValue = "true", matchIfMissing = true)
     public TechServicesClient liveTechServicesClient(AccessTokenProvider tokenProvider, TechServicesApi api,
                                                     TechServicesResultMapper mapper, EntraOidValidator validator,
-                                                    TechServicesClientProperties properties) {
-        return new LiveTechServicesClient(tokenProvider, api, mapper, validator, properties.unit());
+                                                    TechServicesClientProperties properties,
+                                                    @Value("${app.tech.services.verification-method:activation_code_email}")
+                                                    String verificationMethod,
+                                                    @Value("${app.laa.default.user.access.security.group:}")
+                                                    String defaultSecurityGroup) {
+        return new LiveTechServicesClient(
+                tokenProvider, api, mapper, validator, properties.unit(), verificationMethod, defaultSecurityGroup);
     }
 
     @Bean

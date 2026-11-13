@@ -48,7 +48,8 @@ class LiveTechServicesClientTest {
     @BeforeEach
     void setUp() {
         client = new LiveTechServicesClient(accessTokenProvider, techServicesApi,
-                new TechServicesResultMapper(new ObjectMapper()), new EntraOidValidator(), "test-unit");
+                new TechServicesResultMapper(new ObjectMapper()), new EntraOidValidator(),
+                "test-unit", "activation_code_email", "test-group");
         user = new EntraUserDto();
         user.setId("local-id");
         user.setEntraOid("user-123");
