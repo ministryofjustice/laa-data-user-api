@@ -115,15 +115,25 @@ public class EntraUser extends AuditableEntity {
     private Set<UserProfile> userProfiles;
 
     public void reactivate(String actorId) {
+        this.active = true;
         this.userAccountStatus = UserAccountStatus.ACTIVE;
+        setActive(true);
         setLastModified(LocalDateTime.now());
         setLastModifiedBy(actorId);
         setDeactivatedBy(null);
         setDeactivationType(null);
     }
 
+    public void convertToMultiFirm(String actorId) {
+        this.multiFirmUser = true;
+        setLastModified(LocalDateTime.now());
+        setLastModifiedBy(actorId);
+    }
+
     public void deactivate(String actorId, DeactivationType deactivationType) {
+        this.active = false;
         this.userAccountStatus = UserAccountStatus.DEACTIVATED;
+        setActive(false);
         setLastModified(LocalDateTime.now());
         setDeactivatedBy(UUID.fromString(actorId));
         setDeactivationType(deactivationType);

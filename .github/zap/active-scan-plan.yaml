@@ -1,0 +1,107 @@
+env:
+  contexts:
+    - name: data-user-api
+      urls:
+        - http://localhost:8080
+      includePaths:
+        - http://localhost:8080/api/v1/me.*
+        - http://localhost:8080/api/v1/queries/.*
+  parameters:
+    failOnError: true
+    failOnWarning: false
+    progressToStdout: true
+
+jobs:
+  - type: passiveScan-config
+    parameters:
+      scanOnlyInScope: true
+      maxAlertsPerRule: 10
+
+  - type: replacer
+    rules:
+      - description: Local synthetic API token
+        matchType: req_header
+        matchString: Authorization
+        matchRegex: false
+        replacementString: "Bearer ${ZAP_AUTH_TOKEN}"
+        initiators: []
+
+  - type: openapi
+    parameters:
+      apiFile: /zap/wrk/openapi-read-only.json
+      targetUrl: http://localhost:8080
+      context: data-user-api
+
+  # Fixture-valued seeds also cover implemented routes missing from the specification.
+  - type: requestor
+    requests:
+      - url: http://localhost:8080/api/v1/me
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/firms
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/firms/search?query=zap
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/users
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/users/${ZAP_TEST_OID}/status
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/audit/users/${ZAP_TEST_OID}/history
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/users/${ZAP_TEST_OID}
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/users/${ZAP_TEST_OID}/profiles
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/users/${ZAP_TEST_OID}/active-profile
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/firms/${ZAP_TEST_FIRM_CODE}
+        method: GET
+      - url: http://localhost:8080/api/v1/queries/firms/${ZAP_TEST_FIRM_CODE}/offices
+        method: GET
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 5
+
+  - type: activeScan
+    parameters:
+      context: data-user-api
+      maxRuleDurationInMins: 5
+      maxScanDurationInMins: 45
+      threadPerHost: 4
+    policyDefinition:
+      defaultStrength: Medium
+      defaultThreshold: Medium
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 5
+
+  - type: report
+    parameters:
+      template: traditional-html
+      reportDir: /zap/wrk
+      reportFile: zap-active-report
+      reportTitle: Data user API active scan
+    risks:
+      - high
+      - medium
+      - low
+
+  - type: report
+    parameters:
+      template: traditional-json
+      reportDir: /zap/wrk
+      reportFile: zap-active-report
+      reportTitle: Data user API active scan
+    risks:
+      - high
+      - medium
+      - low
+
+  # Export coverage last so it cannot prevent report generation.
+  - type: export
+    parameters:
+      context: data-user-api
+      type: yaml
+      source: sitestree
+      fileName: /zap/wrk/sites-tree.yaml

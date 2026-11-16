@@ -5,7 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
 import java.util.Optional;
 
@@ -20,7 +20,7 @@ public class UserAccountQueryMapper {
 
     public EntraUserDto toDto(Optional<EntraUser> user, String entraOid) {
         return modelMapper.map(user.orElseThrow(
-                () -> new ResourceNotFoundException("User not found: " + entraOid)), EntraUserDto.class);
+                () -> new UserNotFoundException(entraOid)), EntraUserDto.class);
     }
 
     public Page<EntraUserDto> toPage(Page<EntraUser> users) {

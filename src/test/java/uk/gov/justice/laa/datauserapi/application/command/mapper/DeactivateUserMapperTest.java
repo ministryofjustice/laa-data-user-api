@@ -70,7 +70,7 @@ class DeactivateUserMapperTest {
                     .description("User contract terminated")
                     .build();
 
-            when(deactivateUserReasonRepository.findByName(reasonEnum.name()))
+            when(deactivateUserReasonRepository.findFirstByEntraDescription(reasonEnum.name()))
                     .thenReturn(Optional.of(lookupEntity));
 
             LocalDateTime beforeCall = LocalDateTime.now();
@@ -88,7 +88,7 @@ class DeactivateUserMapperTest {
                     .isNotNull()
                     .isCloseTo(beforeCall, within(2, ChronoUnit.SECONDS));
 
-            verify(deactivateUserReasonRepository).findByName(reasonEnum.name());
+            verify(deactivateUserReasonRepository).findFirstByEntraDescription(reasonEnum.name());
         }
 
         @Test
@@ -108,15 +108,15 @@ class DeactivateUserMapperTest {
                     .deactivateReason(reasonEnum)
                     .build();
 
-            when(deactivateUserReasonRepository.findByName(reasonEnum.name()))
+            when(deactivateUserReasonRepository.findFirstByEntraDescription(reasonEnum.name()))
                     .thenReturn(Optional.empty());
 
             // Act & Assert
             assertThatThrownBy(() -> mapper.toAuditEntity(entraUser, command.deactivateReason(), actorId))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(uk.gov.justice.laa.datauserapi.exception.ReferenceDataNotFoundException.class)
                     .hasMessage("Deactivate reason not found: " + reasonEnum.name());
 
-            verify(deactivateUserReasonRepository).findByName(reasonEnum.name());
+            verify(deactivateUserReasonRepository).findFirstByEntraDescription(reasonEnum.name());
         }
     }
 
@@ -206,9 +206,9 @@ class DeactivateUserMapperTest {
                     .build();
 
             // Act & Assert
-            // DeactivateUserReason.valueOf(null) throws NullPointerException, caught as non-matching or bubbling
             assertThatThrownBy(() -> mapper.toDeactivateUserCommand(request))
-                    .isInstanceOf(Exception.class);
+                    .isInstanceOf(uk.gov.justice.laa.datauserapi.exception.InvalidRequestException.class)
+                    .hasMessage("Invalid deactivate reason: null");
 
             verifyNoInteractions(deactivateUserReasonRepository);
         }

@@ -1,6 +1,9 @@
 package uk.gov.justice.laa.datauserapi.application.query.mapper;
 
 import org.springframework.stereotype.Component;
+import org.springframework.data.domain.Page;
+import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
+import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryView;
@@ -11,7 +14,7 @@ import uk.gov.justice.laa.datauserapi.dto.AppRoleDto;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.OfficeDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
-import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.AppRoleUserType;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
@@ -23,12 +26,17 @@ import java.util.UUID;
 @Component
 public class UserViewMapper {
 
+    public UserAccountSummaryPage mapToSummaryPage(Page<EntraUserDto> page) {
+        return new UserAccountSummaryPage(
+                page.getContent().stream().map(this::mapToUserAccountSummaryView).toList(),
+                new PageMetadata(page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages()));
+    }
+
     public UserView mapToUserView(EntraUserDto user) {
         UserProfileDto activeProfile = user.getUserProfiles().stream()
                 .filter(UserProfileDto::isActiveProfile)
                 .findFirst()
-                .orElseThrow(() -> new InvalidActorContextException(
-                        "No active profile found for user: " + user.getEntraOid()));
+                .orElseThrow(() -> UserProfileNotFoundException.activeProfileForUser(user.getEntraOid()));
 
         UserAccountSummaryView userAccount = new UserAccountSummaryView(
                 user.getEntraOid(),

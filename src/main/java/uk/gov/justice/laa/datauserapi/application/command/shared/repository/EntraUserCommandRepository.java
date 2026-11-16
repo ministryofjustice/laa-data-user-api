@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 
 import java.util.List;
@@ -18,21 +17,32 @@ import java.util.UUID;
 public interface EntraUserCommandRepository extends JpaRepository<EntraUser, UUID> {
 
     @Query("""
-        SELECT DISTINCT u.id
+        SELECT DISTINCT u
         FROM EntraUser u
         JOIN u.userProfiles p
         WHERE p.firm is not null
           AND p.firm.code = :firmCode
-          AND p.activeProfile = true
-          AND u.userAccountStatus = :status
-          AND u.multiFirmUser = false
         ORDER BY u.id
         """)
-    List<UUID> findActiveSingleFirmUserIdsByFirmCode(
-            @Param("firmCode") String firmCode,
-            @Param("status") UserAccountStatus status);
+    List<EntraUser> findUsersByFirmCode(@Param("firmCode") String firmCode);
 
-    Optional<EntraUser> findByEntraOid(String entraOid);
+    @Query("""
+        SELECT u.entraOid FROM EntraUser u
+        WHERE EXISTS (
+            SELECT p.id FROM UserProfile p
+            WHERE p.entraUser = u AND p.firm.code = :firmCode
+        )
+        ORDER BY u.id
+        """)
+    List<String> findUserEntraOidsByFirmCode(@Param("firmCode") String firmCode);
+
+    // Entra OIDs are matched case-insensitively because UUID.toString() always yields lowercase.
+    @Query("SELECT u FROM EntraUser u WHERE lower(u.entraOid) = lower(:entraOid)")
+    Optional<EntraUser> findByEntraOid(@Param("entraOid") String entraOid);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM EntraUser u WHERE lower(u.entraOid) = lower(:entraOid)")
+    Optional<EntraUser> findByEntraOidForUpdate(@Param("entraOid") String entraOid);
 
     boolean existsByEmailIgnoreCaseAndIdNot(String email, UUID id);
 

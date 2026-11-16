@@ -23,6 +23,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RestController;
 import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandler;
+import uk.gov.justice.laa.datauserapi.application.query.handler.QueryHandler;
+import uk.gov.justice.laa.datauserapi.exception.LaaDataApiException;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionGroup;
 import uk.gov.justice.laa.datauserapi.security.RequiresAdminScope;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
 import uk.gov.justice.laa.datauserapi.security.RequiresSystemAdminScope;
@@ -30,7 +33,12 @@ import uk.gov.justice.laa.datauserapi.security.RequiresSystemAdminScope;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import uk.gov.justice.laa.datauserapi.application.query.queryuserprofileaccess.UserProfileAccessQuery;
+import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyGuarded;
+import uk.gov.justice.laa.datauserapi.security.rbac.RequiresPermission;
 
+import static com.tngtech.archunit.base.DescribedPredicate.not;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
@@ -43,6 +51,41 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
         importOptions = ImportOption.DoNotIncludeTests.class
 )
 class ArchitectureTest {
+
+    @ArchTest
+    static final ArchRule project_exceptions_must_declare_explicit_groups = classes()
+            .that().areAssignableTo(Throwable.class)
+            .and().doNotHaveModifier(JavaModifier.ABSTRACT)
+            .should(new ArchCondition<>("implement ExceptionGroup and declare their own groupName") {
+                @Override
+                public void check(JavaClass item, ConditionEvents events) {
+                    boolean declaresGroup = item.getMethods().stream()
+                            .anyMatch(method -> method.getName().equals("groupName")
+                                    && method.getRawParameterTypes().isEmpty()
+                                    && method.getRawReturnType().isEquivalentTo(String.class)
+                                    && method.getModifiers().contains(JavaModifier.PUBLIC)
+                                    && !method.getModifiers().contains(JavaModifier.STATIC));
+                    if (!item.isAssignableTo(ExceptionGroup.class) || !declaresGroup) {
+                        events.add(SimpleConditionEvent.violated(item,
+                                item.getName() + " must implement ExceptionGroup and declare its own groupName"));
+                    }
+                }
+            });
+
+    @ArchTest
+    static final ArchRule exceptions_with_enum_reasons_must_implement_laa_data_api_exception = classes()
+            .that().areAssignableTo(Throwable.class)
+            .should(new ArchCondition<>("implement LaaDataApiException when exposing enum facts") {
+                @Override
+                public void check(JavaClass item, ConditionEvents events) {
+                    boolean hasEnum = item.getAllFields().stream().anyMatch(field -> field.getRawType().isEnum())
+                            || item.getAllMethods().stream().anyMatch(method -> method.getRawReturnType().isEnum());
+                    if (hasEnum && !item.isAssignableTo(LaaDataApiException.class)) {
+                        events.add(SimpleConditionEvent.violated(item,
+                                item.getName() + " exposes enum facts but does not implement LaaDataApiException"));
+                    }
+                }
+            });
 
     private static final String COMMAND_PACKAGE = "..application.command..";
     private static final String QUERY_PACKAGE = "..application.query..";
@@ -67,6 +110,39 @@ class ArchitectureTest {
             .because("In CQRS Lite, Query side must not depend on Command execution or state modification");
 
     @ArchTest
+    static final ArchRule command_handlers_must_not_depend_on_other_command_handlers = noClasses()
+            .that().resideInAPackage("..application.command.handler..")
+            .and().doNotHaveSimpleName("CommandHandler")
+            .should().dependOnClassesThat(JavaClass.Predicates.resideInAPackage("..application.command.handler..")
+                    .and(not(JavaClass.Predicates.simpleName("CommandHandler"))))
+            .because("Command handlers are entry points; shared workflows belong in services");
+
+    @ArchTest
+    static final ArchRule query_handlers_must_not_depend_on_other_query_handlers = noClasses()
+            .that().resideInAPackage("..application.query.handler..")
+            .and().doNotHaveFullyQualifiedName(QueryHandler.class.getName())
+            .should().dependOnClassesThat(
+                    JavaClass.Predicates.resideInAPackage("..application.query.handler..")
+                            .and(not(JavaClass.Predicates.equivalentTo(QueryHandler.class))))
+            .because("Query handlers are entry points; shared workflows belong in services");
+
+    @ArchTest
+    static final ArchRule query_handlers_must_not_access_repositories = noClasses()
+            .that().resideInAPackage("..application.query.handler..")
+            .should().dependOnClassesThat().resideInAPackage("..application.query.shared.repository..")
+            .because("Query handlers delegate reads to query services rather than access repositories directly");
+
+    @ArchTest
+    static final ArchRule services_must_not_depend_on_handlers_or_controllers = noClasses()
+            .that().resideInAnyPackage("..application.command.service..", "..application.query.service..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                    "..application.command.handler..",
+                    "..application.query.handler..",
+                    "..application.command.controller..",
+                    "..application.query.controller..")
+            .because("Services implement workflows below the handler and controller entry points");
+
+    @ArchTest
     static final ArchRule query_side_must_not_access_external_mutation_clients = noClasses()
             .that().resideInAPackage(QUERY_PACKAGE)
             .should().dependOnClassesThat().resideInAPackage(CLIENT_PACKAGE)
@@ -81,6 +157,7 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule query_services_and_handlers_must_be_read_only = classes()
             .that().resideInAnyPackage("..application.query.service..", "..application.query.handler..")
+            .and().areNotInterfaces()
             .should(declareReadOnlyTransaction());
 
     @ArchTest
@@ -117,6 +194,47 @@ class ArchitectureTest {
             .should().dependOnClassesThat().resideInAPackage("org.modelmapper..")
             .because("Entity mapping belongs in query mappers, not services");
 
+    @ArchTest
+    static final ArchRule query_side_entity_access_is_confined_to_mappers_and_repositories = noClasses()
+            .that().resideInAPackage(QUERY_PACKAGE)
+            .and().resideOutsideOfPackages("..application.query.mapper..", "..application.query.shared.repository..")
+            .should().dependOnClassesThat().resideInAPackage(ENTITY_PACKAGE)
+            .because("Query handlers, services, controllers and view mappers must work on DTOs/views, not entities");
+
+    @ArchTest
+    static final ArchRule command_side_entity_access_is_confined_to_write_model_layers = noClasses()
+            .that().resideInAPackage(COMMAND_PACKAGE)
+            .and().resideOutsideOfPackages(
+                    "..application.command.handler..",
+                    "..application.command.service..",
+                    "..application.command.mapper..",
+                    "..application.command.shared.repository..")
+            .should().dependOnClassesThat().resideInAPackage(ENTITY_PACKAGE)
+            .because("Commands, controllers and policies must not couple to persistence entities");
+
+    @ArchTest
+    static final ArchRule command_handlers_must_declare_a_transaction_boundary = methods()
+            .that().areDeclaredInClassesThat().implement(CommandHandler.class)
+            .and().haveName("handle")
+            .and().arePublic()
+            .should().beAnnotatedWith(Transactional.class)
+            .orShould().beDeclaredInClassesThat().areAnnotatedWith(Transactional.class)
+            .because("Every write path must state its transaction boundary explicitly");
+
+    @ArchTest
+    static final ArchRule every_command_must_declare_its_authorisation = classes()
+            .that().resideInAPackage(COMMAND_PACKAGE)
+            .and().haveSimpleNameEndingWith("Command")
+            .should().beAnnotatedWith(RequiresPermission.class)
+            .orShould().beAnnotatedWith(PolicyGuarded.class)
+            .because("Every command must declare a required permission (or explicit policies) so RBAC cannot be skipped");
+
+    @ArchTest
+    static final ArchRule user_profile_access_queries_must_declare_their_authorisation = classes()
+            .that().implement(UserProfileAccessQuery.class)
+            .should().beAnnotatedWith(PolicyGuarded.class)
+            .because("Profile access queries are authorised by policy before the handler runs, so a new one cannot skip it");
+
     // =========================================================================
     // 2. Layer & Access Boundary Rules
     // =========================================================================
@@ -134,6 +252,7 @@ class ArchitectureTest {
                     "..application.command.handler..",
                     "..application.command.service..",
                     "..application.command.mapper..",
+                    "..application.command.useraccount..",
                     "..application.query.service..",
                     "..application.query.handler..",
                     "..repository..",
@@ -159,10 +278,12 @@ class ArchitectureTest {
             .layer("CommandMapper").definedBy("..application.command.mapper..")
             .layer("CommandService").definedBy("..application.command.service..")
             .layer("CommandRepository").definedBy("..application.command.shared.repository..")
+            .layer("CommandAction").definedBy("..application.command.useraccount..")
 
             .whereLayer("CommandController").mayNotBeAccessedByAnyLayer()
-            .whereLayer("CommandHandler").mayOnlyBeAccessedByLayers("CommandController")
-            .whereLayer("CommandRepository").mayOnlyBeAccessedByLayers("CommandHandler", "CommandService", "CommandMapper");
+            .whereLayer("CommandHandler").mayOnlyBeAccessedByLayers("CommandController", "CommandAction")
+            .whereLayer("CommandRepository").mayOnlyBeAccessedByLayers(
+                    "CommandHandler", "CommandService", "CommandMapper", "CommandAction");
 
     // =========================================================================
     // 4. Query Side Structural Layering
@@ -178,8 +299,9 @@ class ArchitectureTest {
             .layer("Authorisation").definedBy("..authorisation..")
 
             .whereLayer("QueryController").mayNotBeAccessedByAnyLayer()
+            .whereLayer("QueryHandler").mayOnlyBeAccessedByLayers("QueryController")
             .whereLayer("QueryService").mayOnlyBeAccessedByLayers("QueryController", "QueryHandler")
-            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation", "QueryHandler");
+            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation");
 
     // =========================================================================
     // 5. Naming Conventions & Stereotype Annotations
@@ -201,6 +323,26 @@ class ArchitectureTest {
             .andShould().beAnnotatedWith(Component.class);
 
     @ArchTest
+    static final ArchRule authorization_policies_must_reside_in_policy_package = classes()
+            .that().implement(AuthorizationPolicy.class)
+            .should().resideInAPackage("..application..policy..")
+            .andShould().beAnnotatedWith(Component.class)
+            .andShould().haveSimpleNameEndingWith("Policy")
+            .because("Fine-grained authorisation policies belong to one side of CQRS and are resolved as Spring beans");
+
+    @ArchTest
+    static final ArchRule reactivation_hierarchy_evaluates_facts_without_persistence = noClasses()
+            .that().haveSimpleName("ReactivationHierarchyPolicy")
+            .should().dependOnClassesThat().resideInAnyPackage("..service..", "..repository..", "..entity..")
+            .because("Trusted deactivation facts are loaded by the policy input resolver");
+
+    @ArchTest
+    static final ArchRule bulk_deactivation_does_not_depend_on_individual_command = noClasses()
+            .that().haveSimpleNameStartingWith("BulkDeactivateFirmUsers")
+            .should().dependOnClassesThat().haveSimpleName("DeactivateUserCommand")
+            .because("Bulk and individual commands have separate authorization boundaries");
+
+    @ArchTest
     static final ArchRule services_must_reside_in_service_package = classes()
             .that().haveSimpleNameEndingWith("Service")
             .should().resideInAPackage("..service..")
@@ -218,6 +360,22 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule no_autowired_field_injection_should_be_used = noFields()
             .should().beAnnotatedWith(Autowired.class);
+
+    @ArchTest
+    static final ArchRule application_code_must_use_specific_exceptions = classes()
+            .that().areNotAssignableTo(Throwable.class)
+            .should(new ArchCondition<>("use specific exceptions rather than Exception or RuntimeException") {
+                @Override
+                public void check(JavaClass item, ConditionEvents events) {
+                    item.getConstructorCallsFromSelf().forEach(call -> {
+                        if (call.getTargetOwner().isEquivalentTo(Exception.class)
+                                || call.getTargetOwner().isEquivalentTo(RuntimeException.class)) {
+                            events.add(SimpleConditionEvent.violated(call, call.getDescription()
+                                    + " must construct a specific exception type"));
+                        }
+                    });
+                }
+            });
 
 
     @ArchTest

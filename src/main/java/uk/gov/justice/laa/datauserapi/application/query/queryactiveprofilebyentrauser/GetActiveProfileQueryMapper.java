@@ -4,12 +4,10 @@ import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.OfficeView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
-import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
 import uk.gov.justice.laa.datauserapi.dto.AppRoleDto;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.OfficeDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
-import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 
 import java.util.Arrays;
 import java.util.List;
@@ -47,24 +45,6 @@ public class GetActiveProfileQueryMapper {
                 roles,
                 offices
         );
-    }
-
-    public List<UserProfileSummaryView> mapToProfileSummaryList(EntraUser user) {
-        return user.getUserProfiles().stream()
-                .map(profile -> new UserProfileSummaryView(
-                        profile.getId(),
-                        profile.isActiveProfile(),
-                        profile.getUserType(),
-                        user.getEmail(),
-                        user.getFirstName() + " " + user.getLastName(),
-                        profile.getFirm() != null ? profile.getFirm().getName() : "",
-                        profile.getFirm() != null ? profile.getFirm().getId().toString() : "",
-                        user.isMultiFirmUser(),
-                        user.getUserAccountStatus(),
-                        profile.getUserProfileStatus(),
-                        !profile.getAppRoles().isEmpty()
-                ))
-                .toList();
     }
 
     private AppRoleView mapAppRole(AppRoleDto role) {

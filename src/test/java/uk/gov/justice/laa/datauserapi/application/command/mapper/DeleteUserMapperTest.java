@@ -1,11 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.command.mapper;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import uk.gov.justice.laa.datauserapi.application.command.shared.repository.DeleteUserReasonRepository;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeleteUserCommand;
 import uk.gov.justice.laa.datauserapi.contracts.domain.DeleteUserReason;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus;
@@ -16,25 +11,13 @@ import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
 class DeleteUserMapperTest {
 
-    @Mock
-    private DeleteUserReasonRepository repository;
-
-    private DeleteUserMapper mapper;
-
-    @BeforeEach
-    void setUp() {
-        mapper = new DeleteUserMapper(repository);
-    }
+    private final DeleteUserMapper mapper = new DeleteUserMapper();
 
     @Test
     void mapsRequestToCommand() {
@@ -54,10 +37,9 @@ class DeleteUserMapperTest {
         user.setId(id);
         user.setCreatedDate(created);
         var reason = DeleteUserReasonEntity.builder().code("LeftFirm").build();
-        when(repository.findByCode(DeleteUserReason.LeftFirm.name())).thenReturn(Optional.of(reason));
 
         UserAccountStatusAudit audit = mapper.toAuditEntity(user,
-                new DeleteUserCommand(UUID.randomUUID(), DeleteUserReason.LeftFirm), "actor");
+                reason, "actor");
 
         assertThat(audit.getUserAccountAuditStatus()).isEqualTo(UserAccountAuditStatus.DELETED);
         assertThat(audit.getEntraUserId()).isEqualTo(id);
@@ -67,17 +49,6 @@ class DeleteUserMapperTest {
         assertThat(audit.getUserName()).isEqualTo("John Doe");
         assertThat(audit.getDeleteUserReasonEntity()).isSameAs(reason);
         assertThat(audit.getDeletedUserCreatedDate()).isEqualTo(created);
-    }
-
-    @Test
-    void auditEntityFailsForUnknownReason() {
-        when(repository.findByCode(DeleteUserReason.LeftFirm.name())).thenReturn(Optional.empty());
-        EntraUser user = EntraUser.builder().build();
-        DeleteUserCommand command = new DeleteUserCommand(UUID.randomUUID(), DeleteUserReason.LeftFirm);
-
-        assertThatThrownBy(() -> mapper.toAuditEntity(user, command, "actor"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Delete reason not found");
     }
 
     @Test

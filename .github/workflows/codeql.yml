@@ -30,8 +30,6 @@ on:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    # Skip for Dependabot PRs - SAST on dependency bumps adds little; scheduled runs cover main.
-    if: ${{ github.actor != 'dependabot[bot]' }}
     # Runner size impacts CodeQL analysis time. To learn more, please see:
     #   - https://gh.io/recommended-hardware-resources-for-running-codeql
     #   - https://gh.io/supported-runners-and-hardware-resources
@@ -74,7 +72,7 @@ jobs:
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+      uses: github/codeql-action/init@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4.39.2
       with:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
@@ -94,16 +92,17 @@ jobs:
 
     - name: Build JAR
       if: matrix.build-mode == 'manual'
-      run: ./gradlew build
+      # Dependabot needs compilation for analysis, not secret-dependent tests or Sentry uploads.
+      run: ./gradlew build ${{ github.actor == 'dependabot[bot]' && '-x test -x sentryUploadSourceBundleJava' || '' }}
       env:
-        GITHUB_ACTOR: ${{ secrets.GITHUB_ACTOR }}
+        GITHUB_ACTOR: ${{ github.actor }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         SENTRY_ENVIRONMENT: ${{ vars.ENV_NAME }}
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+      uses: github/codeql-action/analyze@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4.39.2
       with:
         category: "/language:${{matrix.language}}"
         output: codeql-results

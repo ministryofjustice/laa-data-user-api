@@ -12,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeactivateUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeleteUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.ReactivateUserHandler;
+import uk.gov.justice.laa.datauserapi.application.command.controller.mapper.ConvertToMultiFirmCommandMapper;
+import uk.gov.justice.laa.datauserapi.application.command.handler.ConvertToMultiFirmHandler;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeactivateUserMapper;
 import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserDetailsHandler;
 import uk.gov.justice.laa.datauserapi.application.command.mapper.DeleteUserMapper;
@@ -64,6 +66,12 @@ class UserAccountCommandControllerTest {
     private DeleteUserMapper deleteUserMapper;
 
     @Mock
+    private ConvertToMultiFirmHandler convertToMultiFirmHandler;
+
+    @Mock
+    private ConvertToMultiFirmCommandMapper convertToMultiFirmCommandMapper;
+
+    @Mock
     private ReactivateUserRequest reactivateUserRequest;
 
     @Mock
@@ -90,7 +98,9 @@ class UserAccountCommandControllerTest {
                 updateUserDetailsHandler,
                 updateUserDetailsMapper,
                 deleteUserHandler,
-                deleteUserMapper
+                deleteUserMapper,
+                convertToMultiFirmHandler,
+                convertToMultiFirmCommandMapper
         );
     }
 

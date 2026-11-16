@@ -6,8 +6,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 @JsonTypeInfo(use = JsonTypeInfo.Id.DEDUCTION)
 @JsonSubTypes({
         @JsonSubTypes.Type(UpdateUserProfileOfficesRequest.class),
-        @JsonSubTypes.Type(UpdateOfficesUnrestrictedCommand.class)
+        @JsonSubTypes.Type(UpdateUserProfileOfficesUnrestrictedRequest.class)
 })
 public sealed interface UpdateOfficesRequest
-        permits UpdateUserProfileOfficesRequest, UpdateOfficesUnrestrictedCommand {
+        permits UpdateUserProfileOfficesRequest, UpdateUserProfileOfficesUnrestrictedRequest {
 }

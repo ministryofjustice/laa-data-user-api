@@ -3,8 +3,12 @@ package uk.gov.justice.laa.datauserapi.application.query.handler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import uk.gov.justice.laa.datauserapi.application.query.service.QueryAuthorisationService;
+import uk.gov.justice.laa.datauserapi.application.query.service.UserProfileDetailsService;
+import uk.gov.justice.laa.datauserapi.application.query.mapper.UserProfileQueryMapper;
+import uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyentrauser.GetActiveProfileQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.FirmType;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
@@ -28,6 +32,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class GetUserProfilesHandlerTest {
@@ -35,8 +42,8 @@ class GetUserProfilesHandlerTest {
     @Mock
     private UserProfileQueryRepository userProfileQueryRepository;
 
-    @Mock
-    private QueryAuthorisationService authorizationService;
+    @Spy
+    private QueryAuthorisationService authorizationService = new QueryAuthorisationService();
 
     private String actorOid;
     private String userEntraObjectId;
@@ -45,6 +52,26 @@ class GetUserProfilesHandlerTest {
     void setUp() {
         actorOid = UUID.randomUUID().toString();
         userEntraObjectId = UUID.randomUUID().toString();
+    }
+
+    @Test
+    void delegatesToProfileService() {
+        UserProfileDetailsService service = mock(UserProfileDetailsService.class);
+        AuthenticatedEntraUser actor = authenticatedTestUser(null);
+        List<UserProfileSummaryView> expected = List.of(mock(UserProfileSummaryView.class));
+        when(service.getProfiles(userEntraObjectId, actor)).thenReturn(expected);
+
+        assertThat(new GetUserProfilesHandler(service).handle(userEntraObjectId, actor)).isSameAs(expected);
+        verify(service).getProfiles(userEntraObjectId, actor);
+    }
+
+    @Test
+    void returnsEmptyListWhenRepositoryHasNoResult() {
+        AuthenticatedUserProfile profile = authenticatedUserProfile(UserType.INTERNAL, null, Set.of());
+        when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(userEntraObjectId))
+                .thenReturn(Optional.empty());
+
+        assertThat(handler().handle(userEntraObjectId, authenticatedTestUser(profile))).isEmpty();
     }
 
     @Test
@@ -57,7 +84,7 @@ class GetUserProfilesHandlerTest {
         when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(userEntraObjectId))
                 .thenReturn(Optional.of(List.of()));
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, authorizationService);
+        GetUserProfilesHandler handler = handler();
         List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).isEmpty();
@@ -79,11 +106,11 @@ class GetUserProfilesHandlerTest {
                 .thenReturn(Optional.of(List.of(profile)));
         when(authorizationService.canViewProfile(actorProfile, profile.userType(), profile.firmId())).thenReturn(true);
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, authorizationService);
+        GetUserProfilesHandler handler = handler();
         List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).userType()).isEqualTo(UserType.INTERNAL);
+        assertThat(result.getFirst().userType()).isEqualTo(UserType.INTERNAL);
     }
 
     @Test
@@ -107,7 +134,7 @@ class GetUserProfilesHandlerTest {
                 .thenReturn(Optional.of(List.of(profile)));
         when(authorizationService.canViewProfile(actorProfile, profile.userType(), profile.firmId())).thenReturn(false);
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, authorizationService);
+        GetUserProfilesHandler handler = handler();
         List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).isEmpty();
@@ -129,20 +156,37 @@ class GetUserProfilesHandlerTest {
                 .thenReturn(Optional.of(List.of(profile)));
         when(authorizationService.canViewProfile(actorProfile, profile.userType(), profile.firmId())).thenReturn(true);
 
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, authorizationService);
+        GetUserProfilesHandler handler = handler();
         List<UserProfileSummaryView> result = handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile));
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).userType()).isEqualTo(UserType.EXTERNAL);
+        assertThat(result.getFirst().userType()).isEqualTo(UserType.EXTERNAL);
     }
 
     @Test
     void throwsExceptionWhenActorHasNoActiveProfile() {
-        GetUserProfilesHandler handler = new GetUserProfilesHandler(userProfileQueryRepository, authorizationService);
+        GetUserProfilesHandler handler = handler();
 
         assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser(null)))
                 .isInstanceOf(InvalidActorContextException.class)
                 .hasMessageContaining("Actor has no active profile");
+        verifyNoInteractions(userProfileQueryRepository);
+    }
+
+    @Test
+    void rejectsUndeterminedActorTypeBeforeProfileLookup() {
+        AuthenticatedUserProfile profile = authenticatedUserProfile(null, null, Set.of());
+
+        assertThatThrownBy(() -> handler().handle(userEntraObjectId, authenticatedTestUser(profile)))
+                .isInstanceOf(InvalidActorContextException.class)
+                .hasMessage("Actor user type cannot be determined");
+        verifyNoInteractions(userProfileQueryRepository);
+    }
+
+    private GetUserProfilesHandler handler() {
+        return new GetUserProfilesHandler(new UserProfileDetailsService(
+                userProfileQueryRepository, authorizationService,
+                mock(UserProfileQueryMapper.class), mock(GetActiveProfileQueryMapper.class)));
     }
 
     private AuthenticatedUserProfile authenticatedUserProfile(UserType userType, UUID firmId, Set<Permission> permissions) {

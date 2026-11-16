@@ -59,4 +59,18 @@ public enum DeactivationType {
         this.displayName = displayName;
     }
 
+    public boolean isAtLeastAsPrivilegedAs(DeactivationType previous) {
+        return delegationLevel() >= (previous == null ? NONE.delegationLevel() : previous.delegationLevel());
+    }
+
+    private int delegationLevel() {
+        return switch (this) {
+            case NONE -> 0;
+            case SYNC -> 1;
+            case FIRM -> 2;
+            case LAA -> 3;
+            case PRIVILEGED -> 4;
+        };
+    }
+
 }

@@ -11,7 +11,7 @@ import uk.gov.justice.laa.datauserapi.application.query.shared.repository.EntraU
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserAccountQueryRepository;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserAccountQueryMapper;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
 import java.util.List;
 import java.util.UUID;
@@ -38,7 +38,7 @@ public class UserAccountQueryService {
 
     public UserAccountStatusView getUserStatus(UUID userEntraObjectId) {
         return userRepository.findStatusByUserEntraObjectId(String.valueOf(userEntraObjectId))
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userEntraObjectId));
+                .orElseThrow(() -> new UserNotFoundException(userEntraObjectId));
     }
 
     public EntraUserDto findByEntraOid(String entraOid) {

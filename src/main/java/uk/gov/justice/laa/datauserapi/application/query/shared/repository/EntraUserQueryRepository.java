@@ -63,7 +63,7 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
                     OR LOWER(u.email) LIKE LOWER(
                     CONCAT('%', :#{#criteria.emailQuery}, '%')))
 
-                AND (:#{#criteria.firmId} IS NULL OR up.firm.id = :#{#criteria.firmId})
+                AND (:#{#criteria.firmId} IS NULL OR up.firm.code = :#{#criteria.firmId})
 
                 AND (:#{#criteria.firm} IS NULL OR :#{#criteria.firm} = '' OR LOWER(f.name) LIKE LOWER(CONCAT('%', :#{#criteria.firm}, '%'))
                                 OR CAST(f.id AS STRING) LIKE CONCAT('%', :#{#criteria.firm}, '%'))
@@ -109,7 +109,7 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
                     OR :#{#criteria.emailQuery} = ''
                     OR LOWER(u.email) LIKE LOWER(CONCAT('%', :#{#criteria.emailQuery}, '%')))
 
-                AND (:#{#criteria.firmId} IS NULL OR up.firm.id = :#{#criteria.firmId})
+                AND (:#{#criteria.firmId} IS NULL OR up.firm.code = :#{#criteria.firmId})
 
                 AND (:#{#criteria.firm} IS NULL OR :#{#criteria.firm} = '' OR LOWER(f.name) LIKE LOWER(CONCAT('%', :#{#criteria.firm}, '%'))
                                  OR CAST(f.id AS STRING) LIKE CONCAT('%', :#{#criteria.firm}, '%'))

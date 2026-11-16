@@ -31,7 +31,7 @@ public record UserSearchCriteria(
         String firm,
 
         @BindParam("firm_id")
-        UUID firmId,
+        String firmId,
 
         @BindParam("app_id")
         UUID appId,

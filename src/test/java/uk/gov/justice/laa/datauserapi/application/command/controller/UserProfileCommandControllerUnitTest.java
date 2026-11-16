@@ -18,8 +18,8 @@ import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserProf
 import uk.gov.justice.laa.datauserapi.application.command.mapper.UpdateUserProfileOfficesMapper;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.UpdateUserProfileOfficesCommand;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.UpdateUserProfileUnrestrictedOfficesCommand;
-import uk.gov.justice.laa.datauserapi.contracts.request.UpdateOfficesUnrestrictedCommand;
 import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserProfileOfficesRequest;
+import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserProfileOfficesUnrestrictedRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
@@ -79,7 +79,7 @@ class UserProfileCommandControllerUnitTest {
     @Test
     void updateOffices_withUnrestrictedAccess_mapsAndDelegatesToUnrestrictedHandler() {
         UUID profileId = UUID.randomUUID();
-        UpdateOfficesUnrestrictedCommand request = new UpdateOfficesUnrestrictedCommand(profileId, true);
+        UpdateUserProfileOfficesUnrestrictedRequest request = new UpdateUserProfileOfficesUnrestrictedRequest(profileId, true);
         UpdateUserProfileUnrestrictedOfficesCommand command =
                 new UpdateUserProfileUnrestrictedOfficesCommand(profileId, true);
         CommandResult expected = CommandResult.success("unrestricted access updated");

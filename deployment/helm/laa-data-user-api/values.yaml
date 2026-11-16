@@ -6,6 +6,8 @@ techServicesAzureClientId: ""
 techServicesTenantId: ""
 techServicesAzureClientSecret: ""
 techServicesBaseUrl: ""
+techServicesCallsEnabled: false
+defaultUserAccessSecurityGroup: ""
 sentryEnvironment: "local"
 sentryDsn: ""
 # Deployed-environment default; override per-environment in values-<env>.yaml if ever
