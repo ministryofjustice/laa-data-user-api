@@ -5,10 +5,12 @@ import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserSearchService;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationEntryPoint;
 
 @Component
 @Transactional(readOnly = true)
-public class SearchUsersHandler {
+public class SearchUsersHandler implements QueryHandler<SearchUsersQuery, UserAccountSummaryPage>, AuthorizationEntryPoint {
 
     private final UserSearchService service;
 
@@ -16,7 +18,7 @@ public class SearchUsersHandler {
         this.service = service;
     }
 
-    public UserAccountSummaryPage handle(SearchUsersQuery query) {
-        return service.search(query);
+    public UserAccountSummaryPage handle(SearchUsersQuery query, AuthenticatedEntraUser actor) {
+        return service.search(query, actor);
     }
 }

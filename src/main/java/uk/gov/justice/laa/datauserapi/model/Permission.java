@@ -41,7 +41,8 @@ public enum Permission {
     RESEND_VERIFICATION_EMAIL,
     CAN_REQUEST_DELEGATE_ENABLE_USER,
     CAN_TRACK_DELEGATE_ACTIVATION_REQUESTS,
-    CAN_MANAGE_DELEGATE_ENABLE_USER;
+    CAN_MANAGE_DELEGATE_ENABLE_USER,
+    REINVITE_EXTERNAL_USER;
 
     public static final String[] ADMIN_PERMISSIONS = {
             VIEW_INTERNAL_USER.name(),
@@ -60,7 +61,7 @@ public enum Permission {
             DISABLE_EXTERNAL_USER.name(),
             ENABLE_EXTERNAL_USER.name(),
             EXPORT_AUDIT_DATA.name(),
-            VIEW_AUDIT_TABLE.name()
+            VIEW_AUDIT_TABLE.name(),
     };
 
     public static final String[] DELEGATE_FIRM_ACCESS_PERMISSIONS = {

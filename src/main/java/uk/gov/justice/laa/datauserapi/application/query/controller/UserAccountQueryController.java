@@ -64,14 +64,14 @@ public class UserAccountQueryController {
     @GetMapping("/users")
     public ResponseEntity<UserAccountSummaryPage> searchUsers(
             @Valid @ModelAttribute UserSearchCriteria criteria, @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        UserAccountSummaryPage readModel = searchUsersHandler.handle(new SearchUsersQuery(criteria, authenticatedUser.entraOid()));
+        UserAccountSummaryPage readModel = searchUsersHandler.handle(new SearchUsersQuery(criteria), authenticatedUser);
         return ResponseEntity.ok(readModel);
     }
 
     @GetMapping("/users/{userEntraObjectId}")
     public ResponseEntity<UserView> getUserAccount(
             @PathVariable String userEntraObjectId, @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        UserView readModel = getUserAccountHandler.handle(new GetUserAccountQuery(userEntraObjectId, authenticatedUser.entraOid()));
+        UserView readModel = getUserAccountHandler.handle(new GetUserAccountQuery(userEntraObjectId), authenticatedUser);
         return ResponseEntity.ok(readModel);
     }
 

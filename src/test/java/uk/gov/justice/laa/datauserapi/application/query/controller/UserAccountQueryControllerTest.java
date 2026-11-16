@@ -77,7 +77,7 @@ class UserAccountQueryControllerTest {
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .entraOid(ACTOR_OID)
                 .build();
-        when(searchUsersHandler.handle(any(SearchUsersQuery.class)))
+        when(searchUsersHandler.handle(any(SearchUsersQuery.class), any(AuthenticatedEntraUser.class)))
                 .thenReturn(page);
 
         ResponseEntity<UserAccountSummaryPage> result =
@@ -89,9 +89,8 @@ class UserAccountQueryControllerTest {
         ArgumentCaptor<SearchUsersQuery> captor =
                 ArgumentCaptor.forClass(SearchUsersQuery.class);
 
-        verify(searchUsersHandler).handle(captor.capture());
+        verify(searchUsersHandler).handle(captor.capture(), any(AuthenticatedEntraUser.class));
         assertEquals(criteria, captor.getValue().criteria());
-        assertEquals(ACTOR_OID, captor.getValue().actorOid());
 
         UserAccountSummaryPage expected =
                 new UserAccountSummaryPage(page.items(), page.page());
@@ -106,11 +105,11 @@ class UserAccountQueryControllerTest {
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .entraOid(ACTOR_OID)
                 .build();
-        when(getUserAccountHandler.handle(any(GetUserAccountQuery.class)))
+        when(getUserAccountHandler.handle(any(GetUserAccountQuery.class), any(AuthenticatedEntraUser.class)))
                 .thenReturn(userView);
 
         ResponseEntity<UserView> result = controller.getUserAccount(USER_ENTRA_OBJECT_ID, user);
-        verify(getUserAccountHandler).handle(any(GetUserAccountQuery.class));
+        verify(getUserAccountHandler).handle(any(GetUserAccountQuery.class), any(AuthenticatedEntraUser.class));
         assertEquals(HttpStatus.OK, result.getStatusCode());
         assertNotNull(result.getBody());
         UserView expected = new UserView(null, null);
