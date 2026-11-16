@@ -52,14 +52,16 @@ public class CcmsRoleSyncProfileService {
                     kv("profileId", id),
                     kv("actorEntraOid", actorOid));
             return new ProfileSyncResult(true,
-                    new CcmsSyncException(HttpStatus.BAD_GATEWAY, "A required CCMS identifier is missing."));
+                    new CcmsSyncException(HttpStatus.BAD_GATEWAY, CcmsSyncException.Reason.INVALID_PROFILE,
+                            "A required CCMS identifier is missing."));
         }
         Map<String, Set<String>> rolesByApp = profile.getAppRoles().stream()
                 .filter(AppRole::isLegacySync)
                 .collect(Collectors.groupingBy(role -> role.getApp().getEntraOid(),
                         Collectors.mapping(AppRole::getRoleIdentifier, Collectors.toSet())));
         CcmsSyncException failure = rolesByApp.isEmpty()
-                ? new CcmsSyncException(HttpStatus.BAD_GATEWAY, "No legacy-sync roles remain for a selected CCMS profile.")
+                ? new CcmsSyncException(HttpStatus.BAD_GATEWAY, CcmsSyncException.Reason.NO_SYNC_ROLES,
+                        "No legacy-sync roles remain for a selected CCMS profile.")
                 : null;
         for (var entry : rolesByApp.entrySet()) {
             try {

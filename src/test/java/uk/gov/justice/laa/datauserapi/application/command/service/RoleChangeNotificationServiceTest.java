@@ -1,7 +1,13 @@
 package uk.gov.justice.laa.datauserapi.application.command.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.slf4j.LoggerFactory;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,6 +17,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.http.HttpStatus;
 import software.amazon.awssdk.core.exception.ApiCallAttemptTimeoutException;
 import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
@@ -24,10 +33,12 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.exception.CcmsNotificationException;
 import uk.gov.justice.laa.datauserapi.exception.CcmsSyncException;
 
 import java.net.SocketTimeoutException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -37,7 +48,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -54,9 +67,15 @@ class RoleChangeNotificationServiceTest {
 
     private RoleChangeNotificationService service;
     private UserProfile profile;
+    private Logger logger;
+    private ListAppender<ILoggingEvent> appender;
 
     @BeforeEach
     void setUp() {
+        logger = (Logger) LoggerFactory.getLogger(RoleChangeNotificationService.class);
+        appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
         service = new RoleChangeNotificationService(registry,
                 new ObjectMapper().registerModule(new JavaTimeModule()));
         EntraUser user = EntraUser.builder().entraOid("oid").firstName("A").lastName("B").email("a@b.com").build();
@@ -133,15 +152,127 @@ class RoleChangeNotificationServiceTest {
     void wrapsSendFailures() {
         when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
         when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
-        when(sqsClient.sendMessage(any(SendMessageRequest.class))).thenThrow(new IllegalStateException("down"));
+        SdkClientException failure = SdkClientException.create("down");
+        when(sqsClient.sendMessage(any(SendMessageRequest.class))).thenThrow(failure);
 
         assertThatThrownBy(() -> service.sendMessage(profile, APP, Set.of(), Set.of("R")))
-                .isInstanceOf(RuntimeException.class).hasMessage("CCMS notification failed");
+                .isSameAs(failure);
     }
 
     @Test
     void recoverReturnsFalse() {
-        assertThat(service.recoverFromRetryFailure(new RuntimeException("x"), profile)).isFalse();
+        assertThat(service.recoverFromRetryFailure(
+                new CcmsNotificationException("x", null), profile, APP, Set.of(), Set.of())).isFalse();
+        assertThat(service.recoverFromRetryFailure(
+                SdkClientException.create("x"), profile, APP, Set.of(), Set.of())).isFalse();
+    }
+
+    @Test
+    void wrapsSerializationFailureWithItsCause() throws JsonProcessingException {
+        ObjectMapper mapper = mock(ObjectMapper.class);
+        JsonProcessingException failure = new JsonProcessingException("invalid JSON") {};
+        when(mapper.writeValueAsString(any())).thenThrow(failure);
+        RoleChangeNotificationService notification =
+                new RoleChangeNotificationService(registry, mapper);
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+
+        assertThatThrownBy(() -> notification.sendMessage(profile, APP, Set.of("R"), Set.of()))
+                .isInstanceOf(CcmsNotificationException.class).hasCause(failure);
+        verifyNoInteractions(sqsClient);
+        assertFailureEvents("CCMS notification attempt failed", "SERIALIZATION_FAILURE", 1);
+        assertFailureEvents("All CCMS notification retries failed; continuing with database update",
+                "SERIALIZATION_FAILURE", 0);
+    }
+
+    @Test
+    void springProxyRetriesSdkFailuresThreeTimesThenReturnsFalse() {
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+        when(sqsClient.sendMessage(any(SendMessageRequest.class))).thenThrow(SdkClientException.create("unavailable"));
+
+        try (AnnotationConfigApplicationContext context = retryContext()) {
+            assertThat(context.getBean(RoleChangeNotificationService.class)
+                    .sendMessage(profile, APP, Set.of("R"), Set.of())).isFalse();
+        }
+
+        verify(sqsClient, times(3)).sendMessage(any(SendMessageRequest.class));
+    }
+
+    @Test
+    void springProxyRetriesSerializationFailuresThreeTimesThenReturnsFalse() throws JsonProcessingException {
+        ObjectMapper mapper = mock(ObjectMapper.class);
+        when(mapper.writeValueAsString(any())).thenThrow(new JsonProcessingException("invalid JSON") {});
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+
+        try (AnnotationConfigApplicationContext context = retryContext(mapper)) {
+            assertThat(context.getBean(RoleChangeNotificationService.class)
+                    .sendMessage(profile, APP, Set.of("R"), Set.of())).isFalse();
+        }
+
+        verify(mapper, times(3)).writeValueAsString(any());
+        verifyNoInteractions(sqsClient);
+        assertFailureEvents("CCMS notification attempt failed", "SERIALIZATION_FAILURE", 3);
+        assertFailureEvents("All CCMS notification retries failed; continuing with database update",
+                "SERIALIZATION_FAILURE", 1);
+    }
+
+    @Test
+    void successfulRetryDoesNotLogHandledFailure() throws JsonProcessingException {
+        ObjectMapper mapper = mock(ObjectMapper.class);
+        when(mapper.writeValueAsString(any()))
+                .thenThrow(new JsonProcessingException("temporary serialization failure") {})
+                .thenReturn("{}");
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+        when(sqsClient.sendMessage(any(SendMessageRequest.class)))
+                .thenReturn(SendMessageResponse.builder().messageId("m").build());
+
+        try (AnnotationConfigApplicationContext context = retryContext(mapper)) {
+            assertThat(context.getBean(RoleChangeNotificationService.class)
+                    .sendMessage(profile, APP, Set.of("R"), Set.of())).isTrue();
+        }
+
+        verify(mapper, times(2)).writeValueAsString(any());
+        verify(sqsClient).sendMessage(any(SendMessageRequest.class));
+        assertFailureEvents("CCMS notification attempt failed", "SERIALIZATION_FAILURE", 1);
+        assertFailureEvents("All CCMS notification retries failed; continuing with database update",
+                "SERIALIZATION_FAILURE", 0);
+    }
+
+    @Test
+    void springProxyDoesNotRetryOrRecoverUnexpectedProgrammingFaults() {
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+        IllegalStateException failure = new IllegalStateException("unexpected bug");
+        when(sqsClient.sendMessage(any(SendMessageRequest.class))).thenThrow(failure);
+
+        try (AnnotationConfigApplicationContext context = retryContext()) {
+            assertThatThrownBy(() -> context.getBean(RoleChangeNotificationService.class)
+                    .sendMessage(profile, APP, Set.of("R"), Set.of())).isSameAs(failure);
+        }
+
+        verify(sqsClient).sendMessage(any(SendMessageRequest.class));
+    }
+
+    private AnnotationConfigApplicationContext retryContext() {
+        return retryContext(new ObjectMapper().registerModule(new JavaTimeModule()));
+    }
+
+    private AnnotationConfigApplicationContext retryContext(ObjectMapper mapper) {
+        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
+        context.register(RetryConfiguration.class);
+        context.registerBean(SqsClientRegistry.class, () -> registry);
+        context.registerBean(ObjectMapper.class, () -> mapper);
+        context.register(RoleChangeNotificationService.class);
+        context.refresh();
+        return context;
+    }
+
+    @Configuration
+    @EnableRetry(proxyTargetClass = true)
+    static class RetryConfiguration {
     }
 
     @Test
@@ -187,6 +318,24 @@ class RoleChangeNotificationServiceTest {
         assertThatThrownBy(() -> service.sendSyncMessage(profile, APP, Set.of("R")))
                 .isInstanceOfSatisfying(CcmsSyncException.class,
                         ex -> assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_GATEWAY));
+    }
+
+    @AfterEach
+    void tearDown() {
+        logger.detachAppender(appender);
+        appender.stop();
+    }
+
+    private void assertFailureEvents(String message, String reason, int expectedCount) {
+        List<ILoggingEvent> events = appender.list.stream()
+                .filter(event -> message.equals(event.getMessage()))
+                .toList();
+        assertThat(events).hasSize(expectedCount).allSatisfy(event -> {
+            assertThat(event.getArgumentArray()).extracting(Object::toString)
+                    .contains("exception_group=ccms_notification",
+                            "exception_reason=" + reason.toLowerCase(java.util.Locale.ROOT));
+            assertThat(event.getThrowableProxy()).isNotNull();
+        });
     }
 
     @Test

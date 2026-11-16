@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.command.ccms.TriggerCcmsRoleSyncCommand;
 import uk.gov.justice.laa.datauserapi.application.command.service.CcmsRoleSyncService;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
@@ -14,10 +16,11 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 @Component
 @Slf4j
 @RequiredArgsConstructor
-public class TriggerCcmsRoleSyncHandler implements CommandHandler<TriggerCcmsRoleSyncCommand> {
+public class TriggerCcmsRoleSyncHandler implements CommandHandler<TriggerCcmsRoleSyncCommand, CommandResult> {
 
     private final CcmsRoleSyncService syncService;
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @Override
     public CommandResult handle(TriggerCcmsRoleSyncCommand command, AuthenticatedEntraUser actor) {
         try {

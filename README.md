@@ -56,9 +56,376 @@ names and SELECT queries; write methods, `@Modifying`, stored procedures, and na
 queries that cannot be inspected by the rule are prohibited. Regression tests
 exercise both allowed and rejected architecture examples.
 
+The user-profile access queries (`GET /api/v1/queries/user-profiles/{userProfileId}/app-roles`, `/apps`
+and `/offices`) are read-only and require the `user_data.read` scope. Each query message
+(`GetUserProfileAppRolesQuery`, `GetUserProfileAppsQuery`, `GetUserProfileOfficesQuery`) is annotated with
+`@PolicyGuarded(policies = CanViewProfilePolicy.class)` and handled by a `QueryHandler`, so RBAC authorises it
+before the handler and its read-only transaction run. `UserProfileVisibilityPolicyInputResolver` loads the target
+profile's facts with one lookup and the pure `CanViewProfilePolicy` applies the profile visibility rules: an
+external actor may always view their own profile, and may view other profiles in their own firm only if they hold
+`VIEW_EXTERNAL_USER`; an internal actor with `VIEW_INTERNAL_USER` may view internal profiles, and an internal
+actor with `VIEW_EXTERNAL_USER` may view external profiles. The internal rules match
+`QueryAuthorisationService.canViewProfile` (kept in step by a test). The external same-firm rule is deliberately
+stricter than the profile detail queries, which let any external actor view profiles in their own firm without a
+permission. Being internal alone is not enough: per the SiLAS roles
+matrix, External User Manager and External User Admin are internal roles without `VIEW_INTERNAL_USER`. A missing
+profile and a profile the caller cannot view both return the same generic `403` (`application/problem+json`, detail
+"You do not possess the required scopes or permissions to perform this operation."); the `title` and `detail`
+carry no profile identifier (`instance` echoes the request path, as for every error response). The denial reason
+(`TARGET_PROFILE_NOT_FOUND` or `TARGET_PROFILE_NOT_VISIBLE`) appears only in the server-side log. An actor with no
+usable active profile (`ACTOR_NO_ACTIVE_PROFILE`) and a token without the read scope still return `403`.
+All data is selected by the requested profile ID, not by the owning account. `/app-roles` accepts optional
+`app_id` (internal SiLAS app ID) and `appEntraClientId` filters; `/apps` returns distinct enabled applications
+derived from the assigned roles; `/offices` returns every office of the profile's firm when the profile has
+unrestricted office access, otherwise only its assigned offices belonging to that firm. Results are not
+paginated and are capped at 500 roles, 100 applications and 100 offices, ordered deterministically.
+
 Query service, handler, and controller results are checked recursively for entity
 leakage through collections, wrappers, DTO fields, and projection accessors.
 Tech Services calls intentionally precede database updates; this ordering is unchanged.
+
+---
+
+## Access control (RBAC)
+
+Command and query handlers use message-level RBAC. Declare the requirement on the command or
+query type, not on an individual handler or controller. The `RequiresPermissionAuthorizationManager`
+intercepts `handle` methods on `AuthorizationEntryPoint` implementations whose message parameter
+has `@RequiresPermission` or `@PolicyGuarded`;
+it runs before the handler, including before a handler's transaction is opened. A denial raises
+Spring Security's `AccessDeniedException` and is returned as HTTP 403 by the security/exception
+handling layer. For policy denials, the manager returns a `PolicyAuthorizationDenial` result, which Spring
+Security carries on the resulting `AuthorizationDeniedException`. `GlobalExceptionHandler` returns the same
+generic 403 for missing and inaccessible profiles. Its WARN log includes the lowercase policy outcome as
+`exception_reason`, alongside `exception_group=authorization_denied` and the existing enum-valued `reasonCode`.
+
+Missing firms raise `FirmNotFoundException` on both command and query paths and retain the
+standard HTTP 404 Problem Detail response.
+
+Configuration failures, invalid actor context, missing scopes, and unexpected system failures
+return fixed client-safe error details. Original exception diagnostics remain in server logs;
+actor identifiers, profile-state diagnostics, and reference-data codes are not echoed in these responses.
+
+For `@RequiresPermission`, the manager collects the permissions from the app roles on the actor's
+active profile. By default, `Match.ANY` means the actor must have at least one listed permission;
+`Match.ALL` requires every listed permission. After this coarse permission check, authorization
+policies run in this order:
+
+1. Applicable global policies, which enforce cross-cutting rules for supported message types.
+2. Policies explicitly listed on the message, which enforce rules specific to that action.
+
+Every applicable policy must allow. Policies return `PolicyDecision.allow()` or
+`PolicyDecision.deny(PolicyDenialReason.REASON_CODE)`; denials are logged as structured `INFO`
+events containing a stable `reasonCode` and a human-readable `reason`. The reason is
+not sent to the caller. Missing actors, missing permissions, null messages when policies are
+required, and incompatible declared policy/message types fail closed.
+
+### Existing target capabilities and policies
+
+Commands and queries can implement a target capability to opt into reusable rules:
+
+| Capability           | Target                      | Global policy                                                                                                                                         |
+|----------------------|-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `TargetsUser`        | One user by Entra object ID | `ProviderAdminFirmScopePolicy`: non-internal actors must have a firm; the target must not be multi-firm and must have an active profile in that firm. |
+| `TargetsUserProfile` | One profile by profile ID   | `ProviderAdminProfileFirmScopePolicy`: non-internal actors must have a firm matching the target profile's firm.                                       |
+| `TargetsFirm`        | One firm by firm code       | `ProviderAdminOwnFirmPolicy`: non-internal actors must have a firm matching the target firm code.                                                     |
+
+These policies are Spring components implementing `GlobalAuthorizationPolicy`. They are discovered
+automatically and run for every guarded message implementing the corresponding capability.
+Internal actors bypass these provider-firm checks; actors without a confirmed internal profile are
+scoped and fail closed if they have no firm.
+
+Other reusable command-side policies in `application.command.policy` are:
+
+| Policy                            | Capability           | Rule                                                                                                      |
+|-----------------------------------|----------------------|-----------------------------------------------------------------------------------------------------------|
+| `NotSelfTargetPolicy`             | `TargetsUser`        | The actor cannot target their own Entra account.                                                          |
+| `ExternalTargetOnlyPolicy`        | `TargetsUser`        | The target user must not be an internal user.                                                             |
+| `ReactivationHierarchyPolicy`     | `UserDeactivationContext` (resolved from `TargetsUser`) | The target must be deactivated, and the actor's authorization roles must permit reactivation for its deactivation type. |
+| `NotSelfProfileTargetPolicy`      | `TargetsUserProfile` | The actor cannot target a profile belonging to their own account.                                         |
+| `ExternalProfileTargetOnlyPolicy` | `TargetsUserProfile` | The target profile must not belong to an internal user.                                                   |
+
+For example, `DeactivateUserCommand` requires `DISABLE_EXTERNAL_USER`, cannot target the actor,
+must target an external user, and is subject to the global
+same-firm rule. Office-update commands require `EDIT_USER_OFFICE`, apply the profile self/internal
+target policies, and are subject to the global profile firm-scope rule.
+
+Individual deactivation requests may repeat deactivation of an already disabled user. Each successful request
+calls Tech Services and creates an audit entry. The target is locked and refreshed before the external call,
+and the lock is held through the local update. For an already disabled user, the `entra_user` row is updated
+only when the actor's resolved deactivation type is equal to or higher than the stored type:
+`null/NONE < SYNC < FIRM < LAA < PRIVILEGED`. Lower privilege leaves the entire row unchanged.
+Bulk deactivation is asynchronous: the handler checks permission, firm scope and firm existence, then
+returns 202 Accepted while `BulkDeactivateFirmUsersService.deactivateAsync` runs on the
+`bulkDeactivationExecutor` pool (a full queue returns 503). Per-user outcomes and a summary are logged only.
+Bulk failure logs classify invalid user IDs, missing resources, access denials, downstream failures,
+database/transaction failures, validation failures, executor rejections, unsuccessful results, and
+unexpected runtime faults using the structured `failureType` field. Known per-user failures do not
+stop subsequent users; an unexpected runtime-failure guard preserves best-effort processing.
+Aborted asynchronous runs also log a classified failure and the original exception.
+Bulk and individual deactivation delegate to the shared transactional `DeactivateUserService` workflow
+using a target ID, reason, and actor, not another command. Bulk never invokes another handler
+or constructs `DeactivateUserCommand`.
+Each successful per-user operation calls Tech Services and creates an audit entry; an already disabled
+user's row changes only for an equal or higher deactivation type. Bulk authorization checks
+`BULK_DISABLE_FIRM_USERS` and the target firm scope once at the bulk handler. It does not require
+`DISABLE_EXTERNAL_USER` or apply individual self-target, internal-target, multi-firm, or active-profile
+firm-scope policies. Only users returned by the target firm's membership query are processed.
+Individual deactivation retains its own permission and target policies at `DeactivateUserHandler`.
+Missing users, missing profiles, access denials, and missing scopes share the same generic 403 response
+builder without synthesizing exceptions. Actor-context and profile-lookup exceptions expose typed
+reasons in structured server logs; reasons and diagnostic messages are not returned to clients.
+Exception metrics are derived from structured logs in Splunk; no exception counters are registered.
+`ExceptionLogFields` provides an `exception_reason` token using the lowercase typed reason,
+for example `active_profile_not_found`. The supported reason enums are
+`UserProfileNotFoundReason`, `InvalidActorContextReason`, `InvalidRequestException.Reason`,
+`TechServicesClientException.Reason`, and `CcmsNotificationException.Reason`.
+User creation failures use explicit `CreateUserException.Reason` values rather than deriving outcomes from HTTP
+status codes. Their handling-boundary logs include `exception_group=user_creation` and `exception_reason`;
+client Problem Details use fixed safe messages, never exception diagnostics. Local duplicate users retain the
+creation endpoint's JSON 409 response containing existing IDs, after its internal-actor and create-permission checks.
+When `TECH_SERVICES_CALLS_ENABLED=false`, user creation returns HTTP 503 without creating a simulated
+identity or persisting local account/profile records.
+Creation lookups use Spring Data `@Query` DTO projections, limited to one result with active profiles first
+and profile ID as a deterministic tie-breaker. The normalised email advisory lock remains a native PostgreSQL
+query held within the local persistence transaction.
+Provisioning failures are logged only at the HTTP handling boundary. If a local write fails after provisioning,
+a separate `event=identity_reconciliation_required` records the retained identity and reconciliation step without
+duplicating the exception stack trace. Creation events use structured fields and the request's MDC `correlationId`.
+Project exceptions with typed reasons implement `LaaDataApiException<R>` and provide a non-null `reason()`.
+Logging reads this contract automatically; adding an exception requires no logging switch updates.
+The access-denied handling boundary reads the typed reason of a policy denial through the `TypedDenial` contract
+(implemented by `PolicyAuthorizationDenial`, so the exception package does not depend on the security package)
+and passes it to the logging helper's generic enum overload for the same `exception_reason` field. The helper
+does not inspect security-specific exceptions; ordinary access denials retain their class-derived fallback reason.
+An ArchUnit rule rejects project exceptions exposing enum fields or enum-returning methods without
+the contract. Constructors reject null explicit reasons, and tests cover factories and legacy defaults.
+Exceptions without a typed reason use the same readable value as `exception_group`.
+Repeated multi-firm conversion raises `UserAlreadyMultiFirmException`, with group and reason
+`user_already_multi_firm`; the client still receives the generic HTTP 409 conflict response.
+Each of these log events also includes `exception_group`. Every project exception declares a stable
+snake-case value through `ExceptionGroup.groupName()` (for example `user_profile_not_found`,
+`invalid_actor_context`, or `tech_services_client`). `LaaDataApiException` extends this contract.
+An ArchUnit rule requires every concrete project exception to declare its own group, including subclasses.
+Renaming a project exception does not change its group. Only third-party exceptions derive groups
+from their class names, removing the `Exception` suffix and converting to snake case.
+Tokens never depend on diagnostic messages or identifiers; explicit group values and reason enum
+constants form the reporting contract and should not change without updating dependent searches.
+
+HTTP exception handlers and bulk, role-cleanup, and CCMS exception logs include `exception_reason`.
+Catch-block logs in the Tech Services token provider, JWT decoders, and refresh-task submission also include
+both fields. Library exceptions use their own readable class name when no typed reason is available.
+Wrap-and-rethrow catches do not add duplicate logs; the handling boundary records the translated exception.
+There is no `failureStage` field. CCMS send attempts and terminal failures share the same token;
+exclude the `"CCMS notification attempt failed"` message when counting terminal failures.
+A logged exception does not necessarily mean a failed HTTP request: best-effort work may continue successfully.
+Counts across all logs represent log events rather than distinct failures: lower-level diagnostics and
+handling-boundary logs may describe the same failure. Select the relevant event messages for outcome metrics.
+Stack traces and existing diagnostic fields remain in the same log event and client responses are unchanged.
+For example, after selecting the application's index/sourcetype in Splunk:
+
+```spl
+exception_reason=* NOT message="CCMS notification attempt failed"
+| stats count by exception_group exception_reason
+```
+
+For profile failures only:
+
+```spl
+exception_group=user_profile_not_found
+| timechart count by exception_reason
+```
+
+Exception handling uses domain-specific exceptions for business and integration failures.
+Tech Services transport, response-mapping, and token exceptions retain distinct groups and typed
+downstream, invalid-response, and authentication reasons through the shared exception base.
+Invalid deactivation reasons and firm sorting use typed request-validation reasons.
+Missing users/profiles return generic 403 responses; other missing resources return 404.
+Mapping a target user without an active profile raises `UserProfileNotFoundException` with
+`ACTIVE_PROFILE_NOT_FOUND`, not an actor-context exception.
+Conflict, invalid-identifier, configuration, and unexpected-error responses use fixed client-safe
+details, never exception messages. Structured server logs retain reasons, context, and stack traces.
+ArchUnit rejects construction of generic `Exception` and `RuntimeException` in application code.
+Spring-proxied CCMS notifications retry serialization and AWS SDK failures up to three times and recover to a logged failure;
+unexpected programming faults are neither retried nor treated as successful delivery.
+Missing CCMS clients or queues return an unsuccessful notification result, never a successful delivery.
+`POST /api/v1/commands/ccms/trigger-role-sync` is system-administrator scoped and requires
+`TRIGGER_CCMS_ROLE_SYNC`; it only schedules background work, whose persistence transactions are isolated per profile.
+Role-cleanup downstream failures remain best-effort during user deletion; unexpected faults propagate.
+Empty, blank, or JSON-null successful group-removal responses are classified as `INVALID_RESPONSE`
+and remain best-effort during deletion. Regression tests exercise the real Spring async proxy and
+configured bulk executor: submissions return 202 while workers are blocked, and a full pool/queue returns 503.
+Deliberate last-resort runtime guards remain at best-effort bulk/profile-processing boundaries,
+where they log diagnostics. The token provider replaces invalid cached JWTs, acquires an uncached token
+when the cache is absent, and propagates cache infrastructure faults.
+The generic HTTP exception handler remains a final safety net.
+
+User-details updates delegate to `UpdateUserDetailsService`, preserving email validation and the
+Tech Services call before local changes. Assigned-office and unrestricted-office commands use
+separate methods on `UserProfileOfficeService`, sharing profile lookup and modification metadata.
+Their handlers retain message-level authorization and transaction boundaries.
+Reactivation delegates to `ReactivateUserService`; locked target loading, the hierarchy recheck,
+Tech Services, and the local update remain in one transaction. `UserSearchService` owns trusted
+search criteria and pagination preparation, and `UserAccountDetailsService` coordinates account
+retrieval. Both query services are read-only and use `QueryAuthorisationService` for active actor
+context; denied account or active-profile visibility returns a generic 403 response.
+The lifecycle service loads and refreshes the target once per deactivation or reactivation transaction,
+invokes the outbound step using a DTO, then updates the same locked entity without another lookup.
+Reactivation still reads authorization facts before execution and rechecks the refreshed state under
+the row lock; these separate reads protect against concurrent deactivation.
+Each user is processed in an independent transaction. Internal per-user outcomes distinguish
+invalid identifiers, denied access, missing users, downstream failures, rejected operations, and
+unexpected system failures; the HTTP response retains its aggregate counts. Expected failures
+are logged at `WARN`, unexpected runtime failures at `ERROR`, and remaining users still run.
+
+`ReactivationPolicyInputResolver` loads active state and the recorded deactivation type with one
+lookup after permission and global-policy checks. `ReactivationHierarchyPolicy` evaluates that
+immutable context without persistence access. An empty deactivation type represents legacy,
+unattributed deactivation, not `NONE`: firm user managers remain unable to reactivate legacy
+accounts. Authorization roles are mapped to `AuthzRole` only from roles marked `authzRole`.
+`DeactivationTypeResolver` applies the same filtering and enum-based hierarchy; ordinary application
+roles with matching names do not affect the recorded deactivation type.
+The reactivation handler repeats the same hierarchy check under the target row lock before
+calling Tech Services, so a changed deactivation type cannot bypass the hierarchy.
+Multi-firm conversion also refreshes its target after acquiring the write lock, so state cached
+by pre-handler policies cannot bypass the already-converted check.
+
+User and profile lookups use `UserNotFoundException` and `UserProfileNotFoundException` with
+identifier-based, fixed message templates for server-side diagnostics. Missing users or profiles
+and existing but inaccessible accounts or active profiles return the same generic 403 Problem Detail,
+without returning account, firm, role, or profile details. Typed user/profile not-found exceptions
+map to this response on both command and query paths to conceal resource existence.
+Firm and other resource not-found responses remain 404. Profile-list queries continue filtering
+inaccessible profiles.
+Security filters and exception advice share the forbidden response type, title, and detail through
+`ForbiddenResponseConstants`; actor-profile diagnostics use named `InvalidActorContextException` factories.
+
+### Using existing permissions and policies
+
+Put `@RequiresPermission` on the message and include any applicable message-specific policies.
+The global firm-scope policy is automatic when the message implements its target capability;
+do not also add that global policy to the annotation.
+
+```java
+@Builder
+@RequiresPermission(value = Permission.DISABLE_EXTERNAL_USER,
+        policies = {
+            NotSelfTargetPolicy.class,
+            ExternalTargetOnlyPolicy.class
+        })
+public record DeactivateUserCommand(
+        UUID userEntraObjectId,
+        DeactivateUserReason deactivateReason
+) implements TargetsUser {
+
+    @Override
+    public UUID targetUserEntraObjectId() {
+        return userEntraObjectId;
+    }
+}
+```
+
+For multiple permissions, select whether one or all must be held:
+
+```java
+@RequiresPermission(
+        value = {Permission.EDIT_USER_DETAILS, Permission.EDIT_USER_FIRM},
+        match = RequiresPermission.Match.ALL)
+public record UpdateUserCommand(...) {
+}
+```
+
+Use the target capability that matches the actual resource being acted on. If none of the existing
+capabilities fit, define a small capability interface in `security.rbac` and implement it on
+messages that expose that target. The interface should provide the identifier or attributes needed
+by the policy; avoid making policies depend on unrelated command fields.
+
+### Adding a permission
+
+1. Add the permission name to `model.Permission`.
+2. Annotate the relevant command/query message with `@RequiresPermission` and choose `ANY` or
+   `ALL` if the default `ANY` does not express the requirement.
+3. Ensure the intended application app roles are granted this permission in the role/permission
+   configuration used to build the actor's active-profile roles. Adding an enum value or annotation
+   alone does **not** grant it to any role. Update `ADMIN_PERMISSIONS` or
+   `DELEGATE_FIRM_ACCESS_PERMISSIONS` only if the new permission is intentionally part of those
+   named groups.
+4. Add authorization tests for both allowed and denied actors. Include a test that verifies the
+   handler is not invoked on denial where appropriate.
+
+### Adding a message-specific policy
+
+Implement `AuthorizationPolicy<M>` as a Spring bean, normally under
+`application.command.policy` or `application.query.policy` for the relevant CQRS side. The
+message type (or a target capability such as `TargetsUser`) is the generic parameter. Use the
+side's service/repository boundary to read the facts required for the decision, and return a
+specific `PolicyDenialReason` without logging sensitive request data. For policies requiring
+multiple related facts, register an `AuthorizationPolicyInputResolver<M, C>` in the service
+boundary and evaluate the immutable context `C` instead. The resolver declares the policy class,
+accepted message type, and trusted lookup; contexts must not be supplied by callers.
+
+```java
+@Component
+public class TargetBelongsToActorPolicy implements AuthorizationPolicy<TargetsUser> {
+
+    private final UserCommandService userCommandService;
+
+    public TargetBelongsToActorPolicy(UserCommandService userCommandService) {
+        this.userCommandService = userCommandService;
+    }
+
+    @Override
+    public PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
+        UUID actorFirmId = Optional.ofNullable(actor.activeProfile())
+                .map(AuthenticatedUserProfile::firmId)
+                .orElse(null);
+        if (actorFirmId == null) {
+            return PolicyDecision.deny(PolicyDenialReason.PROVIDER_ADMIN_NO_ACTIVE_FIRM);
+        }
+        return userCommandService.findActiveFirmId(message.targetUserEntraObjectId())
+                .filter(actorFirmId::equals)
+                .isPresent()
+                ? PolicyDecision.allow()
+                : PolicyDecision.deny(PolicyDenialReason.TARGET_USER_OUTSIDE_ACTOR_FIRM);
+    }
+}
+```
+
+The policy example assumes imports for `AuthenticatedUserProfile`, `Optional`, and `UUID`.
+
+Then list it on the message's `@RequiresPermission`:
+
+```java
+@RequiresPermission(value = Permission.EDIT_USER_DETAILS,
+        policies = TargetBelongsToActorPolicy.class)
+public record UpdateUserDetailsCommand(...) implements TargetsUser {
+    // Implement targetUserEntraObjectId() for the relevant target ID.
+}
+```
+
+Use `@PolicyGuarded(policies = ...)` only when the message has policy checks but genuinely has no
+permission requirement. Do not combine `@PolicyGuarded` and `@RequiresPermission` on one message.
+Prefer a permission whenever one applies.
+
+### Adding a global policy
+
+Use `GlobalAuthorizationPolicy<M>` only for a rule that should apply to every guarded message of a
+given capability. Implement `appliesTo` to select the relevant actors/messages and `evaluate` to
+make the decision. Register it as a Spring `@Component`; it is discovered automatically. Keep
+global rules broad and stable—action-specific rules belong in `@RequiresPermission(policies = ...)`.
+Global policies run after a required permission check and before message-specific policies.
+
+### Required coverage and checks
+
+ArchUnit prohibits command/query cross-dependencies, handler-to-handler dependencies, and
+service dependencies on handlers or controllers. Query handlers must delegate to query services
+instead of accessing repositories directly, and only query controllers may call query handlers.
+Regression tests cover rejected dependencies in both CQRS directions and allow independent handlers.
+
+Every command must declare either `@RequiresPermission` or `@PolicyGuarded`; the ArchUnit
+`every_command_must_declare_its_authorisation` rule enforces this. Add tests for a granted decision,
+each denial path, and the global-policy behavior relevant to the target capability. Run the
+focused policy/handler tests and the architecture test when introducing or changing access control.
 
 ---
 
@@ -123,7 +490,7 @@ The application relies on several environment variables for configuration. Below
 
 Note there are two distinct Azure AD app registrations in play here, each with its own credentials: the values under `AZURE_*` validate JWTs presented *to* this API (inbound), while `TECH_SERVICES_AZURE_*`/`TECH_SERVICES_TENANT_ID` authenticate this API's outbound calls *to* the Tech Services API. There's currently no `AZURE_CLIENT_SECRET` — the inbound-validation app registration only needs the tenant and client ID.
 
-> **Orphaned secret:** a Kubernetes Secret named `laa-data-user-api-azure-client-secret-k8s` also exists in the namespace,  However, nothing in this repo — chart or code — consumes it: there's no `secretKeyRef` for it in `templates/deployment.yaml`, and no `AZURE_CLIENT_SECRET` env var or `@Value` binding anywhere in the codebase (the only client secret actually read by the code is `TECH_SERVICES_AZURE_CLIENT_SECRET`, via `TechServicesConfig`). 
+> **Orphaned secret:** a Kubernetes Secret named `laa-data-user-api-azure-client-secret-k8s` also exists in the namespace,  However, nothing in this repo — chart or code — consumes it: there's no `secretKeyRef` for it in `templates/deployment.yaml`, and no `AZURE_CLIENT_SECRET` env var or `@Value` binding anywhere in the codebase (the only client secret actually read by the code is `TECH_SERVICES_AZURE_CLIENT_SECRET`, bound by `TechServicesProperties` and consumed by `TechServicesAuthConfig`).
 </details>
 
 ### Adding a New Environment Variable
@@ -248,6 +615,10 @@ gpr.token=your-classic-token-with-read:packages-scope
 Breaking changes (major bumps) require coordinating with all consumers before merging.
 
 ---
+
+## ZAP active scan
+
+The [active-scan workflow](.github/workflows/zap-active.yml) runs authenticated read/write and anonymous checks against fresh, network-isolated API/PostgreSQL instances using synthetic data; integration-dependent writes are excluded. Reports are uploaded per pass, and only scheduled runs notify Slack.
 
 ## TODO 
 

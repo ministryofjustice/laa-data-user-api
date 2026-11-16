@@ -1,11 +1,14 @@
 package uk.gov.justice.laa.datauserapi.application.command.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -36,7 +39,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
 @WebMvcTest(CcmsCommandController.class)
-@Import({SecurityConfig.class, CcmsCommandController.class, GlobalExceptionHandler.class})
+@Import({SecurityConfig.class, CcmsCommandController.class, GlobalExceptionHandler.class,
+    CcmsCommandControllerTest.Jackson2TestConfig.class})
 @ActiveProfiles("test")
 class CcmsCommandControllerTest {
 
@@ -52,6 +56,14 @@ class CcmsCommandControllerTest {
     private JwtToAuthenticatedEntraUserConverter converter;
     @MockitoBean
     private JwtDecoder jwtDecoder;
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class Jackson2TestConfig {
+        @Bean
+        ObjectMapper objectMapper() {
+            return new ObjectMapper();
+        }
+    }
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})

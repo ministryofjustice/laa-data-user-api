@@ -17,6 +17,7 @@ import uk.gov.justice.laa.datauserapi.application.command.handler.TriggerCcmsRol
 import uk.gov.justice.laa.datauserapi.application.command.service.CcmsRoleSyncProfileService;
 import uk.gov.justice.laa.datauserapi.application.command.service.CcmsRoleSyncService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
+import uk.gov.justice.laa.datauserapi.config.AsyncConfig;
 import uk.gov.justice.laa.datauserapi.config.CcmsRoleSyncConfig;
 import uk.gov.justice.laa.datauserapi.config.SilasStatusRefreshConfig;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -101,7 +102,7 @@ class CcmsRoleSyncAsyncIntegrationTest {
     }
 
     @Configuration(proxyBeanMethods = false)
-    @Import({SilasStatusRefreshConfig.class, CcmsRoleSyncConfig.class,
+    @Import({AsyncConfig.class, SilasStatusRefreshConfig.class, CcmsRoleSyncConfig.class,
         CcmsRoleSyncService.class, TriggerCcmsRoleSyncHandler.class})
     static class Config {
         @Bean

@@ -9,7 +9,6 @@ import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserProf
 import uk.gov.justice.laa.datauserapi.application.command.mapper.UpdateUserProfileOfficesMapper;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.UpdateUserProfileOfficesCommand;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.UpdateUserProfileUnrestrictedOfficesCommand;
-import uk.gov.justice.laa.datauserapi.contracts.request.UpdateOfficesUnrestrictedCommand;
 import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserProfileOfficesRequest;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -17,7 +16,9 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.ActiveProfiles;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
+import uk.gov.justice.laa.datauserapi.config.JacksonConfig;
 import uk.gov.justice.laa.datauserapi.config.SecurityConfig;
+import uk.gov.justice.laa.datauserapi.contracts.request.UpdateUserProfileOfficesUnrestrictedRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
@@ -30,7 +31,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @WebMvcTest(UserProfileCommandController.class)
-@Import({SecurityConfig.class, UserProfileCommandController.class})
+@Import({JacksonConfig.class, SecurityConfig.class, UserProfileCommandController.class})
 @ActiveProfiles("test")
 class UserProfileCommandControllerTest {
 
@@ -81,7 +82,7 @@ class UserProfileCommandControllerTest {
     void updateOffices_dispatchesUnrestrictedAccessRequestToHandler() {
         UUID profileId = UUID.randomUUID();
         String actorOid = UUID.randomUUID().toString();
-        UpdateOfficesUnrestrictedCommand request = new UpdateOfficesUnrestrictedCommand(profileId, true);
+        UpdateUserProfileOfficesUnrestrictedRequest request = new UpdateUserProfileOfficesUnrestrictedRequest(profileId, true);
         UpdateUserProfileUnrestrictedOfficesCommand command =
                 new UpdateUserProfileUnrestrictedOfficesCommand(profileId, true);
         CommandResult expected = CommandResult.success("unrestricted access updated");
