@@ -33,12 +33,9 @@ jobs:
       # local mode avoids ASH building its container image, which pulls from public.ecr.aws and gets 429s
       ash-mode: local
       config: .ash/ash.yaml
-      # NOTE: currently a no-op upstream - run-ash-security-scan.yml compares
-      # this boolean input against the string 'true', which is always false, so
-      # ASH always runs with --no-fail-on-findings. The check-ash-findings job
-      # below is the real gate. Left set to true for intent and in case upstream
-      # fixes the comparison.
-      fail-on-findings: true
+      # Keep reports available for SARIF upload when findings exceed the threshold.
+      # check-ash-findings below enforces the threshold and scanner completeness.
+      fail-on-findings: false
       collect-junit-xml-report: false
       collect-sarif-report: false
       install-grype: true
