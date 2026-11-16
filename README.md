@@ -616,7 +616,7 @@ Breaking changes (major bumps) require coordinating with all consumers before me
 
 ## ZAP active scan
 
-The [active-scan workflow](.github/workflows/zap-active.yml) runs authenticated read/write and anonymous checks against fresh, network-isolated API/PostgreSQL instances using synthetic data; integration-dependent writes are excluded. Reports are uploaded per pass, and only scheduled runs notify Slack.
+The [active-scan workflow](.github/workflows/zap-active.yml) runs authenticated read/write and anonymous checks against fresh, network-isolated API/PostgreSQL instances using synthetic data; integration-dependent writes are excluded. Reports are uploaded per pass. The workflow produces a combined job summary, and scheduled runs send one combined Slack notification with counts and status for each pass. Counts are per pass and may overlap; missing reports are marked explicitly.
 
 ## TODO 
 
