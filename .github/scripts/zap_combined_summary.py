@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -71,7 +72,10 @@ def combined_text(statuses, matrix_result, run_url, repository):
 
 
 def combine():
-    attempt = os.environ["GITHUB_RUN_ATTEMPT"]
+    raw_attempt = os.environ["GITHUB_RUN_ATTEMPT"]
+    if not re.fullmatch(r"[1-9][0-9]*", raw_attempt):
+        raise ValueError("GITHUB_RUN_ATTEMPT must be a positive integer")
+    attempt = int(raw_attempt)
     statuses = {}
     # download-artifact extracts a single pattern match directly into the destination.
     single_path = STATUS_DIR / "scan-status.json"

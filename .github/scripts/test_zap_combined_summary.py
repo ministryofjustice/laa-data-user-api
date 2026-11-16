@@ -53,6 +53,15 @@ class ZapCombinedSummaryTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             combined.combined_text({"read": {"mode": "write"}}, "failure", "https://example.test", "example/repo")
 
+    def test_combine_rejects_invalid_run_attempt_before_reading_files(self):
+        for attempt in ("../1", "1/../../other", "0", "-1", "", "1\n"):
+            with self.subTest(attempt=attempt), \
+                    patch.dict(os.environ, {"GITHUB_RUN_ATTEMPT": attempt}, clear=True), \
+                    patch.object(Path, "read_text") as read_text:
+                with self.assertRaisesRegex(ValueError, "GITHUB_RUN_ATTEMPT must be a positive integer"):
+                    combined.combine()
+                read_text.assert_not_called()
+
     def test_combine_writes_one_payload_with_three_separate_passes(self):
         counts = {name: {"instances": 2, "types": 1} for _, name in combined.RISKS}
         with tempfile.TemporaryDirectory() as directory:
