@@ -20,7 +20,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.retry.annotation.EnableRetry;
-import org.springframework.http.HttpStatus;
 import software.amazon.awssdk.core.exception.ApiCallAttemptTimeoutException;
 import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
 import software.amazon.awssdk.core.exception.SdkClientException;
@@ -29,6 +28,7 @@ import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 import software.amazon.awssdk.services.sqs.model.SqsException;
 import uk.gov.justice.laa.datauserapi.application.command.registry.SqsClientRegistry;
+import uk.gov.justice.laa.datauserapi.application.command.dto.CcmsSyncProfile;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
@@ -37,8 +37,10 @@ import uk.gov.justice.laa.datauserapi.exception.CcmsNotificationException;
 import uk.gov.justice.laa.datauserapi.exception.CcmsSyncException;
 
 import java.net.SocketTimeoutException;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -286,27 +288,34 @@ class RoleChangeNotificationServiceTest {
 
     @ParameterizedTest
     @MethodSource("downstreamFailures")
-    void syncMessageClassifiesDownstreamFailure(RuntimeException failure, HttpStatus status) {
+    void syncMessageClassifiesDownstreamFailure(RuntimeException failure, CcmsSyncException.Reason reason) {
         when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
         when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
         when(sqsClient.sendMessage(any(SendMessageRequest.class))).thenThrow(failure);
 
-        assertThatThrownBy(() -> service.sendSyncMessage(profile, APP, Set.of("R")))
+        assertThatThrownBy(() -> service.sendSyncMessage(snapshot(), APP, Set.of("R"), LocalDateTime.of(2026, 1, 1, 0, 0)))
                 .isInstanceOfSatisfying(CcmsSyncException.class,
-                        ex -> assertThat(ex.getStatus()).isEqualTo(status));
+                        ex -> {
+                            assertThat(ex.reason()).isEqualTo(reason);
+                            assertThat(ex).hasCause(failure);
+                        });
     }
 
     private static Stream<Arguments> downstreamFailures() {
         return Stream.of(
-                Arguments.of(ApiCallTimeoutException.create(1000), HttpStatus.GATEWAY_TIMEOUT),
-                Arguments.of(ApiCallAttemptTimeoutException.create(1000), HttpStatus.GATEWAY_TIMEOUT),
-                Arguments.of(SdkClientException.create("unreachable"), HttpStatus.SERVICE_UNAVAILABLE),
+                Arguments.of(ApiCallTimeoutException.create(1000), CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT),
+                Arguments.of(ApiCallAttemptTimeoutException.create(1000), CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT),
+                Arguments.of(SdkClientException.create("unreachable"), CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE),
                 Arguments.of(SdkClientException.create("read timed out", new SocketTimeoutException()),
-                        HttpStatus.GATEWAY_TIMEOUT),
-                Arguments.of(SqsException.builder().statusCode(503).message("Unavailable").build(), HttpStatus.SERVICE_UNAVAILABLE),
-                Arguments.of(SqsException.builder().statusCode(429).message("Throttled").build(), HttpStatus.SERVICE_UNAVAILABLE),
-                Arguments.of(SqsException.builder().statusCode(504).message("Timeout").build(), HttpStatus.GATEWAY_TIMEOUT),
-                Arguments.of(SqsException.builder().statusCode(500).message("Unexpected").build(), HttpStatus.BAD_GATEWAY));
+                        CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT),
+                Arguments.of(SqsException.builder().statusCode(503).message("Unavailable").build(),
+                        CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE),
+                Arguments.of(SqsException.builder().statusCode(429).message("Throttled").build(),
+                        CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE),
+                Arguments.of(SqsException.builder().statusCode(504).message("Timeout").build(),
+                        CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT),
+                Arguments.of(SqsException.builder().statusCode(500).message("Unexpected").build(),
+                        CcmsSyncException.Reason.DOWNSTREAM_REJECTED));
     }
 
     @Test
@@ -315,9 +324,9 @@ class RoleChangeNotificationServiceTest {
         when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
         when(sqsClient.sendMessage(any(SendMessageRequest.class))).thenReturn(SendMessageResponse.builder().build());
 
-        assertThatThrownBy(() -> service.sendSyncMessage(profile, APP, Set.of("R")))
+        assertThatThrownBy(() -> service.sendSyncMessage(snapshot(), APP, Set.of("R"), LocalDateTime.of(2026, 1, 1, 0, 0)))
                 .isInstanceOfSatisfying(CcmsSyncException.class,
-                        ex -> assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_GATEWAY));
+                        ex -> assertThat(ex.reason()).isEqualTo(CcmsSyncException.Reason.INVALID_RESPONSE));
     }
 
     @AfterEach
@@ -343,9 +352,70 @@ class RoleChangeNotificationServiceTest {
         when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
         when(registry.getSqsClient(APP)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.sendSyncMessage(profile, APP, Set.of("R")))
+        assertThatThrownBy(() -> service.sendSyncMessage(snapshot(), APP, Set.of("R"), LocalDateTime.of(2026, 1, 1, 0, 0)))
                 .isInstanceOfSatisfying(CcmsSyncException.class,
-                        ex -> assertThat(ex.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE));
+                        ex -> assertThat(ex.reason()).isEqualTo(CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE));
+    }
+
+    @Test
+    void syncRetriesKeepThePayloadAndDeduplicationIdStable() {
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+        when(sqsClient.sendMessage(any(SendMessageRequest.class)))
+                .thenReturn(SendMessageResponse.builder().messageId("message").build());
+        var snapshot = snapshot();
+        var timestamp = LocalDateTime.of(2026, 1, 1, 0, 0);
+
+        service.sendSyncMessage(snapshot, APP, Set.of("R", "OTHER"), timestamp);
+        service.sendSyncMessage(snapshot, APP, Set.of("OTHER", "R"), timestamp);
+
+        var requests = ArgumentCaptor.forClass(SendMessageRequest.class);
+        verify(sqsClient, times(2)).sendMessage(requests.capture());
+        assertThat(requests.getAllValues().get(0)).isEqualTo(requests.getAllValues().get(1));
+        assertThat(requests.getValue().messageBody()).contains("\"vendorNumber\":\"F1\"", "\"timestampNow\":\"2026-01-01T00:00:00.000Z\"");
+    }
+
+    @Test
+    void differentApplicationsDoNotDeduplicateEachOthersMessages() {
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+        when(registry.getSqsQueueUrl("other")).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient("other")).thenReturn(Optional.of(sqsClient));
+        when(sqsClient.sendMessage(any(SendMessageRequest.class)))
+                .thenReturn(SendMessageResponse.builder().messageId("message").build());
+        var snapshot = snapshot();
+        var timestamp = LocalDateTime.of(2026, 1, 1, 0, 0);
+
+        service.sendSyncMessage(snapshot, APP, Set.of("R"), timestamp);
+        service.sendSyncMessage(snapshot, "other", Set.of("R"), timestamp);
+
+        var requests = ArgumentCaptor.forClass(SendMessageRequest.class);
+        verify(sqsClient, times(2)).sendMessage(requests.capture());
+        assertThat(requests.getAllValues()).extracting(SendMessageRequest::messageDeduplicationId).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void syncSerializationFailurePreservesCauseAndIsNotLoggedByTransport() throws JsonProcessingException {
+        var mapper = mock(ObjectMapper.class);
+        var failure = new JsonProcessingException("invalid JSON") {};
+        when(mapper.writeValueAsString(any())).thenThrow(failure);
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+        var notification = new RoleChangeNotificationService(registry, mapper);
+
+        assertThatThrownBy(() -> notification.sendSyncMessage(snapshot(), APP, Set.of("R"),
+                LocalDateTime.of(2026, 1, 1, 0, 0)))
+                .isInstanceOfSatisfying(CcmsSyncException.class, ex -> {
+                    assertThat(ex.reason()).isEqualTo(CcmsSyncException.Reason.MESSAGE_PREPARATION_FAILURE);
+                    assertThat(ex.getCause()).hasCause(failure);
+                });
+        verifyNoInteractions(sqsClient);
+        assertThat(appender.list).isEmpty();
+    }
+
+    private CcmsSyncProfile snapshot() {
+        return new CcmsSyncProfile(UUID.randomUUID(), "oid", profile.getLegacyUserId(), "A", "B", "a@b.com",
+                profile.getUserType(), "F1", Map.of(APP, Set.of("R")));
     }
 
 }

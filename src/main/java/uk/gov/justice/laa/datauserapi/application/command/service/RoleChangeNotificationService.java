@@ -6,11 +6,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import uk.gov.justice.laa.datauserapi.application.command.dto.CcmsSyncProfile;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.exception.ApiCallAttemptTimeoutException;
 import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
@@ -30,6 +30,7 @@ import uk.gov.justice.laa.datauserapi.exception.CcmsNotificationException;
 import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
 
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Optional;
@@ -39,7 +40,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class RoleChangeNotificationService {
+public class RoleChangeNotificationService implements CcmsSyncSender {
 
     private final SqsClientRegistry sqsClientRegistry;
     private final ObjectMapper objectMapper;
@@ -89,41 +90,42 @@ public class RoleChangeNotificationService {
     }
 
 
-    public void sendSyncMessage(UserProfile profile, String appOid, Set<String> roles) {
+    @Override
+    public void sendSyncMessage(CcmsSyncProfile profile, String appOid, Set<String> roles, LocalDateTime timestamp) {
+        var client = sqsClientRegistry.getSqsClient(appOid);
+        var queue = sqsClientRegistry.getSqsQueueUrl(appOid).filter(url -> !"NONE".equalsIgnoreCase(url));
+        if (client.isEmpty() || queue.isEmpty()) {
+            throw new CcmsSyncException(CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE);
+        }
+        var message = CcmsMessage.builder().userName(profile.legacyUserId().toString())
+                .firstName(profile.firstName()).lastName(profile.lastName()).email(profile.email())
+                .vendorNumber(profile.vendorNumber()).timestamp(timestamp)
+                .responsibilityKey(roles.stream().sorted().toList()).build();
+        String deduplicationKey = profile.id() + "|" + appOid + "|" + String.join("|", roles.stream().sorted().toList())
+                + "|" + timestamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HH"));
+        String deduplicationId = UUID.nameUUIDFromBytes(deduplicationKey.getBytes(StandardCharsets.UTF_8)).toString();
         try {
-            if (!sendRoleChangeNotificationToSqs(profile, appOid, roles, Set.of())) {
-                throw new CcmsSyncException(HttpStatus.SERVICE_UNAVAILABLE, CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE,
-                        "CCMS SQS queue or client is unavailable.");
-            }
+            sendPreparedMessage(client.get(), queue.get(), message, profile.userType(), deduplicationId);
         } catch (ApiCallTimeoutException | ApiCallAttemptTimeoutException ex) {
-            throw new CcmsSyncException(HttpStatus.GATEWAY_TIMEOUT, CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT,
-                    "CCMS SQS request timed out.", ex);
+            throw new CcmsSyncException(CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT, ex);
         } catch (AwsServiceException ex) {
-            HttpStatus status = switch (ex.statusCode()) {
-                case 408, 504 -> HttpStatus.GATEWAY_TIMEOUT;
-                case 429, 503 -> HttpStatus.SERVICE_UNAVAILABLE;
-                default -> HttpStatus.BAD_GATEWAY;
-            };
-            CcmsSyncException.Reason reason = switch (status) {
-                case GATEWAY_TIMEOUT -> CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT;
-                case SERVICE_UNAVAILABLE -> CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE;
+            CcmsSyncException.Reason reason = switch (ex.statusCode()) {
+                case 408, 504 -> CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT;
+                case 429, 503 -> CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE;
                 default -> CcmsSyncException.Reason.DOWNSTREAM_REJECTED;
             };
-            throw new CcmsSyncException(status, reason, "CCMS SQS rejected the synchronization request.", ex);
+            throw new CcmsSyncException(reason, ex);
         } catch (SdkClientException ex) {
             for (Throwable cause = ex.getCause(); cause != null; cause = cause.getCause()) {
                 if (cause instanceof java.net.SocketTimeoutException
                         || cause instanceof java.net.http.HttpTimeoutException
                         || cause instanceof java.util.concurrent.TimeoutException) {
-                    throw new CcmsSyncException(HttpStatus.GATEWAY_TIMEOUT, CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT,
-                            "CCMS SQS request timed out.", ex);
+                    throw new CcmsSyncException(CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT, ex);
                 }
             }
-            throw new CcmsSyncException(HttpStatus.SERVICE_UNAVAILABLE,
-                    CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE, "CCMS SQS queue is unreachable.", ex);
+            throw new CcmsSyncException(CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE, ex);
         } catch (CcmsNotificationException ex) {
-            throw new CcmsSyncException(HttpStatus.BAD_GATEWAY, CcmsSyncException.Reason.MESSAGE_PREPARATION_FAILURE,
-                    "CCMS synchronization message could not be prepared.", ex);
+            throw new CcmsSyncException(CcmsSyncException.Reason.MESSAGE_PREPARATION_FAILURE, ex);
         }
     }
 
@@ -157,38 +159,14 @@ public class RoleChangeNotificationService {
                 ccmsMessageBuilder.vendorNumber(userProfile.getFirm().getCode());
             }
 
-            CcmsMessage message = ccmsMessageBuilder.build();
-            String messageBody;
-            try {
-                messageBody = objectMapper.writeValueAsString(message);
-            } catch (JsonProcessingException ex) {
-                throw new CcmsNotificationException("CCMS message serialization failed", ex);
-            }
             log.info("CCMS role change message generated",
                     kv("userProfileId", userProfile.getId()),
                     kv("entraOid", userProfile.getEntraUser().getEntraOid()),
                     kv("legacyUserId", userProfile.getLegacyUserId()),
                     kv("ccmsRoles", newPuiRoles));
 
-            Map<String, MessageAttributeValue> userTypeAttribute = Map.of(USER_TYPE_ATTRIBUTE, MessageAttributeValue.builder()
-                    .stringValue(userProfile.getUserType().toString())
-                    .dataType("String")
-                    .build());
-
-            SendMessageRequest sendMessageRequest = SendMessageRequest.builder()
-                    .queueUrl(sqsQueueUrl)
-                    .messageBody(messageBody)
-                    .messageAttributes(userTypeAttribute)
-                    .messageGroupId(userProfile.getLegacyUserId().toString())
-                    .messageDeduplicationId(generateDeduplicationId(userProfile, newPuiRoles))
-                    .build();
-
-            SendMessageResponse response = sqsClient.sendMessage(sendMessageRequest);
-            if (response == null || response.messageId() == null || response.messageId().isBlank()
-                    || (response.sdkHttpResponse() != null && !response.sdkHttpResponse().isSuccessful())) {
-                throw new CcmsSyncException(HttpStatus.BAD_GATEWAY, CcmsSyncException.Reason.INVALID_RESPONSE,
-                        "CCMS SQS returned an unexpected response.");
-            }
+            SendMessageResponse response = sendPreparedMessage(sqsClient, sqsQueueUrl, ccmsMessageBuilder.build(),
+                    userProfile.getUserType(), generateDeduplicationId(userProfile, newPuiRoles));
             log.info("CCMS role change message sent to queue",
                     kv("userProfileId", userProfile.getId()),
                     kv("entraOid", entraUser.getEntraOid()),
@@ -200,6 +178,26 @@ public class RoleChangeNotificationService {
                     kv("applicationEntraOid", appEntraOid));
         }
         return true;
+    }
+
+    private SendMessageResponse sendPreparedMessage(SqsClient client, String queue, CcmsMessage message,
+                                                    UserType userType, String deduplicationId) {
+        String messageBody;
+        try {
+            messageBody = objectMapper.writeValueAsString(message);
+        } catch (JsonProcessingException ex) {
+            throw new CcmsNotificationException("CCMS message serialization failed", ex);
+        }
+        var request = SendMessageRequest.builder().queueUrl(queue).messageBody(messageBody)
+                .messageAttributes(Map.of(USER_TYPE_ATTRIBUTE, MessageAttributeValue.builder()
+                        .stringValue(userType.toString()).dataType("String").build()))
+                .messageGroupId(message.getUserName()).messageDeduplicationId(deduplicationId).build();
+        SendMessageResponse response = client.sendMessage(request);
+        if (response == null || response.messageId() == null || response.messageId().isBlank()
+                || (response.sdkHttpResponse() != null && !response.sdkHttpResponse().isSuccessful())) {
+            throw new CcmsSyncException(CcmsSyncException.Reason.INVALID_RESPONSE);
+        }
+        return response;
     }
 
     @Recover

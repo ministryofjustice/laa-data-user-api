@@ -12,7 +12,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 @Slf4j
 @Configuration
-@EnableRetry
+@EnableRetry(proxyTargetClass = true)
 public class SilasStatusRefreshConfig implements AsyncConfigurer {
 
     @Bean

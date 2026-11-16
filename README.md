@@ -249,8 +249,6 @@ ArchUnit rejects construction of generic `Exception` and `RuntimeException` in a
 Spring-proxied CCMS notifications retry serialization and AWS SDK failures up to three times and recover to a logged failure;
 unexpected programming faults are neither retried nor treated as successful delivery.
 Missing CCMS clients or queues return an unsuccessful notification result, never a successful delivery.
-`POST /api/v1/commands/ccms/trigger-role-sync` is system-administrator scoped and requires
-`TRIGGER_CCMS_ROLE_SYNC`; it only schedules background work, whose persistence transactions are isolated per profile.
 Role-cleanup downstream failures remain best-effort during user deletion; unexpected faults propagate.
 Empty, blank, or JSON-null successful group-removal responses are classified as `INVALID_RESPONSE`
 and remain best-effort during deletion. Regression tests exercise the real Spring async proxy and

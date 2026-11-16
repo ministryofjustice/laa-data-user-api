@@ -7,16 +7,19 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface UserProfileCommandRepository extends JpaRepository<UserProfile, UUID> {
 
+    @Transactional(readOnly = true)
     @Query("""
             SELECT ups.id FROM UserProfile ups
             WHERE ups.lastCcmsSyncSuccessful = false
@@ -27,6 +30,16 @@ public interface UserProfileCommandRepository extends JpaRepository<UserProfile,
                  )
             """)
     List<UUID> findUserProfileIdsForCcmsSync();
+
+    @Query("""
+            SELECT DISTINCT p FROM UserProfile p
+            JOIN FETCH p.entraUser
+            LEFT JOIN FETCH p.firm
+            LEFT JOIN FETCH p.appRoles r
+            LEFT JOIN FETCH r.app
+            WHERE p.id = :id
+            """)
+    Optional<UserProfile> findCcmsSyncProfile(@Param("id") UUID id);
 
     @Modifying(clearAutomatically = true)
     @Query("""

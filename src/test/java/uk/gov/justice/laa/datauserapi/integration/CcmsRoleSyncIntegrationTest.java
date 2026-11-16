@@ -19,6 +19,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
@@ -28,6 +29,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -38,8 +40,12 @@ import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 import uk.gov.justice.laa.datauserapi.application.command.registry.SqsClientRegistry;
 import uk.gov.justice.laa.datauserapi.application.command.service.CcmsRoleSyncProfileService;
 import uk.gov.justice.laa.datauserapi.application.command.service.CcmsRoleSyncService;
+import uk.gov.justice.laa.datauserapi.application.command.service.CcmsRoleSyncPersistenceService;
 import uk.gov.justice.laa.datauserapi.application.command.service.RoleChangeNotificationService;
+import uk.gov.justice.laa.datauserapi.application.command.mapper.CcmsSyncProfileMapper;
+import uk.gov.justice.laa.datauserapi.application.command.dto.CcmsProfileSyncOutcome;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
+import uk.gov.justice.laa.datauserapi.config.CcmsRoleSyncConfig;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 
 import javax.sql.DataSource;
@@ -49,6 +55,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -185,15 +192,14 @@ class CcmsRoleSyncIntegrationTest {
                 SELECT last_sync_successful FROM user_profile WHERE id IN (?, ?, ?)
                 """, Boolean.class, id(1), id(2), id(3))).containsExactly(true, true);
         verify(sqs, times(3)).sendMessage(any(SendMessageRequest.class));
-        assertThat(output.getOut()).contains("CCMS profile synchronization transaction failed",
-                "ObjectOptimisticLockingFailureException", "CCMS role sync completed with failures");
+        assertThat(output.getOut()).contains("CCMS profile was deleted before recording sync result");
     }
 
     @Test
     void missingIdentifierUpdatesOnlySyncResultAndAuditColumns() {
         jdbc.update("UPDATE user_profile SET legacy_user_id = NULL WHERE id = ?", id(1));
 
-        assertThat(profileService.syncProfile(id(1), "actor").failure()).isNotNull();
+        assertThat(profileService.syncProfile(id(1), "actor")).isEqualTo(CcmsProfileSyncOutcome.INVALID_DATA);
 
         assertThat(jdbc.queryForObject("SELECT last_sync_successful FROM user_profile WHERE id = ?",
                 Boolean.class, id(1))).isFalse();
@@ -224,8 +230,7 @@ class CcmsRoleSyncIntegrationTest {
 
         var result = profileService.syncProfile(id(1), "actor");
 
-        assertThat(result.processed()).isTrue();
-        assertThat(result.failure() == null).isEqualTo(successful);
+        assertThat(result).isEqualTo(successful ? CcmsProfileSyncOutcome.SUCCESS : CcmsProfileSyncOutcome.DOWNSTREAM_FAILURE);
         assertThat(jdbc.queryForObject("SELECT silas_status FROM user_profile WHERE id = ?",
                 String.class, id(1))).isEqualTo("ACTIVATION_REQUIRED");
         assertThat(jdbc.queryForObject("SELECT unrestricted_office_access FROM user_profile WHERE id = ?",
@@ -250,13 +255,77 @@ class CcmsRoleSyncIntegrationTest {
     @Test
     void profileResultsCommitIndependentlyOfOuterTransaction() {
         when(sqs.sendMessage(any(SendMessageRequest.class)))
-                .thenReturn(SendMessageResponse.builder().messageId("message").build());
+                .thenAnswer(invocation -> {
+                    assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+                    return SendMessageResponse.builder().messageId("message").build();
+                });
         new TransactionTemplate(transactionManager).executeWithoutResult(transaction -> {
             service.sync("actor");
             transaction.setRollbackOnly();
         });
         assertThat(jdbc.queryForList("SELECT last_sync_successful FROM user_profile WHERE id IN (?, ?, ?)",
                 Boolean.class, id(1), id(2), id(3))).containsOnly(true);
+    }
+
+    @Test
+    void unexpectedProfileFailureDoesNotPreventOtherProfilesFromCommitting() {
+        when(sqs.sendMessage(any(SendMessageRequest.class))).thenAnswer(invocation -> {
+            SendMessageRequest request = invocation.getArgument(0);
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            if (request.messageGroupId().equals(id(102).toString())) {
+                throw new IllegalStateException("unexpected failure");
+            }
+            return SendMessageResponse.builder().messageId("message").build();
+        });
+
+        service.sync("actor");
+
+        assertThat(jdbc.queryForList("SELECT last_sync_successful FROM user_profile ORDER BY id", Boolean.class))
+                .containsExactly(true, false, true, true, false);
+        verify(sqs, times(3)).sendMessage(any(SendMessageRequest.class));
+    }
+
+    @Test
+    void sendsDetachedSnapshotWhenRolesChangeDuringRequestWithoutHoldingDatabaseTransaction() {
+        when(sqs.sendMessage(any(SendMessageRequest.class))).thenAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            SendMessageRequest request = invocation.getArgument(0);
+            jdbc.update("DELETE FROM user_profile_app_role WHERE user_profile_id = ?", id(1));
+            jdbc.update("INSERT INTO user_profile_app_role VALUES (?, ?)", id(1), id(31));
+            assertThat(request.messageBody()).contains("LEGACY").doesNotContain("LOCAL");
+            return SendMessageResponse.builder().messageId("message").build();
+        });
+
+        assertThat(profileService.syncProfile(id(1), "actor")).isEqualTo(CcmsProfileSyncOutcome.SUCCESS);
+        assertThat(jdbc.queryForList("SELECT app_role_id FROM user_profile_app_role WHERE user_profile_id = ?",
+                UUID.class, id(1))).containsExactly(id(31));
+    }
+
+    @Test
+    void successfulSendIsNotRolledBackWhenRecordingResultFailsAndNextTriggerCanRetry() {
+        when(sqs.sendMessage(any(SendMessageRequest.class))).thenAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return SendMessageResponse.builder().messageId("message").build();
+        });
+
+        assertThatThrownBy(() -> profileService.syncProfile(id(1), "x".repeat(256)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(jdbc.queryForObject("SELECT last_sync_successful FROM user_profile WHERE id = ?",
+                Boolean.class, id(1))).isFalse();
+        assertThat(profileService.syncProfile(id(1), "retry-actor")).isEqualTo(CcmsProfileSyncOutcome.SUCCESS);
+        assertThat(jdbc.queryForObject("SELECT last_sync_successful FROM user_profile WHERE id = ?",
+                Boolean.class, id(1))).isTrue();
+        verify(sqs, times(2)).sendMessage(any(SendMessageRequest.class));
+    }
+
+    @Test
+    void selectedProfileStillSendsIfAnotherOperationHasAlreadyMarkedItSuccessful() {
+        jdbc.update("UPDATE user_profile SET last_sync_successful = TRUE WHERE id = ?", id(1));
+        when(sqs.sendMessage(any(SendMessageRequest.class)))
+                .thenReturn(SendMessageResponse.builder().messageId("message").build());
+
+        assertThat(profileService.syncProfile(id(1), "actor")).isEqualTo(CcmsProfileSyncOutcome.SUCCESS);
+        verify(sqs).sendMessage(any(SendMessageRequest.class));
     }
 
     private static UUID id(int number) {
@@ -266,7 +335,8 @@ class CcmsRoleSyncIntegrationTest {
     @Configuration(proxyBeanMethods = false)
     @EnableTransactionManagement
     @EnableJpaRepositories(basePackageClasses = UserProfileCommandRepository.class)
-    @Import({CcmsRoleSyncService.class, CcmsRoleSyncProfileService.class, RoleChangeNotificationService.class})
+    @Import({CcmsRoleSyncService.class, CcmsRoleSyncProfileService.class, CcmsRoleSyncPersistenceService.class,
+        CcmsSyncProfileMapper.class, CcmsRoleSyncConfig.class, RoleChangeNotificationService.class})
     static class Config {
         @Bean
         DataSource dataSource() {

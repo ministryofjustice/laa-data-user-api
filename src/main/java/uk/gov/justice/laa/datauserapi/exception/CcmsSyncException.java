@@ -1,41 +1,33 @@
 package uk.gov.justice.laa.datauserapi.exception;
 
-import lombok.Getter;
-import org.springframework.http.HttpStatus;
+import java.util.Objects;
 
-@Getter
 public class CcmsSyncException extends RuntimeException implements LaaDataApiException<CcmsSyncException.Reason> {
-
     public enum Reason {
-        DOWNSTREAM_TIMEOUT,
-        DOWNSTREAM_UNAVAILABLE,
-        DOWNSTREAM_REJECTED,
-        INVALID_RESPONSE,
-        MESSAGE_PREPARATION_FAILURE,
-        INVALID_PROFILE,
-        NO_SYNC_ROLES,
-        DOWNSTREAM_FAILURE
+        DOWNSTREAM_TIMEOUT("CCMS SQS request timed out."),
+        DOWNSTREAM_UNAVAILABLE("CCMS SQS queue or client is unavailable."),
+        DOWNSTREAM_REJECTED("CCMS SQS rejected the synchronisation request."),
+        INVALID_RESPONSE("CCMS SQS returned an unexpected response."),
+        MESSAGE_PREPARATION_FAILURE("CCMS synchronisation message could not be prepared."),
+        INVALID_PROFILE("CCMS profile is missing required data."),
+        NO_SYNC_ROLES("No legacy-sync roles remain for the CCMS profile.");
+
+        private final String message;
+
+        Reason(String message) {
+            this.message = message;
+        }
     }
 
-    private final HttpStatus status;
     private final Reason reason;
 
-    public CcmsSyncException(HttpStatus status, String message) {
-        this(status, reasonFor(status), message, null);
+    public CcmsSyncException(Reason reason) {
+        this(reason, null);
     }
 
-    public CcmsSyncException(HttpStatus status, String message, Throwable cause) {
-        this(status, reasonFor(status), message, cause);
-    }
-
-    public CcmsSyncException(HttpStatus status, Reason reason, String message) {
-        this(status, reason, message, null);
-    }
-
-    public CcmsSyncException(HttpStatus status, Reason reason, String message, Throwable cause) {
-        super(message, cause);
-        this.status = status;
-        this.reason = java.util.Objects.requireNonNull(reason, "reason");
+    public CcmsSyncException(Reason reason, Throwable cause) {
+        super(Objects.requireNonNull(reason, "reason").message, cause);
+        this.reason = reason;
     }
 
     @Override
@@ -46,14 +38,5 @@ public class CcmsSyncException extends RuntimeException implements LaaDataApiExc
     @Override
     public Reason reason() {
         return reason;
-    }
-
-    private static Reason reasonFor(HttpStatus status) {
-        return switch (status) {
-            case GATEWAY_TIMEOUT, REQUEST_TIMEOUT -> Reason.DOWNSTREAM_TIMEOUT;
-            case SERVICE_UNAVAILABLE -> Reason.DOWNSTREAM_UNAVAILABLE;
-            case BAD_GATEWAY -> Reason.DOWNSTREAM_REJECTED;
-            default -> Reason.DOWNSTREAM_FAILURE;
-        };
     }
 }
