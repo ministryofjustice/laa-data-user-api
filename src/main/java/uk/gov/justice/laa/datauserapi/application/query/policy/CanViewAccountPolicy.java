@@ -47,7 +47,8 @@ public class CanViewAccountPolicy implements AuthorizationPolicy<UserAccountVisi
 
     private boolean isInternalViewingInternal(AuthenticatedEntraUser actor, UserAccountVisibilityContext target) {
         return actor.activeProfile().userType() == UserType.INTERNAL
-                && target.hasInternalProfile();
+                && target.hasInternalProfile()
+                && ActorPermissions.has(actor, Permission.VIEW_INTERNAL_USER);
     }
 
     private boolean isExternalViewingOwnAccount(AuthenticatedEntraUser actor, UserAccountVisibilityContext target) {
@@ -61,8 +62,8 @@ public class CanViewAccountPolicy implements AuthorizationPolicy<UserAccountVisi
         AuthenticatedUserProfile actorProfile = actor.activeProfile();
         return actorProfile.userType() == UserType.EXTERNAL
                 && actorProfile.firmId() != null
-                && target.externalFirmIds() != null
-                && target.externalFirmIds().contains(actorProfile.firmId());
+                && target.externalFirmIds().contains(actorProfile.firmId())
+                && ActorPermissions.has(actor, Permission.VIEW_EXTERNAL_USER);
     }
 
     private boolean isInternalWithExternalViewPermission(AuthenticatedEntraUser actor,

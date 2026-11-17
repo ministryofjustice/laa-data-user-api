@@ -49,7 +49,7 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
                 FROM EntraUser u LEFT JOIN u.userProfiles up LEFT JOIN up.appRoles ar LEFT JOIN ar.app a LEFT JOIN up.firm f
                 WHERE((:#{#criteria.actorInternal()} = TRUE AND up.userType = UserType.INTERNAL)
                 OR
-                  (:#{#criteria.actorExternal()} = TRUE AND up.firm.id = :#{#criteria.actorFirmId})
+                  (:#{#criteria.actorExternal()} = TRUE AND :#{#criteria.canViewExternalUsers} = TRUE AND up.firm.id = :#{#criteria.actorFirmId})
                 OR
                   (:#{#criteria.actorInternal()} = TRUE AND :#{#criteria.canViewExternalUsers} = TRUE AND (u.multiFirmUser = true OR up IS NULL OR up.userType = UserType.EXTERNAL)))
                 AND (:#{#criteria.user} IS NULL
@@ -85,7 +85,7 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
                 FROM EntraUser u LEFT JOIN u.userProfiles up LEFT JOIN up.appRoles ar LEFT JOIN ar.app a LEFT JOIN up.firm f
                 WHERE((:#{#criteria.actorInternal()} = TRUE AND up.userType = UserType.INTERNAL)
                 OR
-                    (:#{#criteria.actorExternal()} = TRUE AND up.firm.id = :#{#criteria.actorFirmId})
+                  (:#{#criteria.actorExternal()} = TRUE AND :#{#criteria.canViewExternalUsers} = TRUE AND up.firm.id = :#{#criteria.actorFirmId})
                 OR
                     (:#{#criteria.actorInternal()} = TRUE AND :#{#criteria.canViewExternalUsers} = TRUE AND (u.multiFirmUser = true OR up IS NULL OR up.userType = UserType.EXTERNAL)))
 

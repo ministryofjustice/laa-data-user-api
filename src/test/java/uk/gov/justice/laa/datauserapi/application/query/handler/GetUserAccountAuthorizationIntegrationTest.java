@@ -26,11 +26,13 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.FirmDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
+import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.security.rbac.RbacMethodSecurityConfig;
 
+import java.util.Arrays;
 import java.util.Set;
 import java.util.Optional;
 import java.util.UUID;
@@ -136,12 +138,16 @@ class GetUserAccountAuthorizationIntegrationTest {
         when(service.getAccount(TARGET_OID, "actor-oid"))
                 .thenReturn(expected);
 
+        AuthenticatedAppRole role = new AuthenticatedAppRole(UUID.randomUUID(), "role", 0, null, false,
+                null, null, "desc", true, null, Set.of(Permission.VIEW_EXTERNAL_USER));
+
+
         AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
                 .id(UUID.randomUUID())
                 .activeProfile(true)
                 .userType(UserType.EXTERNAL)
                 .firmId(FIRM_ID)
-                .appRoles(Set.of())
+                .appRoles(Set.of(role))
                 .build();
 
         AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder()
@@ -224,6 +230,40 @@ class GetUserAccountAuthorizationIntegrationTest {
     }
 
     @Test
+    void internalActorCannotViewInternalUserWithoutPermission() {
+
+        EntraUserDto user = mock(EntraUserDto.class);
+        UserProfileDto profile = mock(UserProfileDto.class);
+
+        when(profile.getUserType()).thenReturn(UserType.INTERNAL);
+        when(user.getEntraOid()).thenReturn(TARGET_OID);
+        when(user.getUserProfiles()).thenReturn(Set.of(profile));
+
+        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID))
+                .thenReturn(Optional.of(user));
+
+        AuthenticatedUserProfile actorProfile = AuthenticatedUserProfile.builder()
+                .id(UUID.randomUUID())
+                .activeProfile(true)
+                .userType(UserType.INTERNAL)
+                .appRoles(Set.of())
+                .build();
+
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder()
+                .entraOid("actor-oid")
+                .activeProfile(actorProfile)
+                .build();
+
+        assertDeniedWith(
+                PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE,
+                () -> handler.handle(
+                        new GetUserAccountQuery(TARGET_OID),
+                        actor));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void internalActorCanViewInternalUser() {
 
         EntraUserDto user = mock(EntraUserDto.class);
@@ -245,6 +285,8 @@ class GetUserAccountAuthorizationIntegrationTest {
                 .id(UUID.randomUUID())
                 .activeProfile(true)
                 .userType(UserType.INTERNAL)
+                .appRoles(Set.of(new AuthenticatedAppRole(UUID.randomUUID(), "Role", 1, "ROLE", false,
+                        null, null, "Role", true, null, Set.of(Permission.VIEW_INTERNAL_USER))))
                 .build();
 
         AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder()

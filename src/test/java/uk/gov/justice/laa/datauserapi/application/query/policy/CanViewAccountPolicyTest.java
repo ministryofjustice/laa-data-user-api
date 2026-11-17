@@ -24,8 +24,9 @@ class CanViewAccountPolicyTest {
 
     @Test
     void allowsInternalActorToViewInternalUser() {
-        AuthenticatedEntraUser actor = internalActor();
-        UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, true, false, Set.of(), UUID.randomUUID().toString());
+        AuthenticatedEntraUser actor = internalActor(Permission.VIEW_INTERNAL_USER);
+        UserAccountVisibilityContext context =
+                new UserAccountVisibilityContext(true, true, false, Set.of(), UUID.randomUUID().toString());
 
         PolicyDecision decision = policy.evaluate(context, actor);
 
@@ -35,8 +36,10 @@ class CanViewAccountPolicyTest {
     @Test
     void forbidsInternalActorToViewExternalUserWithoutPermission() {
         UUID firmId = UUID.randomUUID();
+
         AuthenticatedEntraUser actor = internalActor();
-        UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, false, true, Set.of(firmId), UUID.randomUUID().toString());
+        UserAccountVisibilityContext context =
+                new UserAccountVisibilityContext(true, false, true, Set.of(firmId), UUID.randomUUID().toString());
 
         PolicyDecision decision = policy.evaluate(context, actor);
 
@@ -47,8 +50,12 @@ class CanViewAccountPolicyTest {
     @Test
     void allowsInternalActorWithPermissionToViewExternalUser() {
         UUID firmId = UUID.randomUUID();
-        AuthenticatedEntraUser actor = internalActorWith(Permission.VIEW_EXTERNAL_USER);
-        UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, false, true, Set.of(firmId), UUID.randomUUID().toString());
+
+        AuthenticatedEntraUser actor =
+                internalActor(Permission.VIEW_EXTERNAL_USER);
+
+        UserAccountVisibilityContext context =
+                new UserAccountVisibilityContext(true, false, true, Set.of(firmId), UUID.randomUUID().toString());
 
         PolicyDecision decision = policy.evaluate(context, actor);
 
@@ -58,8 +65,12 @@ class CanViewAccountPolicyTest {
     @Test
     void allowsExternalActorToViewOwnAccount() {
         String actorOid = UUID.randomUUID().toString();
-        AuthenticatedEntraUser actor = externalActor(UUID.randomUUID(), actorOid);
-        UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, false, true, Set.of(), actorOid);
+
+        AuthenticatedEntraUser actor =
+                externalActor(UUID.randomUUID(), actorOid);
+
+        UserAccountVisibilityContext context =
+                new UserAccountVisibilityContext(true, false, true, Set.of(), actorOid);
 
         PolicyDecision decision = policy.evaluate(context, actor);
 
@@ -70,8 +81,12 @@ class CanViewAccountPolicyTest {
     void forbidsExternalActorToViewAnotherExternalAccount() {
         String actorOid = UUID.randomUUID().toString();
         String targetOid = UUID.randomUUID().toString();
-        AuthenticatedEntraUser actor = externalActor(UUID.randomUUID(), actorOid);
-        UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, false, true, Set.of(), targetOid);
+
+        AuthenticatedEntraUser actor =
+                externalActor(UUID.randomUUID(), actorOid);
+
+        UserAccountVisibilityContext context =
+                new UserAccountVisibilityContext(true, false, true, Set.of(), targetOid);
 
         PolicyDecision decision = policy.evaluate(context, actor);
 
@@ -82,8 +97,12 @@ class CanViewAccountPolicyTest {
     @Test
     void allowsExternalActorToViewUserFromSameFirm() {
         UUID firmId = UUID.randomUUID();
-        AuthenticatedEntraUser actor = externalActor(firmId);
-        UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, false, true, Set.of(firmId), UUID.randomUUID().toString());
+
+        AuthenticatedEntraUser actor =
+                externalActor(firmId, UUID.randomUUID().toString(), Permission.VIEW_EXTERNAL_USER);
+
+        UserAccountVisibilityContext context =
+                new UserAccountVisibilityContext(true, false, true, Set.of(firmId), UUID.randomUUID().toString());
 
         PolicyDecision decision = policy.evaluate(context, actor);
 
@@ -91,12 +110,31 @@ class CanViewAccountPolicyTest {
     }
 
     @Test
+    void forbidsExternalActorFromViewingSameFirmUserWithoutPermission() {
+        UUID firmId = UUID.randomUUID();
+
+        AuthenticatedEntraUser actor =
+                externalActor(firmId, UUID.randomUUID().toString());
+
+        UserAccountVisibilityContext context =
+                new UserAccountVisibilityContext(true, false, true, Set.of(firmId), UUID.randomUUID().toString());
+
+        PolicyDecision decision = policy.evaluate(context, actor);
+
+        assertThat(decision.granted()).isFalse();
+        assertThat(decision.reason()).isEqualTo(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE);
+    }
+
+    @Test
     void forbidsExternalActorViewingUserFromDifferentFirm() {
         UUID actorFirmId = UUID.randomUUID();
         UUID targetFirmId = UUID.randomUUID();
-        AuthenticatedEntraUser actor = externalActor(actorFirmId);
-        // Target user has both internal and external profiles, so not "own account"
-        UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, true, true, Set.of(targetFirmId), UUID.randomUUID().toString());
+
+        AuthenticatedEntraUser actor =
+                externalActor(actorFirmId, UUID.randomUUID().toString(), Permission.VIEW_EXTERNAL_USER);
+
+        UserAccountVisibilityContext context =
+                new UserAccountVisibilityContext(true, true, true, Set.of(targetFirmId), UUID.randomUUID().toString());
 
         PolicyDecision decision = policy.evaluate(context, actor);
 
@@ -108,8 +146,17 @@ class CanViewAccountPolicyTest {
     void allowsExternalActorToViewUserWhenTargetHasMultipleFirmsIncludingActorFirm() {
         UUID actorFirmId = UUID.randomUUID();
         UUID otherFirmId = UUID.randomUUID();
-        AuthenticatedEntraUser actor = externalActor(actorFirmId);
-        UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, false, true, Set.of(otherFirmId, actorFirmId), UUID.randomUUID().toString());
+
+        AuthenticatedEntraUser actor =
+                externalActor(actorFirmId, UUID.randomUUID().toString(), Permission.VIEW_EXTERNAL_USER);
+
+        UserAccountVisibilityContext context =
+                new UserAccountVisibilityContext(
+                        true,
+                        false,
+                        true,
+                        Set.of(otherFirmId, actorFirmId),
+                        UUID.randomUUID().toString());
 
         PolicyDecision decision = policy.evaluate(context, actor);
 
@@ -121,8 +168,17 @@ class CanViewAccountPolicyTest {
         UUID actorFirmId = UUID.randomUUID();
         UUID firmA = UUID.randomUUID();
         UUID firmB = UUID.randomUUID();
-        AuthenticatedEntraUser actor = externalActor(actorFirmId);
-        UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, false, true, Set.of(firmA, firmB), UUID.randomUUID().toString());
+
+        AuthenticatedEntraUser actor =
+                externalActor(actorFirmId, UUID.randomUUID().toString(), Permission.VIEW_EXTERNAL_USER);
+
+        UserAccountVisibilityContext context =
+                new UserAccountVisibilityContext(
+                        true,
+                        false,
+                        true,
+                        Set.of(firmA, firmB),
+                        UUID.randomUUID().toString());
 
         PolicyDecision decision = policy.evaluate(context, actor);
 
@@ -133,9 +189,10 @@ class CanViewAccountPolicyTest {
     @Test
     void deniesAccessToMissingUser() {
         AuthenticatedEntraUser actor = internalActor();
-        UserAccountVisibilityContext context = UserAccountVisibilityContext.missing();
 
-        PolicyDecision decision = policy.evaluate(context, actor);
+        PolicyDecision decision = policy.evaluate(
+                UserAccountVisibilityContext.missing(),
+                actor);
 
         assertThat(decision.granted()).isFalse();
         assertThat(decision.reason()).isEqualTo(PolicyDenialReason.TARGET_PROFILE_NOT_FOUND);
@@ -145,7 +202,9 @@ class CanViewAccountPolicyTest {
     void deniesAccessWhenActorHasNoActiveProfile() {
         AuthenticatedEntraUser actor = mock(AuthenticatedEntraUser.class);
         when(actor.activeProfile()).thenReturn(null);
-        UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, true, false, Set.of(), UUID.randomUUID().toString());
+
+        UserAccountVisibilityContext context =
+                new UserAccountVisibilityContext(true, true, false, Set.of(), UUID.randomUUID().toString());
 
         PolicyDecision decision = policy.evaluate(context, actor);
 
@@ -157,9 +216,12 @@ class CanViewAccountPolicyTest {
     void deniesAccessWhenActorUserTypeIsNull() {
         AuthenticatedUserProfile profile = mock(AuthenticatedUserProfile.class);
         when(profile.userType()).thenReturn(null);
+
         AuthenticatedEntraUser actor = mock(AuthenticatedEntraUser.class);
         when(actor.activeProfile()).thenReturn(profile);
-        UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, true, false, Set.of(), UUID.randomUUID().toString());
+
+        UserAccountVisibilityContext context =
+                new UserAccountVisibilityContext(true, true, false, Set.of(), UUID.randomUUID().toString());
 
         PolicyDecision decision = policy.evaluate(context, actor);
 
@@ -167,33 +229,44 @@ class CanViewAccountPolicyTest {
         assertThat(decision.reason()).isEqualTo(PolicyDenialReason.ACTOR_NO_ACTIVE_PROFILE);
     }
 
-    private AuthenticatedEntraUser externalActor(UUID firmId) {
-        return externalActor(firmId, UUID.randomUUID().toString());
+    private AuthenticatedEntraUser internalActor(Permission... permissions) {
+        return actor(
+                UserType.INTERNAL,
+                null,
+                UUID.randomUUID().toString(),
+                permissions);
     }
 
-    private AuthenticatedEntraUser externalActor(UUID firmId, String oid) {
-        return externalActorWith(firmId, oid);
+    private AuthenticatedEntraUser externalActor(
+            UUID firmId,
+            String oid,
+            Permission... permissions) {
+        return actor(
+                UserType.EXTERNAL,
+                firmId,
+                oid,
+                permissions);
     }
 
-    private AuthenticatedEntraUser externalActorWith(UUID firmId, Permission... permissions) {
-        return externalActorWith(firmId, UUID.randomUUID().toString(), permissions);
-    }
+    private AuthenticatedEntraUser actor(
+            UserType userType,
+            UUID firmId,
+            String oid,
+            Permission... permissions) {
 
-    private AuthenticatedEntraUser externalActorWith(UUID firmId, String oid, Permission... permissions) {
-        return actor(UserType.EXTERNAL, firmId, oid, permissions);
-    }
+        AuthenticatedAppRole role = new AuthenticatedAppRole(
+                UUID.randomUUID(),
+                "role",
+                0,
+                null,
+                false,
+                null,
+                null,
+                "desc",
+                true,
+                null,
+                Set.copyOf(Arrays.asList(permissions)));
 
-    private AuthenticatedEntraUser internalActor() {
-        return internalActorWith();
-    }
-
-    private AuthenticatedEntraUser internalActorWith(Permission... permissions) {
-        return actor(UserType.INTERNAL, null, UUID.randomUUID().toString(), permissions);
-    }
-
-    private AuthenticatedEntraUser actor(UserType userType, UUID firmId, String oid, Permission... permissions) {
-        AuthenticatedAppRole role = new AuthenticatedAppRole(UUID.randomUUID(), "role", 0, null, false,
-                null, null, "desc", true, null, Set.copyOf(Arrays.asList(permissions)));
         AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
                 .id(UUID.randomUUID())
                 .activeProfile(true)
@@ -201,6 +274,7 @@ class CanViewAccountPolicyTest {
                 .firmId(firmId)
                 .appRoles(Set.of(role))
                 .build();
+
         return AuthenticatedEntraUser.builder()
                 .active(true)
                 .id(UUID.randomUUID())
