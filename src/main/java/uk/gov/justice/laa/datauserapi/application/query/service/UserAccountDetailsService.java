@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserView;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
 @Service
 @Transactional(readOnly = true)
@@ -21,7 +22,8 @@ public class UserAccountDetailsService {
     }
 
     public UserView getAccount(String userEntraObjectId, String actorOid) {
-        EntraUserDto target = queryService.findUserAccountSummaryByUserEntraObjectId(userEntraObjectId);
+        EntraUserDto target = queryService.findUserAccountSummaryByUserEntraObjectId(userEntraObjectId)
+                .orElseThrow(() -> new UserNotFoundException(userEntraObjectId));
         return userViewMapper.mapToUserView(target);
     }
 }

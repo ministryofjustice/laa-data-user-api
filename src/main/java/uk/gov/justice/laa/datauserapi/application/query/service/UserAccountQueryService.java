@@ -14,6 +14,7 @@ import uk.gov.justice.laa.datauserapi.application.query.mapper.UserAccountQueryM
 import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -42,11 +43,14 @@ public class UserAccountQueryService {
     }
 
     public EntraUserDto findByEntraOid(String entraOid) {
-        return mapper.toDto(userRepository.findByEntraOid(entraOid), entraOid);
+        return userRepository.findByEntraOid(entraOid)
+                .map(mapper::toDto)
+                .orElseThrow(() -> new UserNotFoundException(entraOid));
     }
 
-    public EntraUserDto findUserAccountSummaryByUserEntraObjectId(String userEntraObjectId) {
-        return mapper.toDto(userRepository.findByEntraOid(userEntraObjectId), userEntraObjectId);
+    public Optional<EntraUserDto> findUserAccountSummaryByUserEntraObjectId(String userEntraObjectId) {
+        return userRepository.findByEntraOid(userEntraObjectId)
+                .map(mapper::toDto);
     }
 
     public Page<EntraUserDto> searchUsers(UserSearchCriteria criteria, Pageable pageable) {

@@ -9,14 +9,11 @@ import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.config.MapperConfig;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
-import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
 import java.util.List;
 import java.util.Set;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -32,15 +29,7 @@ class UserAccountQueryMapperTest {
         EntraUserDto dto = new EntraUserDto();
         when(modelMapper.map(user, EntraUserDto.class)).thenReturn(dto);
 
-        assertThat(mapper.toDto(Optional.of(user), "oid")).isSameAs(dto);
-    }
-
-    @Test
-    void reportsMissingUserWithoutMapping() {
-        assertThatThrownBy(() -> mapper.toDto(Optional.empty(), "missing"))
-                .isInstanceOf(UserNotFoundException.class)
-                .hasMessage("User not found with ID: missing");
-        verifyNoInteractions(modelMapper);
+        assertThat(mapper.toDto(user)).isSameAs(dto);
     }
 
     @Test
@@ -74,7 +63,7 @@ class UserAccountQueryMapperTest {
         user.setUserProfiles(Set.of(profile));
         UserAccountQueryMapper realMapper = new UserAccountQueryMapper(new MapperConfig().modelMapper());
 
-        EntraUserDto dto = realMapper.toDto(Optional.of(user), "oid");
+        EntraUserDto dto = realMapper.toDto(user);
 
         assertThat(dto.getUserProfiles()).hasSize(1);
         assertThat(dto.getUserProfiles().iterator().next().getEntraUser()).isNotNull();

@@ -5,9 +5,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
-
-import java.util.Optional;
 
 @Component
 public class UserAccountQueryMapper {
@@ -18,9 +15,8 @@ public class UserAccountQueryMapper {
         this.modelMapper = modelMapper;
     }
 
-    public EntraUserDto toDto(Optional<EntraUser> user, String entraOid) {
-        return modelMapper.map(user.orElseThrow(
-                () -> new UserNotFoundException(entraOid)), EntraUserDto.class);
+    public EntraUserDto toDto(EntraUser user) {
+        return modelMapper.map(user, EntraUserDto.class);
     }
 
     public Page<EntraUserDto> toPage(Page<EntraUser> users) {
