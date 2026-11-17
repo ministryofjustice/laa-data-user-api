@@ -70,7 +70,7 @@ dependencyManagement {
         // Snyk: proton-j (6 high)
         dependency 'org.apache.qpid:proton-j:0.35.0'
         // Snyk: hibernate-validator EL injection (medium)
-        dependency 'org.hibernate.validator:hibernate-validator:9.1.5.Final'
+        dependency 'org.hibernate.validator:hibernate-validator:9.1.6.Final'
         // Snyk: asm (5 medium)
         dependency 'org.ow2.asm:asm:9.11.1'
         // Snyk: guava (high), commons-compress (high/medium), plexus-utils (medium)
