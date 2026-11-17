@@ -33,10 +33,19 @@ public class UserViewMapper {
     }
 
     public UserView mapToUserView(EntraUserDto user) {
-        UserProfileDto activeProfile = user.getUserProfiles().stream()
+        var activeProfile = user.getUserProfiles().stream()
                 .filter(UserProfileDto::isActiveProfile)
                 .findFirst()
-                .orElseThrow(() -> UserProfileNotFoundException.activeProfileForUser(user.getEntraOid()));
+                .orElse(null);
+
+        UserProfileDetailView profile;
+        if (activeProfile != null) {
+            profile = mapProfile(activeProfile);
+        } else if (user.isMultiFirmUser()) {
+            profile = mapMultifirmUserWithoutAProfile();
+        } else {
+            throw UserProfileNotFoundException.activeProfileForUser(user.getEntraOid());
+        }
 
         UserAccountSummaryView userAccount = new UserAccountSummaryView(
                 user.getEntraOid(),
@@ -52,9 +61,11 @@ public class UserViewMapper {
                 user.getUserProfiles().size()
         );
 
-        UserProfileDetailView profile = mapProfile(activeProfile);
-
         return new UserView(userAccount, profile);
+    }
+
+    private UserProfileDetailView mapMultifirmUserWithoutAProfile() {
+        return null;
     }
 
     private UserProfileDetailView mapProfile(UserProfileDto profile) {
