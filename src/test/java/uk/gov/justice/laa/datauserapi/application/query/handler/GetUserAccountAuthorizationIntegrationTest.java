@@ -26,6 +26,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.FirmDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
@@ -112,7 +113,8 @@ class GetUserAccountAuthorizationIntegrationTest {
     @Test
     void missingAccountIsDeniedBeforeServiceRuns() {
 
-        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID)).thenReturn(null);
+        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID))
+                .thenThrow(new UserNotFoundException(TARGET_OID));
 
         assertDeniedWith(PolicyDenialReason.TARGET_PROFILE_NOT_FOUND,
                 () -> handler.handle(
