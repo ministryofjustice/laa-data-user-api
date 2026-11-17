@@ -42,7 +42,7 @@ public class UserViewMapper {
         if (activeProfile != null) {
             profile = mapProfile(activeProfile);
         } else if (user.isMultiFirmUser()) {
-            profile = mapMultifirmUserWithoutAProfile();
+            profile = mapMultifirmUserWithoutProfile();
         } else {
             throw UserProfileNotFoundException.activeProfileForUser(user.getEntraOid());
         }
@@ -64,7 +64,7 @@ public class UserViewMapper {
         return new UserView(userAccount, profile);
     }
 
-    private UserProfileDetailView mapMultifirmUserWithoutAProfile() {
+    private UserProfileDetailView mapMultifirmUserWithoutProfile() {
         return null;
     }
 
