@@ -52,7 +52,7 @@ dependencyManagement {
         dependency 'io.netty:netty-tcnative-boringssl-static:2.0.85.Final'
 
         // Snyk: jackson-databind (critical/high/medium), jackson-core (high/medium)
-        dependencySet(group: 'com.fasterxml.jackson.core', version: '2.21.8') {
+        dependencySet(group: 'com.fasterxml.jackson.core', version: '2.23.0') {
             entry 'jackson-databind'
             entry 'jackson-core'
         }
