@@ -176,6 +176,21 @@ Missing users, missing profiles, access denials, and missing scopes share the sa
 builder without synthesizing exceptions. Actor-context and profile-lookup exceptions expose typed
 reasons in structured server logs; reasons and diagnostic messages are not returned to clients.
 Exception metrics are derived from structured logs in Splunk; no exception counters are registered.
+Console logs use one JSON event per line in every profile, including `local`, via the Logstash encoder.
+MDC fields, structured arguments and stack traces are included automatically.
+`CorrelationIdFilter` reuses a single incoming `X-Correlation-ID` containing 1-128 ASCII letters, digits, dots,
+underscores or hyphens. Missing, invalid or repeated headers are replaced with a generated UUID. The chosen value
+is stored as MDC `correlationId` and returned in `X-Correlation-ID`. IDs are diagnostic metadata, not trusted identity.
+The filter runs before security,
+so authentication failures share the same request ID, and restores the previous context even when a request fails.
+Existing log statements need no correlation-ID arguments. Logs outside a request have no correlation ID.
+`MdcTaskDecorator` captures MDC at submission and restores the worker's previous context after completion or failure.
+It is configured on the default `taskExecutor`, `bulkDeactivationExecutor`, and `silasStatusRefreshExecutor`, covering
+both unnamed and named `@Async` methods. Configure the same decorator on any future application executor.
+`CorrelationIdInterceptor` forwards the active MDC ID on Tech Services HTTP requests automatically; no header is
+added when no ID is present. It reads MDC for each call, so shared clients do not retain another request's ID.
+This provides request correlation across cooperating HTTP services, not distributed tracing. Azure SDK token
+requests and SQS messages are not covered by this HTTP interceptor.
 `ExceptionLogFields` provides an `exception_reason` token using the lowercase typed reason,
 for example `active_profile_not_found`. The supported reason enums are
 `UserProfileNotFoundReason`, `InvalidActorContextReason`, `InvalidRequestException.Reason`,

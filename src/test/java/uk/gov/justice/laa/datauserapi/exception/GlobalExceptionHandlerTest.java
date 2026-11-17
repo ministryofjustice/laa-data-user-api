@@ -34,16 +34,13 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
-import org.springframework.boot.test.system.CapturedOutput;
-import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.security.access.AccessDeniedException;
 import jakarta.servlet.http.HttpServletRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.ProblemDetail;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.contracts.response.CreateUserAccountResponse;
 
-@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
+@ExtendWith(MockitoExtension.class)
 class GlobalExceptionHandlerTest {
 
     private GlobalExceptionHandler handler;
@@ -70,24 +67,30 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void createUserBusinessFailureIsLoggedAtWarn(CapturedOutput output) {
+    void createUserBusinessFailureIsLoggedAtWarn() {
         var response = handler.handleCreateUser(
                 new CreateUserException(CreateUserException.Reason.INVALID_REQUEST,
                         HttpStatus.BAD_REQUEST, "Invalid firm", "firmId"), request);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertEquals("firmId", response.getBody().errors().getFirst().field());
-        assertThat(output.getOut()).containsPattern("WARN[^\\r\\n]*User creation rejected");
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getLevel()).isEqualTo(ch.qos.logback.classic.Level.WARN);
+            assertThat(event.getMessage()).isEqualTo("User creation rejected");
+        });
     }
 
     @Test
-    void createUserSystemFailureIsLoggedAtError(CapturedOutput output) {
+    void createUserSystemFailureIsLoggedAtError() {
         var response = handler.handleCreateUser(
                 new CreateUserException(CreateUserException.Reason.IDENTITY_PROVIDER_FAILURE,
                         HttpStatus.BAD_GATEWAY, "Identity provider failed"), request);
 
         assertEquals(HttpStatus.BAD_GATEWAY, response.getStatusCode());
-        assertThat(output.getOut()).containsPattern("ERROR[^\\r\\n]*User creation failed");
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getLevel()).isEqualTo(ch.qos.logback.classic.Level.ERROR);
+            assertThat(event.getMessage()).isEqualTo("User creation failed");
+        });
     }
 
     @ParameterizedTest
