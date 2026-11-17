@@ -49,7 +49,7 @@ dependencyManagement {
         }
 
         // SNYK-JAVA-IONETTY-21755444
-        dependency 'io.netty:netty-tcnative-boringssl-static:2.0.84.Final'
+        dependency 'io.netty:netty-tcnative-boringssl-static:2.0.85.Final'
 
         // Snyk: jackson-databind (critical/high/medium), jackson-core (high/medium)
         dependencySet(group: 'com.fasterxml.jackson.core', version: '2.21.8') {
