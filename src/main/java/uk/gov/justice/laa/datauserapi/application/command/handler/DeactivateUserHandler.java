@@ -9,7 +9,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.exception.TechServicesClientException;
 
 @Component
-public class DeactivateUserHandler implements CommandHandler<DeactivateUserCommand> {
+public class DeactivateUserHandler implements CommandHandler<DeactivateUserCommand, CommandResult> {
 
     private final DeactivateUserService deactivateUserService;
 

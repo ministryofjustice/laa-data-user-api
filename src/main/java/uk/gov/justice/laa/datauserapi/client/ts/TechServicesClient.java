@@ -4,8 +4,15 @@ import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountEnabledRes
 import uk.gov.justice.laa.datauserapi.client.ts.response.ChangeAccountReactivationResponse;
 import uk.gov.justice.laa.datauserapi.client.ts.response.TechServicesApiResponse;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
+import java.util.UUID;
 
 public interface TechServicesClient {
+
+    Identity createUser(Registration registration);
+
+    record Registration(String email, String firstName, String lastName) {}
+
+    record Identity(UUID id, boolean created) {}
 
     TechServicesApiResponse<ChangeAccountReactivationResponse> reactivateUser(EntraUserDto user);
 

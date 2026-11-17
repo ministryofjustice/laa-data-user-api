@@ -11,10 +11,11 @@ import uk.gov.justice.laa.datauserapi.application.command.service.SilasStatusRef
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.RefreshSilasStatusCommand;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
 
 @Slf4j
 @Component
-public class RefreshSilasStatusHandler implements CommandHandler<RefreshSilasStatusCommand> {
+public class RefreshSilasStatusHandler implements CommandHandler<RefreshSilasStatusCommand, CommandResult> {
 
     private final SilasStatusRefreshService refreshService;
 
@@ -30,6 +31,7 @@ public class RefreshSilasStatusHandler implements CommandHandler<RefreshSilasSta
             refreshService.refresh(actor.entraOid());
         } catch (TaskRejectedException ex) {
             log.warn("SiLAS status refresh could not be started",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                     kv("actorEntraOid", actor.entraOid()),
                     ex);
             return CommandResult.failure("SiLAS status refresh is already running or the worker is unavailable.");

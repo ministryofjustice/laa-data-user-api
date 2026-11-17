@@ -26,7 +26,8 @@ import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundReason;
 import uk.gov.justice.laa.datauserapi.model.InvitationStatus;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.model.AppType;
@@ -110,7 +111,8 @@ class GetActiveProfileHandlerTest {
         GetActiveProfileHandler handler = handler();
 
         assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile)))
-                .isInstanceOf(ResourceNotFoundException.class)
+                .isInstanceOfSatisfying(UserProfileNotFoundException.class,
+                        ex -> assertThat(ex.reason()).isEqualTo(UserProfileNotFoundReason.ACTIVE_PROFILE_NOT_FOUND))
                 .hasMessageContaining("Active profile not found");
     }
 
@@ -145,7 +147,8 @@ class GetActiveProfileHandlerTest {
         GetActiveProfileHandler handler = handler();
 
         assertThatThrownBy(() -> handler.handle(userEntraObjectId, authenticatedTestUser(actorProfile)))
-                .isInstanceOf(ResourceNotFoundException.class)
+                .isInstanceOfSatisfying(UserProfileNotFoundException.class,
+                        ex -> assertThat(ex.reason()).isEqualTo(UserProfileNotFoundReason.ACTIVE_PROFILE_NOT_FOUND))
                 .hasMessageContaining("Active profile not found");
     }
 

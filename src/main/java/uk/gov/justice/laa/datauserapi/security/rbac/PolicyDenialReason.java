@@ -16,7 +16,10 @@ public enum PolicyDenialReason {
     PROVIDER_ADMIN_MULTI_FIRM_TARGET("provider admin cannot act on multi-firm user"),
     TARGET_USER_OUTSIDE_ACTOR_FIRM("target user is not in provider admin's firm"),
     TARGET_PROFILE_OUTSIDE_ACTOR_FIRM("target profile is not in provider admin's firm"),
-    TARGET_FIRM_OUTSIDE_ACTOR_FIRM("target firm is not the provider admin's firm");
+    TARGET_FIRM_OUTSIDE_ACTOR_FIRM("target firm is not the provider admin's firm"),
+    ACTOR_NO_ACTIVE_PROFILE("actor has no active profile with a determinable user type"),
+    TARGET_PROFILE_NOT_FOUND("target profile does not exist"),
+    TARGET_PROFILE_NOT_VISIBLE("actor cannot view the target profile");
 
     private final String description;
 

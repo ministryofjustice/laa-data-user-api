@@ -2,6 +2,8 @@ package uk.gov.justice.laa.datauserapi.authorisation;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -24,6 +26,7 @@ import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -35,6 +38,7 @@ import java.util.stream.Collectors;
 public class JwtToAuthenticatedEntraUserConverter implements Converter<Jwt, AbstractAuthenticationToken> {
 
     private final AuthenticatedEntraUserQueryRepository entraUserQueryRepository;
+    private final Environment environment;
 
     @Override
     @Transactional(readOnly = true)
@@ -46,12 +50,26 @@ public class JwtToAuthenticatedEntraUserConverter implements Converter<Jwt, Abst
 
         List<SimpleGrantedAuthority> authorities = new ArrayList<>();
         String scope = jwt.getClaimAsString("scp");
+        if (scope == null && isDevelopmentProfile()) {
+            scope = jwt.getClaimAsString("scope");
+        }
         if (scope != null) {
-            authorities = Arrays.stream(scope.split(" "))
-                    .map(scp -> new SimpleGrantedAuthority("SCOPE_" + scp))
+            Set<String> scopes = new LinkedHashSet<>(Arrays.asList(scope.split("\\s+")));
+            scopes.removeIf(String::isBlank);
+            if (isDevelopmentProfile() && !"none".equals(jwt.getHeaders().get("alg"))) {
+                scopes.add("user_data.read");
+            }
+            authorities = scopes.stream()
+                    .map(value -> new SimpleGrantedAuthority("SCOPE_" + value))
                     .toList();
+        } else if (isDevelopmentProfile() && !"none".equals(jwt.getHeaders().get("alg"))) {
+            authorities = List.of(new SimpleGrantedAuthority("SCOPE_user_data.read"));
         }
         return new UsernamePasswordAuthenticationToken(user, null, authorities);
+    }
+
+    private boolean isDevelopmentProfile() {
+        return environment.acceptsProfiles(Profiles.of("dev", "local", "test"));
     }
 
     private static AuthenticatedEntraUser mapEntraUserToAuthenticatedEntraUser(EntraUser entraUser) {

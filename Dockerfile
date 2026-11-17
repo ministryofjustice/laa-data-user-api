@@ -1,4 +1,4 @@
-FROM amazoncorretto:25-alpine@sha256:b611ab31a8cff0ab60ff5ee26de46d06922bfff0c54f5029ac588d5337bc533b
+FROM amazoncorretto:25-alpine@sha256:abed4fe0730b802823f0cbc5c24ab8e3ba6023af99266f0e2ca3c08d9f6a20f9
 
 # Apply security updates
 RUN apk update && \

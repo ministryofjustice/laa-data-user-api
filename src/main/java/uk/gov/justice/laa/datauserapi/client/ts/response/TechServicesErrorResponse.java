@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TechServicesErrorResponse {
     private boolean success;
-    private String code;
+    private TechServicesErrorCode code;
     private String message;
     private String[] errors;
 }

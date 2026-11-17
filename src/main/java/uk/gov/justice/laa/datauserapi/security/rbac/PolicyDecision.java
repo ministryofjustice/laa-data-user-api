@@ -22,4 +22,5 @@ public record PolicyDecision(boolean granted, PolicyDenialReason reason) {
     public static PolicyDecision deny(PolicyDenialReason reason) {
         return new PolicyDecision(false, reason);
     }
+
 }

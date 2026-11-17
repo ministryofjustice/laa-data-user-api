@@ -112,7 +112,7 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
         }
 
         Object obj = invocation.getArguments()[guarded.get().index()];
-        return evaluatePolicies(required, obj, actor, operation) ? GRANTED : DENIED;
+        return evaluatePolicies(required, obj, actor, operation);
     }
 
     private static boolean hasRequiredPermissions(AuthenticatedEntraUser actor, Requirement required) {
@@ -126,8 +126,8 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
         };
     }
 
-    private boolean evaluatePolicies(Requirement required, Object obj,
-                                     AuthenticatedEntraUser actor, String operation) {
+    private AuthorizationResult evaluatePolicies(Requirement required, Object obj,
+                                                 AuthenticatedEntraUser actor, String operation) {
         boolean legacyEnabledForMessage = isLegacyEnabledFor(required);
         if (obj == null) {
             boolean anyPolicies = required.policies().length > 0
@@ -138,28 +138,31 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
                         kv(ACTOR_ENTRA_OID, actor.entraOid()),
                         kv(OPERATION, operation));
             }
-            return !anyPolicies;
+            return anyPolicies ? DENIED : GRANTED;
         }
-        return evaluateGlobalPolicies(legacyEnabledForMessage, obj, actor, operation)
-                && evaluateDeclaredPolicies(required, legacyEnabledForMessage, obj, actor, operation);
+        AuthorizationResult global = evaluateGlobalPolicies(legacyEnabledForMessage, obj, actor, operation);
+        return global.isGranted()
+                ? evaluateDeclaredPolicies(required, legacyEnabledForMessage, obj, actor, operation) : global;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private boolean evaluateGlobalPolicies(boolean legacyEnabledForMessage, Object obj,
-                                           AuthenticatedEntraUser actor, String operation) {
+    private AuthorizationResult evaluateGlobalPolicies(boolean legacyEnabledForMessage, Object obj,
+                                                       AuthenticatedEntraUser actor, String operation) {
         for (GlobalAuthorizationPolicy policy : globalPolicies.get()) {
             if (isFeatureEnabled(policy.feature(), legacyEnabledForMessage)
-                    && supports(policy, obj) && policy.appliesTo(obj, actor)
-                    && !isGranted(policy, policy.getClass(), obj, actor, operation)) {
-                return false;
+                    && supports(policy, obj) && policy.appliesTo(obj, actor)) {
+                AuthorizationResult result = decide(policy, obj, actor, operation);
+                if (!result.isGranted()) {
+                    return result;
+                }
             }
         }
-        return true;
+        return GRANTED;
     }
 
     @SuppressWarnings({"rawtypes"})
-    private boolean evaluateDeclaredPolicies(Requirement required, boolean legacyEnabledForMessage, Object obj,
-                                             AuthenticatedEntraUser actor, String operation) {
+    private AuthorizationResult evaluateDeclaredPolicies(Requirement required, boolean legacyEnabledForMessage, Object obj,
+                                                         AuthenticatedEntraUser actor, String operation) {
         for (Class<? extends AuthorizationPolicy> policyType : required.policies()) {
             AuthorizationPolicy policy = policyResolver.apply(policyType);
             if (!isFeatureEnabled(policy.feature(), legacyEnabledForMessage)) {
@@ -172,13 +175,14 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
                         kv(OPERATION, operation),
                         kv(POLICY, policyType.getSimpleName()),
                         kv("objectType", obj.getClass().getSimpleName()));
-                return false;
+                return DENIED;
             }
-            if (!isGranted(policy, policyType, input, actor, operation)) {
-                return false;
+            AuthorizationResult result = decide(policy, input, actor, operation);
+            if (!result.isGranted()) {
+                return result;
             }
         }
-        return true;
+        return GRANTED;
     }
 
     private boolean isFeatureEnabled(AuthorizationPolicyFeature feature, boolean legacyEnabledForMessage) {
@@ -221,8 +225,8 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private static boolean isGranted(AuthorizationPolicy policy, Class<?> policyType, Object obj,
-                                     AuthenticatedEntraUser actor, String operation) {
+    private static AuthorizationResult decide(AuthorizationPolicy policy, Object obj,
+                                              AuthenticatedEntraUser actor, String operation) {
         PolicyDecision decision = policy.evaluate(obj, actor);
         if (!decision.granted()) {
             log.info("RBAC authorization denied by policy",
@@ -232,9 +236,9 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
                     kv(POLICY, AopUtils.getTargetClass(policy).getSimpleName()),
                     kv("reasonCode", decision.reason()),
                     kv("reason", decision.reason().getDescription()));
-            return false;
+            return new PolicyAuthorizationDenial(decision.reason());
         }
-        return true;
+        return GRANTED;
     }
 
     private static boolean supports(AuthorizationPolicy<?> policy, Object obj) {

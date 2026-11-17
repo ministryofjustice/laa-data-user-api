@@ -22,7 +22,7 @@ version = '0.0.1-SNAPSHOT'
 
 ext {
     springDocVersion = "3.0.0"
-    testcontainersVersion = "1.20.6"
+    testcontainersVersion = "1.21.4"
 
 }
 
@@ -49,14 +49,14 @@ dependencyManagement {
         }
 
         // SNYK-JAVA-IONETTY-21755444
-        dependency 'io.netty:netty-tcnative-boringssl-static:2.0.84.Final'
+        dependency 'io.netty:netty-tcnative-boringssl-static:2.0.85.Final'
 
         // Snyk: jackson-databind (critical/high/medium), jackson-core (high/medium)
         dependencySet(group: 'com.fasterxml.jackson.core', version: '2.21.8') {
             entry 'jackson-databind'
             entry 'jackson-core'
         }
-        dependencySet(group: 'tools.jackson.core', version: '3.1.8') {
+        dependencySet(group: 'tools.jackson.core', version: '3.2.4') {
             entry 'jackson-databind'
             entry 'jackson-core'
         }
@@ -70,7 +70,7 @@ dependencyManagement {
         // Snyk: proton-j (6 high)
         dependency 'org.apache.qpid:proton-j:0.35.0'
         // Snyk: hibernate-validator EL injection (medium)
-        dependency 'org.hibernate.validator:hibernate-validator:9.1.5.Final'
+        dependency 'org.hibernate.validator:hibernate-validator:9.1.6.Final'
         // Snyk: asm (5 medium)
         dependency 'org.ow2.asm:asm:9.11.1'
         // Snyk: guava (high), commons-compress (high/medium), plexus-utils (medium)
@@ -90,14 +90,13 @@ dependencies {
     implementation 'org.springframework.retry:spring-retry:2.0.13'
     implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springDocVersion}"
     implementation 'com.fasterxml.jackson.core:jackson-annotations:2.22'
-    implementation 'tools.jackson.dataformat:jackson-dataformat-csv:3.0.3'
     implementation 'io.sentry:sentry-spring-boot-4:8.43.2'
     implementation('com.azure.spring:spring-cloud-azure-starter-active-directory:7.4.0') {
         exclude group: 'org.springframework.boot', module: 'spring-boot-jackson2'
         exclude group: 'com.fasterxml.jackson.core'
     }
     implementation 'com.azure:azure-identity'
-    implementation 'org.modelmapper:modelmapper:3.2.6'
+    implementation 'org.modelmapper:modelmapper:3.2.8'
     implementation 'org.postgresql:postgresql'
 
     implementation platform('software.amazon.awssdk:bom:2.56.0')
@@ -118,7 +117,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.security:spring-security-test'
-    testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.1'
+    testImplementation 'com.tngtech.archunit:archunit-junit5:1.5.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     // Database Testcontainers Layer

@@ -10,7 +10,7 @@ import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 @Component
-public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeactivateFirmUsersCommand> {
+public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeactivateFirmUsersCommand, CommandResult> {
 
     private final BulkDeactivateFirmUsersService bulkService;
     private final BulkDeactivateFirmUsersMapper mapper;
@@ -23,6 +23,8 @@ public class BulkDeactivateFirmUsersHandler implements CommandHandler<BulkDeacti
     @Override
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public CommandResult handle(BulkDeactivateFirmUsersCommand command, AuthenticatedEntraUser actor) {
-        return mapper.toCommandResult(command.firmId(), bulkService.deactivate(command, actor));
+        bulkService.requireFirmExists(command.firmId());
+        bulkService.deactivateAsync(command, actor);
+        return mapper.toAcceptedResult();
     }
 }

@@ -13,6 +13,10 @@ public class BulkDeactivateFirmUsersMapper {
         return new BulkDeactivateFirmUsersCommand(request.firmId(), request.deactivateReason());
     }
 
+    public CommandResult toAcceptedResult() {
+        return CommandResult.success("Bulk deactivation started");
+    }
+
     public CommandResult toCommandResult(String firmCode, BulkDeactivationResult result) {
         if (result.failed() > 0) {
             return CommandResult.failure(String.format(

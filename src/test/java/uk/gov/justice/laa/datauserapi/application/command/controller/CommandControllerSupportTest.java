@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
+import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextReason;
 
 import java.util.UUID;
 
@@ -44,7 +45,8 @@ class CommandControllerSupportTest {
     @DisplayName("Should throw InvalidActorContextException when JWT is null")
     void resolveActor_shouldThrowException_whenJwtIsNull() {
         assertThatThrownBy(() -> underTest.resolveActor(null))
-                .isInstanceOf(InvalidActorContextException.class)
+                .isInstanceOfSatisfying(InvalidActorContextException.class,
+                        ex -> assertThat(ex.reason()).isEqualTo(InvalidActorContextReason.MISSING_ACTOR_IDENTITY))
                 .hasMessage("Authentication token is missing the actor identity")
                 .hasNoCause();
     }
@@ -59,7 +61,8 @@ class CommandControllerSupportTest {
 
         // When / Then
         assertThatThrownBy(() -> underTest.resolveActor(jwt))
-                .isInstanceOf(InvalidActorContextException.class)
+                .isInstanceOfSatisfying(InvalidActorContextException.class,
+                        ex -> assertThat(ex.reason()).isEqualTo(InvalidActorContextReason.MISSING_ACTOR_IDENTITY))
                 .hasMessage("Authentication token is missing the actor identity")
                 .hasNoCause();
     }
@@ -78,7 +81,8 @@ class CommandControllerSupportTest {
 
         // When / Then
         assertThatThrownBy(() -> underTest.resolveActor(jwt))
-                .isInstanceOf(InvalidActorContextException.class)
+                .isInstanceOfSatisfying(InvalidActorContextException.class,
+                        ex -> assertThat(ex.reason()).isEqualTo(InvalidActorContextReason.INVALID_ACTOR_IDENTITY))
                 .hasMessage("Authentication token contains an invalid actor identity")
                 .hasCauseInstanceOf(Throwable.class);
     }

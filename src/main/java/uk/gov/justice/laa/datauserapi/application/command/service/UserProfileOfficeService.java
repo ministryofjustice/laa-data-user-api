@@ -14,6 +14,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Office;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -80,7 +81,7 @@ public class UserProfileOfficeService {
 
     private UserProfile loadProfile(UUID profileId) {
         return userProfileCommandRepository.findById(profileId)
-                .orElseThrow(() -> new ResourceNotFoundException("User profile not found with ID: " + profileId));
+                .orElseThrow(() -> new UserProfileNotFoundException(profileId));
     }
 
     private void saveProfile(UserProfile userProfile, AuthenticatedEntraUser actor) {

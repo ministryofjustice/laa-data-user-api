@@ -17,7 +17,7 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
-import uk.gov.justice.laa.datauserapi.exception.ConflictException;
+import uk.gov.justice.laa.datauserapi.exception.UserAlreadyMultiFirmException;
 import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 
@@ -96,7 +96,7 @@ class ConvertToMultiFirmHandlerTest {
 
         assertThatThrownBy(() -> handler.handle(command,
                 actor(UserType.INTERNAL, true, Permission.EDIT_EXTERNAL_USER, Permission.CONVERT_USER_TO_MULTI_FIRM)))
-                .isInstanceOf(ConflictException.class);
+                .isInstanceOf(UserAlreadyMultiFirmException.class);
         verify(repository, never()).save(any());
     }
 
@@ -107,7 +107,7 @@ class ConvertToMultiFirmHandlerTest {
 
         assertThatThrownBy(() -> handler.handle(command,
                 actor(UserType.INTERNAL, true, Permission.EDIT_EXTERNAL_USER, Permission.CONVERT_USER_TO_MULTI_FIRM)))
-                .isInstanceOf(ConflictException.class);
+                .isInstanceOf(UserAlreadyMultiFirmException.class);
 
         verify(repository, never()).save(any());
     }

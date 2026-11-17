@@ -42,7 +42,7 @@ public class FirmCommandController implements CommandControllerSupport {
                 kv("actorEntraOid", authenticatedUser.entraOid()));
         CommandResult result = bulkDeactivateFirmUsersHandler.handle(
                 bulkDeactivateFirmUsersMapper.toCommand(request), authenticatedUser);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.accepted().body(result);
     }
 
 }

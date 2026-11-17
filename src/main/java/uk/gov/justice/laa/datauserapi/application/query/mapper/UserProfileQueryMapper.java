@@ -4,7 +4,7 @@ import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
 
 import java.util.Optional;
 
@@ -19,7 +19,6 @@ public class UserProfileQueryMapper {
 
     public UserProfileDto toActiveProfile(Optional<UserProfile> profile, String userEntraObjectId) {
         return profile.map(value -> modelMapper.map(value, UserProfileDto.class))
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Active profile not found for user: " + userEntraObjectId));
+                .orElseThrow(() -> UserProfileNotFoundException.activeProfileForUser(userEntraObjectId));
     }
 }

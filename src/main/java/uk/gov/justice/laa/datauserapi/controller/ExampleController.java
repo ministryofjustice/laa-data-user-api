@@ -1,29 +1,24 @@
 package uk.gov.justice.laa.datauserapi.controller;
 
-import static net.logstash.logback.argument.StructuredArguments.kv;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+import uk.gov.justice.laa.datauserapi.application.service.UserProfileService;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.security.RequiresReadScope;
-
-import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1")
 @RequiresReadScope
 public class ExampleController {
 
-    private static final Logger log = LoggerFactory.getLogger(ExampleController.class);
+    private final UserProfileService userProfileService;
 
-    public ExampleController() {
+    public ExampleController(UserProfileService userProfileService) {
+        this.userProfileService = userProfileService;
     }
 
     /**
@@ -31,34 +26,6 @@ public class ExampleController {
      */
     @GetMapping("/me")
     public ResponseEntity<UserProfileDetailView> me(@AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        String oid = authenticatedUser.entraOid();
-        if (oid == null || oid.isBlank()) {
-            return ResponseEntity.unprocessableContent().build();
-        }
-        String email = authenticatedUser.email();
-        String name = authenticatedUser.firstName();
-        log.info("[/me] request",
-                kv("oid", oid),
-                kv("email", email));
-
-        UserProfileDetailView view = new UserProfileDetailView(
-                UUID.randomUUID(),
-                false,
-                UserType.EXTERNAL,
-                email != null ? email : "",
-                name != null ? name : "fullName",
-                "firmName",
-                "firmId",
-                false,
-                null,
-                null,
-                false,
-                UUID.fromString(oid),
-                false,
-                true,
-                List.of(),
-                List.of()
-        );
-        return ResponseEntity.ok(view);
+        return ResponseEntity.ok(userProfileService.getProfile(authenticatedUser));
     }
 }

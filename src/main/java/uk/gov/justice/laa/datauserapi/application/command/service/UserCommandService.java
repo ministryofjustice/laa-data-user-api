@@ -7,9 +7,9 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.dto.UserDeactivationContext;
 import uk.gov.justice.laa.datauserapi.application.command.dto.UserLifecycleAuthorizationContext;
+import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
@@ -21,8 +21,6 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
 @Service
 public class UserCommandService {
-
-    private static final String USER_ACCOUNT_NOT_FOUND = "User account not found for oid: ";
 
     private final EntraUserCommandRepository entraUserCommandRepository;
 
@@ -48,16 +46,16 @@ public class UserCommandService {
 
     private UserType getUserType(UUID userEntraObjectId) {
         EntraUser entraUser = entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
-                .orElseThrow(() -> new UserNotFoundException("Entra user not found for user Entra OID: " + userEntraObjectId));
+                .orElseThrow(() -> new UserNotFoundException(userEntraObjectId));
         return entraUser.getUserProfiles().stream().map(UserProfile::getUserType).findFirst().orElse(null);
     }
 
     @Transactional(readOnly = true)
     public UserProfile getActiveUserProfile(UUID userEntraObjectId) {
         EntraUser entraUser = entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
-                .orElseThrow(() -> new UserNotFoundException(USER_ACCOUNT_NOT_FOUND + userEntraObjectId));
+                .orElseThrow(() -> new UserNotFoundException(userEntraObjectId));
         return entraUser.getUserProfiles().stream().filter(UserProfile::isActiveProfile).findFirst()
-                .orElseThrow(() -> new UserProfileNotFoundException("Active profile not found for user Entra OID: " + userEntraObjectId));
+                .orElseThrow(() -> UserProfileNotFoundException.activeProfileForUser(userEntraObjectId.toString()));
     }
 
     @Transactional(readOnly = true)
@@ -129,12 +127,12 @@ public class UserCommandService {
 
     private UserProfile findProfile(UUID userProfileId) {
         return userProfileCommandRepository.findById(userProfileId)
-                .orElseThrow(() -> new UserProfileNotFoundException("User profile not found with ID: " + userProfileId));
+                .orElseThrow(() -> new UserProfileNotFoundException(userProfileId));
     }
 
     private EntraUser findEntraUser(UUID userEntraObjectId) {
         return entraUserCommandRepository.findByEntraOid(String.valueOf(userEntraObjectId))
-                .orElseThrow(() -> new UserNotFoundException(USER_ACCOUNT_NOT_FOUND + userEntraObjectId));
+                .orElseThrow(() -> new UserNotFoundException(userEntraObjectId));
     }
 
 }

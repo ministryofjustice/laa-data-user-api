@@ -59,6 +59,12 @@ app:
     opa-enabled: ${APP_AUTHORIZATION_OPA_ENABLED:true}
   opa:
     base-url: ${OPA_URL:http://localhost:8181}
+  laa:
+    default:
+      user:
+        access:
+          security:
+            group: ${APP_DEFAULT_USER_ACC_SEC_GROUP:}
   silas-status-refresh:
     batch-size: ${SILAS_STATUS_REFRESH_BATCH_SIZE:500}
   enable:
@@ -67,6 +73,7 @@ app:
         call: ${TECH_SERVICES_CALLS_ENABLED:false}
   tech:
     services:
+      verification-method: ${TECH_SERVICES_VERIFICATION_METHOD:activation_code_email}
       laa:
         business:
           unit: ${TECH_SERVICES_LAA_BUSINESS_UNIT:laa}

@@ -11,6 +11,8 @@ import uk.gov.justice.laa.datauserapi.contracts.request.DeactivateUserRequest;
 import uk.gov.justice.laa.datauserapi.entity.DeactivateUserReasonLookup;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
+import uk.gov.justice.laa.datauserapi.exception.InvalidRequestException;
+import uk.gov.justice.laa.datauserapi.exception.ReferenceDataNotFoundException;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -26,7 +28,7 @@ public class DeactivateUserMapper {
 
     public UserAccountStatusAudit toAuditEntity(EntraUser user, DeactivateUserReason deactivateUserReason, String actorId) {
         DeactivateUserReasonLookup deactivateUserReasonLookup = deactivateUserReasonRepository.findFirstByEntraDescription(deactivateUserReason.name())
-                .orElseThrow(() -> new IllegalArgumentException("Deactivate reason not found: " + deactivateUserReason.name()));
+                .orElseThrow(() -> new ReferenceDataNotFoundException("Deactivate reason not found: " + deactivateUserReason.name()));
         return UserAccountStatusAudit.builder()
                 .entraUserId(user.getId())
                 .userAccountAuditStatus(UserAccountAuditStatus.DEACTIVATED)
@@ -44,7 +46,8 @@ public class DeactivateUserMapper {
 
     public DeactivateUserCommand toDeactivateUserCommand(@Valid DeactivateUserRequest deactivateUserRequest) {
         DeactivateUserReason deactivateReason = mapDeactivateReason(deactivateUserRequest.deactivateReason())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid deactivate reason: " + deactivateUserRequest.deactivateReason()));
+                .orElseThrow(() -> new InvalidRequestException(InvalidRequestException.Reason.INVALID_DEACTIVATION_REASON,
+                        "Invalid deactivate reason: " + deactivateUserRequest.deactivateReason()));
         return DeactivateUserCommand.builder()
                 .userEntraObjectId(deactivateUserRequest.userEntraObjectId())
                 .deactivateReason(deactivateReason)
@@ -52,6 +55,9 @@ public class DeactivateUserMapper {
     }
 
     private Optional<DeactivateUserReason> mapDeactivateReason(String deactivateReason) {
+        if (deactivateReason == null) {
+            return Optional.empty();
+        }
         try {
             return Optional.of(DeactivateUserReason.valueOf(deactivateReason));
         } catch (IllegalArgumentException e) {

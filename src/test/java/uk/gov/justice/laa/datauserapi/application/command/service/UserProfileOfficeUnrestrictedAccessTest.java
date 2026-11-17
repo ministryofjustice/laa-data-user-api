@@ -12,7 +12,7 @@ import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Office;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
 
 import java.util.HashSet;
 import java.util.Optional;
@@ -86,8 +86,8 @@ class UserProfileOfficeUnrestrictedAccessTest {
 
         assertThatThrownBy(() -> service.updateUnrestrictedAccess(
                 new UpdateUserProfileUnrestrictedOfficesCommand(profileId, true), actor))
-                .isExactlyInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("User profile not found with ID: " + profileId);
+                .isInstanceOf(UserProfileNotFoundException.class)
+                .hasMessageContaining(profileId.toString());
 
         verify(userProfileCommandRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }

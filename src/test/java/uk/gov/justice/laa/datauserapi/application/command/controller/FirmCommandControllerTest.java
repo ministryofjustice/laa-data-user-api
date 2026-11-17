@@ -38,7 +38,7 @@ class FirmCommandControllerTest {
     }
 
     @Test
-    void bulkDeactivateUsers_usesAuthenticatedActorAndReturnsResult() {
+    void bulkDeactivateUsers_usesAuthenticatedActorAndReturnsAccepted() {
         String firmId = "123456";
         UUID actorId = UUID.randomUUID();
         final AuthenticatedEntraUser actorUser = AuthenticatedEntraUser.builder()
@@ -60,7 +60,7 @@ class FirmCommandControllerTest {
 
         ResponseEntity<CommandResult> response = controller.bulkDeactivateUsers(request, user);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         assertThat(response.getBody()).isSameAs(expected);
         verify(mapper).toCommand(request);
         verify(handler).handle(command, user);

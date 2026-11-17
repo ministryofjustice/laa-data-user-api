@@ -8,7 +8,7 @@ import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 @Component
-public class ConvertToMultiFirmHandler implements CommandHandler<ConvertToMultiFirmCommand> {
+public class ConvertToMultiFirmHandler implements CommandHandler<ConvertToMultiFirmCommand, CommandResult> {
 
     private final ConvertToMultiFirmService service;
 

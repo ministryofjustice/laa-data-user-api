@@ -32,6 +32,7 @@ import uk.gov.justice.laa.datauserapi.application.command.policy.NotSelfTargetPo
 import uk.gov.justice.laa.datauserapi.application.command.service.UserCommandService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.EntraUserCommandRepository;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
+import uk.gov.justice.laa.datauserapi.config.JacksonConfig;
 import uk.gov.justice.laa.datauserapi.config.SecurityConfig;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
@@ -63,6 +64,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "app.authorization.opa-enabled=true"
 })
 @Import({
+    JacksonConfig.class,
     SecurityConfig.class,
     GlobalExceptionHandler.class,
     UserAccountCommandController.class,
@@ -162,14 +164,16 @@ class ConvertToMultiFirmEndpointTest {
     }
 
     @Test
-    void unknownTargetIsNotFound() throws Exception {
+    void unknownTargetReturnsGenericForbiddenResponse() throws Exception {
         when(repository.findByEntraOidForUpdate(TARGET_ID.toString())).thenReturn(Optional.empty());
 
         mockMvc.perform(post(ENDPOINT).with(authentication(actor("user_data.admin", true, true)))
                         .contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
-                .andExpect(status().isNotFound())
+                .andExpect(status().isForbidden())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status").value(404));
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.detail").value(
+                        "You do not possess the required scopes or permissions to perform this operation."));
 
         verify(repository, never()).save(any());
     }
@@ -236,6 +240,7 @@ class ConvertToMultiFirmEndpointTest {
         AuthenticatedAppRole role = new AuthenticatedAppRole(UUID.randomUUID(), "role", 0, "ROLE", false, null, null,
                 null, false, null, permissions);
         AuthenticatedEntraUser principal = AuthenticatedEntraUser.builder()
+                .active(true)
                 .id(UUID.randomUUID()).entraOid(UUID.randomUUID().toString())
                 .activeProfile(AuthenticatedUserProfile.builder().activeProfile(true).userType(UserType.INTERNAL)
                         .appRoles(Set.of(role)).build())

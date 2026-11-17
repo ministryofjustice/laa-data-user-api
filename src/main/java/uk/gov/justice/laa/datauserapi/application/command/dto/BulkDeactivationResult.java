@@ -2,7 +2,7 @@ package uk.gov.justice.laa.datauserapi.application.command.dto;
 
 import java.util.List;
 
-/** Internal per-user outcomes; the existing HTTP response still exposes only aggregate counts. */
+/** Internal per-user outcomes; the asynchronous HTTP response does not expose results. */
 public record BulkDeactivationResult(List<UserOutcome> outcomes) {
 
     public BulkDeactivationResult {
@@ -21,6 +21,7 @@ public record BulkDeactivationResult(List<UserOutcome> outcomes) {
     }
 
     public enum Status {
-        DEACTIVATED, INVALID_USER_ID, ACCESS_DENIED, USER_NOT_FOUND, DOWNSTREAM_FAILURE, REJECTED, SYSTEM_FAILURE
+        DEACTIVATED, INVALID_USER_ID, ACCESS_DENIED, USER_NOT_FOUND, FIRM_NOT_FOUND,
+        DOWNSTREAM_FAILURE, DATABASE_FAILURE, VALIDATION_FAILURE, EXECUTOR_REJECTED, REJECTED, SYSTEM_FAILURE
     }
 }

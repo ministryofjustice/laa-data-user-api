@@ -10,7 +10,7 @@ import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
-import uk.gov.justice.laa.datauserapi.exception.ResourceNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -40,7 +40,7 @@ public class UserProfileDetailsService {
                 repository.findActiveProfileWithDetailsAndRoles(userEntraObjectId), userEntraObjectId);
         String targetFirmId = targetProfile.getFirm() != null ? targetProfile.getFirm().getId().toString() : null;
         if (!authorisationService.canViewProfile(actorProfile, targetProfile.getUserType(), targetFirmId)) {
-            throw new ResourceNotFoundException("Active profile not found for user: " + userEntraObjectId);
+            throw UserProfileNotFoundException.activeProfileForUser(userEntraObjectId);
         }
         return viewMapper.mapProfileToDetailView(targetProfile);
     }
