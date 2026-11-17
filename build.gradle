@@ -56,7 +56,7 @@ dependencyManagement {
             entry 'jackson-databind'
             entry 'jackson-core'
         }
-        dependencySet(group: 'tools.jackson.core', version: '3.2.4') {
+        dependencySet(group: 'tools.jackson.core', version: '3.3.0') {
             entry 'jackson-databind'
             entry 'jackson-core'
         }
