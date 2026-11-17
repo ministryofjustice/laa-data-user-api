@@ -129,6 +129,7 @@ jobs:
             "$ZAP_IMAGE" /checks/zap_scan_baseline.py
 
       - name: Summarise findings
+        id: summary
         if: ${{ always() && hashFiles('build/zap/zap-active-report.json') != '' }}
         env:
           AUTH_STATUS: ${{ steps.auth_check.outcome }}
@@ -140,45 +141,6 @@ jobs:
           fi
           python3 .github/scripts/zap_active_summary.py
           cat build/zap/zap-active-summary.md >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Check Slack notification configuration
-        id: slack_config
-        if: ${{ github.event_name == 'schedule' }}
-        env:
-          ZAP_SLACK_WEBHOOK_URL: ${{ secrets.ZAP_SLACK_WEBHOOK_URL }}
-        run: |
-          if [ -n "$ZAP_SLACK_WEBHOOK_URL" ]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "Slack notification skipped: no repository or organization webhook is configured."
-          fi
-
-      - name: Post active scan summary to Slack
-        if: ${{ always() && github.event_name == 'schedule' && steps.slack_config.outputs.configured == 'true' && hashFiles('build/zap/zap-active-report.json') != '' }}
-        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
-        with:
-          webhook: ${{ secrets.ZAP_SLACK_WEBHOOK_URL }}
-          webhook-type: incoming-webhook
-          payload: |
-            {
-              "blocks": [
-                {
-                  "type": "header",
-                  "text": {
-                    "type": "plain_text",
-                    "text": "ZAP Active Scan: ${{ github.event.repository.name }} - ${{ matrix.scan }}"
-                  }
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*Scan step:* ${{ steps.zap_scan.outcome }}\n*Findings (alert instances):*\n• High: ${{ env.ZAP_HIGH_INSTANCES }} (${{ env.ZAP_HIGH_TYPES }} alert types)\n• Medium: ${{ env.ZAP_MEDIUM_INSTANCES }} (${{ env.ZAP_MEDIUM_TYPES }} alert types)\n• Low: ${{ env.ZAP_LOW_INSTANCES }} (${{ env.ZAP_LOW_TYPES }} alert types)\n• Informational: ${{ env.ZAP_INFO_INSTANCES }} (${{ env.ZAP_INFO_TYPES }} alert types)\n\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View full report and coverage>"
-                  }
-                }
-              ]
-            }
 
       - name: Collect logs and remove isolated containers
         if: ${{ always() }}
@@ -214,3 +176,67 @@ jobs:
             build/zap/app.log
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Prepare scan status
+        if: ${{ always() }}
+        env:
+          JOB_STATUS: ${{ job.status }}
+          SCAN_STATUS: ${{ steps.zap_scan.outcome }}
+          AUTH_STATUS: ${{ steps.auth_check.outcome }}
+          SUMMARY_STATUS: ${{ steps.summary.outcome }}
+        run: python3 .github/scripts/zap_combined_summary.py collect
+
+      - name: Upload scan status
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zap-active-status-${{ github.run_attempt }}-${{ matrix.scan }}
+          path: build/zap/scan-status.json
+          if-no-files-found: error
+          retention-days: 14
+
+  combined_summary:
+    name: Combined ZAP summary
+    needs: zap_active_scan
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download scan statuses
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: zap-active-status-${{ github.run_attempt }}-*
+          path: build/zap-status
+
+      - name: Prepare combined summary
+        env:
+          MATRIX_RESULT: ${{ needs.zap_active_scan.result }}
+        run: |
+          python3 .github/scripts/zap_combined_summary.py combine
+          cat build/zap-combined-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check Slack notification configuration
+        id: slack_config
+        if: ${{ github.event_name == 'schedule' }}
+        env:
+          ZAP_SLACK_WEBHOOK_URL: ${{ secrets.ZAP_SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -n "$ZAP_SLACK_WEBHOOK_URL" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Slack notification skipped: no repository or organization webhook is configured."
+          fi
+
+      - name: Post combined active scan summary to Slack
+        if: ${{ github.event_name == 'schedule' && steps.slack_config.outputs.configured == 'true' }}
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
+        with:
+          webhook: ${{ secrets.ZAP_SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload-file-path: build/zap-combined-slack.json
+          errors: true
