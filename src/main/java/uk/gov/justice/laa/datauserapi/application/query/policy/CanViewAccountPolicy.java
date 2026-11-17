@@ -15,12 +15,10 @@ import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
 /**
  * An actor may view a user account when:
- * <ul>
- *     <li>they are internal and the target has an internal profile; or</li>
- *     <li>they are external viewing their own account; or</li>
- *     <li>they are external and the target is from their own firm; or</li>
- *     <li>they are internal with {@code VIEW_EXTERNAL_USER} and the target has an external profile.</li>
- * </ul>
+ *     they are internal and the target has an internal profile; or
+ *     they are external viewing their own account; or
+ *     they are external and the target is from their own firm; or
+ *     they are internal with {@code VIEW_EXTERNAL_USER} and the target has an external profile.
  * A missing user is denied, so existence is not revealed.
  */
 @Component
@@ -55,15 +53,16 @@ public class CanViewAccountPolicy implements AuthorizationPolicy<UserAccountVisi
     private boolean isExternalViewingOwnAccount(AuthenticatedEntraUser actor, UserAccountVisibilityContext target) {
         return actor.activeProfile().userType() == UserType.EXTERNAL
                 && target.hasExternalProfile()
-                && !target.hasInternalProfile();
+                && !target.hasInternalProfile()
+                && actor.entraOid().equals(target.targetUserOid());
     }
 
     private boolean isExternalViewingOwnFirm(AuthenticatedEntraUser actor, UserAccountVisibilityContext target) {
         AuthenticatedUserProfile actorProfile = actor.activeProfile();
         return actorProfile.userType() == UserType.EXTERNAL
                 && actorProfile.firmId() != null
-                && target.externalFirmId() != null
-                && actorProfile.firmId().equals(target.externalFirmId())
+                && target.externalFirmIds() != null
+                && target.externalFirmIds().contains(actorProfile.firmId())
                 && ActorPermissions.has(actor, Permission.VIEW_EXTERNAL_USER);
     }
 

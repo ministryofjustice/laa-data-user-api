@@ -7,12 +7,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserView;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.exception.InvalidUuidFormatException;
 
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -40,14 +38,5 @@ class UserAccountDetailsServiceTest {
         UserView result = service.getAccount(TARGET_ID, ACTOR_ID);
 
         assertThat(result).isSameAs(view);
-    }
-
-    @Test
-    void throwsForInvalidUuidFormat() {
-        UserAccountDetailsService service = new UserAccountDetailsService(queryService, userViewMapper);
-
-        assertThatThrownBy(() -> service.getAccount("invalid-uuid", ACTOR_ID))
-                .isInstanceOf(InvalidUuidFormatException.class)
-                .hasMessageContaining("userEntraObjectId must match UUID format");
     }
 }

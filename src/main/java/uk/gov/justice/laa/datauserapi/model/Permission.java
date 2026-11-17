@@ -61,7 +61,7 @@ public enum Permission {
             DISABLE_EXTERNAL_USER.name(),
             ENABLE_EXTERNAL_USER.name(),
             EXPORT_AUDIT_DATA.name(),
-            VIEW_AUDIT_TABLE.name(),
+            VIEW_AUDIT_TABLE.name()
     };
 
     public static final String[] DELEGATE_FIRM_ACCESS_PERMISSIONS = {

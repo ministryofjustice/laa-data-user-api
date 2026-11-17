@@ -10,7 +10,10 @@ import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicyInputResolver;
 
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /** Loads, with a single read, the trusted target-user facts that {@link CanViewAccountPolicy} evaluates. */
 @Component
@@ -54,14 +57,14 @@ public class UserAccountVisibilityPolicyInputResolver
             hasInternalProfile = !isMultiFirmUser;
         }
         
-        // Get firm ID from first external profile (or null if no external profiles)
-        UUID externalFirmId = user.getUserProfiles().stream()
+        // Collect ALL firm IDs from external profiles
+        Set<UUID> externalFirmIds = user.getUserProfiles().stream()
                 .filter(profile -> profile.getUserType().toString().equals("EXTERNAL"))
-                .findFirst()
                 .map(profile -> profile.getFirm() != null ? profile.getFirm().getId() : null)
-                .orElse(null);
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
         
-        return new UserAccountVisibilityContext(true, hasInternalProfile, hasExternalProfile, externalFirmId);
+        return new UserAccountVisibilityContext(true, hasInternalProfile, hasExternalProfile, externalFirmIds, user.getEntraOid());
     }
 }
 

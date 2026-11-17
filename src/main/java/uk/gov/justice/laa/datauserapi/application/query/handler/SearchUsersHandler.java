@@ -6,11 +6,10 @@ import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUs
 import uk.gov.justice.laa.datauserapi.application.query.service.UserSearchService;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
-import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationEntryPoint;
 
 @Component
 @Transactional(readOnly = true)
-public class SearchUsersHandler implements QueryHandler<SearchUsersQuery, UserAccountSummaryPage>, AuthorizationEntryPoint {
+public class SearchUsersHandler implements QueryHandler<SearchUsersQuery, UserAccountSummaryPage> {
 
     private final UserSearchService service;
 

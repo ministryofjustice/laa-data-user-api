@@ -21,8 +21,9 @@ import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUs
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.exception.InvalidUuidFormatException;
 
-
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -117,6 +118,17 @@ class UserAccountQueryControllerTest {
     }
 
     @Test
+    void getUserAccount_withMalformedUuid_shouldThrowInvalidUuidFormatException() {
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(ACTOR_OID)
+                .build();
+
+        assertThatThrownBy(() -> controller.getUserAccount("invalid-uuid", user))
+                .isInstanceOf(InvalidUuidFormatException.class)
+                .hasMessageContaining("userEntraObjectId must match UUID format");
+    }
+
+    @Test
     void getUserProfiles_whenValidRequest_shouldCallHandler() {
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .entraOid(ACTOR_OID)
@@ -142,3 +154,4 @@ class UserAccountQueryControllerTest {
         assertEquals(HttpStatus.OK, result.getStatusCode());
     }
 }
+

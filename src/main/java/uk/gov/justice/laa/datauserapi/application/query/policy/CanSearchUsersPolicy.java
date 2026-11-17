@@ -11,10 +11,9 @@ import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
 /**
  * An actor may search users when:
- * <ul>
- *     <li>they have an active profile; and</li>
- *     <li>their user type is determined.</li>
- * </ul>
+ *
+ * they have an active profile; and their user type is determined.
+ *
  * Missing or undetermined actor context is denied.
  */
 @Component
