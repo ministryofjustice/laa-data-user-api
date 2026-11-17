@@ -99,7 +99,7 @@ dependencies {
     implementation 'org.modelmapper:modelmapper:3.2.8'
     implementation 'org.postgresql:postgresql'
 
-    implementation platform('software.amazon.awssdk:bom:2.56.0')
+    implementation platform('software.amazon.awssdk:bom:2.57.12')
 
     implementation 'software.amazon.awssdk:sqs'
     implementation 'software.amazon.awssdk:ssm'
