@@ -127,12 +127,35 @@ class GetUserAccountAuthorizationIntegrationTest {
     }
 
     @Test
-    void externalActorWithoutPermissionCannotViewFirmUser() {
+    void externalActorCanViewSameFirmUser() {
 
         stubTargetAccount();
-        assertDeniedWith(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE, () ->
-                handler.handle(new GetUserAccountQuery(TARGET_OID), external(UUID.randomUUID(), FIRM_ID)));
-        verifyNoInteractions(service);
+
+        UserView expected = mock(UserView.class);
+
+        when(service.getAccount(TARGET_OID, "actor-oid"))
+                .thenReturn(expected);
+
+        AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
+                .id(UUID.randomUUID())
+                .activeProfile(true)
+                .userType(UserType.EXTERNAL)
+                .firmId(FIRM_ID)
+                .appRoles(Set.of())
+                .build();
+
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder()
+                .entraOid("actor-oid")
+                .activeProfile(profile)
+                .build();
+
+        assertThat(
+                handler.handle(
+                        new GetUserAccountQuery(TARGET_OID),
+                        actor))
+                .isSameAs(expected);
+
+        verify(service).getAccount(TARGET_OID, "actor-oid");
     }
 
     @Test
