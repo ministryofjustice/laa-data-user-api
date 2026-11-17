@@ -62,8 +62,7 @@ public class CanViewAccountPolicy implements AuthorizationPolicy<UserAccountVisi
         return actorProfile.userType() == UserType.EXTERNAL
                 && actorProfile.firmId() != null
                 && target.externalFirmIds() != null
-                && target.externalFirmIds().contains(actorProfile.firmId())
-                && ActorPermissions.has(actor, Permission.VIEW_EXTERNAL_USER);
+                && target.externalFirmIds().contains(actorProfile.firmId());
     }
 
     private boolean isInternalWithExternalViewPermission(AuthenticatedEntraUser actor,

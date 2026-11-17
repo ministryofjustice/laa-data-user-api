@@ -82,7 +82,7 @@ class CanViewAccountPolicyTest {
     @Test
     void allowsExternalActorToViewUserFromSameFirm() {
         UUID firmId = UUID.randomUUID();
-        AuthenticatedEntraUser actor = externalActorWith(firmId, Permission.VIEW_EXTERNAL_USER);
+        AuthenticatedEntraUser actor = externalActor(firmId);
         UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, false, true, Set.of(firmId), UUID.randomUUID().toString());
 
         PolicyDecision decision = policy.evaluate(context, actor);
@@ -94,7 +94,7 @@ class CanViewAccountPolicyTest {
     void forbidsExternalActorViewingUserFromDifferentFirm() {
         UUID actorFirmId = UUID.randomUUID();
         UUID targetFirmId = UUID.randomUUID();
-        AuthenticatedEntraUser actor = externalActorWith(actorFirmId, Permission.VIEW_EXTERNAL_USER);
+        AuthenticatedEntraUser actor = externalActor(actorFirmId);
         // Target user has both internal and external profiles, so not "own account"
         UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, true, true, Set.of(targetFirmId), UUID.randomUUID().toString());
 
@@ -108,7 +108,7 @@ class CanViewAccountPolicyTest {
     void allowsExternalActorToViewUserWhenTargetHasMultipleFirmsIncludingActorFirm() {
         UUID actorFirmId = UUID.randomUUID();
         UUID otherFirmId = UUID.randomUUID();
-        AuthenticatedEntraUser actor = externalActorWith(actorFirmId, Permission.VIEW_EXTERNAL_USER);
+        AuthenticatedEntraUser actor = externalActor(actorFirmId);
         UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, false, true, Set.of(otherFirmId, actorFirmId), UUID.randomUUID().toString());
 
         PolicyDecision decision = policy.evaluate(context, actor);
@@ -121,7 +121,7 @@ class CanViewAccountPolicyTest {
         UUID actorFirmId = UUID.randomUUID();
         UUID firmA = UUID.randomUUID();
         UUID firmB = UUID.randomUUID();
-        AuthenticatedEntraUser actor = externalActorWith(actorFirmId, Permission.VIEW_EXTERNAL_USER);
+        AuthenticatedEntraUser actor = externalActor(actorFirmId);
         UserAccountVisibilityContext context = new UserAccountVisibilityContext(true, false, true, Set.of(firmA, firmB), UUID.randomUUID().toString());
 
         PolicyDecision decision = policy.evaluate(context, actor);
