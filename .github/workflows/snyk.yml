@@ -9,7 +9,6 @@ on:
       - reopened
       - edited
       - synchronize
-      - closed
   schedule:
     - cron: '15 0 * * *'  # Run daily at 00:15 UTC
   workflow_call:
