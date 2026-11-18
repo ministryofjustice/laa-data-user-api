@@ -11,6 +11,7 @@ public class BulkDeactivationConfig {
     @Bean
     public ThreadPoolTaskExecutor bulkDeactivationExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setTaskDecorator(new MdcTaskDecorator());
         executor.setCorePoolSize(1);
         executor.setMaxPoolSize(2);
         executor.setQueueCapacity(20);
