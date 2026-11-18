@@ -26,6 +26,7 @@ public class CcmsRoleSyncConfig {
     @Bean
     public ThreadPoolTaskExecutor ccmsRoleSyncExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setTaskDecorator(new MdcTaskDecorator());
         executor.setCorePoolSize(1);
         executor.setMaxPoolSize(1);
         executor.setQueueCapacity(0);

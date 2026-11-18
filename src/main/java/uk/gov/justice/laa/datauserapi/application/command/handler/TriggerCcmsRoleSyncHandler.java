@@ -12,6 +12,7 @@ import uk.gov.justice.laa.datauserapi.application.command.ccms.TriggerCcmsRoleSy
 import uk.gov.justice.laa.datauserapi.application.command.service.CcmsRoleSyncService;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
 
 @Component
 @Slf4j
@@ -27,6 +28,7 @@ public class TriggerCcmsRoleSyncHandler implements CommandHandler<TriggerCcmsRol
             syncService.sync(actor.entraOid());
         } catch (TaskRejectedException ex) {
             log.warn("CCMS role sync could not be started",
+                    ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
                     kv("actorEntraOid", actor.entraOid()),
                     ex);
             return CommandResult.failure("CCMS role sync is already running or the worker is unavailable.");
