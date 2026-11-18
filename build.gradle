@@ -73,6 +73,10 @@ dependencyManagement {
         dependency 'org.hibernate.validator:hibernate-validator:9.1.6.Final'
         // Snyk: asm (5 medium)
         dependency 'org.ow2.asm:asm:9.11.1'
+        dependencySet(group: 'net.minidev', version: '2.6.1') {
+            entry 'json-smart'
+            entry 'accessors-smart'
+        }
         // Snyk: guava (high), commons-compress (high/medium), plexus-utils (medium)
         dependency 'com.google.guava:guava:33.7.2-jre'
         dependency 'org.apache.commons:commons-compress:1.26.0'
@@ -81,6 +85,10 @@ dependencyManagement {
 }
 
 dependencies {
+    constraints {
+        testRuntimeOnly 'org.objenesis:objenesis:3.6'
+    }
+
     implementation project(':contracts')
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
