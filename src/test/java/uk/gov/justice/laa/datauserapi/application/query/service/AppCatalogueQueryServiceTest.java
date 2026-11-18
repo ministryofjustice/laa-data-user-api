@@ -2,11 +2,13 @@ package uk.gov.justice.laa.datauserapi.application.query.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -75,49 +77,34 @@ class AppCatalogueQueryServiceTest {
     @Test
     void activeAppWithoutRolesReturnsAnEmptyList() {
         when(repository.existsByIdAndEnabledTrue(APP_ID)).thenReturn(true);
-        when(repository.findRolesOfActiveApp(APP_ID)).thenReturn(List.of());
+        when(repository.findRolesOfActiveApp(eq(APP_ID), eq("INTERNAL"), eq("EXTERNAL"), any()))
+                .thenReturn(List.of());
 
         assertThat(service.getAppRoles(APP_ID, UserType.INTERNAL).items()).isEmpty();
     }
 
     @Test
-    void internalFilterIncludesInternalAndBothRoles() {
-        stubRoles();
-
-        assertThat(service.getAppRoles(APP_ID, UserType.INTERNAL).items())
-                .extracting(AppRoleView::name).containsExactly("internal", "both");
-    }
-
-    @Test
-    void externalFilterIncludesExternalAndBothRoles() {
-        stubRoles();
-
-        assertThat(service.getAppRoles(APP_ID, UserType.EXTERNAL).items())
-                .extracting(AppRoleView::name).containsExactly("external", "both");
-    }
-
-    @Test
-    void omittedFilterReturnsAllRoles() {
-        stubRoles();
-
-        assertThat(service.getAppRoles(APP_ID, null).items())
-                .extracting(AppRoleView::name).containsExactly("internal", "external", "both");
-    }
-
-    @Test
-    void capIsAppliedAfterTheUserTypeFilterSoLateMatchingRolesAreKept() {
+    void rolesAreMappedAndTheUserTypeItsOppositeAndTheCapArePassedToTheRepository() {
         when(repository.existsByIdAndEnabledTrue(APP_ID)).thenReturn(true);
-        List<AppRole> roles = new ArrayList<>();
-        for (int i = 0; i < AppCatalogueQueryService.MAX_APP_ROLES; i++) {
-            roles.add(role(UUID.randomUUID(), "internal" + i, new UserType[] {UserType.INTERNAL}));
-        }
-        roles.add(role(UUID.randomUUID(), "late external", new UserType[] {UserType.EXTERNAL}));
-        when(repository.findRolesOfActiveApp(APP_ID)).thenReturn(roles);
+        when(repository.findRolesOfActiveApp(any(), any(), any(), any())).thenReturn(List.of(
+                role(UUID.randomUUID(), "role", new UserType[] {UserType.EXTERNAL})));
 
         assertThat(service.getAppRoles(APP_ID, UserType.EXTERNAL).items())
-                .extracting(AppRoleView::name).containsExactly("late external");
-        assertThat(service.getAppRoles(APP_ID, UserType.INTERNAL).items())
-                .hasSize(AppCatalogueQueryService.MAX_APP_ROLES);
+                .extracting(AppRoleView::name, AppRoleView::appRoleUserTypeRestriction)
+                .containsExactly(tuple("role", "EXTERNAL"));
+
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(repository).findRolesOfActiveApp(
+                eq(APP_ID), eq("EXTERNAL"), eq("INTERNAL"), pageable.capture());
+        assertThat(pageable.getValue().getPageSize()).isEqualTo(AppCatalogueQueryService.MAX_APP_ROLES);
+    }
+
+    @Test
+    void omittedUserTypeAppliesNoFilter() {
+        when(repository.existsByIdAndEnabledTrue(APP_ID)).thenReturn(true);
+        when(repository.findRolesOfActiveApp(eq(APP_ID), isNull(), isNull(), any())).thenReturn(List.of());
+
+        assertThat(service.getAppRoles(APP_ID, null).items()).isEmpty();
     }
 
     @Test
@@ -138,14 +125,6 @@ class AppCatalogueQueryServiceTest {
         when(repository.findRoleOfActiveAppById(roleId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getAppRole(roleId)).isInstanceOf(AppRoleNotFoundException.class);
-    }
-
-    private void stubRoles() {
-        when(repository.existsByIdAndEnabledTrue(APP_ID)).thenReturn(true);
-        when(repository.findRolesOfActiveApp(APP_ID)).thenReturn(List.of(
-                role(UUID.randomUUID(), "internal", new UserType[] {UserType.INTERNAL}),
-                role(UUID.randomUUID(), "external", new UserType[] {UserType.EXTERNAL}),
-                role(UUID.randomUUID(), "both", new UserType[] {UserType.INTERNAL, UserType.EXTERNAL})));
     }
 
     private AppRole role(UUID id, String name, UserType[] userTypes) {

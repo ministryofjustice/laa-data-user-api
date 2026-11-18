@@ -15,7 +15,6 @@ import uk.gov.justice.laa.datauserapi.contracts.response.AppRoleViewList;
 import uk.gov.justice.laa.datauserapi.contracts.response.AppViewList;
 import uk.gov.justice.laa.datauserapi.exception.AppNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.AppRoleNotFoundException;
-import uk.gov.justice.laa.datauserapi.model.AppRoleUserType;
 
 /**
  * Serves the catalogue of active applications and their roles. Callers are authorised before this service is
@@ -45,30 +44,24 @@ public class AppCatalogueQueryService {
         return repository.findActiveAppById(appId).orElseThrow(() -> new AppNotFoundException(appId));
     }
 
-    /**
-     * Keeps the roles available to the user type: those restricted to it and {@code BOTH}; all if {@code null}.
-     * The cap follows the filter so a matching role is never dropped behind roles of the other type. An application
-     * is guaranteed not to exceed the cap, so reading all of its roles is bounded.
-     */
+    /** Roles available to the user type (see the repository query); all roles if {@code null}. */
     public AppRoleViewList getAppRoles(UUID appId, UserType userType) {
         if (!repository.existsByIdAndEnabledTrue(appId)) {
             throw new AppNotFoundException(appId);
         }
-        return new AppRoleViewList(roleMapper.toAppRoleViews(repository.findRolesOfActiveApp(appId)).stream()
-                .filter(role -> isAvailableTo(role, userType))
-                .limit(MAX_APP_ROLES)
-                .toList());
+        String type = userType == null ? null : userType.name();
+        String otherType = userType == null ? null : opposite(userType).name();
+        return new AppRoleViewList(roleMapper.toAppRoleViews(repository.findRolesOfActiveApp(
+                appId, type, otherType, PageRequest.ofSize(MAX_APP_ROLES))));
+    }
+
+    private static UserType opposite(UserType userType) {
+        return userType == UserType.INTERNAL ? UserType.EXTERNAL : UserType.INTERNAL;
     }
 
     public AppRoleView getAppRole(UUID appRoleId) {
         return roleMapper.toAppRoleViews(repository.findRoleOfActiveAppById(appRoleId).stream().toList()).stream()
                 .findFirst()
                 .orElseThrow(() -> new AppRoleNotFoundException(appRoleId));
-    }
-
-    private static boolean isAvailableTo(AppRoleView role, UserType userType) {
-        return userType == null
-                || AppRoleUserType.BOTH.name().equals(role.appRoleUserTypeRestriction())
-                || userType.name().equals(role.appRoleUserTypeRestriction());
     }
 }

@@ -29,6 +29,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import jakarta.persistence.EntityManagerFactory;
+import uk.gov.justice.laa.datauserapi.application.query.mapper.UserProfileAccessQueryMapper;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+import uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AppView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.RoleAssignmentRestrictionView;
 import uk.gov.justice.laa.datauserapi.entity.AppRole;
@@ -108,7 +111,7 @@ class AppCatalogueQueryRepositoryTest {
 
     @Test
     void rolesOfAnActiveAppAreOrderedAndLoadedWithTheirApp() {
-        List<AppRole> roles = appRepository.findRolesOfActiveApp(APP_A);
+        List<AppRole> roles = rolesOf(APP_A, null);
 
         assertThat(roles).extracting(AppRole::getName).containsExactly("A role 1", "A role 2");
         assertThat(roles.getFirst().getApp().getEntraAppId()).isEqualTo(CLIENT_A.toString());
@@ -116,9 +119,50 @@ class AppCatalogueQueryRepositoryTest {
 
     @Test
     void rolesOfAnInactiveAppAreExcludedAndAnActiveAppWithoutRolesIsEmpty() {
-        assertThat(appRepository.findRolesOfActiveApp(APP_INACTIVE)).isEmpty();
-        assertThat(appRepository.findRolesOfActiveApp(APP_EMPTY)).isEmpty();
-        assertThat(appRepository.findRolesOfActiveApp(CLIENT_A)).isEmpty();
+        assertThat(rolesOf(APP_INACTIVE, null)).isEmpty();
+        assertThat(rolesOf(APP_EMPTY, null)).isEmpty();
+        assertThat(rolesOf(CLIENT_A, null)).isEmpty();
+    }
+
+    @Test
+    void userTypeFilterKeepsMatchingAndBothRolesAndIsTheSameRuleAsTheMapper() {
+        String[] restrictions = {null, "{}", "{INTERNAL}", "{EXTERNAL}", "{INTERNAL,EXTERNAL}"};
+        for (int i = 0; i < restrictions.length; i++) {
+            UUID id = new UUID(0, 100 + i);
+            insertRole(id, APP_EMPTY, "r" + i, i);
+            jdbc.update("UPDATE app_role SET user_type_restriction = ?::text[] WHERE id = ?", restrictions[i], id);
+        }
+
+        assertThat(rolesOf(APP_EMPTY, null)).extracting(AppRole::getName).containsExactly("r0", "r1", "r2", "r3", "r4");
+        assertThat(rolesOf(APP_EMPTY, UserType.INTERNAL)).extracting(AppRole::getName)
+                .containsExactly("r0", "r1", "r2", "r4");
+        assertThat(rolesOf(APP_EMPTY, UserType.EXTERNAL)).extracting(AppRole::getName)
+                .containsExactly("r0", "r1", "r3", "r4");
+        for (UserType type : UserType.values()) {
+            List<String> mapperRule = new UserProfileAccessQueryMapper().toAppRoleViews(rolesOf(APP_EMPTY, null))
+                    .stream()
+                    .filter(view -> List.of("BOTH", type.name()).contains(view.appRoleUserTypeRestriction()))
+                    .map(AppRoleView::name)
+                    .toList();
+            assertThat(rolesOf(APP_EMPTY, type)).extracting(AppRole::getName).containsExactlyElementsOf(mapperRule);
+        }
+    }
+
+    @Test
+    void rolesAreCappedAfterTheUserTypeFilter() {
+        insertRole(new UUID(0, 100), APP_EMPTY, "internal", 1);
+        insertRole(new UUID(0, 101), APP_EMPTY, "external", 2);
+        jdbc.update("UPDATE app_role SET user_type_restriction = '{INTERNAL}' WHERE id = ?", new UUID(0, 100));
+        jdbc.update("UPDATE app_role SET user_type_restriction = '{EXTERNAL}' WHERE id = ?", new UUID(0, 101));
+
+        assertThat(appRepository.findRolesOfActiveApp(APP_EMPTY, "EXTERNAL", "INTERNAL",
+                PageRequest.ofSize(1))).extracting(AppRole::getName).containsExactly("external");
+    }
+
+    private List<AppRole> rolesOf(UUID appId, UserType userType) {
+        String other = userType == null ? null : userType == UserType.INTERNAL ? "EXTERNAL" : "INTERNAL";
+        return appRepository.findRolesOfActiveApp(
+                appId, userType == null ? null : userType.name(), other, PageRequest.ofSize(500));
     }
 
     @Test

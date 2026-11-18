@@ -36,14 +36,28 @@ public interface AppCatalogueQueryRepository extends Repository<App, UUID> {
 
     boolean existsByIdAndEnabledTrue(UUID appId);
 
-    @Query("""
-        SELECT ar
-        FROM AppRole ar
-        JOIN FETCH ar.app a
+    /**
+     * Roles available to {@code userType}: restricted to it, or to neither/both types ({@code BOTH}); all roles when
+     * {@code userType} (a {@link UserType} name) is {@code null}. {@code otherType} is the opposite type, and is
+     * {@code null} with it. This is the SQL form of the INTERNAL/EXTERNAL/BOTH rule in
+     * {@code UserProfileAccessQueryMapper}. It is native because HQL cannot bind an enum to the {@code text[]} column.
+     */
+    @Query(value = """
+        SELECT ar.*
+        FROM app_role ar
+        JOIN app a ON a.id = ar.app_id
         WHERE a.enabled = true AND a.id = :appId
+            AND (CAST(:userType AS text) IS NULL
+                OR ar.user_type_restriction IS NULL
+                OR COALESCE(CAST(:userType AS text) = ANY (ar.user_type_restriction), false)
+                OR NOT COALESCE(CAST(:otherType AS text) = ANY (ar.user_type_restriction), false))
         ORDER BY ar.ordinal, ar.name, ar.id
-        """)
-    List<AppRole> findRolesOfActiveApp(@Param("appId") UUID appId);
+        """, nativeQuery = true)
+    List<AppRole> findRolesOfActiveApp(
+            @Param("appId") UUID appId,
+            @Param("userType") String userType,
+            @Param("otherType") String otherType,
+            Pageable pageable);
 
     @Query("""
         SELECT ar
