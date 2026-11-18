@@ -45,12 +45,17 @@ public class AppCatalogueQueryService {
         return repository.findActiveAppById(appId).orElseThrow(() -> new AppNotFoundException(appId));
     }
 
+    /**
+     * The cap is applied after the user type filter, so a matching role is never dropped because roles of the other
+     * user type precede it. The applications' roles are guaranteed not to exceed the cap, so reading them all is safe.
+     */
     public AppRoleViewList getAppRoles(UUID appId, UserType userType) {
         if (!repository.existsByIdAndEnabledTrue(appId)) {
             throw new AppNotFoundException(appId);
         }
-        return new AppRoleViewList(mapper.toAppRoleViews(
-                repository.findRolesOfActiveApp(appId, limit(MAX_APP_ROLES)), userType));
+        return new AppRoleViewList(mapper.toAppRoleViews(repository.findRolesOfActiveApp(appId), userType).stream()
+                .limit(MAX_APP_ROLES)
+                .toList());
     }
 
     public AppRoleView getAppRole(UUID appRoleId) {

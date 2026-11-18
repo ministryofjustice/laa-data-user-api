@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -77,7 +78,7 @@ class AppCatalogueQueryServiceTest {
     @Test
     void activeAppWithoutRolesReturnsAnEmptyList() {
         when(repository.existsByIdAndEnabledTrue(APP_ID)).thenReturn(true);
-        when(repository.findRolesOfActiveApp(eq(APP_ID), any())).thenReturn(List.of());
+        when(repository.findRolesOfActiveApp(APP_ID)).thenReturn(List.of());
 
         assertThat(service.getAppRoles(APP_ID, UserType.INTERNAL).items()).isEmpty();
     }
@@ -99,15 +100,27 @@ class AppCatalogueQueryServiceTest {
     }
 
     @Test
-    void omittedFilterReturnsAllRolesAndRolesAreCapped() {
+    void omittedFilterReturnsAllRoles() {
         stubRoles();
 
         assertThat(service.getAppRoles(APP_ID, null).items())
                 .extracting(AppRoleView::name).containsExactly("internal", "external", "both");
+    }
 
-        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(repository).findRolesOfActiveApp(eq(APP_ID), pageable.capture());
-        assertThat(pageable.getValue().getPageSize()).isEqualTo(AppCatalogueQueryService.MAX_APP_ROLES);
+    @Test
+    void capIsAppliedAfterTheUserTypeFilterSoLateMatchingRolesAreKept() {
+        when(repository.existsByIdAndEnabledTrue(APP_ID)).thenReturn(true);
+        List<AppRole> roles = new ArrayList<>();
+        for (int i = 0; i < AppCatalogueQueryService.MAX_APP_ROLES; i++) {
+            roles.add(role(UUID.randomUUID(), "internal" + i, new UserType[] {UserType.INTERNAL}));
+        }
+        roles.add(role(UUID.randomUUID(), "late external", new UserType[] {UserType.EXTERNAL}));
+        when(repository.findRolesOfActiveApp(APP_ID)).thenReturn(roles);
+
+        assertThat(service.getAppRoles(APP_ID, UserType.EXTERNAL).items())
+                .extracting(AppRoleView::name).containsExactly("late external");
+        assertThat(service.getAppRoles(APP_ID, UserType.INTERNAL).items())
+                .hasSize(AppCatalogueQueryService.MAX_APP_ROLES);
     }
 
     @Test
@@ -132,7 +145,7 @@ class AppCatalogueQueryServiceTest {
 
     private void stubRoles() {
         when(repository.existsByIdAndEnabledTrue(APP_ID)).thenReturn(true);
-        when(repository.findRolesOfActiveApp(eq(APP_ID), any())).thenReturn(List.of(
+        when(repository.findRolesOfActiveApp(APP_ID)).thenReturn(List.of(
                 role(UUID.randomUUID(), "internal", new UserType[] {UserType.INTERNAL}),
                 role(UUID.randomUUID(), "external", new UserType[] {UserType.EXTERNAL}),
                 role(UUID.randomUUID(), "both", new UserType[] {UserType.INTERNAL, UserType.EXTERNAL})));

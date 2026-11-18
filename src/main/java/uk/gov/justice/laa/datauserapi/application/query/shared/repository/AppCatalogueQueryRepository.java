@@ -43,7 +43,7 @@ public interface AppCatalogueQueryRepository extends Repository<App, UUID> {
         WHERE a.enabled = true AND a.id = :appId
         ORDER BY ar.ordinal, ar.name, ar.id
         """)
-    List<AppRole> findRolesOfActiveApp(@Param("appId") UUID appId, Pageable pageable);
+    List<AppRole> findRolesOfActiveApp(@Param("appId") UUID appId);
 
     @Query("""
         SELECT ar

@@ -108,7 +108,7 @@ class AppCatalogueQueryRepositoryTest {
 
     @Test
     void rolesOfAnActiveAppAreOrderedAndLoadedWithTheirApp() {
-        List<AppRole> roles = appRepository.findRolesOfActiveApp(APP_A, PageRequest.ofSize(500));
+        List<AppRole> roles = appRepository.findRolesOfActiveApp(APP_A);
 
         assertThat(roles).extracting(AppRole::getName).containsExactly("A role 1", "A role 2");
         assertThat(roles.getFirst().getApp().getEntraAppId()).isEqualTo(CLIENT_A.toString());
@@ -116,14 +116,9 @@ class AppCatalogueQueryRepositoryTest {
 
     @Test
     void rolesOfAnInactiveAppAreExcludedAndAnActiveAppWithoutRolesIsEmpty() {
-        assertThat(appRepository.findRolesOfActiveApp(APP_INACTIVE, PageRequest.ofSize(500))).isEmpty();
-        assertThat(appRepository.findRolesOfActiveApp(APP_EMPTY, PageRequest.ofSize(500))).isEmpty();
-        assertThat(appRepository.findRolesOfActiveApp(CLIENT_A, PageRequest.ofSize(500))).isEmpty();
-    }
-
-    @Test
-    void rolesAreCapped() {
-        assertThat(appRepository.findRolesOfActiveApp(APP_A, PageRequest.ofSize(1))).hasSize(1);
+        assertThat(appRepository.findRolesOfActiveApp(APP_INACTIVE)).isEmpty();
+        assertThat(appRepository.findRolesOfActiveApp(APP_EMPTY)).isEmpty();
+        assertThat(appRepository.findRolesOfActiveApp(CLIENT_A)).isEmpty();
     }
 
     @Test

@@ -3,6 +3,7 @@ package uk.gov.justice.laa.datauserapi.application.query.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -42,6 +43,20 @@ class RoleAssignmentRestrictionQueryServiceTest {
 
         assertThat(page.items()).containsExactly(view);
         assertThat(page.page()).isEqualTo(new PageMetadata(1, 2, 3, 2));
+    }
+
+    @Test
+    void pageOffsetBeyondTheIntegerRangeHasNoItemsAndIsNeverRequestedFromTheRepository() {
+        when(repository.findEligibleRestrictions(isNull(), org.mockito.ArgumentMatchers.eq(PageRequest.of(0, 20))))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 45));
+
+        RoleAssignmentRestrictionViewPage page = new RoleAssignmentRestrictionQueryService(repository)
+                .getRestrictions(null, Integer.MAX_VALUE, 20);
+
+        assertThat(page.items()).isEmpty();
+        assertThat(page.page()).isEqualTo(new PageMetadata(Integer.MAX_VALUE, 20, 45, 3));
+        verify(repository).findEligibleRestrictions(isNull(), org.mockito.ArgumentMatchers.eq(PageRequest.of(0, 20)));
+        verifyNoMoreInteractions(repository);
     }
 
     @Test

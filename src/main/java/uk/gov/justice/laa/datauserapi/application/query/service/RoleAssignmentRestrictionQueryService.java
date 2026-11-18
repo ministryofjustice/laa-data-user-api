@@ -1,5 +1,6 @@
 package uk.gov.justice.laa.datauserapi.application.query.service;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -23,11 +24,17 @@ public class RoleAssignmentRestrictionQueryService {
         this.repository = repository;
     }
 
-    /** {@code appId} filters on the application of the role being assigned; {@code null} applies no filter. */
+    /**
+     * Pages beyond the last (including offsets too large for the persistence provider) return no items with the
+     * requested page metadata and the real totals.
+     * {@code appId} filters on the application of the role being assigned; {@code null} applies no filter.
+     */
     public RoleAssignmentRestrictionViewPage getRestrictions(UUID appId, int pageNumber, int pageSize) {
-        Page<RoleAssignmentRestrictionView> page =
-                repository.findEligibleRestrictions(appId, PageRequest.of(pageNumber, pageSize));
-        return new RoleAssignmentRestrictionViewPage(page.getContent(), new PageMetadata(
-                page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages()));
+        boolean offsetOutOfRange = (long) pageNumber * pageSize > Integer.MAX_VALUE;
+        Page<RoleAssignmentRestrictionView> page = repository.findEligibleRestrictions(
+                appId, PageRequest.of(offsetOutOfRange ? 0 : pageNumber, pageSize));
+        return new RoleAssignmentRestrictionViewPage(
+                offsetOutOfRange ? List.of() : page.getContent(),
+                new PageMetadata(pageNumber, pageSize, page.getTotalElements(), page.getTotalPages()));
     }
 }
