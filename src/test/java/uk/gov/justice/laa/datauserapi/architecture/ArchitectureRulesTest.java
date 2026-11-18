@@ -29,6 +29,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ArchitectureRulesTest {
 
     @Test
+    void enforcesCcmsSnapshotAndDomainBoundaries() {
+        assertViolation(ArchitectureTest.ccms_profile_orchestration_uses_snapshots_not_persistence_or_http,
+                CcmsRoleSyncProfileService.class);
+        assertViolation(ArchitectureTest.ccms_sync_failures_are_independent_of_http, CcmsSyncExceptionFixture.class);
+        ArchitectureTest.ccms_profile_orchestration_uses_snapshots_not_persistence_or_http.check(importClasses(
+                uk.gov.justice.laa.datauserapi.application.command.service.CcmsRoleSyncProfileService.class));
+        ArchitectureTest.ccms_sync_failures_are_independent_of_http.check(importClasses(
+                uk.gov.justice.laa.datauserapi.exception.CcmsSyncException.class));
+    }
+
+    static class CcmsRoleSyncProfileService {
+        UserProfile profile;
+        uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository repository;
+        org.springframework.http.HttpStatus status;
+    }
+
+    static class CcmsSyncExceptionFixture extends RuntimeException {
+        org.springframework.http.HttpStatus status;
+    }
+
+    @Test
     void requiresExplicitGroupsRatherThanInheritedOrMissingGroups() {
         ArchRule rule = ArchitectureTest.project_exceptions_must_declare_explicit_groups;
         assertViolation(rule, PlainBusinessException.class);
