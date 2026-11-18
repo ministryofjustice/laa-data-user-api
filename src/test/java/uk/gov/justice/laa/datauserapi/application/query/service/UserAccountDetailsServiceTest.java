@@ -34,24 +34,12 @@ class UserAccountDetailsServiceTest {
         EntraUserDto target = mock(EntraUserDto.class);
         UserView view = mock(UserView.class);
         when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_ID))
-                .thenReturn(Optional.of(target));
+                .thenReturn(target);
         when(userViewMapper.mapToUserView(target)).thenReturn(view);
 
         UserAccountDetailsService service = new UserAccountDetailsService(queryService, userViewMapper);
         UserView result = service.getAccount(TARGET_ID, ACTOR_ID);
 
         assertThat(result).isSameAs(view);
-    }
-
-    @Test
-    void throwsUserNotFoundWhenAccountIsMissing() {
-        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_ID))
-                .thenReturn(Optional.empty());
-
-        UserAccountDetailsService service = new UserAccountDetailsService(queryService, userViewMapper);
-
-        assertThatThrownBy(() -> service.getAccount(TARGET_ID, ACTOR_ID))
-                .isInstanceOf(UserNotFoundException.class)
-                .hasMessage("User not found with ID: " + TARGET_ID);
     }
 }

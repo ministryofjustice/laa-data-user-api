@@ -92,12 +92,30 @@ public class SearchUsersAuthorizationIntegrationTest {
     }
 
     @Test
-    void actorWithActiveProfileReachesService() {
+    void actorWithActiveProfileButNoPermissionsDoesntReachService() {
 
         UserAccountSummaryPage expected = mock(UserAccountSummaryPage.class);
 
         AuthenticatedEntraUser actor =
                 external(UUID.randomUUID(), UUID.randomUUID());
+
+        SearchUsersQuery query =
+                new SearchUsersQuery(mock(UserSearchCriteria.class));
+
+        assertDeniedWith(
+                PolicyDenialReason.ACTOR_NO_VIEW_PERMISSION,
+                () -> handler.handle(query, actor));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void actorWithActiveProfileAndPermissionsReachesService() {
+
+        UserAccountSummaryPage expected = mock(UserAccountSummaryPage.class);
+
+        AuthenticatedEntraUser actor =
+                external(UUID.randomUUID(), UUID.randomUUID(), Permission.VIEW_EXTERNAL_USER);
 
         SearchUsersQuery query =
                 new SearchUsersQuery(mock(UserSearchCriteria.class));

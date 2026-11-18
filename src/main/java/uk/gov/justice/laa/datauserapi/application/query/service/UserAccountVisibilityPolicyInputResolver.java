@@ -11,6 +11,7 @@ import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicyInputResolver;
 
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -39,7 +40,7 @@ public class UserAccountVisibilityPolicyInputResolver
 
     @Override
     public UserAccountVisibilityContext resolve(GetUserAccountQuery message) {
-        return queryService.findUserAccountSummaryByUserEntraObjectId(message.userEntraObjectId())
+        return Optional.ofNullable(queryService.findUserAccountSummaryByUserEntraObjectId(message.userEntraObjectId()))
                 .map(this::toVisibilityContext)
                 .orElseGet(UserAccountVisibilityContext::missing);
     }

@@ -11,6 +11,7 @@ import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,7 +30,7 @@ class UserAccountQueryMapperTest {
         EntraUserDto dto = new EntraUserDto();
         when(modelMapper.map(user, EntraUserDto.class)).thenReturn(dto);
 
-        assertThat(mapper.toDto(user)).isSameAs(dto);
+        assertThat(mapper.toDto(Optional.of(user), "oid")).isSameAs(dto);
     }
 
     @Test
@@ -63,7 +64,7 @@ class UserAccountQueryMapperTest {
         user.setUserProfiles(Set.of(profile));
         UserAccountQueryMapper realMapper = new UserAccountQueryMapper(new MapperConfig().modelMapper());
 
-        EntraUserDto dto = realMapper.toDto(user);
+        EntraUserDto dto = realMapper.toDto(Optional.of(user), "oid");
 
         assertThat(dto.getUserProfiles()).hasSize(1);
         assertThat(dto.getUserProfiles().iterator().next().getEntraUser()).isNotNull();

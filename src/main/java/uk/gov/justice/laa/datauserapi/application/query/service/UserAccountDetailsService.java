@@ -22,8 +22,7 @@ public class UserAccountDetailsService {
     }
 
     public UserView getAccount(String userEntraObjectId, String actorOid) {
-        EntraUserDto target = queryService.findUserAccountSummaryByUserEntraObjectId(userEntraObjectId)
-                .orElseThrow(() -> new UserNotFoundException(userEntraObjectId));
+        EntraUserDto target = queryService.findUserAccountSummaryByUserEntraObjectId(userEntraObjectId);
         return userViewMapper.mapToUserView(target);
     }
 }

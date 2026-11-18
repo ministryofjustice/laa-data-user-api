@@ -167,7 +167,7 @@ class UserSearchServiceTest {
                 0, 500, null,
                 null, null, null, null,
                 null, null, null, null,
-                null, false, false, null, null, false
+                null, false, false, null, null, false, false
         );
 
         SearchUsersQuery query = new SearchUsersQuery(criteria);
@@ -185,7 +185,7 @@ class UserSearchServiceTest {
                 null, null, null, null,
                 null, null, null,
                 null, null, null, null,
-                null, false, false, null, null, false
+                null, false, false, null, null, false, false
         );
     }
 

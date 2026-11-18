@@ -47,7 +47,7 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
             value = """
                 SELECT DISTINCT u
                 FROM EntraUser u LEFT JOIN u.userProfiles up LEFT JOIN up.appRoles ar LEFT JOIN ar.app a LEFT JOIN up.firm f
-                WHERE((:#{#criteria.actorInternal()} = TRUE AND up.userType = UserType.INTERNAL)
+                WHERE((:#{#criteria.actorInternal()} = TRUE AND :#{#criteria.canViewInternalUsers} = TRUE AND up.userType = UserType.INTERNAL)
                 OR
                   (:#{#criteria.actorExternal()} = TRUE AND :#{#criteria.canViewExternalUsers} = TRUE AND up.firm.id = :#{#criteria.actorFirmId})
                 OR
@@ -83,7 +83,7 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
             countQuery = """
                 SELECT COUNT(DISTINCT u)
                 FROM EntraUser u LEFT JOIN u.userProfiles up LEFT JOIN up.appRoles ar LEFT JOIN ar.app a LEFT JOIN up.firm f
-                WHERE((:#{#criteria.actorInternal()} = TRUE AND up.userType = UserType.INTERNAL)
+                WHERE((:#{#criteria.actorInternal()} = TRUE AND :#{#criteria.canViewInternalUsers} = TRUE AND up.userType = UserType.INTERNAL)
                 OR
                   (:#{#criteria.actorExternal()} = TRUE AND :#{#criteria.canViewExternalUsers} = TRUE AND up.firm.id = :#{#criteria.actorFirmId})
                 OR

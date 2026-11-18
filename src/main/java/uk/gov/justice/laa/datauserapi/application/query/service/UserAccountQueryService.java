@@ -43,14 +43,11 @@ public class UserAccountQueryService {
     }
 
     public EntraUserDto findByEntraOid(String entraOid) {
-        return userRepository.findByEntraOid(entraOid)
-                .map(mapper::toDto)
-                .orElseThrow(() -> new UserNotFoundException(entraOid));
+        return mapper.toDto(userRepository.findByEntraOid(entraOid), entraOid);
     }
 
-    public Optional<EntraUserDto> findUserAccountSummaryByUserEntraObjectId(String userEntraObjectId) {
-        return userRepository.findByEntraOid(userEntraObjectId)
-                .map(mapper::toDto);
+    public EntraUserDto findUserAccountSummaryByUserEntraObjectId(String userEntraObjectId) {
+        return mapper.toDto(userRepository.findByEntraOid(userEntraObjectId), userEntraObjectId);
     }
 
     public Page<EntraUserDto> searchUsers(UserSearchCriteria criteria, Pageable pageable) {

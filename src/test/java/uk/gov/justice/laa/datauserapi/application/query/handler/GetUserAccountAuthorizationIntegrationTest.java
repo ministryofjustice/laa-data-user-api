@@ -116,7 +116,7 @@ class GetUserAccountAuthorizationIntegrationTest {
     void missingAccountIsDeniedBeforeServiceRuns() {
 
         when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID))
-                .thenReturn(Optional.empty());
+                .thenReturn(null);
 
         assertDeniedWith(PolicyDenialReason.TARGET_PROFILE_NOT_FOUND,
                 () -> handler.handle(
@@ -240,7 +240,7 @@ class GetUserAccountAuthorizationIntegrationTest {
         when(user.getUserProfiles()).thenReturn(Set.of(profile));
 
         when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID))
-                .thenReturn(Optional.of(user));
+                .thenReturn(user);
 
         AuthenticatedUserProfile actorProfile = AuthenticatedUserProfile.builder()
                 .id(UUID.randomUUID())
@@ -274,7 +274,7 @@ class GetUserAccountAuthorizationIntegrationTest {
         when(user.getUserProfiles()).thenReturn(Set.of(profile));
 
         when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID))
-                .thenReturn(Optional.of(user));
+                .thenReturn(user);
 
         UserView expected = mock(UserView.class);
 
@@ -317,7 +317,7 @@ class GetUserAccountAuthorizationIntegrationTest {
         when(user.getUserProfiles()).thenReturn(Set.of(profile));
 
         when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID))
-                .thenReturn(Optional.of(user));
+                .thenReturn(user);
 
         UserView expected = mock(UserView.class);
 
@@ -362,7 +362,7 @@ class GetUserAccountAuthorizationIntegrationTest {
         when(user.getEntraOid()).thenReturn(TARGET_OID);
         when(user.getUserProfiles()).thenReturn(Set.of(profile));
 
-        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID)).thenReturn(Optional.of(user));
+        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID)).thenReturn(user);
     }
 
     private static void assertDeniedWith(PolicyDenialReason reason, ThrowableAssert.ThrowingCallable call) {

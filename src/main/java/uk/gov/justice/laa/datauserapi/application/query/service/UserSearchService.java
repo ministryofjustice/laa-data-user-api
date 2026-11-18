@@ -44,11 +44,15 @@ public class UserSearchService {
                 .flatMap(role -> role.permissions().stream())
                 .anyMatch(permission -> permission == Permission.VIEW_EXTERNAL_USER);
 
+        boolean canViewInternalUsers = actorUserType == UserType.INTERNAL && actor.activeProfile().appRoles().stream()
+                .flatMap(role -> role.permissions().stream())
+                .anyMatch(permission -> permission == Permission.VIEW_INTERNAL_USER);
+
         UserSearchCriteria enrichedCriteria = new UserSearchCriteria(criteria.pageNumber(), criteria.pageSize(),
                 criteria.sortBy(), criteria.user(), criteria.emailQuery(), criteria.firm(), criteria.firmId(), criteria.appId(),
                 criteria.appEntraClientId(), criteria.appRoleId(), criteria.userType(), criteria.userAccountStatus(),
                 criteria.neverActivatedFilter(), actorUserType == UserType.INTERNAL,
-                actorUserType == UserType.EXTERNAL, actorFirmId, canViewExternalUsers);
+                actorUserType == UserType.EXTERNAL, actorFirmId, canViewExternalUsers, canViewInternalUsers);
 
         int pageNumber = enrichedCriteria.pageNumber() == null ? 0 : enrichedCriteria.pageNumber();
         int pageSize = enrichedCriteria.pageSize() == null ? 20 : enrichedCriteria.pageSize();

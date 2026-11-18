@@ -145,20 +145,21 @@ class UserAccountQueryServiceTest {
         when(modelMapper.map(user, EntraUserDto.class))
                 .thenReturn(dto);
 
-        Optional<EntraUserDto> result =
+        EntraUserDto result =
                 service.findUserAccountSummaryByUserEntraObjectId(entraOid);
 
-        assertThat(result).containsSame(dto);
+        assertThat(result).isSameAs(dto);
     }
 
     @Test
-    void shouldReturnEmptyWhenUserAccountSummaryNotFound() {
+    void shouldThrowUserNotFoundWhenUserAccountSummaryNotFound() {
         String entraOid = UUID.randomUUID().toString();
 
         when(userRepository.findByEntraOid(entraOid))
                 .thenReturn(Optional.empty());
 
-        assertThat(service.findUserAccountSummaryByUserEntraObjectId(entraOid)).isEmpty();
+        assertThatThrownBy(() -> service.findUserAccountSummaryByUserEntraObjectId(entraOid))
+                .isInstanceOf(UserNotFoundException.class);
     }
 
     @Test
