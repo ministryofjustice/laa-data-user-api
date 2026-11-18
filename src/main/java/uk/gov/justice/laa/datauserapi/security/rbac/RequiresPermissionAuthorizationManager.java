@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.jspecify.annotations.NonNull;
 import org.springframework.aop.support.AopUtils;
+import org.springframework.aop.ProxyMethodInvocation;
 import org.springframework.core.BridgeMethodResolver;
 import org.springframework.core.ResolvableType;
 import org.springframework.core.annotation.AnnotatedElementUtils;
@@ -112,7 +113,7 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
         }
 
         Object obj = invocation.getArguments()[guarded.get().index()];
-        return evaluatePolicies(required, obj, actor, operation);
+        return evaluatePolicies(required, obj, actor, operation, invocation, guarded.get().index());
     }
 
     private static boolean hasRequiredPermissions(AuthenticatedEntraUser actor, Requirement required) {
@@ -127,7 +128,8 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
     }
 
     private AuthorizationResult evaluatePolicies(Requirement required, Object obj,
-                                                 AuthenticatedEntraUser actor, String operation) {
+                                                 AuthenticatedEntraUser actor, String operation,
+                                                 MethodInvocation invocation, int parameterIndex) {
         boolean legacyEnabledForMessage = isLegacyEnabledFor(required);
         if (obj == null) {
             boolean anyPolicies = required.policies().length > 0
@@ -142,7 +144,8 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
         }
         AuthorizationResult global = evaluateGlobalPolicies(legacyEnabledForMessage, obj, actor, operation);
         return global.isGranted()
-                ? evaluateDeclaredPolicies(required, legacyEnabledForMessage, obj, actor, operation) : global;
+                ? evaluateDeclaredPolicies(required, legacyEnabledForMessage, obj, actor, operation,
+                        invocation, parameterIndex) : global;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -162,7 +165,13 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
 
     @SuppressWarnings({"rawtypes"})
     private AuthorizationResult evaluateDeclaredPolicies(Requirement required, boolean legacyEnabledForMessage, Object obj,
-                                                         AuthenticatedEntraUser actor, String operation) {
+                                                         AuthenticatedEntraUser actor, String operation,
+                                                         MethodInvocation invocation, int parameterIndex) {
+        if (obj instanceof ResolvedAuthorizationMessage<?> message
+                && (message.contextPolicyType() == null || message.authorizationContextType() == null)) {
+            throw new InvalidAuthorizationConfigurationException("The message authorisation context is not configured");
+        }
+        boolean contextResolved = !(obj instanceof ResolvedAuthorizationMessage<?>);
         for (Class<? extends AuthorizationPolicy> policyType : required.policies()) {
             AuthorizationPolicy policy = policyResolver.apply(policyType);
             if (!isFeatureEnabled(policy.feature(), legacyEnabledForMessage)) {
@@ -181,14 +190,37 @@ public class RequiresPermissionAuthorizationManager implements AuthorizationMana
             if (!result.isGranted()) {
                 return result;
             }
+            if (obj instanceof ResolvedAuthorizationMessage<?> message && message.contextPolicyType().equals(policyType)) {
+                bindContext(message, input, invocation, parameterIndex);
+                contextResolved = true;
+            }
+        }
+        if (!contextResolved) {
+            throw new InvalidAuthorizationConfigurationException("The message authorization context policy was not evaluated");
         }
         return GRANTED;
+    }
+
+    private static <C> void bindContext(ResolvedAuthorizationMessage<C> message, Object input,
+                                       MethodInvocation invocation, int index) {
+        if (!(invocation instanceof ProxyMethodInvocation proxy)
+                || !message.authorizationContextType().isInstance(input)) {
+            throw new InvalidAuthorizationConfigurationException("The message authorization context cannot be bound");
+        }
+        Object[] arguments = invocation.getArguments().clone();
+        ResolvedAuthorizationMessage<C> bound = message.withAuthorizationContext(message.authorizationContextType().cast(input));
+        if (bound == null || !message.getClass().isInstance(bound)) {
+            throw new InvalidAuthorizationConfigurationException("The resolved authorisation message has an invalid type");
+        }
+        arguments[index] = bound;
+        proxy.setArguments(arguments);
     }
 
     private boolean isFeatureEnabled(AuthorizationPolicyFeature feature, boolean legacyEnabledForMessage) {
         return switch (feature) {
             case LEGACY -> legacyEnabledForMessage;
             case OPA -> opaEnabled;
+            case ALWAYS -> true;
         };
     }
 

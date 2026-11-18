@@ -21,6 +21,10 @@ public interface UserProfileCommandRepository extends JpaRepository<UserProfile,
                         LEFT JOIN FETCH ups.firm f
                         JOIN FETCH ups.appRoles ars
             WHERE ups.lastCcmsSyncSuccessful = false
+                 AND NOT EXISTS (
+                     SELECT event.id FROM RoleChangeOutboxEvent event WHERE event.profileId = ups.id
+                         AND event.deliveredAt IS NULL
+                 )
                  AND EXISTS (
                      SELECT candidate.id FROM UserProfile candidate
                      JOIN candidate.appRoles syncRole
