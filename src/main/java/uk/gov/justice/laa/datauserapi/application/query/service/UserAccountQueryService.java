@@ -14,6 +14,7 @@ import uk.gov.justice.laa.datauserapi.application.query.mapper.UserAccountQueryM
 import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
