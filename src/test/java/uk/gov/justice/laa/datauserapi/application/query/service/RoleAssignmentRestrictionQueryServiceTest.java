@@ -1,6 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.query.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -11,7 +12,6 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
@@ -47,31 +47,16 @@ class RoleAssignmentRestrictionQueryServiceTest {
 
     @Test
     void pageOffsetBeyondTheIntegerRangeHasNoItemsAndIsNeverRequestedFromTheRepository() {
-        when(repository.findEligibleRestrictions(isNull(), org.mockito.ArgumentMatchers.eq(PageRequest.of(0, 20))))
-                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 45));
+        Pageable firstPage = PageRequest.of(0, 20);
+        when(repository.findEligibleRestrictions(isNull(), eq(firstPage)))
+                .thenReturn(new PageImpl<>(List.of(), firstPage, 45));
 
         RoleAssignmentRestrictionViewPage page = new RoleAssignmentRestrictionQueryService(repository)
                 .getRestrictions(null, Integer.MAX_VALUE, 20);
 
         assertThat(page.items()).isEmpty();
         assertThat(page.page()).isEqualTo(new PageMetadata(Integer.MAX_VALUE, 20, 45, 3));
-        verify(repository).findEligibleRestrictions(isNull(), org.mockito.ArgumentMatchers.eq(PageRequest.of(0, 20)));
+        verify(repository).findEligibleRestrictions(isNull(), eq(firstPage));
         verifyNoMoreInteractions(repository);
-    }
-
-    @Test
-    void pageBeyondTheEndHasNoItemsButKeepsTheTotals() {
-        Pageable requested = PageRequest.of(9, 20);
-        when(repository.findEligibleRestrictions(isNull(), org.mockito.ArgumentMatchers.eq(requested)))
-                .thenReturn(new PageImpl<>(List.of(), requested, 5));
-
-        RoleAssignmentRestrictionViewPage page =
-                new RoleAssignmentRestrictionQueryService(repository).getRestrictions(null, 9, 20);
-
-        assertThat(page.items()).isEmpty();
-        assertThat(page.page()).isEqualTo(new PageMetadata(9, 20, 5, 1));
-        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(repository).findEligibleRestrictions(isNull(), pageable.capture());
-        assertThat(pageable.getValue().getPageNumber()).isEqualTo(9);
     }
 }

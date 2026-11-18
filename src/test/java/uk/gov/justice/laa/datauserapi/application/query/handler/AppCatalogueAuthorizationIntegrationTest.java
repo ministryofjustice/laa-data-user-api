@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -122,10 +123,10 @@ class AppCatalogueAuthorizationIntegrationTest {
         appRoleByIdHandler.handle(new GetAppRoleByIdQuery(ID), permitted);
         restrictionsHandler.handle(new GetRoleAssignmentRestrictionsQuery(ID, 1, 5), permitted);
 
-        org.mockito.Mockito.verify(service).getApp(ID);
-        org.mockito.Mockito.verify(service).getAppRoles(ID, UserType.EXTERNAL);
-        org.mockito.Mockito.verify(service).getAppRole(ID);
-        org.mockito.Mockito.verify(restrictionService).getRestrictions(ID, 1, 5);
+        verify(service).getApp(ID);
+        verify(service).getAppRoles(ID, UserType.EXTERNAL);
+        verify(service).getAppRole(ID);
+        verify(restrictionService).getRestrictions(ID, 1, 5);
     }
 
     private static void assertDenied(ThrowingCallable call) {

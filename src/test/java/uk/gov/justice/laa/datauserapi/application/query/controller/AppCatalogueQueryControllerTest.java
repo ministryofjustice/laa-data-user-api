@@ -1,5 +1,7 @@
 package uk.gov.justice.laa.datauserapi.application.query.controller;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -118,8 +120,7 @@ class AppCatalogueQueryControllerTest {
                     .andExpect(status().isNotFound())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                     .andExpect(jsonPath("$.status").value(404))
-                    .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.not(
-                            org.hamcrest.Matchers.containsString(appId.toString()))));
+                    .andExpect(jsonPath("$.detail").value(not(containsString(appId.toString()))));
         }
     }
 

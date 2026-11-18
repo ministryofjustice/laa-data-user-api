@@ -3,7 +3,6 @@ package uk.gov.justice.laa.datauserapi.application.query.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -20,7 +19,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
 
-import uk.gov.justice.laa.datauserapi.application.query.mapper.AppCatalogueQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserProfileAccessQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AppCatalogueQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
@@ -44,8 +42,7 @@ class AppCatalogueQueryServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AppCatalogueQueryService(repository,
-                new AppCatalogueQueryMapper(new UserProfileAccessQueryMapper()));
+        service = new AppCatalogueQueryService(repository, new UserProfileAccessQueryMapper());
         app = App.builder().id(APP_ID).name("App").entraAppId("client-id").build();
     }
 
