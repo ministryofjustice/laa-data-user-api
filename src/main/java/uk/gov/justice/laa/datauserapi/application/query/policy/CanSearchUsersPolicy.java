@@ -6,6 +6,7 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.UserSearchAuthorizat
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.model.Permission;
+import uk.gov.justice.laa.datauserapi.security.rbac.ActorPermissions;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
@@ -27,11 +28,8 @@ public class CanSearchUsersPolicy implements AuthorizationPolicy<UserSearchAutho
             return PolicyDecision.deny(PolicyDenialReason.ACTOR_NO_ACTIVE_PROFILE);
         }
 
-        boolean hasViewPermission = actorProfile.appRoles().stream()
-                .flatMap(role -> role.permissions().stream())
-                .anyMatch(permission ->
-                        permission == Permission.VIEW_INTERNAL_USER
-                                || permission == Permission.VIEW_EXTERNAL_USER);
+        boolean hasViewPermission =
+                ActorPermissions.has(actor, Permission.VIEW_EXTERNAL_USER) || ActorPermissions.has(actor, Permission.VIEW_INTERNAL_USER);
 
         if (!hasViewPermission) {
             return PolicyDecision.deny(PolicyDenialReason.ACTOR_NO_VIEW_PERMISSION);
