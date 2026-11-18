@@ -15,6 +15,8 @@ import uk.gov.justice.laa.datauserapi.application.command.service.CommandService
 import uk.gov.justice.laa.datauserapi.application.query.handler.QueryHandlerBoundaryFixtures;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfileAppsHandler;
 import uk.gov.justice.laa.datauserapi.application.query.handler.QueryHandler;
+import uk.gov.justice.laa.datauserapi.application.query.queryappcatalogue.AppCatalogueQuery;
+import uk.gov.justice.laa.datauserapi.application.query.queryappcatalogue.GetAppsQuery;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.QueryRepositoryBoundaryFixtures;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 
@@ -153,6 +155,13 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    void requiresCatalogueQueriesToDeclarePermission() {
+        ArchRule rule = ArchitectureTest.app_catalogue_queries_must_require_a_permission;
+        assertViolation(rule, UnguardedCatalogueQuery.class);
+        rule.check(importClasses(GetAppsQuery.class));
+    }
+
+    @Test
     void requiresReadOnlyTransactionsOnQueryComponents() {
         ArchRule rule = classes().should(ArchitectureTest.declareReadOnlyTransaction());
         assertViolation(rule, WritableComponent.class);
@@ -220,6 +229,9 @@ class ArchitectureRulesTest {
 
     private void assertViolation(ArchRule rule, Class<?> type) {
         assertThat(rule.evaluate(importClasses(type)).hasViolation()).isTrue();
+    }
+
+    record UnguardedCatalogueQuery() implements AppCatalogueQuery {
     }
 
     interface ReadRepository extends Repository<UserProfile, UUID> {

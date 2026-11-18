@@ -33,6 +33,7 @@ import uk.gov.justice.laa.datauserapi.security.RequiresSystemAdminScope;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import uk.gov.justice.laa.datauserapi.application.query.queryappcatalogue.AppCatalogueQuery;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserprofileaccess.UserProfileAccessQuery;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyGuarded;
@@ -234,6 +235,12 @@ class ArchitectureTest {
             .that().implement(UserProfileAccessQuery.class)
             .should().beAnnotatedWith(PolicyGuarded.class)
             .because("Profile access queries are authorised by policy before the handler runs, so a new one cannot skip it");
+
+    @ArchTest
+    static final ArchRule app_catalogue_queries_must_require_a_permission = classes()
+            .that().implement(AppCatalogueQuery.class)
+            .should().beAnnotatedWith(RequiresPermission.class)
+            .because("Catalogue queries are authorised by permission before the handler runs, so a new one cannot skip it");
 
     // =========================================================================
     // 2. Layer & Access Boundary Rules

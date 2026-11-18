@@ -407,7 +407,8 @@ paths:
     get:
       operationId: queryAppsAll
       tags: [Application & Role Management]
-      summary: List all SiLAS applications
+      summary: List all active SiLAS applications
+      description: Inactive applications are excluded. The list is not paginated and is limited to 100 applications.
       responses:
         '200':
           description: Apps
@@ -424,7 +425,8 @@ paths:
     get:
       operationId: queryAppById
       tags: [Application & Role Management]
-      summary: Get app by ID (Application Client ID in Entra ID)
+      summary: Get active app by its internal SiLAS app ID
+      description: Returns 404 if the application does not exist or is inactive.
       parameters:
         - $ref: '#/components/parameters/AppId'
       responses:
@@ -448,6 +450,10 @@ paths:
       operationId: queryAppRolesByApp
       tags: [Application & Role Management]
       summary: List roles for specified app
+      description: |
+        Returns the roles of an active application, identified by its internal SiLAS app ID. Returns 404 if the application does not exist or is inactive.
+        user_type=INTERNAL includes INTERNAL and BOTH roles; user_type=EXTERNAL includes EXTERNAL and BOTH roles. Omitting it returns all roles.
+        The list is not paginated and is limited to 500 roles.
       parameters:
         - $ref: '#/components/parameters/AppId'
         - $ref: '#/components/parameters/UserType'
@@ -464,12 +470,15 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /api/v1/queries/app-roles/{appRoleId}:
     get:
       operationId: queryAppRoleById
       tags: [Application & Role Management]
       summary: Get details for app role by its app role ID
+      description: The app role ID is the local SiLAS app role ID. Returns 404 if the role does not exist or its application is inactive.
       parameters:
         - $ref: '#/components/parameters/AppRoleId'
       responses:
@@ -493,10 +502,14 @@ paths:
       operationId: queryRoleAssignmentRestrictions
       tags: [Application & Role Management]
       summary: List role assignment restrictions
+      description: |
+        Lists which roles (assigning roles) may assign which other roles, for active applications only.
+        The app_id filter matches the application of the role being assigned, not the assigning role.
+        The appId, appName and appEntraClientId fields of each item describe the application of the role being assigned.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
-        - $ref: '#/components/parameters/AppIdFilter'
+        - $ref: '#/components/parameters/RoleAssignmentAppIdFilter'
       responses:
         '200':
           description: Role assignment restrictions
@@ -1480,7 +1493,7 @@ components:
         type: string
     AppId:
       name: appId
-      description: Identifier for the application. This uses the Entra client ID.
+      description: Identifier for the application. This uses the internal SiLAS app ID.
       in: path
       required: true
       schema:
@@ -1496,6 +1509,13 @@ components:
     AppIdFilter:
       name: app_id
       description: Identifier for the application. This uses the Entra client ID. Used to filter user results to only show users with this app assigned.
+      in: query
+      schema:
+        type: string
+        format: uuid
+    RoleAssignmentAppIdFilter:
+      name: app_id
+      description: Internal SiLAS identifier for the application. Used to filter role assignment restrictions to those whose assignable role (the role being assigned) belongs to this application.
       in: query
       schema:
         type: string
@@ -2052,11 +2072,18 @@ components:
         appRoleId:
           type: string
           format: uuid
+          description: The role being assigned
         appRoleName:
           type: string
         appId:
           type: string
           format: uuid
+          description: Internal SiLAS ID of the application of the role being assigned
+        appEntraClientId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Entra client ID of the application of the role being assigned
         appName:
           type: string
         assigningAppRoleId:
