@@ -629,6 +629,30 @@ Breaking changes (major bumps) require coordinating with all consumers before me
 
 ---
 
+## Pact provider verification
+
+`pactTest` verifies consumer contracts from the Pact broker against this API.
+It exercises `GET /api/v1/me` through the security filter chain, controller and
+profile service, and checks the serialised response. The verifier stubs JWT
+decoding and supplies a signed-in user through the token-to-user converter.
+
+For local verification against generated consumer Pact files, use:
+
+```sh
+./gradlew pactLocalTest -PpactFolder=../laa-landing-page/build/pacts
+```
+
+Local verification does not publish results.
+
+The provider workflow runs on pull requests and pushes to `main`, and supports
+broker-triggered `workflow_dispatch`. Configure `PACT_BROKER_URL`,
+`PACT_BROKER_USERNAME` and `PACT_BROKER_PASSWORD` as repository secrets. The
+broker webhook must dispatch the **Pact Provider Verification** workflow with
+the optional `consumer` and `consumerBranch` inputs. Verification results are
+published to the broker.
+
+---
+
 ## ZAP active scan
 
 The [active-scan workflow](.github/workflows/zap-active.yml) runs authenticated read/write and anonymous checks against fresh, network-isolated API/PostgreSQL instances using synthetic data; integration-dependent writes are excluded. Reports are uploaded per pass. The workflow produces a combined job summary, and scheduled runs send one combined Slack notification with counts and status for each pass. Counts are per pass and may overlap; missing reports are marked explicitly.

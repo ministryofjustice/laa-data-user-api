@@ -31,6 +31,24 @@ java {
     targetCompatibility = JavaVersion.VERSION_25
 }
 
+sourceSets {
+    pactTest {
+        java {
+            srcDir 'src/pactTest/java'
+        }
+        resources {
+            srcDir 'src/pactTest/resources'
+        }
+        compileClasspath += sourceSets.main.output + sourceSets.test.output
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
+configurations {
+    pactTestImplementation.extendsFrom testImplementation
+    pactTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+
 repositories {
     mavenCentral()
 }
@@ -126,10 +144,76 @@ dependencies {
     testImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
     testImplementation "org.testcontainers:testcontainers:${testcontainersVersion}"
 
+    pactTestImplementation 'au.com.dius.pact.provider:spring7:4.7.0-beta.3'
+
 }
 
 test {
     useJUnitPlatform()
+    testLogging {
+        showStandardStreams = true
+        events "failed", "skipped", "standard_out", "standard_error"
+    }
+}
+
+tasks.register('pactTest', Test) {
+    description = 'Verifies consumer contracts fetched from the Pact broker.'
+    group = 'verification'
+    testClassesDirs = sourceSets.pactTest.output.classesDirs
+    classpath = sourceSets.pactTest.runtimeClasspath
+    useJUnitPlatform()
+    include '**/UserDataApiProviderPactTests.class'
+
+    systemProperty 'pact.provider.version', System.getenv('GIT_SHA') ?: project.version
+    systemProperty 'pact.provider.branch', System.getenv('GIT_BRANCH') ?: 'main'
+    systemProperty 'pact.verifier.publishResults', 'true'
+    // The JUnit loader and Pact client use different property namespaces.
+    systemProperty 'pactbroker.url', System.getenv('PACT_BROKER_URL')
+    systemProperty 'pactbroker.auth.username', System.getenv('PACT_BROKER_USERNAME')
+    systemProperty 'pactbroker.auth.password', System.getenv('PACT_BROKER_PASSWORD')
+    systemProperty 'pact.broker.url', System.getenv('PACT_BROKER_URL')
+    systemProperty 'pact.broker.auth.username', System.getenv('PACT_BROKER_USERNAME')
+    systemProperty 'pact.broker.auth.password', System.getenv('PACT_BROKER_PASSWORD')
+
+    def consumer = System.getenv('PACT_CONSUMER')
+    def consumerBranch = System.getenv('PACT_CONSUMER_BRANCH')
+    def selectors = [[mainBranch: true], [matchingBranch: true]]
+    if (consumer && consumerBranch) {
+        selectors << [pacticipant: consumer, branch: consumerBranch]
+    }
+    systemProperty 'pactbroker.consumerversionselectors.rawjson',
+            groovy.json.JsonOutput.toJson(selectors)
+
+    doFirst {
+        def mockitoAgent = configurations.pactTestRuntimeClasspath.find { it.name.contains('mockito-core') }
+        if (mockitoAgent) {
+            jvmArgs "-javaagent:${mockitoAgent}", '-Xshare:off'
+        }
+    }
+
+    testLogging {
+        showStandardStreams = true
+        events "failed", "skipped", "standard_out", "standard_error"
+    }
+}
+
+tasks.register('pactLocalTest', Test) {
+    description = 'Verifies local consumer pacts from the folder supplied with -PpactFolder.'
+    group = 'verification'
+    testClassesDirs = sourceSets.pactTest.output.classesDirs
+    classpath = sourceSets.pactTest.runtimeClasspath
+    useJUnitPlatform()
+    include '**/UserDataApiLocalPactTests.class'
+
+    def pactFolder = findProperty('pactFolder')
+    systemProperty 'pactfolder.path', pactFolder ?: ''
+
+    doFirst {
+        if (!pactFolder || !file(pactFolder).isDirectory()) {
+            throw new GradleException('Set -PpactFolder to an existing directory containing Pact files.')
+        }
+    }
+
     testLogging {
         showStandardStreams = true
         events "failed", "skipped", "standard_out", "standard_error"
