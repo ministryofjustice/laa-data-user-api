@@ -10,11 +10,10 @@ import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
-import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
-import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
-
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
+import uk.gov.justice.laa.datauserapi.model.Permission;
 
 import java.util.List;
 import java.util.UUID;
@@ -25,34 +24,35 @@ public class UserSearchService {
 
     private final UserAccountQueryService queryService;
     private final UserViewMapper userViewMapper;
-    private final QueryAuthorisationService authorisationService;
 
     public UserSearchService(
             UserAccountQueryService queryService,
-            UserViewMapper userViewMapper, QueryAuthorisationService authorisationService) {
+            UserViewMapper userViewMapper) {
         this.queryService = queryService;
         this.userViewMapper = userViewMapper;
-        this.authorisationService = authorisationService;
     }
 
-    public UserAccountSummaryPage search(SearchUsersQuery query) {
-        EntraUserDto actor = queryService.findByEntraOid(query.actorOid());
+    public UserAccountSummaryPage search(SearchUsersQuery query, AuthenticatedEntraUser actor) {
+        UserSearchCriteria criteria = query.criteria();
+        
+        UserType actorUserType = actor.activeProfile().userType();
+        UUID actorFirmId = actorUserType == UserType.EXTERNAL && actor.activeProfile().firmId() != null
+                ? actor.activeProfile().firmId()
+                : null;
 
-        UserProfileDto actorProfile = authorisationService.requireActiveProfile(actor, query.actorOid());
-
-        boolean canViewExternalUsers = actorProfile.getAppRoles().stream()
-                .flatMap(role -> role.getPermissions().stream())
+        boolean canViewExternalUsers = actor.activeProfile().appRoles().stream()
+                .flatMap(role -> role.permissions().stream())
                 .anyMatch(permission -> permission == Permission.VIEW_EXTERNAL_USER);
 
-        UserSearchCriteria criteria = query.criteria();
-        UUID actorFirmId = actorProfile.getUserType() == UserType.EXTERNAL
-                ? (actorProfile.getFirm() == null ? null : actorProfile.getFirm().getId()) : null;
+        boolean canViewInternalUsers = actorUserType == UserType.INTERNAL && actor.activeProfile().appRoles().stream()
+                .flatMap(role -> role.permissions().stream())
+                .anyMatch(permission -> permission == Permission.VIEW_INTERNAL_USER);
 
         UserSearchCriteria enrichedCriteria = new UserSearchCriteria(criteria.pageNumber(), criteria.pageSize(),
                 criteria.sortBy(), criteria.user(), criteria.emailQuery(), criteria.firm(), criteria.firmId(), criteria.appId(),
                 criteria.appEntraClientId(), criteria.appRoleId(), criteria.userType(), criteria.userAccountStatus(),
-                criteria.neverActivatedFilter(), actorProfile.getUserType() == UserType.INTERNAL,
-                actorProfile.getUserType() == UserType.EXTERNAL, actorFirmId, canViewExternalUsers);
+                criteria.neverActivatedFilter(), actorUserType == UserType.INTERNAL,
+                actorUserType == UserType.EXTERNAL, actorFirmId, canViewExternalUsers, canViewInternalUsers);
 
         int pageNumber = enrichedCriteria.pageNumber() == null ? 0 : enrichedCriteria.pageNumber();
         int pageSize = enrichedCriteria.pageSize() == null ? 20 : enrichedCriteria.pageSize();

@@ -9,10 +9,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
 
 @Slf4j
 @Configuration
-@EnableRetry
+@EnableRetry(proxyTargetClass = true)
 public class SilasStatusRefreshConfig implements AsyncConfigurer {
 
     @Bean
@@ -29,7 +30,8 @@ public class SilasStatusRefreshConfig implements AsyncConfigurer {
     @Override
     public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
         return (exception, method, parameters) ->
-                log.error("Asynchronous SiLAS status refresh failed; previously committed batches remain updated",
+                log.error("Asynchronous command failed; previously committed profile or batch updates remain committed",
+                        ExceptionLogFields.exceptionGroup(exception), ExceptionLogFields.exceptionReason(exception),
                         kv("actorEntraOid", parameters[0]),
                         kv("method", method.getName()),
                         exception);

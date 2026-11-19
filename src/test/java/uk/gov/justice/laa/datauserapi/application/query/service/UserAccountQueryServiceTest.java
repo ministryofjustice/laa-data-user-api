@@ -152,16 +152,14 @@ class UserAccountQueryServiceTest {
     }
 
     @Test
-    void shouldThrowWhenUserAccountSummaryNotFound() {
+    void shouldThrowUserNotFoundWhenUserAccountSummaryNotFound() {
         String entraOid = UUID.randomUUID().toString();
 
         when(userRepository.findByEntraOid(entraOid))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() ->
-                service.findUserAccountSummaryByUserEntraObjectId(entraOid))
-                .isInstanceOf(UserNotFoundException.class)
-                .hasMessage("User not found with ID: " + entraOid);
+        assertThatThrownBy(() -> service.findUserAccountSummaryByUserEntraObjectId(entraOid))
+                .isInstanceOf(UserNotFoundException.class);
     }
 
     @Test

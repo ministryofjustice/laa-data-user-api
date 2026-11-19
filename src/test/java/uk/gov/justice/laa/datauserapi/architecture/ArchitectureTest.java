@@ -143,6 +143,18 @@ class ArchitectureTest {
             .because("Services implement workflows below the handler and controller entry points");
 
     @ArchTest
+    static final ArchRule ccms_profile_orchestration_uses_snapshots_not_persistence_or_http = noClasses()
+            .that().haveSimpleName("CcmsRoleSyncProfileService")
+            .should().dependOnClassesThat().resideInAnyPackage("..entity..", "..repository..", "org.springframework.http..")
+            .because("CCMS orchestration coordinates short persistence operations and delivery through snapshot contracts");
+
+    @ArchTest
+    static final ArchRule ccms_sync_failures_are_independent_of_http = noClasses()
+            .that().haveSimpleNameStartingWith("CcmsSyncException")
+            .should().dependOnClassesThat().resideInAPackage("org.springframework.http..")
+            .because("Background synchronisation outcomes are domain reasons rather than HTTP response codes");
+
+    @ArchTest
     static final ArchRule query_side_must_not_access_external_mutation_clients = noClasses()
             .that().resideInAPackage(QUERY_PACKAGE)
             .should().dependOnClassesThat().resideInAPackage(CLIENT_PACKAGE)

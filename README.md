@@ -185,8 +185,9 @@ The filter runs before security,
 so authentication failures share the same request ID, and restores the previous context even when a request fails.
 Existing log statements need no correlation-ID arguments. Logs outside a request have no correlation ID.
 `MdcTaskDecorator` captures MDC at submission and restores the worker's previous context after completion or failure.
-It is configured on the default `taskExecutor`, `bulkDeactivationExecutor`, and `silasStatusRefreshExecutor`, covering
-both unnamed and named `@Async` methods. Configure the same decorator on any future application executor.
+It is configured on the default `taskExecutor`, `bulkDeactivationExecutor`, `silasStatusRefreshExecutor`, and
+`ccmsRoleSyncExecutor`, covering both unnamed and named `@Async` methods. Configure the same decorator on any future
+application executor.
 `CorrelationIdInterceptor` forwards the active MDC ID on Tech Services HTTP requests automatically; no header is
 added when no ID is present. It reads MDC for each call, so shared clients do not retain another request's ID.
 This provides request correlation across cooperating HTTP services, not distributed tracing. Azure SDK token
