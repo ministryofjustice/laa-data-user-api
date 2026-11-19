@@ -7,12 +7,8 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountVisibilit
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserAccountVisibilityContextFactory;
 import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewAuditUserPolicy;
 import uk.gov.justice.laa.datauserapi.application.query.queryaudit.AuditUserDetailQuery;
-import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicyInputResolver;
-
-import java.util.Optional;
 
 /**
  * Loads, with a single read, the trusted target-user facts that {@link CanViewAuditUserPolicy} evaluates.
@@ -45,13 +41,9 @@ public class AuditUserVisibilityPolicyInputResolver
 
     @Override
     public UserAccountVisibilityContext resolve(AuditUserDetailQuery message) {
-        EntraUserDto target;
-        try {
-            target = queryService.findUserAccountSummaryByUserEntraObjectId(message.userEntraObjectId());
-        } catch (UserNotFoundException ex) {
-            return UserAccountVisibilityContext.missing();
-        }
-        return Optional.ofNullable(target)
+        // Avoids exception-driven flow: a thrown lookup failure would mark the surrounding read-only transaction
+        // rollback-only even though the miss is handled here.
+        return queryService.findUserAccountSummaryIfPresent(message.userEntraObjectId())
                 .map(contextFactory::fromUser)
                 .orElseGet(UserAccountVisibilityContext::missing);
     }

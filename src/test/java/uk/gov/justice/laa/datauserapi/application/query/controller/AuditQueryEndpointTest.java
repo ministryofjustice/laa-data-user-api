@@ -39,11 +39,11 @@ import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.FirmDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 import uk.gov.justice.laa.datauserapi.exception.GlobalExceptionHandler;
-import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.security.rbac.RbacMethodSecurityConfig;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -151,8 +151,7 @@ class AuditQueryEndpointTest {
 
     @Test
     void unknownTargetIsTheSameGenericForbiddenAsAnInaccessibleOne() throws Exception {
-        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID))
-                .thenThrow(new UserNotFoundException(TARGET_OID));
+        when(queryService.findUserAccountSummaryIfPresent(TARGET_OID)).thenReturn(Optional.empty());
 
         mockMvc.perform(get(DETAIL).with(authentication(auditActor())))
                 .andExpect(status().isForbidden())
@@ -236,7 +235,7 @@ class AuditQueryEndpointTest {
                         .firm(FirmDto.builder().id(UUID.randomUUID()).build())
                         .build()))
                 .build();
-        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID)).thenReturn(user);
+        when(queryService.findUserAccountSummaryIfPresent(TARGET_OID)).thenReturn(Optional.of(user));
     }
 
     private static UsernamePasswordAuthenticationToken auditActor() {

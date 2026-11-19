@@ -33,12 +33,12 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.FirmDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
-import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.security.rbac.RbacMethodSecurityConfig;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -122,8 +122,7 @@ class AuditQueryAuthorizationIntegrationTest {
 
     @Test
     void detailForUnknownTargetIsForbiddenLikeAnInaccessibleOne() {
-        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID))
-                .thenThrow(new UserNotFoundException(TARGET_OID));
+        when(queryService.findUserAccountSummaryIfPresent(TARGET_OID)).thenReturn(Optional.empty());
 
         assertDeniedWith(PolicyDenialReason.TARGET_PROFILE_NOT_FOUND, () -> detailHandler.handle(
                 new AuditUserDetailQuery(TARGET_OID),
@@ -204,7 +203,7 @@ class AuditQueryAuthorizationIntegrationTest {
         when(firm.getId()).thenReturn(FIRM_ID);
         when(user.getEntraOid()).thenReturn(TARGET_OID);
         when(user.getUserProfiles()).thenReturn(Set.of(profile));
-        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID)).thenReturn(user);
+        when(queryService.findUserAccountSummaryIfPresent(TARGET_OID)).thenReturn(Optional.of(user));
     }
 
     private static AuthenticatedEntraUser actor(UserType userType, Permission... permissions) {
