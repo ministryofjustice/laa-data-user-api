@@ -22,9 +22,9 @@ import java.util.Optional;
 @Component
 public class AuditQueryMapper {
 
-    /** {@code profileCount} reflects only the profiles the caller may see. */
-    public AuditUserDetailView toDetailView(EntraUserDto user, List<UserProfileDetailView> visibleProfiles,
-                                            List<AuditStatusHistoryRow> history) {
+    /** {@code visibleProfileCount} counts only the profiles the caller may see, including any not returned. */
+    public AuditUserDetailView toDetailView(EntraUserDto user, List<UserProfileDetailView> returnedProfiles,
+                                            int visibleProfileCount, List<AuditStatusHistoryRow> history) {
         AuditEntraUserView entraUser = new AuditEntraUserView(
                 user.getEntraOid(),
                 user.getEmail(),
@@ -36,10 +36,10 @@ public class AuditQueryMapper {
                 user.getLastSyncedOn(),
                 user.getCreatedDate(),
                 user.getLastModified(),
-                visibleProfiles.size(),
+                visibleProfileCount,
                 user.getInvitationStatus() == null ? null : user.getInvitationStatus().toString(),
                 null);
-        return new AuditUserDetailView(entraUser, visibleProfiles, history.stream().map(this::toHistoryView).toList());
+        return new AuditUserDetailView(entraUser, returnedProfiles, history.stream().map(this::toHistoryView).toList());
     }
 
     public DeletedUserAuditPage toDeletedPage(Page<DeletedUserAuditRow> page) {
@@ -54,7 +54,7 @@ public class AuditQueryMapper {
                 row.statusChange(),
                 row.statusChangedDate(),
                 row.statusChangedBy(),
-                enumByName(DeactivateUserReason.values(), row.deactivateReasonName()),
+                enumByName(DeactivateUserReason.values(), row.deactivateReasonKey()),
                 row.deactivateReasonLabel());
     }
 

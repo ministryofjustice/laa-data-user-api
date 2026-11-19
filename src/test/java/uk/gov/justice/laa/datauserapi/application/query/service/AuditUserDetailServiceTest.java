@@ -104,6 +104,28 @@ class AuditUserDetailServiceTest {
     }
 
     @Test
+    void returnsAtMostOneHundredVisibleProfilesActiveProfileFirst() {
+        List<UserProfileDto> profiles = new java.util.ArrayList<>();
+        for (int i = 0; i < 105; i++) {
+            profiles.add(profile(UserType.EXTERNAL, FIRM_ID));
+        }
+        UserProfileDto active = UserProfileDto.builder().id(UUID.randomUUID()).userType(UserType.EXTERNAL)
+                .activeProfile(true).firm(FirmDto.builder().id(FIRM_ID).build()).build();
+        profiles.add(active);
+        EntraUserDto target = target(profiles.toArray(UserProfileDto[]::new));
+        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID)).thenReturn(target);
+        when(auditRepository.findStatusHistory(any(), any())).thenReturn(List.of());
+        when(userViewMapper.mapToProfileDetailView(any(), any())).thenReturn(mock(UserProfileDetailView.class));
+
+        AuditUserDetailView detail = service.getDetail(new AuditUserDetailQuery(TARGET_OID),
+                internalActor(Permission.VIEW_EXTERNAL_USER));
+
+        assertThat(detail.profiles()).hasSize(100);
+        assertThat(detail.entraUser().profileCount()).isEqualTo(106);
+        verify(userViewMapper).mapToProfileDetailView(target, active);
+    }
+
+    @Test
     void capsHistoryAtTheDocumentedMaximum() {
         EntraUserDto target = target();
         when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID)).thenReturn(target);

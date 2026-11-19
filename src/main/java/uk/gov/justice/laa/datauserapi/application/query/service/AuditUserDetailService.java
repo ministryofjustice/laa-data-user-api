@@ -16,17 +16,25 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 
+import java.util.Comparator;
 import java.util.List;
 
 /**
  * Assembles an account's audit detail. The caller's right to see the account is decided before this runs; here each
- * profile is additionally filtered so profiles outside the caller's visibility are never returned.
+ * profile is additionally filtered so profiles outside the caller's visibility are never returned, and at most
+ * {@value #MAX_PROFILES} of the visible profiles are included.
  */
 @Service
 @Transactional(readOnly = true)
 public class AuditUserDetailService {
 
     static final int MAX_HISTORY_ITEMS = 500;
+    static final int MAX_PROFILES = 100;
+
+    // Active profile first, then by id, so the profiles kept under MAX_PROFILES are stable between calls.
+    private static final Comparator<UserProfileDto> PROFILE_ORDER = Comparator
+            .comparing(UserProfileDto::isActiveProfile, Comparator.reverseOrder())
+            .thenComparing(UserProfileDto::getId, Comparator.nullsLast(Comparator.naturalOrder()));
 
     private final UserAccountQueryService queryService;
     private final AuditQueryRepository auditRepository;
@@ -48,13 +56,17 @@ public class AuditUserDetailService {
 
     public AuditUserDetailView getDetail(AuditUserDetailQuery query, AuthenticatedEntraUser actor) {
         EntraUserDto target = queryService.findUserAccountSummaryByUserEntraObjectId(query.userEntraObjectId());
-        List<UserProfileDetailView> visibleProfiles = target.getUserProfiles().stream()
+        List<UserProfileDto> visible = target.getUserProfiles().stream()
                 .filter(profile -> canViewProfile(profile, actor))
+                .sorted(PROFILE_ORDER)
+                .toList();
+        List<UserProfileDetailView> returnedProfiles = visible.stream()
+                .limit(MAX_PROFILES)
                 .map(profile -> userViewMapper.mapToProfileDetailView(target, profile))
                 .toList();
         List<AuditStatusHistoryRow> history = auditRepository.findStatusHistory(
                 target.getEntraOid(), PageRequest.of(0, MAX_HISTORY_ITEMS));
-        return auditMapper.toDetailView(target, visibleProfiles, history);
+        return auditMapper.toDetailView(target, returnedProfiles, visible.size(), history);
     }
 
     private boolean canViewProfile(UserProfileDto profile, AuthenticatedEntraUser actor) {

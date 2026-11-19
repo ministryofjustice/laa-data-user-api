@@ -10,6 +10,6 @@ public record AuditStatusHistoryRow(
         UserAccountAuditStatus statusChange,
         LocalDateTime statusChangedDate,
         String statusChangedBy,
-        String deactivateReasonName,
+        String deactivateReasonKey,
         String deactivateReasonLabel
 ) {}

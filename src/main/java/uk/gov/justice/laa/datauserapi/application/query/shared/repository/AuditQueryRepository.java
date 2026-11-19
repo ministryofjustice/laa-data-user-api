@@ -23,8 +23,8 @@ public interface AuditQueryRepository extends Repository<UserAccountStatusAudit,
             a.userAccountAuditStatus,
             a.statusChangedDate,
             a.statusChangedBy,
-            r.name,
-            r.description
+            r.entraDescription,
+            r.name
         )
         FROM UserAccountStatusAudit a
         JOIN EntraUser eu ON a.entraUserId = eu.id

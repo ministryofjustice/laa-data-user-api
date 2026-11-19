@@ -9,8 +9,10 @@ import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.entity.DeleteUserReasonEntity;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
+import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 @Component
 public class DeleteUserMapper {
@@ -37,10 +39,14 @@ public class DeleteUserMapper {
                 .build();
     }
 
-    // Only non-internal users can be deleted, so an account without an internal profile is recorded as EXTERNAL.
+    // Mirrors how query-side visibility classifies an account: an account without profiles is EXTERNAL only if it is
+    // multi-firm, otherwise any internal profile makes it INTERNAL.
     private UserType deletedUserType(EntraUser user) {
-        boolean hasInternalProfile = user.getUserProfiles() != null
-                && user.getUserProfiles().stream().anyMatch(profile -> profile.getUserType() == UserType.INTERNAL);
+        Set<UserProfile> profiles = user.getUserProfiles();
+        if (profiles == null || profiles.isEmpty()) {
+            return user.isMultiFirmUser() ? UserType.EXTERNAL : UserType.INTERNAL;
+        }
+        boolean hasInternalProfile = profiles.stream().anyMatch(profile -> profile.getUserType() == UserType.INTERNAL);
         return hasInternalProfile ? UserType.INTERNAL : UserType.EXTERNAL;
     }
 

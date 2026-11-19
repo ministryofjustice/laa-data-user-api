@@ -319,23 +319,28 @@ Security filters and exception advice share the forbidden response type, title, 
 `GET /api/v1/queries/audit/users/{userEntraObjectId}` (`AuditUserDetailQuery`) and
 `GET /api/v1/queries/audit/users/deleted` (`DeletedUsersAuditQuery`) require the `user_data.admin`
 scope and `VIEW_AUDIT_TABLE`. They are served by `AuditQueryController`, so
-`ArchitectureTest` accepts `@RequiresAdminScope` as well as `@RequiresReadScope` on query controllers.
+`ArchitectureTest` requires `@RequiresAdminScope` on `AuditQueryController` and `@RequiresReadScope` on every other
+query controller.
 
 - **User detail.** `CanViewAuditUserPolicy` applies the same account-visibility rules as
   `CanViewAccountPolicy`, using the context loaded by `AuditUserVisibilityPolicyInputResolver`. A target
   outside the caller's visibility returns 403, and an unknown target returns the same generic 403 so existence is
   not revealed. Both are decided only after the `VIEW_AUDIT_TABLE` check. `AuditUserDetailService` additionally
   filters each profile with `CanViewProfilePolicy`, so `profiles` and `profileCount` never include profiles outside
-  the caller's visibility. History is returned newest first (maximum 500 entries). `lastLoginDate` is always absent
+  the caller's visibility. At most 100 visible profiles are returned (active profile first, then by id) while `profileCount` is the full visible
+  count. History is returned newest first (maximum 500 entries), with reason keys read from `entra_description`. `lastLoginDate` is always absent
   because no last-login data is held.
 - **Deleted users.** `CanViewDeletedUsersAuditPolicy` limits the endpoint to active INTERNAL actors (403
   otherwise). Deleted INTERNAL records are visible to any such actor; deleted EXTERNAL records are included only when
   the actor holds `VIEW_EXTERNAL_USER`. Results are paged (`page_number`, `page_size` up to 100) newest deletion
   first, `email_query` is a case-insensitive "contains" match with `%`, `_` and `\` treated literally, and no matches
-  return 200 with an empty `items` array and page metadata.
+  return 200 with an empty `items` array and page metadata. `deletedBy` is the stored `status_changed_by` value, which
+  for deletions is the deleting actor's `entra_user.id` rather than an Entra object id or display name.
 - **Deletion snapshot.** `DeleteUserMapper` records `deleted_user_entra_oid` and `deleted_user_type` on the
   `DELETED` row of `user_account_status_audit`, so the user type needed for `VIEW_EXTERNAL_USER` filtering survives
-  deletion. Deleted rows without a recorded type (created before these columns existed) are never returned.
+  deletion. The type uses the same rule as account visibility: any INTERNAL profile makes the account INTERNAL, and an
+  account without profiles is EXTERNAL only if it is multi-firm. Deleted rows without a recorded type (created before
+  these columns existed) are never returned.
   **Dependency:** the shared-schema migration adding these two nullable columns belongs to laa-landing-page and must
   be released before this API version is deployed.
 

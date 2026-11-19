@@ -65,7 +65,7 @@ class AuditQueryRepositoryTest {
             INSERT INTO entra_user (id, entra_oid, first_name, last_name, email, status, enabled)
             VALUES (?, ?, 'First', 'Last', 'user@example.test', 'ACTIVE', TRUE)
             """, USER_ID, USER_OID);
-        jdbc.update("INSERT INTO disable_user_reason (id, name, description, entra_description) VALUES (?, 'CyberRisk', 'Cyber risk', 'x')",
+        jdbc.update("INSERT INTO disable_user_reason (id, name, description, entra_description) VALUES (?, 'Cyber Risk', 'Account deactivated because of a cyber risk', 'CyberRisk')",
                 REASON_ID);
         jdbc.update("INSERT INTO delete_user_reason (id, code, label) VALUES (?, 'LeftFirm', 'Left firm')", DELETE_REASON_ID);
     }
@@ -80,10 +80,10 @@ class AuditQueryRepositoryTest {
 
         assertThat(history).extracting(AuditStatusHistoryRow::statusChange)
                 .containsExactly(UserAccountAuditStatus.DEACTIVATED, UserAccountAuditStatus.ACTIVATED);
-        assertThat(history.getFirst().deactivateReasonName()).isEqualTo("CyberRisk");
-        assertThat(history.getFirst().deactivateReasonLabel()).isEqualTo("Cyber risk");
+        assertThat(history.getFirst().deactivateReasonKey()).isEqualTo("CyberRisk");
+        assertThat(history.getFirst().deactivateReasonLabel()).isEqualTo("Cyber Risk");
         assertThat(history.getFirst().userEntraObjectId()).isEqualTo(USER_OID);
-        assertThat(history.getLast().deactivateReasonName()).isNull();
+        assertThat(history.getLast().deactivateReasonKey()).isNull();
     }
 
     @Test

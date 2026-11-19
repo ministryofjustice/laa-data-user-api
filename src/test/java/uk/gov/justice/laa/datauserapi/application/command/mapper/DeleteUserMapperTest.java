@@ -36,7 +36,8 @@ class DeleteUserMapperTest {
     void buildsAuditEntity() {
         UUID id = UUID.randomUUID();
         LocalDateTime created = LocalDateTime.now().minusDays(3);
-        EntraUser user = EntraUser.builder().entraOid("oid-1").firstName("John").lastName("Doe").email("j@d.com").build();
+        EntraUser user = EntraUser.builder().entraOid("oid-1").firstName("John").lastName("Doe").email("j@d.com")
+                .userProfiles(Set.of(UserProfile.builder().userType(UserType.EXTERNAL).build())).build();
         user.setId(id);
         user.setCreatedDate(created);
         var reason = DeleteUserReasonEntity.builder().code("LeftFirm").build();
@@ -66,6 +67,17 @@ class DeleteUserMapperTest {
                 "actor");
 
         assertThat(audit.getDeletedUserType()).isEqualTo(UserType.INTERNAL);
+    }
+
+    @Test
+    void classifiesAnAccountWithoutProfilesByItsMultiFirmFlag() {
+        var reason = DeleteUserReasonEntity.builder().code("LeftFirm").build();
+        EntraUser single = EntraUser.builder().firstName("A").lastName("B").email("a@b.com").build();
+        EntraUser multi = EntraUser.builder().firstName("A").lastName("B").email("a@b.com")
+                .multiFirmUser(true).userProfiles(Set.of()).build();
+
+        assertThat(mapper.toAuditEntity(single, reason, "actor").getDeletedUserType()).isEqualTo(UserType.INTERNAL);
+        assertThat(mapper.toAuditEntity(multi, reason, "actor").getDeletedUserType()).isEqualTo(UserType.EXTERNAL);
     }
 
     @Test
