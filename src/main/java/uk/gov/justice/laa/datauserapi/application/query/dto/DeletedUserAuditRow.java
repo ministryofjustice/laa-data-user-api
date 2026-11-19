@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 
 /** Typed projection of the deletion snapshot stored in {@code user_account_status_audit}. */
 public record DeletedUserAuditRow(
-        String userEntraObjectId,
         String name,
         String email,
         String deletedBy,

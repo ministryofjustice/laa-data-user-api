@@ -60,7 +60,7 @@ public class AuditQueryMapper {
 
     private DeletedUserAuditView toDeletedView(DeletedUserAuditRow row) {
         return new DeletedUserAuditView(
-                row.userEntraObjectId(),
+                null,
                 row.name(),
                 row.email(),
                 row.deletedBy(),

@@ -24,7 +24,6 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -33,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -51,15 +51,15 @@ class DeletedUsersAuditServiceTest {
     @Test
     void mapsStoredSnapshotAndPageMetadata() {
         LocalDateTime deleted = LocalDateTime.now();
-        DeletedUserAuditRow row = new DeletedUserAuditRow("oid", "Jo Bloggs", "jo@example.test", "actor", deleted,
+        DeletedUserAuditRow row = new DeletedUserAuditRow("Jo Bloggs", "jo@example.test", "actor", deleted,
                 "LeftFirm", "Left firm");
-        when(auditRepository.findDeletedUsers(any(), eq("%"), eq(PageRequest.of(1, 5))))
+        when(auditRepository.findDeletedUsers(eq("%"), eq(PageRequest.of(1, 5))))
                 .thenReturn(new PageImpl<>(List.of(row), PageRequest.of(1, 5), 6));
 
-        DeletedUserAuditPage page = service.getDeletedUsers(query(1, 5, null), internalActor());
+        DeletedUserAuditPage page = service.getDeletedUsers(query(1, 5, null), internalActor(Permission.VIEW_EXTERNAL_USER));
 
         assertThat(page.items()).singleElement().satisfies(item -> {
-            assertThat(item.userEntraObjectId()).isEqualTo("oid");
+            assertThat(item.userEntraObjectId()).isNull();
             assertThat(item.name()).isEqualTo("Jo Bloggs");
             assertThat(item.email()).isEqualTo("jo@example.test");
             assertThat(item.deletedBy()).isEqualTo("actor");
@@ -75,9 +75,9 @@ class DeletedUsersAuditServiceTest {
 
     @Test
     void noMatchesReturnsEmptyItemsWithPageMetadata() {
-        when(auditRepository.findDeletedUsers(any(), any(), any())).thenReturn(Page.empty(PageRequest.of(0, 20)));
+        when(auditRepository.findDeletedUsers(any(), any())).thenReturn(Page.empty(PageRequest.of(0, 20)));
 
-        DeletedUserAuditPage page = service.getDeletedUsers(query(null, null, "nobody"), internalActor());
+        DeletedUserAuditPage page = service.getDeletedUsers(query(null, null, "nobody"), internalActor(Permission.VIEW_EXTERNAL_USER));
 
         assertThat(page.items()).isEmpty();
         assertThat(page.page().pageSize()).isEqualTo(20);
@@ -85,50 +85,36 @@ class DeletedUsersAuditServiceTest {
     }
 
     @Test
-    void externalRecordsAreExcludedWithoutViewExternalUser() {
-        when(auditRepository.findDeletedUsers(any(), any(), any())).thenReturn(Page.empty());
+    void withoutViewExternalUserTheRepositoryIsNotQueriedAndAnEmptyPageIsReturned() {
+        DeletedUserAuditPage page = service.getDeletedUsers(query(2, 10, null), internalActor());
 
-        service.getDeletedUsers(query(null, null, null), internalActor());
-
-        assertThat(visibleTypes()).containsExactly(UserType.INTERNAL);
-    }
-
-    @Test
-    void externalRecordsAreIncludedWithViewExternalUser() {
-        when(auditRepository.findDeletedUsers(any(), any(), any())).thenReturn(Page.empty());
-
-        service.getDeletedUsers(query(null, null, null), internalActor(Permission.VIEW_EXTERNAL_USER));
-
-        assertThat(visibleTypes()).containsExactlyInAnyOrder(UserType.INTERNAL, UserType.EXTERNAL);
+        assertThat(page.items()).isEmpty();
+        assertThat(page.page().pageNumber()).isEqualTo(2);
+        assertThat(page.page().pageSize()).isEqualTo(10);
+        assertThat(page.page().totalElements()).isZero();
+        verifyNoInteractions(auditRepository);
     }
 
     @Test
     void emailQueryIsLowerCasedTrimmedAndLikeEscaped() {
-        when(auditRepository.findDeletedUsers(any(), any(), any())).thenReturn(Page.empty());
+        when(auditRepository.findDeletedUsers(any(), any())).thenReturn(Page.empty());
 
-        service.getDeletedUsers(query(null, null, "  A_b%c\\D "), internalActor());
+        service.getDeletedUsers(query(null, null, "  A_b%c\\D "), internalActor(Permission.VIEW_EXTERNAL_USER));
 
         ArgumentCaptor<String> pattern = ArgumentCaptor.forClass(String.class);
-        verify(auditRepository).findDeletedUsers(any(), pattern.capture(), any());
+        verify(auditRepository).findDeletedUsers(pattern.capture(), any());
         assertThat(pattern.getValue()).isEqualTo("%a\\_b\\%c\\\\d%");
     }
 
     @Test
     void pageSizeIsCappedAtOneHundred() {
-        when(auditRepository.findDeletedUsers(any(), any(), any())).thenReturn(Page.empty());
+        when(auditRepository.findDeletedUsers(any(), any())).thenReturn(Page.empty());
 
-        service.getDeletedUsers(query(0, 1000, null), internalActor());
+        service.getDeletedUsers(query(0, 1000, null), internalActor(Permission.VIEW_EXTERNAL_USER));
 
         ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(auditRepository).findDeletedUsers(any(), any(), pageable.capture());
+        verify(auditRepository).findDeletedUsers(any(), pageable.capture());
         assertThat(pageable.getValue().getPageSize()).isEqualTo(100);
-    }
-
-    private Collection<UserType> visibleTypes() {
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Collection<UserType>> types = ArgumentCaptor.forClass(Collection.class);
-        verify(auditRepository).findDeletedUsers(types.capture(), any(), any());
-        return types.getValue();
     }
 
     private static DeletedUsersAuditQuery query(Integer pageNumber, Integer pageSize, String emailQuery) {

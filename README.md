@@ -334,19 +334,18 @@ query controller.
   service also repeats the account-visibility check against the account it loads, so access revoked after the
   handler-level check still returns the generic 403.
 - **Deleted users.** `CanViewDeletedUsersAuditPolicy` limits the endpoint to active INTERNAL actors (403
-  otherwise). Deleted INTERNAL records are visible to any such actor; deleted EXTERNAL records are included only when
-  the actor holds `VIEW_EXTERNAL_USER`. Results are paged (`page_number`, `page_size` up to 100) newest deletion
-  first, `email_query` is a case-insensitive "contains" match with `%`, `_` and `\` treated literally, and no matches
-  return 200 with an empty `items` array and page metadata. `deletedBy` is the deleting actor's Entra object id (the
-  stored `status_changed_by` is their `entra_user.id`, resolved on read); if that actor no longer exists the stored
-  value is returned.
-- **Deletion snapshot.** `DeleteUserMapper` records `deleted_user_entra_oid` and `deleted_user_type` on the
-  `DELETED` row of `user_account_status_audit`, so the user type needed for `VIEW_EXTERNAL_USER` filtering survives
-  deletion. The type uses the same rule as account visibility: any INTERNAL profile makes the account INTERNAL, and an
-  account without profiles is EXTERNAL only if it is multi-firm. Deleted rows without a recorded type (created before
-  these columns existed) are never returned.
-  **Dependency:** the shared-schema migration adding these two nullable columns belongs to laa-landing-page and must
-  be released before this API version is deployed.
+  otherwise). The existing deletion snapshot in `user_account_status_audit` does not record the deleted user's type or
+  Entra object id, and no schema change is made for this endpoint. Only non-internal users can be deleted through this
+  API, so every deleted record is treated as EXTERNAL: it is included only when the actor holds `VIEW_EXTERNAL_USER`,
+  and an actor without it receives an empty page without the repository being queried. Because the object id is not
+  retained, `userEntraObjectId` is omitted from each item (it is optional in the spec). Results are paged
+  (`page_number`, `page_size` up to 100) newest deletion first, `email_query` is a case-insensitive "contains" match
+  with `%`, `_` and `\` treated literally, and no matches return 200 with an empty `items` array and page metadata.
+  `deletedBy` is the deleting actor's Entra object id (the stored `status_changed_by` is their `entra_user.id`,
+  resolved on read); if that actor no longer exists the stored value is returned.
+  **Assumption to revisit:** if another application can delete INTERNAL users into the same table, those records would
+  also be treated as EXTERNAL. Retaining the type and object id on deletion would need a shared-schema migration in
+  laa-landing-page.
 
 ### Using existing permissions and policies
 

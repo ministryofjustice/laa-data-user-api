@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,7 +34,6 @@ import jakarta.persistence.EntityManagerFactory;
 import uk.gov.justice.laa.datauserapi.application.query.dto.AuditStatusHistoryRow;
 import uk.gov.justice.laa.datauserapi.application.query.dto.DeletedUserAuditRow;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 
 @SpringJUnitConfig(AuditQueryRepositoryTest.Config.class)
@@ -72,9 +70,9 @@ class AuditQueryRepositoryTest {
 
     @Test
     void historyIsNewestFirstIncludesRowsWithoutReasonAndIgnoresOtherUsers() {
-        insertAudit(UUID.randomUUID(), "ACTIVATED", BASE, USER_ID, null, null, null, null);
-        insertAudit(UUID.randomUUID(), "DEACTIVATED", BASE.plusDays(1), USER_ID, "user@example.test", REASON_ID, null, null);
-        insertAudit(UUID.randomUUID(), "DEACTIVATED", BASE.plusDays(2), UUID.randomUUID(), null, REASON_ID, null, null);
+        insertAudit(UUID.randomUUID(), "ACTIVATED", BASE, USER_ID, null, null, null);
+        insertAudit(UUID.randomUUID(), "DEACTIVATED", BASE.plusDays(1), USER_ID, "user@example.test", REASON_ID, null);
+        insertAudit(UUID.randomUUID(), "DEACTIVATED", BASE.plusDays(2), UUID.randomUUID(), null, REASON_ID, null);
 
         List<AuditStatusHistoryRow> history = repository.findStatusHistory(USER_OID, PageRequest.of(0, 500));
 
@@ -88,39 +86,33 @@ class AuditQueryRepositoryTest {
 
     @Test
     void historyIsLimitedByPageSize() {
-        insertAudit(UUID.randomUUID(), "ACTIVATED", BASE, USER_ID, null, null, null, null);
-        insertAudit(UUID.randomUUID(), "DEACTIVATED", BASE.plusDays(1), USER_ID, null, REASON_ID, null, null);
+        insertAudit(UUID.randomUUID(), "ACTIVATED", BASE, USER_ID, null, null, null);
+        insertAudit(UUID.randomUUID(), "DEACTIVATED", BASE.plusDays(1), USER_ID, null, REASON_ID, null);
 
         assertThat(repository.findStatusHistory(USER_OID, PageRequest.of(0, 1))).hasSize(1);
     }
 
     @Test
-    void deletedUsersAreFilteredByVisibleTypeAndExcludeLegacyRowsWithoutType() {
-        insertDeleted("external@example.test", BASE, "ext-oid", "EXTERNAL");
-        insertDeleted("internal@example.test", BASE.plusDays(1), "int-oid", "INTERNAL");
-        insertDeleted("legacy@example.test", BASE.plusDays(2), null, null);
-        insertAudit(UUID.randomUUID(), "DEACTIVATED", BASE, UUID.randomUUID(), "deactivated@example.test", REASON_ID, null, "EXTERNAL");
+    void onlyDeletedRowsAreReturnedNewestFirst() {
+        insertDeleted("older@example.test", BASE);
+        insertDeleted("newer@example.test", BASE.plusDays(1));
+        insertAudit(UUID.randomUUID(), "DEACTIVATED", BASE.plusDays(2), UUID.randomUUID(), "deactivated@example.test",
+                REASON_ID, null);
 
-        Page<DeletedUserAuditRow> internalOnly = repository.findDeletedUsers(
-                EnumSet.of(UserType.INTERNAL), "%", PageRequest.of(0, 20));
-        Page<DeletedUserAuditRow> both = repository.findDeletedUsers(
-                EnumSet.of(UserType.INTERNAL, UserType.EXTERNAL), "%", PageRequest.of(0, 20));
+        Page<DeletedUserAuditRow> page = repository.findDeletedUsers("%", PageRequest.of(0, 20));
 
-        assertThat(internalOnly.getContent()).extracting(DeletedUserAuditRow::email)
-                .containsExactly("internal@example.test");
-        assertThat(both.getContent()).extracting(DeletedUserAuditRow::email)
-                .containsExactly("internal@example.test", "external@example.test");
-        assertThat(both.getTotalElements()).isEqualTo(2);
+        assertThat(page.getContent()).extracting(DeletedUserAuditRow::email)
+                .containsExactly("newer@example.test", "older@example.test");
+        assertThat(page.getTotalElements()).isEqualTo(2);
     }
 
     @Test
     void deletedUsersReturnTheStoredSnapshot() {
-        insertDeleted("external@example.test", BASE, "ext-oid", "EXTERNAL");
+        insertDeleted("external@example.test", BASE);
 
-        DeletedUserAuditRow row = repository.findDeletedUsers(EnumSet.of(UserType.EXTERNAL), "%", PageRequest.of(0, 20))
+        DeletedUserAuditRow row = repository.findDeletedUsers("%", PageRequest.of(0, 20))
                 .getContent().getFirst();
 
-        assertThat(row.userEntraObjectId()).isEqualTo("ext-oid");
         assertThat(row.name()).isEqualTo("Deleted Person");
         assertThat(row.email()).isEqualTo("external@example.test");
         assertThat(row.deletedBy()).isEqualTo("deleter");
@@ -131,10 +123,10 @@ class AuditQueryRepositoryTest {
 
     @Test
     void deletedByIsTheDeletingActorsEntraObjectIdWhenTheActorStillExists() {
-        insertDeleted("external@example.test", BASE, "ext-oid", "EXTERNAL");
+        insertDeleted("external@example.test", BASE);
         jdbc.update("UPDATE user_account_status_audit SET status_changed_by = ?", USER_ID.toString());
 
-        DeletedUserAuditRow row = repository.findDeletedUsers(EnumSet.of(UserType.EXTERNAL), "%", PageRequest.of(0, 20))
+        DeletedUserAuditRow row = repository.findDeletedUsers("%", PageRequest.of(0, 20))
                 .getContent().getFirst();
 
         assertThat(row.deletedBy()).isEqualTo(USER_OID);
@@ -143,11 +135,10 @@ class AuditQueryRepositoryTest {
     @Test
     void deletedUsersArePagedNewestFirst() {
         for (int i = 0; i < 5; i++) {
-            insertDeleted("user" + i + "@example.test", BASE.plusDays(i), "oid-" + i, "EXTERNAL");
+            insertDeleted("user" + i + "@example.test", BASE.plusDays(i));
         }
 
-        Page<DeletedUserAuditRow> page = repository.findDeletedUsers(
-                EnumSet.of(UserType.EXTERNAL), "%", PageRequest.of(1, 2));
+        Page<DeletedUserAuditRow> page = repository.findDeletedUsers("%", PageRequest.of(1, 2));
 
         assertThat(page.getContent()).extracting(DeletedUserAuditRow::email)
                 .containsExactly("user2@example.test", "user1@example.test");
@@ -157,9 +148,9 @@ class AuditQueryRepositoryTest {
 
     @Test
     void emailPatternMatchesCaseInsensitivelyAndTreatsWildcardsLiterally() {
-        insertDeleted("Alice.Smith@example.test", BASE, "oid-a", "EXTERNAL");
-        insertDeleted("bob_jones@example.test", BASE.plusDays(1), "oid-b", "EXTERNAL");
-        insertDeleted("bobXjones@example.test", BASE.plusDays(2), "oid-c", "EXTERNAL");
+        insertDeleted("Alice.Smith@example.test", BASE);
+        insertDeleted("bob_jones@example.test", BASE.plusDays(1));
+        insertDeleted("bobXjones@example.test", BASE.plusDays(2));
 
         assertThat(emails("%alice%")).containsExactly("Alice.Smith@example.test");
         assertThat(emails("%bob\\_jones%")).containsExactly("bob_jones@example.test");
@@ -167,28 +158,21 @@ class AuditQueryRepositoryTest {
     }
 
     private List<String> emails(String pattern) {
-        return repository.findDeletedUsers(EnumSet.of(UserType.EXTERNAL), pattern, PageRequest.of(0, 20))
+        return repository.findDeletedUsers(pattern, PageRequest.of(0, 20))
                 .getContent().stream().map(DeletedUserAuditRow::email).toList();
     }
 
-    private void insertDeleted(String email, LocalDateTime changed, String oid, String type) {
-        insertAudit(UUID.randomUUID(), "DELETED", changed, null, email, null, DELETE_REASON_ID, type, oid);
+    private void insertDeleted(String email, LocalDateTime changed) {
+        insertAudit(UUID.randomUUID(), "DELETED", changed, null, email, null, DELETE_REASON_ID);
     }
 
     private void insertAudit(UUID id, String status, LocalDateTime changed, UUID entraUserId, String email,
-                             UUID disableReasonId, UUID deleteReasonId, String deletedType) {
-        insertAudit(id, status, changed, entraUserId, email, disableReasonId, deleteReasonId, deletedType, null);
-    }
-
-    private void insertAudit(UUID id, String status, LocalDateTime changed, UUID entraUserId, String email,
-                             UUID disableReasonId, UUID deleteReasonId, String deletedType, String deletedOid) {
+                             UUID disableReasonId, UUID deleteReasonId) {
         jdbc.update("""
             INSERT INTO user_account_status_audit (id, status_changed_date, status_changed_by, status_change,
-                entra_user_id, user_email, user_name, disable_user_reason_id, delete_user_reason_id,
-                deleted_user_entra_oid, deleted_user_type)
-            VALUES (?, ?, 'deleter', ?, ?, ?, 'Deleted Person', ?, ?, ?, ?)
-            """, id, Timestamp.valueOf(changed), status, entraUserId, email, disableReasonId, deleteReasonId,
-                deletedOid, deletedType);
+                entra_user_id, user_email, user_name, disable_user_reason_id, delete_user_reason_id)
+            VALUES (?, ?, 'deleter', ?, ?, ?, 'Deleted Person', ?, ?)
+            """, id, Timestamp.valueOf(changed), status, entraUserId, email, disableReasonId, deleteReasonId);
     }
 
     @Configuration

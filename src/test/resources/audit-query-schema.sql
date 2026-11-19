@@ -24,6 +24,5 @@ CREATE TABLE user_account_status_audit (
     status_change VARCHAR(255) NOT NULL, entra_user_id UUID, user_email VARCHAR(255), user_name VARCHAR(511),
     disable_user_reason_id UUID REFERENCES disable_user_reason, disable_type VARCHAR(20),
     delete_user_reason_id UUID REFERENCES delete_user_reason, comments VARCHAR(500),
-    deleted_user_created_date TIMESTAMP, deleted_user_entra_oid VARCHAR(255),
-    deleted_user_type VARCHAR(255)
+    deleted_user_created_date TIMESTAMP
 );

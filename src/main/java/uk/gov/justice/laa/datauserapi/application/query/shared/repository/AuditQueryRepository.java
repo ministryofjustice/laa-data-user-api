@@ -7,10 +7,8 @@ import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 import uk.gov.justice.laa.datauserapi.application.query.dto.AuditStatusHistoryRow;
 import uk.gov.justice.laa.datauserapi.application.query.dto.DeletedUserAuditRow;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -36,14 +34,12 @@ public interface AuditQueryRepository extends Repository<UserAccountStatusAudit,
                                                   Pageable pageable);
 
     /**
-     * Pages deleted-user snapshots whose recorded user type is in {@code visibleUserTypes}. Records without a
-     * recorded type never match. {@code emailPattern} is a lower-case LIKE pattern using {@code \} as the escape.
+     * Pages deleted-user snapshots. {@code emailPattern} is a lower-case LIKE pattern using {@code \} as the escape.
      * Deletions store the deleting actor's {@code entra_user.id}; it is returned as that actor's Entra object id when
      * the actor still exists, otherwise as stored.
      */
     @Query(value = """
         SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.DeletedUserAuditRow(
-            a.deletedUserEntraOid,
             a.userName,
             a.userEmail,
             COALESCE(d.entraOid, a.statusChangedBy),
@@ -55,7 +51,6 @@ public interface AuditQueryRepository extends Repository<UserAccountStatusAudit,
         LEFT JOIN a.deleteUserReasonEntity r
         LEFT JOIN EntraUser d ON CAST(d.id AS STRING) = a.statusChangedBy
         WHERE a.userAccountAuditStatus = uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus.DELETED
-            AND a.deletedUserType IN :visibleUserTypes
             AND COALESCE(LOWER(a.userEmail), '') LIKE :emailPattern ESCAPE '\\'
         ORDER BY a.statusChangedDate DESC, a.id DESC
         """,
@@ -63,10 +58,7 @@ public interface AuditQueryRepository extends Repository<UserAccountStatusAudit,
         SELECT COUNT(a)
         FROM UserAccountStatusAudit a
         WHERE a.userAccountAuditStatus = uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus.DELETED
-            AND a.deletedUserType IN :visibleUserTypes
             AND COALESCE(LOWER(a.userEmail), '') LIKE :emailPattern ESCAPE '\\'
         """)
-    Page<DeletedUserAuditRow> findDeletedUsers(@Param("visibleUserTypes") Collection<UserType> visibleUserTypes,
-                                               @Param("emailPattern") String emailPattern,
-                                               Pageable pageable);
+    Page<DeletedUserAuditRow> findDeletedUsers(@Param("emailPattern") String emailPattern, Pageable pageable);
 }

@@ -21,7 +21,6 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.model.DeactivationType;
 
 import java.time.LocalDateTime;
@@ -85,13 +84,5 @@ public class UserAccountStatusAudit extends BaseEntity {
 
     @Column(name = "deleted_user_created_date", nullable = true)
     private LocalDateTime deletedUserCreatedDate;
-
-    @Column(name = "deleted_user_entra_oid", nullable = true, length = 255)
-    @Size(max = 255, message = "Deleted user Entra Object ID must not exceed 255 characters")
-    private String deletedUserEntraOid;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "deleted_user_type", nullable = true, length = 255)
-    private UserType deletedUserType;
 
 }
