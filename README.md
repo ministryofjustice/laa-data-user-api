@@ -314,6 +314,32 @@ inaccessible profiles.
 Security filters and exception advice share the forbidden response type, title, and detail through
 `ForbiddenResponseConstants`; actor-profile diagnostics use named `InvalidActorContextException` factories.
 
+### Audit queries
+
+`GET /api/v1/queries/audit/users/{userEntraObjectId}` (`AuditUserDetailQuery`) and
+`GET /api/v1/queries/audit/users/deleted` (`DeletedUsersAuditQuery`) require the `user_data.admin`
+scope and `VIEW_AUDIT_TABLE`. They are served by `AuditQueryController`, so
+`ArchitectureTest` accepts `@RequiresAdminScope` as well as `@RequiresReadScope` on query controllers.
+
+- **User detail.** `CanViewAuditUserPolicy` applies the same account-visibility rules as
+  `CanViewAccountPolicy`, using the context loaded by `AuditUserVisibilityPolicyInputResolver`. A target
+  outside the caller's visibility returns 403. This endpoint deliberately differs from the generic user lookup
+  rule above: an unknown target raises `AuditUserNotFoundException` and returns 404, but only after the permission
+  check, so callers without `VIEW_AUDIT_TABLE` cannot probe for existence. `AuditUserDetailService` additionally
+  filters each profile with `CanViewProfilePolicy`, so `profiles` and `profileCount` never include profiles outside
+  the caller's visibility. History is returned newest first (maximum 500 entries). `lastLoginDate` is always absent
+  because no last-login data is held.
+- **Deleted users.** `CanViewDeletedUsersAuditPolicy` limits the endpoint to active INTERNAL actors (403
+  otherwise). Deleted INTERNAL records are visible to any such actor; deleted EXTERNAL records are included only when
+  the actor holds `VIEW_EXTERNAL_USER`. Results are paged (`page_number`, `page_size` up to 100) newest deletion
+  first, `email_query` is a case-insensitive "contains" match with `%`, `_` and `\` treated literally, and no matches
+  return 200 with an empty `items` array and page metadata.
+- **Deletion snapshot.** `DeleteUserMapper` records `deleted_user_entra_oid` and `deleted_user_type` on the
+  `DELETED` row of `user_account_status_audit`, so the user type needed for `VIEW_EXTERNAL_USER` filtering survives
+  deletion. Deleted rows without a recorded type (created before these columns existed) are never returned.
+  **Dependency:** the shared-schema migration adding these two nullable columns belongs to laa-landing-page and must
+  be released before this API version is deployed.
+
 ### Using existing permissions and policies
 
 Put `@RequiresPermission` on the message and include any applicable message-specific policies.

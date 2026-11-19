@@ -3,6 +3,7 @@ package uk.gov.justice.laa.datauserapi.application.command.mapper;
 import org.springframework.stereotype.Component;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeleteUserCommand;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.request.DeleteUserRequest;
 import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.entity.DeleteUserReasonEntity;
@@ -31,7 +32,16 @@ public class DeleteUserMapper {
                 .userName(user.getFirstName() + " " + user.getLastName())
                 .deleteUserReasonEntity(reason)
                 .deletedUserCreatedDate(user.getCreatedDate())
+                .deletedUserEntraOid(user.getEntraOid())
+                .deletedUserType(deletedUserType(user))
                 .build();
+    }
+
+    // Only non-internal users can be deleted, so an account without an internal profile is recorded as EXTERNAL.
+    private UserType deletedUserType(EntraUser user) {
+        boolean hasInternalProfile = user.getUserProfiles() != null
+                && user.getUserProfiles().stream().anyMatch(profile -> profile.getUserType() == UserType.INTERNAL);
+        return hasInternalProfile ? UserType.INTERNAL : UserType.EXTERNAL;
     }
 
     public CommandResult toCommandResult(EntraUser user) {
