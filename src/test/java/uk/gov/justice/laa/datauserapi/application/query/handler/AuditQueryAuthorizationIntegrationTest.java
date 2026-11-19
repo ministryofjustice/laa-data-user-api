@@ -18,11 +18,14 @@ import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewAuditUserP
 import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewDeletedUsersAuditPolicy;
 import uk.gov.justice.laa.datauserapi.application.query.queryaudit.AuditUserDetailQuery;
 import uk.gov.justice.laa.datauserapi.application.query.queryaudit.DeletedUsersAuditQuery;
+import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AuditUserAccessRepository;
 import uk.gov.justice.laa.datauserapi.application.query.service.AuditUserDetailService;
 import uk.gov.justice.laa.datauserapi.application.query.service.AuditUserVisibilityPolicyInputResolver;
 import uk.gov.justice.laa.datauserapi.application.query.service.DeletedUsersAuditService;
-import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserAccountVisibilityContextFactory;
+import uk.gov.justice.laa.datauserapi.application.query.dto.AuditAccountRow;
+import uk.gov.justice.laa.datauserapi.application.query.dto.AuditProfileRow;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AuditDeletedUsersCriteria;
 import uk.gov.justice.laa.datauserapi.contracts.response.AuditUserDetailView;
@@ -30,14 +33,12 @@ import uk.gov.justice.laa.datauserapi.contracts.response.DeletedUserAuditPage;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
-import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.dto.FirmDto;
-import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.security.rbac.RbacMethodSecurityConfig;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -88,8 +89,8 @@ class AuditQueryAuthorizationIntegrationTest {
         }
 
         @Bean
-        UserAccountQueryService userAccountQueryService() {
-            return mock(UserAccountQueryService.class);
+        AuditUserAccessRepository auditUserAccessRepository() {
+            return mock(AuditUserAccessRepository.class);
         }
     }
 
@@ -102,11 +103,11 @@ class AuditQueryAuthorizationIntegrationTest {
     @Autowired
     private DeletedUsersAuditService deletedService;
     @Autowired
-    private UserAccountQueryService queryService;
+    private AuditUserAccessRepository accessRepository;
 
     @BeforeEach
     void setUp() {
-        reset(detailService, deletedService, queryService);
+        reset(detailService, deletedService, accessRepository);
     }
 
     @Test
@@ -117,12 +118,12 @@ class AuditQueryAuthorizationIntegrationTest {
         assertThatThrownBy(() -> detailHandler.handle(new AuditUserDetailQuery(TARGET_OID), actor))
                 .isInstanceOf(AuthorizationDeniedException.class);
 
-        verifyNoInteractions(queryService, detailService);
+        verifyNoInteractions(accessRepository, detailService);
     }
 
     @Test
     void detailForUnknownTargetIsForbiddenLikeAnInaccessibleOne() {
-        when(queryService.findUserAccountSummaryIfPresent(TARGET_OID)).thenReturn(Optional.empty());
+        when(accessRepository.findAccount(TARGET_OID)).thenReturn(Optional.empty());
 
         assertDeniedWith(PolicyDenialReason.TARGET_PROFILE_NOT_FOUND, () -> detailHandler.handle(
                 new AuditUserDetailQuery(TARGET_OID),
@@ -195,15 +196,11 @@ class AuditQueryAuthorizationIntegrationTest {
     }
 
     private void stubTarget(UserType targetType) {
-        EntraUserDto user = mock(EntraUserDto.class);
-        UserProfileDto profile = mock(UserProfileDto.class);
-        FirmDto firm = mock(FirmDto.class);
-        when(profile.getUserType()).thenReturn(targetType);
-        when(profile.getFirm()).thenReturn(targetType == UserType.EXTERNAL ? firm : null);
-        when(firm.getId()).thenReturn(FIRM_ID);
-        when(user.getEntraOid()).thenReturn(TARGET_OID);
-        when(user.getUserProfiles()).thenReturn(Set.of(profile));
-        when(queryService.findUserAccountSummaryIfPresent(TARGET_OID)).thenReturn(Optional.of(user));
+        when(accessRepository.findAccount(TARGET_OID)).thenReturn(Optional.of(new AuditAccountRow(
+                TARGET_OID, "a@b.test", "First", "Last", UserAccountStatus.ACTIVE, false, false, null, null, null,
+                null)));
+        when(accessRepository.findProfileRows(TARGET_OID)).thenReturn(List.of(new AuditProfileRow(
+                UUID.randomUUID(), true, targetType, targetType == UserType.EXTERNAL ? FIRM_ID : null)));
     }
 
     private static AuthenticatedEntraUser actor(UserType userType, Permission... permissions) {

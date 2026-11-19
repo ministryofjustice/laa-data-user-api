@@ -38,19 +38,22 @@ public interface AuditQueryRepository extends Repository<UserAccountStatusAudit,
     /**
      * Pages deleted-user snapshots whose recorded user type is in {@code visibleUserTypes}. Records without a
      * recorded type never match. {@code emailPattern} is a lower-case LIKE pattern using {@code \} as the escape.
+     * Deletions store the deleting actor's {@code entra_user.id}; it is returned as that actor's Entra object id when
+     * the actor still exists, otherwise as stored.
      */
     @Query(value = """
         SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.DeletedUserAuditRow(
             a.deletedUserEntraOid,
             a.userName,
             a.userEmail,
-            a.statusChangedBy,
+            COALESCE(d.entraOid, a.statusChangedBy),
             a.statusChangedDate,
             r.code,
             r.label
         )
         FROM UserAccountStatusAudit a
         LEFT JOIN a.deleteUserReasonEntity r
+        LEFT JOIN EntraUser d ON CAST(d.id AS STRING) = a.statusChangedBy
         WHERE a.userAccountAuditStatus = uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus.DELETED
             AND a.deletedUserType IN :visibleUserTypes
             AND COALESCE(LOWER(a.userEmail), '') LIKE :emailPattern ESCAPE '\\'

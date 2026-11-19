@@ -130,6 +130,17 @@ class AuditQueryRepositoryTest {
     }
 
     @Test
+    void deletedByIsTheDeletingActorsEntraObjectIdWhenTheActorStillExists() {
+        insertDeleted("external@example.test", BASE, "ext-oid", "EXTERNAL");
+        jdbc.update("UPDATE user_account_status_audit SET status_changed_by = ?", USER_ID.toString());
+
+        DeletedUserAuditRow row = repository.findDeletedUsers(EnumSet.of(UserType.EXTERNAL), "%", PageRequest.of(0, 20))
+                .getContent().getFirst();
+
+        assertThat(row.deletedBy()).isEqualTo(USER_OID);
+    }
+
+    @Test
     void deletedUsersArePagedNewestFirst() {
         for (int i = 0; i < 5; i++) {
             insertDeleted("user" + i + "@example.test", BASE.plusDays(i), "oid-" + i, "EXTERNAL");

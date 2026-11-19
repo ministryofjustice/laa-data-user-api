@@ -50,11 +50,6 @@ public class UserAccountQueryService {
         return mapper.toDto(userRepository.findByEntraOid(userEntraObjectId), userEntraObjectId);
     }
 
-    /** Absent-safe lookup for callers that must treat a missing account as a normal outcome rather than an error. */
-    public Optional<EntraUserDto> findUserAccountSummaryIfPresent(String userEntraObjectId) {
-        return userRepository.findByEntraOid(userEntraObjectId).map(mapper::toDto);
-    }
-
     public Page<EntraUserDto> searchUsers(UserSearchCriteria criteria, Pageable pageable) {
         return mapper.toPage(userRepository.searchUsers(criteria, pageable));
     }

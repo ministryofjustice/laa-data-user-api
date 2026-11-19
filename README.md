@@ -327,15 +327,19 @@ query controller.
   outside the caller's visibility returns 403, and an unknown target returns the same generic 403 so existence is
   not revealed. Both are decided only after the `VIEW_AUDIT_TABLE` check. `AuditUserDetailService` additionally
   filters each profile with `CanViewProfilePolicy`, so `profiles` and `profileCount` never include profiles outside
-  the caller's visibility. At most 100 visible profiles are returned (active profile first, then by id) while `profileCount` is the full visible
-  count. History is returned newest first (maximum 500 entries), with reason keys read from `entra_description`. `lastLoginDate` is always absent
-  because no last-login data is held.
+  the caller's visibility. Visibility is decided from lightweight account and profile rows (`AuditUserAccessRepository`); at most 100 visible
+  profiles are returned (active profile first, then by id), and only those have their roles and offices loaded, while
+  `profileCount` is the full visible count. History is returned newest first (maximum 500 entries), with reason keys read from `entra_description`. `lastLoginDate` is always absent
+  because no last-login data is held; null optional properties on the audit views are omitted from the JSON. The
+  service also repeats the account-visibility check against the account it loads, so access revoked after the
+  handler-level check still returns the generic 403.
 - **Deleted users.** `CanViewDeletedUsersAuditPolicy` limits the endpoint to active INTERNAL actors (403
   otherwise). Deleted INTERNAL records are visible to any such actor; deleted EXTERNAL records are included only when
   the actor holds `VIEW_EXTERNAL_USER`. Results are paged (`page_number`, `page_size` up to 100) newest deletion
   first, `email_query` is a case-insensitive "contains" match with `%`, `_` and `\` treated literally, and no matches
-  return 200 with an empty `items` array and page metadata. `deletedBy` is the stored `status_changed_by` value, which
-  for deletions is the deleting actor's `entra_user.id` rather than an Entra object id or display name.
+  return 200 with an empty `items` array and page metadata. `deletedBy` is the deleting actor's Entra object id (the
+  stored `status_changed_by` is their `entra_user.id`, resolved on read); if that actor no longer exists the stored
+  value is returned.
 - **Deletion snapshot.** `DeleteUserMapper` records `deleted_user_entra_oid` and `deleted_user_type` on the
   `DELETED` row of `user_account_status_audit`, so the user type needed for `VIEW_EXTERNAL_USER` filtering survives
   deletion. The type uses the same rule as account visibility: any INTERNAL profile makes the account INTERNAL, and an

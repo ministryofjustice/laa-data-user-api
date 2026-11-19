@@ -7,35 +7,50 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.authorization.AuthorizationDeniedException;
+import uk.gov.justice.laa.datauserapi.application.query.dto.AuditAccountRow;
+import uk.gov.justice.laa.datauserapi.application.query.dto.AuditProfileRow;
 import uk.gov.justice.laa.datauserapi.application.query.dto.AuditStatusHistoryRow;
+import uk.gov.justice.laa.datauserapi.application.query.mapper.AuditProfileMapper;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.AuditQueryMapper;
+import uk.gov.justice.laa.datauserapi.application.query.mapper.UserAccountVisibilityContextFactory;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
+import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewAccountPolicy;
+import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewAuditUserPolicy;
 import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewProfilePolicy;
 import uk.gov.justice.laa.datauserapi.application.query.queryaudit.AuditUserDetailQuery;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AuditQueryRepository;
+import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AuditUserAccessRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.AuditUserDetailView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
-import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.dto.FirmDto;
-import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
+import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.InvitationStatus;
 import uk.gov.justice.laa.datauserapi.model.Permission;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
+import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,7 +60,7 @@ class AuditUserDetailServiceTest {
     private static final UUID FIRM_ID = UUID.randomUUID();
 
     @Mock
-    private UserAccountQueryService queryService;
+    private AuditUserAccessRepository accessRepository;
     @Mock
     private AuditQueryRepository auditRepository;
     @Mock
@@ -55,19 +70,21 @@ class AuditUserDetailServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AuditUserDetailService(queryService, auditRepository, new CanViewProfilePolicy(),
-                userViewMapper, new AuditQueryMapper());
+        service = new AuditUserDetailService(accessRepository, auditRepository,
+                new CanViewAuditUserPolicy(new CanViewAccountPolicy()), new UserAccountVisibilityContextFactory(),
+                new CanViewProfilePolicy(), new AuditProfileMapper(), userViewMapper, new AuditQueryMapper());
     }
 
     @Test
     void returnsAccountVisibleProfilesAndHistory() {
-        UserProfileDto internal = profile(UserType.INTERNAL, null);
-        UserProfileDto external = profile(UserType.EXTERNAL, FIRM_ID);
-        EntraUserDto target = target(internal, external);
+        AuditProfileRow internal = row(UserType.INTERNAL, null, false);
+        AuditProfileRow external = row(UserType.EXTERNAL, FIRM_ID, false);
         UserProfileDetailView externalView = mock(UserProfileDetailView.class);
+        stubAccount(false, internal, external);
+        when(accessRepository.findProfilesWithDetails(List.of(external.id())))
+                .thenReturn(List.of(UserProfile.builder().id(external.id()).userType(UserType.EXTERNAL).build()));
+        when(userViewMapper.mapToProfileDetailView(any(), any())).thenReturn(externalView);
         LocalDateTime changed = LocalDateTime.now();
-        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID)).thenReturn(target);
-        when(userViewMapper.mapToProfileDetailView(target, external)).thenReturn(externalView);
         when(auditRepository.findStatusHistory(TARGET_OID, PageRequest.of(0, 500))).thenReturn(List.of(
                 new AuditStatusHistoryRow(TARGET_OID, UserAccountAuditStatus.DEACTIVATED, changed, "actor",
                         "CyberRisk", "Cyber risk"),
@@ -78,7 +95,6 @@ class AuditUserDetailServiceTest {
                 internalActor(Permission.VIEW_EXTERNAL_USER));
 
         assertThat(detail.profiles()).containsExactly(externalView);
-        verify(userViewMapper, never()).mapToProfileDetailView(target, internal);
         assertThat(detail.entraUser().userEntraObjectId()).isEqualTo(TARGET_OID);
         assertThat(detail.entraUser().profileCount()).isEqualTo(1);
         assertThat(detail.entraUser().entraInviteStatus()).isEqualTo("VerificationSuccess");
@@ -90,9 +106,32 @@ class AuditUserDetailServiceTest {
     }
 
     @Test
-    void returnsNoProfilesWhenNoneAreVisibleToTheActor() {
-        EntraUserDto target = target(profile(UserType.INTERNAL, null));
-        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID)).thenReturn(target);
+    void unknownAccountIsNotFound() {
+        when(accessRepository.findAccount(TARGET_OID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getDetail(new AuditUserDetailQuery(TARGET_OID),
+                internalActor(Permission.VIEW_EXTERNAL_USER)))
+                .isInstanceOf(UserNotFoundException.class);
+    }
+
+    @Test
+    void deniesWhenAccessWasRevokedAfterTheAuthorisationCheck() {
+        // The handler-level check passed on an earlier read; the account is no longer visible when it is read here.
+        stubAccount(false, row(UserType.EXTERNAL, FIRM_ID, false));
+
+        assertThatThrownBy(() -> service.getDetail(new AuditUserDetailQuery(TARGET_OID),
+                internalActor(Permission.VIEW_AUDIT_TABLE)))
+                .isInstanceOfSatisfying(AuthorizationDeniedException.class, denied ->
+                        assertThat(denied.getAuthorizationResult())
+                                .isEqualTo(new PolicyAuthorizationDenial(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE)));
+
+        verifyNoInteractions(auditRepository, userViewMapper);
+    }
+
+    @Test
+    void returnsNoProfilesAndLoadsNoDetailsWhenNoneAreVisibleToTheActor() {
+        // An account without profiles is treated as external only when multi-firm, so it is visible to this actor.
+        stubAccount(true);
         when(auditRepository.findStatusHistory(any(), any())).thenReturn(List.of());
 
         AuditUserDetailView detail = service.getDetail(new AuditUserDetailQuery(TARGET_OID),
@@ -101,34 +140,35 @@ class AuditUserDetailServiceTest {
         assertThat(detail.profiles()).isEmpty();
         assertThat(detail.entraUser().profileCount()).isZero();
         assertThat(detail.accountStatusHistory()).isEmpty();
+        verify(accessRepository, never()).findProfilesWithDetails(any());
     }
 
     @Test
-    void returnsAtMostOneHundredVisibleProfilesActiveProfileFirst() {
-        List<UserProfileDto> profiles = new java.util.ArrayList<>();
+    void loadsDetailsForAtMostOneHundredVisibleProfilesActiveProfileFirst() {
+        List<AuditProfileRow> rows = new ArrayList<>();
         for (int i = 0; i < 105; i++) {
-            profiles.add(profile(UserType.EXTERNAL, FIRM_ID));
+            rows.add(row(UserType.EXTERNAL, FIRM_ID, false));
         }
-        UserProfileDto active = UserProfileDto.builder().id(UUID.randomUUID()).userType(UserType.EXTERNAL)
-                .activeProfile(true).firm(FirmDto.builder().id(FIRM_ID).build()).build();
-        profiles.add(active);
-        EntraUserDto target = target(profiles.toArray(UserProfileDto[]::new));
-        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID)).thenReturn(target);
+        AuditProfileRow active = row(UserType.EXTERNAL, FIRM_ID, true);
+        rows.add(active);
+        stubAccount(false, rows.toArray(AuditProfileRow[]::new));
+        when(accessRepository.findProfilesWithDetails(any())).thenReturn(List.of());
         when(auditRepository.findStatusHistory(any(), any())).thenReturn(List.of());
-        when(userViewMapper.mapToProfileDetailView(any(), any())).thenReturn(mock(UserProfileDetailView.class));
 
         AuditUserDetailView detail = service.getDetail(new AuditUserDetailQuery(TARGET_OID),
                 internalActor(Permission.VIEW_EXTERNAL_USER));
 
-        assertThat(detail.profiles()).hasSize(100);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Collection<UUID>> ids = ArgumentCaptor.forClass(Collection.class);
+        verify(accessRepository).findProfilesWithDetails(ids.capture());
+        assertThat(ids.getValue()).hasSize(100).contains(active.id());
+        assertThat(ids.getValue().iterator().next()).isEqualTo(active.id());
         assertThat(detail.entraUser().profileCount()).isEqualTo(106);
-        verify(userViewMapper).mapToProfileDetailView(target, active);
     }
 
     @Test
     void capsHistoryAtTheDocumentedMaximum() {
-        EntraUserDto target = target();
-        when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID)).thenReturn(target);
+        stubAccount(true);
         when(auditRepository.findStatusHistory(any(), any())).thenReturn(List.of());
 
         service.getDetail(new AuditUserDetailQuery(TARGET_OID), internalActor(Permission.VIEW_EXTERNAL_USER));
@@ -138,20 +178,15 @@ class AuditUserDetailServiceTest {
         assertThat(page.getValue().getPageSize()).isEqualTo(500);
     }
 
-    private static EntraUserDto target(UserProfileDto... profiles) {
-        return EntraUserDto.builder()
-                .entraOid(TARGET_OID)
-                .invitationStatus(InvitationStatus.VERIFICATION_SUCCESS)
-                .userProfiles(Set.of(profiles))
-                .build();
+    private void stubAccount(boolean multiFirm, AuditProfileRow... profiles) {
+        when(accessRepository.findAccount(TARGET_OID)).thenReturn(Optional.of(new AuditAccountRow(
+                TARGET_OID, "a@b.test", "First", "Last", UserAccountStatus.ACTIVE, multiFirm, false, null, null, null,
+                InvitationStatus.VERIFICATION_SUCCESS)));
+        when(accessRepository.findProfileRows(TARGET_OID)).thenReturn(List.of(profiles));
     }
 
-    private static UserProfileDto profile(UserType type, UUID firmId) {
-        return UserProfileDto.builder()
-                .id(UUID.randomUUID())
-                .userType(type)
-                .firm(firmId == null ? null : FirmDto.builder().id(firmId).build())
-                .build();
+    private static AuditProfileRow row(UserType type, UUID firmId, boolean active) {
+        return new AuditProfileRow(UUID.randomUUID(), active, type, firmId);
     }
 
     private static AuthenticatedEntraUser internalActor(Permission... permissions) {

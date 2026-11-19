@@ -25,19 +25,19 @@ import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewDeletedUse
 import uk.gov.justice.laa.datauserapi.application.query.service.AuditUserDetailService;
 import uk.gov.justice.laa.datauserapi.application.query.service.AuditUserVisibilityPolicyInputResolver;
 import uk.gov.justice.laa.datauserapi.application.query.service.DeletedUsersAuditService;
-import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
+import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AuditUserAccessRepository;
 import uk.gov.justice.laa.datauserapi.authorisation.JwtToAuthenticatedEntraUserConverter;
 import uk.gov.justice.laa.datauserapi.config.JacksonConfig;
 import uk.gov.justice.laa.datauserapi.config.SecurityConfig;
+import uk.gov.justice.laa.datauserapi.application.query.dto.AuditAccountRow;
+import uk.gov.justice.laa.datauserapi.application.query.dto.AuditProfileRow;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.PageMetadata;
 import uk.gov.justice.laa.datauserapi.contracts.response.DeletedUserAuditPage;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
-import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.dto.FirmDto;
-import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 import uk.gov.justice.laa.datauserapi.exception.GlobalExceptionHandler;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.security.rbac.RbacMethodSecurityConfig;
@@ -96,7 +96,7 @@ class AuditQueryEndpointTest {
     @MockitoBean
     private DeletedUsersAuditService deletedService;
     @MockitoBean
-    private UserAccountQueryService queryService;
+    private AuditUserAccessRepository accessRepository;
     @MockitoBean
     private JwtToAuthenticatedEntraUserConverter converter;
     @MockitoBean
@@ -104,7 +104,7 @@ class AuditQueryEndpointTest {
 
     @BeforeEach
     void resetMocks() {
-        reset(detailService, deletedService, queryService);
+        reset(detailService, deletedService, accessRepository);
     }
 
     @Test
@@ -114,7 +114,7 @@ class AuditQueryEndpointTest {
                     .andExpect(status().isUnauthorized())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
         }
-        verifyNoInteractions(detailService, deletedService, queryService);
+        verifyNoInteractions(detailService, deletedService, accessRepository);
     }
 
     @Test
@@ -125,7 +125,7 @@ class AuditQueryEndpointTest {
                     .andExpect(status().isForbidden())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
         }
-        verifyNoInteractions(detailService, deletedService, queryService);
+        verifyNoInteractions(detailService, deletedService, accessRepository);
     }
 
     @Test
@@ -136,7 +136,7 @@ class AuditQueryEndpointTest {
                     .andExpect(status().isForbidden())
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
         }
-        verifyNoInteractions(detailService, deletedService, queryService);
+        verifyNoInteractions(detailService, deletedService, accessRepository);
     }
 
     @Test
@@ -146,12 +146,12 @@ class AuditQueryEndpointTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(400));
 
-        verifyNoInteractions(detailService, queryService);
+        verifyNoInteractions(detailService, accessRepository);
     }
 
     @Test
     void unknownTargetIsTheSameGenericForbiddenAsAnInaccessibleOne() throws Exception {
-        when(queryService.findUserAccountSummaryIfPresent(TARGET_OID)).thenReturn(Optional.empty());
+        when(accessRepository.findAccount(TARGET_OID)).thenReturn(Optional.empty());
 
         mockMvc.perform(get(DETAIL).with(authentication(auditActor())))
                 .andExpect(status().isForbidden())
@@ -228,14 +228,11 @@ class AuditQueryEndpointTest {
     }
 
     private void stubExternalTarget() {
-        EntraUserDto user = EntraUserDto.builder()
-                .entraOid(TARGET_OID)
-                .userProfiles(Set.of(UserProfileDto.builder()
-                        .userType(UserType.EXTERNAL)
-                        .firm(FirmDto.builder().id(UUID.randomUUID()).build())
-                        .build()))
-                .build();
-        when(queryService.findUserAccountSummaryIfPresent(TARGET_OID)).thenReturn(Optional.of(user));
+        when(accessRepository.findAccount(TARGET_OID)).thenReturn(Optional.of(new AuditAccountRow(
+                TARGET_OID, "a@b.test", "First", "Last", UserAccountStatus.ACTIVE, false, false, null, null, null,
+                null)));
+        when(accessRepository.findProfileRows(TARGET_OID)).thenReturn(List.of(
+                new AuditProfileRow(UUID.randomUUID(), true, UserType.EXTERNAL, UUID.randomUUID())));
     }
 
     private static UsernamePasswordAuthenticationToken auditActor() {

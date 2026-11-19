@@ -18,10 +18,6 @@ public class UserAccountQueryMapper {
         this.modelMapper = modelMapper;
     }
 
-    public EntraUserDto toDto(EntraUser user) {
-        return modelMapper.map(user, EntraUserDto.class);
-    }
-
     public EntraUserDto toDto(Optional<EntraUser> user, String entraOid) {
         return modelMapper.map(user.orElseThrow(
                 () -> new UserNotFoundException(entraOid)), EntraUserDto.class);

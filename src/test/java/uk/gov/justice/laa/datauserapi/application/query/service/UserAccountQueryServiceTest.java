@@ -50,23 +50,6 @@ class UserAccountQueryServiceTest {
     private UserAccountQueryService service;
 
     @Test
-    void findUserAccountSummaryIfPresentReturnsEmptyWithoutThrowingForUnknownAccount() {
-        when(userRepository.findByEntraOid("missing")).thenReturn(Optional.empty());
-
-        assertThat(service.findUserAccountSummaryIfPresent("missing")).isEmpty();
-    }
-
-    @Test
-    void findUserAccountSummaryIfPresentMapsAnExistingAccount() {
-        EntraUser user = EntraUser.builder().entraOid("oid").build();
-        EntraUserDto dto = EntraUserDto.builder().entraOid("oid").build();
-        when(userRepository.findByEntraOid("oid")).thenReturn(Optional.of(user));
-        when(modelMapper.map(user, EntraUserDto.class)).thenReturn(dto);
-
-        assertThat(service.findUserAccountSummaryIfPresent("oid")).contains(dto);
-    }
-
-    @Test
     void shouldReturnAuditHistory() {
         UUID oid = UUID.randomUUID();
         String oidStr = String.valueOf(oid);

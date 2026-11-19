@@ -7,6 +7,7 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountVisibilit
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserAccountVisibilityContextFactory;
 import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewAuditUserPolicy;
 import uk.gov.justice.laa.datauserapi.application.query.queryaudit.AuditUserDetailQuery;
+import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AuditUserAccessRepository;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicyInputResolver;
 
@@ -20,12 +21,12 @@ import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicyInputReso
 public class AuditUserVisibilityPolicyInputResolver
         implements AuthorizationPolicyInputResolver<AuditUserDetailQuery, UserAccountVisibilityContext> {
 
-    private final UserAccountQueryService queryService;
+    private final AuditUserAccessRepository accessRepository;
     private final UserAccountVisibilityContextFactory contextFactory;
 
-    public AuditUserVisibilityPolicyInputResolver(UserAccountQueryService queryService,
+    public AuditUserVisibilityPolicyInputResolver(AuditUserAccessRepository accessRepository,
                                                   UserAccountVisibilityContextFactory contextFactory) {
-        this.queryService = queryService;
+        this.accessRepository = accessRepository;
         this.contextFactory = contextFactory;
     }
 
@@ -41,10 +42,11 @@ public class AuditUserVisibilityPolicyInputResolver
 
     @Override
     public UserAccountVisibilityContext resolve(AuditUserDetailQuery message) {
-        // Avoids exception-driven flow: a thrown lookup failure would mark the surrounding read-only transaction
-        // rollback-only even though the miss is handled here.
-        return queryService.findUserAccountSummaryIfPresent(message.userEntraObjectId())
-                .map(contextFactory::fromUser)
+        String oid = message.userEntraObjectId();
+        // Absent accounts are an ordinary outcome here, so no exception is thrown from inside the transaction.
+        return accessRepository.findAccount(oid)
+                .map(account -> contextFactory.fromFacts(
+                        account.entraOid(), account.multiFirmUser(), accessRepository.findProfileRows(oid)))
                 .orElseGet(UserAccountVisibilityContext::missing);
     }
 }
