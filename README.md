@@ -323,9 +323,8 @@ scope and `VIEW_AUDIT_TABLE`. They are served by `AuditQueryController`, so
 
 - **User detail.** `CanViewAuditUserPolicy` applies the same account-visibility rules as
   `CanViewAccountPolicy`, using the context loaded by `AuditUserVisibilityPolicyInputResolver`. A target
-  outside the caller's visibility returns 403. This endpoint deliberately differs from the generic user lookup
-  rule above: an unknown target raises `AuditUserNotFoundException` and returns 404, but only after the permission
-  check, so callers without `VIEW_AUDIT_TABLE` cannot probe for existence. `AuditUserDetailService` additionally
+  outside the caller's visibility returns 403, and an unknown target returns the same generic 403 so existence is
+  not revealed. Both are decided only after the `VIEW_AUDIT_TABLE` check. `AuditUserDetailService` additionally
   filters each profile with `CanViewProfilePolicy`, so `profiles` and `profileCount` never include profiles outside
   the caller's visibility. History is returned newest first (maximum 500 entries). `lastLoginDate` is always absent
   because no last-login data is held.

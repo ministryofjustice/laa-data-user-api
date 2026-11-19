@@ -8,7 +8,6 @@ import uk.gov.justice.laa.datauserapi.application.query.mapper.UserAccountVisibi
 import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewAuditUserPolicy;
 import uk.gov.justice.laa.datauserapi.application.query.queryaudit.AuditUserDetailQuery;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.exception.AuditUserNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicyInputResolver;
@@ -17,7 +16,8 @@ import java.util.Optional;
 
 /**
  * Loads, with a single read, the trusted target-user facts that {@link CanViewAuditUserPolicy} evaluates.
- * An unknown target raises {@link AuditUserNotFoundException} (404), which only runs after the permission check.
+ * An unknown target resolves to a missing context, which the policy denies, so unknown and inaccessible targets
+ * are indistinguishable to the caller (403).
  */
 @Component
 @Transactional(readOnly = true)
@@ -49,7 +49,7 @@ public class AuditUserVisibilityPolicyInputResolver
         try {
             target = queryService.findUserAccountSummaryByUserEntraObjectId(message.userEntraObjectId());
         } catch (UserNotFoundException ex) {
-            throw new AuditUserNotFoundException(message.userEntraObjectId());
+            return UserAccountVisibilityContext.missing();
         }
         return Optional.ofNullable(target)
                 .map(contextFactory::fromUser)

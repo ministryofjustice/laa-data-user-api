@@ -33,7 +33,6 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.dto.FirmDto;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
-import uk.gov.justice.laa.datauserapi.exception.AuditUserNotFoundException;
 import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
@@ -122,13 +121,13 @@ class AuditQueryAuthorizationIntegrationTest {
     }
 
     @Test
-    void detailForUnknownTargetIsNotFoundNotForbidden() {
+    void detailForUnknownTargetIsForbiddenLikeAnInaccessibleOne() {
         when(queryService.findUserAccountSummaryByUserEntraObjectId(TARGET_OID))
                 .thenThrow(new UserNotFoundException(TARGET_OID));
 
-        assertThatThrownBy(() -> detailHandler.handle(new AuditUserDetailQuery(TARGET_OID),
-                actor(UserType.INTERNAL, Permission.VIEW_AUDIT_TABLE, Permission.VIEW_EXTERNAL_USER)))
-                .isInstanceOf(AuditUserNotFoundException.class);
+        assertDeniedWith(PolicyDenialReason.TARGET_PROFILE_NOT_FOUND, () -> detailHandler.handle(
+                new AuditUserDetailQuery(TARGET_OID),
+                actor(UserType.INTERNAL, Permission.VIEW_AUDIT_TABLE, Permission.VIEW_EXTERNAL_USER)));
 
         verifyNoInteractions(detailService);
     }
