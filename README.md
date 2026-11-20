@@ -80,6 +80,16 @@ derived from the assigned roles; `/offices` returns every office of the profile'
 unrestricted office access, otherwise only its assigned offices belonging to that firm. Results are not
 paginated and are capped at 500 roles, 100 applications and 100 offices, ordered deterministically.
 
+The app and role catalogue queries (`GET /api/v1/queries/apps`, `/apps/{appId}`, `/apps/{appId}/roles`,
+`/app-roles/{appRoleId}` and `/role-restrictions`) are read-only and require `user_data.read`. Every query message
+implements `AppCatalogueQuery` and declares `@RequiresPermission(Permission.VIEW_LAA_APP_METADATA)`, which an ArchUnit
+rule enforces. Only active applications and their roles are returned; an unknown or inactive application, or an
+unknown role, is a generic `404` and an active application with no matching roles is `200` with `items: []`. `appId`
+and `app_id` are the internal SiLAS app ID; `/apps/{appId}/roles` takes `user_type` (`INTERNAL` or `EXTERNAL`, each
+also including `BOTH` roles). `/role-restrictions` is paged (`page_number` from 0, `page_size` 1 to 100) and lists
+restrictions whose assigning and assignable roles are both in active applications; its `app_id` filter and the app
+fields of each item refer to the role being assigned. Lists are capped at 100 applications and 500 roles.
+
 Query service, handler, and controller results are checked recursively for entity
 leakage through collections, wrappers, DTO fields, and projection accessors.
 Tech Services calls intentionally precede database updates; this ordering is unchanged.
