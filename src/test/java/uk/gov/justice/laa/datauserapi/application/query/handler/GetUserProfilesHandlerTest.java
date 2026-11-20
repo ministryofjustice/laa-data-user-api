@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserProfileQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyentrauser.GetActiveProfileQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserprofiles.GetUserProfilesQuery;
@@ -15,11 +16,10 @@ import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,11 +47,11 @@ class GetUserProfilesHandlerTest {
         UserProfileDetailsService service = mock(UserProfileDetailsService.class);
         AuthenticatedEntraUser actor = authenticatedTestUser();
         List<UserProfileSummaryView> expected = List.of(mock(UserProfileSummaryView.class));
-        when(service.getProfiles(userEntraObjectId)).thenReturn(expected);
+        when(service.getProfiles(userEntraObjectId, actor)).thenReturn(expected);
 
         GetUserProfilesQuery query = new GetUserProfilesQuery(userEntraObjectId);
         assertThat(new GetUserProfilesHandler(service).handle(query, actor)).isSameAs(expected);
-        verify(service).getProfiles(userEntraObjectId);
+        verify(service).getProfiles(userEntraObjectId, actor);
     }
 
     @Test
@@ -69,16 +69,20 @@ class GetUserProfilesHandlerTest {
     @Test
     void returnsAllProfilesWhenFound() {
         UUID profileId = UUID.randomUUID();
+        UUID firmId = UUID.randomUUID();
         UserProfileSummaryView profile = new UserProfileSummaryView(
-                profileId, true, UserType.INTERNAL, "user@example.com", "John Doe",
+                profileId, true, UserType.EXTERNAL, "user@example.com", "John Doe",
                 "", "", false, UserAccountStatus.ACTIVE, UserProfileStatus.COMPLETE, true);
 
         when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(userEntraObjectId))
                 .thenReturn(Optional.of(List.of(profile)));
+        when(userProfileQueryRepository.findProfileVisibilityContexts(userEntraObjectId))
+                .thenReturn(List.of(new ProfileVisibilityContext(true, profileId, UserType.EXTERNAL, firmId)));
 
         GetUserProfilesHandler handler = handler();
         GetUserProfilesQuery query = new GetUserProfilesQuery(userEntraObjectId);
-        List<UserProfileSummaryView> result = handler.handle(query, authenticatedTestUser());
+        AuthenticatedEntraUser actor = authenticatedTestUserWithFirm(profileId, firmId);
+        List<UserProfileSummaryView> result = handler.handle(query, actor);
 
         assertThat(result).hasSize(1);
         assertThat(result.getFirst().userProfileId()).isEqualTo(profileId);
@@ -92,23 +96,29 @@ class GetUserProfilesHandlerTest {
     }
 
     private AuthenticatedEntraUser authenticatedTestUser() {
-        return new AuthenticatedEntraUser(
-                UUID.randomUUID(),
-                actorOid,
-                "firstName",
-                "lastName",
-                "email@email.com",
-                UserAccountStatus.ACTIVE,
-                false,
-                LocalDateTime.now(),
-                false,
-                true,
-                null,
-                false,
-                null,
-                null,
-                Set.of(),
-                null
-        );
+        UUID profileId = UUID.randomUUID();
+        AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
+                .id(profileId)
+                .activeProfile(true)
+                .userType(UserType.EXTERNAL)
+                .firmId(UUID.randomUUID())
+                .build();
+        return AuthenticatedEntraUser.builder()
+                .entraOid(actorOid)
+                .activeProfile(profile)
+                .build();
+    }
+
+    private AuthenticatedEntraUser authenticatedTestUserWithFirm(UUID profileId, UUID firmId) {
+        AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
+                .id(profileId)
+                .activeProfile(true)
+                .userType(UserType.EXTERNAL)
+                .firmId(firmId)
+                .build();
+        return AuthenticatedEntraUser.builder()
+                .entraOid(actorOid)
+                .activeProfile(profile)
+                .build();
     }
 }

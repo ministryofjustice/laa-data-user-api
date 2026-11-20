@@ -1,8 +1,8 @@
 package uk.gov.justice.laa.datauserapi.application.query.queryuserprofiles;
 
-import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewProfileDetailsPolicy;
+import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewProfileListPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyGuarded;
 
-@PolicyGuarded(policies = CanViewProfileDetailsPolicy.class)
+@PolicyGuarded(policies = CanViewProfileListPolicy.class)
 public record GetUserProfilesQuery(String userEntraObjectId) implements UserProfileQuery {
 }

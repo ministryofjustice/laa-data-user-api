@@ -4,11 +4,8 @@ import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
 
 import uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
-import uk.gov.justice.laa.datauserapi.model.Permission;
-import uk.gov.justice.laa.datauserapi.security.rbac.ActorPermissions;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
@@ -38,42 +35,8 @@ public class CanViewProfileDetailsPolicy implements AuthorizationPolicy<ProfileV
         if (!context.profileExists()) {
             return PolicyDecision.deny(PolicyDenialReason.TARGET_PROFILE_NOT_FOUND);
         }
-        return canView(actor, context)
+        return ProfileVisibilityEvaluator.isProfileVisible(actor, context)
                 ? PolicyDecision.allow()
                 : PolicyDecision.deny(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE);
-    }
-
-    private boolean canView(AuthenticatedEntraUser actor, ProfileVisibilityContext target) {
-        return isInternalViewingInternal(actor, target)
-                || isExternalViewingOwnProfile(actor.activeProfile(), target)
-                || isExternalViewingOwnFirm(actor, target)
-                || isInternalWithExternalViewPermission(actor, target);
-    }
-
-    private boolean isInternalViewingInternal(AuthenticatedEntraUser actor, ProfileVisibilityContext target) {
-        return actor.activeProfile().userType() == UserType.INTERNAL
-                && target.userType() == UserType.INTERNAL
-                && ActorPermissions.has(actor, Permission.VIEW_INTERNAL_USER);
-    }
-
-    private boolean isExternalViewingOwnProfile(AuthenticatedUserProfile actorProfile, ProfileVisibilityContext target) {
-        return actorProfile.userType() == UserType.EXTERNAL
-                && actorProfile.id() != null
-                && actorProfile.id().equals(target.profileId());
-    }
-
-    private boolean isExternalViewingOwnFirm(AuthenticatedEntraUser actor, ProfileVisibilityContext target) {
-        AuthenticatedUserProfile actorProfile = actor.activeProfile();
-        return actorProfile.userType() == UserType.EXTERNAL
-                && actorProfile.firmId() != null
-                && actorProfile.firmId().equals(target.firmId())
-                && ActorPermissions.has(actor, Permission.VIEW_EXTERNAL_USER);
-    }
-
-    private boolean isInternalWithExternalViewPermission(AuthenticatedEntraUser actor,
-                                                         ProfileVisibilityContext target) {
-        return actor.activeProfile().userType() == UserType.INTERNAL
-                && target.userType() == UserType.EXTERNAL
-                && ActorPermissions.has(actor, Permission.VIEW_EXTERNAL_USER);
     }
 }

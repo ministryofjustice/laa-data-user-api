@@ -22,6 +22,6 @@ public class GetUserProfilesHandler implements QueryHandler<GetUserProfilesQuery
 
     @Override
     public List<UserProfileSummaryView> handle(GetUserProfilesQuery query, AuthenticatedEntraUser actor) {
-        return service.getProfiles(query.userEntraObjectId());
+        return service.getProfiles(query.userEntraObjectId(), actor);
     }
 }
