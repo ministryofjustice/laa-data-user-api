@@ -20,12 +20,15 @@ on:
     types:
       - opened
       - reopened
-      - edited
       - synchronize
   schedule:
     - cron: '40 3 * * 6'  
   workflow_call:
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-api-codeql-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:
@@ -109,7 +112,7 @@ jobs:
         category: "/language:${{matrix.language}}"
         output: codeql-results
     - name: Report CodeQL results
-      if: always()
+      if: ${{ always() && !cancelled() }}
       run: |
         echo "=== CodeQL Scan Results (threshold: $MIN_LEVEL) ==="
         set +e
@@ -185,7 +188,7 @@ jobs:
         set -e
 
     - name: Collect CodeQL SARIF reports
-      if: always()
+      if: ${{ always() && !cancelled() }}
       run: |
         set +e
         DEST="$GITHUB_WORKSPACE/codeql-sarif-results-${{ matrix.language }}"
@@ -202,7 +205,7 @@ jobs:
         ls -lh "$DEST"/ || echo "Directory is empty"
 
     - name: Upload CodeQL SARIF report artifact
-      if: always()
+      if: ${{ always() && !cancelled() }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: codeql-sarif-results-${{ matrix.language }}
