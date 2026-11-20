@@ -1,0 +1,11 @@
+{{- if .Values.authorization.opaEnabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: laa-data-user-api-opa-bundle-{{ .Values.opa.bundleRef | sha256sum | trunc 12 }}
+  annotations:
+    laa-data-user-api/opa-bundle-ref: {{ .Values.opa.bundleRef | quote }}
+immutable: true
+binaryData:
+  bundle.tar.gz: {{ .Values.opa.bundleData | b64enc | quote }}
+{{- end }}
