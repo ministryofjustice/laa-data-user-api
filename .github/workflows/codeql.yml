@@ -103,9 +103,17 @@ jobs:
     - name: Build JAR
       if: matrix.build-mode == 'manual'
       # Direct PRs run tests separately, but CodeQL still needs their compiled classes.
-      run: ./gradlew build ${{ github.actor != 'dependabot[bot]' && ((github.event_name == 'pull_request' && inputs.run_tests != true) || toJSON(inputs.run_tests) == 'false') && 'testClasses -x test' || '' }} ${{ github.actor == 'dependabot[bot]' && '-x test -x sentryUploadSourceBundleJava' || '' }}
+      run: |
+        if [ "$GITHUB_ACTOR" = 'dependabot[bot]' ]; then
+          ./gradlew build -x test -x sentryUploadSourceBundleJava
+        elif [ "$RUN_TESTS" = 'false' ] || { [ "$GITHUB_EVENT_NAME" = 'pull_request' ] && [ "$RUN_TESTS" != 'true' ]; }; then
+          ./gradlew build testClasses -x test
+        else
+          ./gradlew build
+        fi
       env:
         GITHUB_ACTOR: ${{ github.actor }}
+        RUN_TESTS: ${{ toJSON(inputs.run_tests) }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
