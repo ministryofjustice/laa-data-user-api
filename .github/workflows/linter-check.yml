@@ -3,6 +3,16 @@ name: Linter Check
 on:
   pull_request:
     types: [ opened, reopened, synchronize ]
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!deployment/**'
+      - '!.ash/**'
+      - '!.github/workflows/**'
+      - '.github/workflows/linter-check.yml'
+      - '**/*.java'
+      - '**/*.gradle*'
+      - '**/checkstyle*.xml'
   workflow_dispatch:
 
 permissions:
