@@ -18,7 +18,6 @@ import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewProfileLis
 import uk.gov.justice.laa.datauserapi.application.query.queryuserprofiles.GetUserProfilesQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserProfileDetailsService;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserProfileListVisibilityPolicyInputResolver;
-import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileAccessQueryRepository;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
@@ -36,11 +35,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @SpringJUnitConfig(GetUserProfilesHandlerAuthorizationIntegrationTest.TestConfig.class)
@@ -223,13 +219,19 @@ class GetUserProfilesHandlerAuthorizationIntegrationTest {
                         new ProfileVisibilityContext(true, profileTwoId, UserType.EXTERNAL, firmTwoId)
                 ));
 
+        when(repository.findAllProfilesByUserEntraObjectId(TARGET_USER_ENTRA_OID))
+                .thenReturn(java.util.Optional.of(List.of(
+                        createProfileSummary(profileOneId, UserType.EXTERNAL, firmOneId.toString()),
+                        createProfileSummary(profileTwoId, UserType.EXTERNAL, firmTwoId.toString())
+                )));
+
         AuthenticatedEntraUser actorActiveFirmOne = external(profileOneId, firmOneId, Permission.VIEW_EXTERNAL_USER);
 
         GetUserProfilesQuery query = new GetUserProfilesQuery(TARGET_USER_ENTRA_OID);
 
         List<UserProfileSummaryView> result = handler.handle(query, actorActiveFirmOne);
 
-        assertThat(result).isNotNull();
+        assertThat(result).hasSize(1).extracting(UserProfileSummaryView::userProfileId).containsExactly(profileOneId);
     }
 
     @Test
@@ -245,13 +247,19 @@ class GetUserProfilesHandlerAuthorizationIntegrationTest {
                         new ProfileVisibilityContext(true, profileTwoId, UserType.EXTERNAL, firmTwoId)
                 ));
 
+        when(repository.findAllProfilesByUserEntraObjectId(TARGET_USER_ENTRA_OID))
+                .thenReturn(java.util.Optional.of(List.of(
+                        createProfileSummary(profileOneId, UserType.EXTERNAL, firmOneId.toString()),
+                        createProfileSummary(profileTwoId, UserType.EXTERNAL, firmTwoId.toString())
+                )));
+
         AuthenticatedEntraUser actorActiveFirmTwo = external(profileTwoId, firmTwoId, Permission.VIEW_EXTERNAL_USER);
 
         GetUserProfilesQuery query = new GetUserProfilesQuery(TARGET_USER_ENTRA_OID);
 
         List<UserProfileSummaryView> result = handler.handle(query, actorActiveFirmTwo);
 
-        assertThat(result).isNotNull();
+        assertThat(result).hasSize(1).extracting(UserProfileSummaryView::userProfileId).containsExactly(profileTwoId);
     }
 
     @Test
@@ -260,12 +268,21 @@ class GetUserProfilesHandlerAuthorizationIntegrationTest {
         UUID firmTwoId = UUID.randomUUID();
         UUID profileOneId = UUID.randomUUID();
         UUID profileTwoId = UUID.randomUUID();
+        UUID sameColleagueProfileId = UUID.randomUUID();
 
         when(repository.findProfileVisibilityContexts(TARGET_USER_ENTRA_OID))
                 .thenReturn(List.of(
                         new ProfileVisibilityContext(true, profileOneId, UserType.EXTERNAL, firmOneId),
-                        new ProfileVisibilityContext(true, profileTwoId, UserType.EXTERNAL, firmTwoId)
+                        new ProfileVisibilityContext(true, profileTwoId, UserType.EXTERNAL, firmTwoId),
+                        new ProfileVisibilityContext(true, sameColleagueProfileId, UserType.EXTERNAL, firmOneId)
                 ));
+
+        when(repository.findAllProfilesByUserEntraObjectId(TARGET_USER_ENTRA_OID))
+                .thenReturn(java.util.Optional.of(List.of(
+                        createProfileSummary(profileOneId, UserType.EXTERNAL, firmOneId.toString()),
+                        createProfileSummary(profileTwoId, UserType.EXTERNAL, firmTwoId.toString()),
+                        createProfileSummary(sameColleagueProfileId, UserType.EXTERNAL, firmOneId.toString())
+                )));
 
         AuthenticatedEntraUser actorActiveFirmOne = external(profileOneId, firmOneId);
 
@@ -273,7 +290,7 @@ class GetUserProfilesHandlerAuthorizationIntegrationTest {
 
         List<UserProfileSummaryView> result = handler.handle(query, actorActiveFirmOne);
 
-        assertThat(result).isNotNull();
+        assertThat(result).hasSize(1).extracting(UserProfileSummaryView::userProfileId).containsExactly(profileOneId);
     }
 
     private static void assertDeniedWith(PolicyDenialReason reason, ThrowableAssert.ThrowingCallable call) {
@@ -285,6 +302,22 @@ class GetUserProfilesHandlerAuthorizationIntegrationTest {
     private void stubProfileVisibility(UserType type, UUID profileId, UUID firmId) {
         when(repository.findProfileVisibilityContexts(TARGET_USER_ENTRA_OID))
                 .thenReturn(java.util.List.of(new ProfileVisibilityContext(true, profileId, type, firmId)));
+    }
+
+    private static UserProfileSummaryView createProfileSummary(UUID profileId, UserType userType, String firmId) {
+        return new UserProfileSummaryView(
+                profileId,
+                true,
+                userType,
+                "test@example.com",
+                "Test User",
+                "Test Firm",
+                firmId,
+                false,
+                null,
+                null,
+                false
+        );
     }
 
     private static AuthenticatedEntraUser external(UUID profileId, UUID firmId, Permission... permissions) {

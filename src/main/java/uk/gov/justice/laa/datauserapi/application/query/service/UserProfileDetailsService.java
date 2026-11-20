@@ -13,7 +13,6 @@ import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -33,9 +32,9 @@ public class UserProfileDetailsService {
         this.viewMapper = viewMapper;
     }
 
-    public UserProfileDetailView getActiveProfile(String userEntraObjectId) {
+    public UserProfileDetailView getActiveProfile(String userEntraObjectId, UUID authorizedProfileId) {
         UserProfileDto targetProfile = queryMapper.toActiveProfile(
-                repository.findActiveProfileWithDetailsAndRoles(userEntraObjectId), userEntraObjectId);
+                repository.findProfileByIdWithDetailsAndRoles(userEntraObjectId, authorizedProfileId), userEntraObjectId);
         return viewMapper.mapProfileToDetailView(targetProfile);
     }
 
@@ -47,16 +46,16 @@ public class UserProfileDetailsService {
             return List.of();
         }
 
-        Map<UUID, ProfileVisibilityContext> visibilityContexts = repository
-                .findProfileVisibilityContexts(userEntraObjectId)
-                .stream()
-                .collect(Collectors.toMap(ProfileVisibilityContext::profileId, ctx -> ctx));
-
         return allProfiles.stream()
                 .filter(profile -> {
-                    ProfileVisibilityContext context = visibilityContexts.get(profile.userProfileId());
-                    return context != null && ProfileVisibilityEvaluator.isProfileVisible(actor, context);
+                    ProfileVisibilityContext context = buildContextFromSummary(profile);
+                    return ProfileVisibilityEvaluator.isProfileVisible(actor, context);
                 })
                 .collect(Collectors.toList());
+    }
+
+    private ProfileVisibilityContext buildContextFromSummary(UserProfileSummaryView profile) {
+        return new ProfileVisibilityContext(true, profile.userProfileId(), profile.userType(),
+                UUID.fromString(profile.firmId()));
     }
 }

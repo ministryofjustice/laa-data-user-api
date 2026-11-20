@@ -72,12 +72,10 @@ class GetUserProfilesHandlerTest {
         UUID firmId = UUID.randomUUID();
         UserProfileSummaryView profile = new UserProfileSummaryView(
                 profileId, true, UserType.EXTERNAL, "user@example.com", "John Doe",
-                "", "", false, UserAccountStatus.ACTIVE, UserProfileStatus.COMPLETE, true);
+                "Firm Name", firmId.toString(), false, UserAccountStatus.ACTIVE, UserProfileStatus.COMPLETE, true);
 
         when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(userEntraObjectId))
                 .thenReturn(Optional.of(List.of(profile)));
-        when(userProfileQueryRepository.findProfileVisibilityContexts(userEntraObjectId))
-                .thenReturn(List.of(new ProfileVisibilityContext(true, profileId, UserType.EXTERNAL, firmId)));
 
         GetUserProfilesHandler handler = handler();
         GetUserProfilesQuery query = new GetUserProfilesQuery(userEntraObjectId);
