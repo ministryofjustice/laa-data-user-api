@@ -56,6 +56,7 @@ public class UserProfileDetailsService {
 
     private ProfileVisibilityContext buildContextFromSummary(UserProfileSummaryView profile) {
         return new ProfileVisibilityContext(true, profile.userProfileId(), profile.userType(),
-                UUID.fromString(profile.firmId()));
+                profile.firmId() == null || profile.firmId().isBlank()
+                        ? null : UUID.fromString(profile.firmId()));
     }
 }

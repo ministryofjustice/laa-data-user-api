@@ -233,16 +233,17 @@ class GetActiveProfileHandlerAuthorizationIntegrationTest {
 
     @Test
     void missingTargetProfileIsDeniedConsistently() {
-        // Repository returns empty list when profile doesn't exist for this Entra OID
-        when(repository.findProfileVisibilityContexts(UUID.randomUUID().toString()))
-                .thenReturn(java.util.List.of());
+        // Repository returns empty when no active profile exists for this Entra OID
+        String missingUserOid = UUID.randomUUID().toString();
+        when(repository.findActiveProfileVisibilityContext(missingUserOid))
+                .thenReturn(java.util.Optional.empty());
 
         AuthenticatedEntraUser actor = external(UUID.randomUUID(), TARGET_FIRM_ID, Permission.VIEW_EXTERNAL_USER);
 
         assertDeniedWith(
                 PolicyDenialReason.TARGET_PROFILE_NOT_FOUND,
                 () -> handler.handle(
-                        new GetActiveProfileQuery(UUID.randomUUID().toString()),
+                        new GetActiveProfileQuery(missingUserOid),
                         actor));
 
         verifyNoInteractions(service);
@@ -273,11 +274,10 @@ class GetActiveProfileHandlerAuthorizationIntegrationTest {
         UUID firmBprofileId = UUID.randomUUID();
         UUID firmBid = UUID.randomUUID();
 
-        // Target has two profiles in different firms
-        when(repository.findProfileVisibilityContexts(TARGET_USER_ENTRA_OID))
-                .thenReturn(java.util.List.of(
-                        new ProfileVisibilityContext(true, firmAprofileId, UserType.EXTERNAL, TARGET_FIRM_ID),
-                        new ProfileVisibilityContext(false, firmBprofileId, UserType.EXTERNAL, firmBid)));
+        // Target has two profiles in different firms, but only Firm A's is active
+        when(repository.findActiveProfileVisibilityContext(TARGET_USER_ENTRA_OID))
+                .thenReturn(java.util.Optional.of(
+                        new ProfileVisibilityContext(true, firmAprofileId, UserType.EXTERNAL, TARGET_FIRM_ID)));
 
         // Actor is authorized only for Firm A and has Firm A's profile as active
         AuthenticatedEntraUser actor = external(firmAprofileId, TARGET_FIRM_ID);
@@ -296,6 +296,26 @@ class GetActiveProfileHandlerAuthorizationIntegrationTest {
         verify(service).getActiveProfile(TARGET_USER_ENTRA_OID, firmAprofileId);
     }
 
+    @Test
+    void targetWithAllInactiveProfilesIsDeniedRegardlessOfActorPermissions() {
+        // Target has profiles but none are active
+        UUID inactiveProfileId1 = UUID.randomUUID();
+        UUID inactiveProfileId2 = UUID.randomUUID();
+        when(repository.findActiveProfileVisibilityContext(TARGET_USER_ENTRA_OID))
+                .thenReturn(java.util.Optional.empty());
+
+        // Actor is authorized with strong permissions but target has no active profile
+        AuthenticatedEntraUser actor = external(UUID.randomUUID(), TARGET_FIRM_ID, Permission.VIEW_EXTERNAL_USER);
+
+        assertDeniedWith(
+                PolicyDenialReason.TARGET_PROFILE_NOT_FOUND,
+                () -> handler.handle(
+                        new GetActiveProfileQuery(TARGET_USER_ENTRA_OID),
+                        actor));
+
+        verifyNoInteractions(service);
+    }
+
     private static void assertDeniedWith(PolicyDenialReason reason, ThrowableAssert.ThrowingCallable call) {
         assertThatThrownBy(call)
                 .isInstanceOfSatisfying(AuthorizationDeniedException.class, denied ->
@@ -303,8 +323,8 @@ class GetActiveProfileHandlerAuthorizationIntegrationTest {
     }
 
     private void stubProfileVisibility(UserType type, UUID profileId, UUID firmId) {
-        when(repository.findProfileVisibilityContexts(TARGET_USER_ENTRA_OID))
-                .thenReturn(java.util.List.of(new ProfileVisibilityContext(true, profileId, type, firmId)));
+        when(repository.findActiveProfileVisibilityContext(TARGET_USER_ENTRA_OID))
+                .thenReturn(java.util.Optional.of(new ProfileVisibilityContext(true, profileId, type, firmId)));
     }
 
     private static AuthenticatedEntraUser external(UUID profileId, UUID firmId, Permission... permissions) {

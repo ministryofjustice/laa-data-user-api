@@ -66,4 +66,20 @@ public interface UserProfileQueryRepository extends Repository<EntraUser, UUID> 
         """)
     List<ProfileVisibilityContext> findProfileVisibilityContexts(
             @Param("userEntraObjectId") String userEntraObjectId);
+
+    @Query("""
+        SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext(
+            true,
+            up.id,
+            up.userType,
+            f.id
+        )
+        FROM UserProfile up
+        LEFT JOIN up.firm f
+        JOIN up.entraUser u
+        WHERE u.entraOid = :userEntraObjectId
+            AND up.activeProfile = true
+        """)
+    Optional<ProfileVisibilityContext> findActiveProfileVisibilityContext(
+            @Param("userEntraObjectId") String userEntraObjectId);
 }
