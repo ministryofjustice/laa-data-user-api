@@ -431,9 +431,16 @@ class ArchitectureTest {
     static final ArchRule query_controllers_must_require_read_scope = classes()
             .that().resideInAPackage("..application.query.controller..")
             .and().areAnnotatedWith(RestController.class)
+            .and().doNotHaveSimpleName("AuditQueryController")
             .should().beAnnotatedWith(RequiresReadScope.class)
             .orShould().beMetaAnnotatedWith(RequiresReadScope.class)
             .because("Query endpoints must declare the user_data.read scope requirement");
+
+    @ArchTest
+    static final ArchRule audit_query_controller_must_require_admin_scope = classes()
+            .that().haveSimpleName("AuditQueryController")
+            .should().beAnnotatedWith(RequiresAdminScope.class)
+            .because("Audit endpoints require the user_data.admin scope");
 
     static ArchCondition<JavaClass> exposeOnlyReadMethods() {
         return new ArchCondition<>("expose only read repository methods") {

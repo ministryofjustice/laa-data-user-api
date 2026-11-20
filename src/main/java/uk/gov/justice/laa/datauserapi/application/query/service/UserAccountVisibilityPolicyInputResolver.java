@@ -4,17 +4,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountVisibilityContext;
+import uk.gov.justice.laa.datauserapi.application.query.mapper.UserAccountVisibilityContextFactory;
 import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewAccountPolicy;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
-import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicyInputResolver;
 
-import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 /** Loads, with a single read, the trusted target-user facts that {@link CanViewAccountPolicy} evaluates. */
 @Component
@@ -23,9 +19,12 @@ public class UserAccountVisibilityPolicyInputResolver
         implements AuthorizationPolicyInputResolver<GetUserAccountQuery, UserAccountVisibilityContext> {
 
     private final UserAccountQueryService queryService;
+    private final UserAccountVisibilityContextFactory contextFactory;
 
-    public UserAccountVisibilityPolicyInputResolver(UserAccountQueryService queryService) {
+    public UserAccountVisibilityPolicyInputResolver(UserAccountQueryService queryService,
+                                                    UserAccountVisibilityContextFactory contextFactory) {
         this.queryService = queryService;
+        this.contextFactory = contextFactory;
     }
 
     @Override
@@ -41,31 +40,7 @@ public class UserAccountVisibilityPolicyInputResolver
     @Override
     public UserAccountVisibilityContext resolve(GetUserAccountQuery message) {
         return Optional.ofNullable(queryService.findUserAccountSummaryByUserEntraObjectId(message.userEntraObjectId()))
-                .map(this::toVisibilityContext)
+                .map(contextFactory::fromUser)
                 .orElseGet(UserAccountVisibilityContext::missing);
-    }
-
-    private UserAccountVisibilityContext toVisibilityContext(EntraUserDto user) {
-        boolean hasInternalProfile = user.getUserProfiles().stream()
-                .anyMatch(profile -> profile.getUserType().toString().equals("INTERNAL"));
-        boolean hasExternalProfile = user.getUserProfiles().stream()
-                .anyMatch(profile -> profile.getUserType().toString().equals("EXTERNAL"));
-
-        // If account has no profiles, treat as EXTERNAL if multiFirmUser, else INTERNAL
-        if (user.getUserProfiles().isEmpty()) {
-            boolean isMultiFirmUser = user.isMultiFirmUser();
-            hasExternalProfile = isMultiFirmUser;
-            hasInternalProfile = !isMultiFirmUser;
-        }
-
-        // Collect ALL firm IDs from external profiles
-        Set<UUID> externalFirmIds = user.getUserProfiles().stream()
-                .filter(profile -> profile.getUserType().toString().equals("EXTERNAL"))
-                .map(profile -> profile.getFirm() != null ? profile.getFirm().getId() : null)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
-        return new UserAccountVisibilityContext(true, hasInternalProfile, hasExternalProfile,
-                externalFirmIds, user.getEntraOid());
     }
 }

@@ -69,8 +69,10 @@ public class UserViewMapper {
     }
 
     private UserProfileDetailView mapProfile(UserProfileDto profile) {
+        return mapToProfileDetailView(profile.getEntraUser(), profile);
+    }
 
-        EntraUserDto user = profile.getEntraUser();
+    public UserProfileDetailView mapToProfileDetailView(EntraUserDto user, UserProfileDto profile) {
 
         List<AppRoleView> roles = profile.getAppRoles()
                 .stream()

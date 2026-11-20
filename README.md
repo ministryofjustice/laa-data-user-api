@@ -314,6 +314,39 @@ inaccessible profiles.
 Security filters and exception advice share the forbidden response type, title, and detail through
 `ForbiddenResponseConstants`; actor-profile diagnostics use named `InvalidActorContextException` factories.
 
+### Audit queries
+
+`GET /api/v1/queries/audit/users/{userEntraObjectId}` (`AuditUserDetailQuery`) and
+`GET /api/v1/queries/audit/users/deleted` (`DeletedUsersAuditQuery`) require the `user_data.admin`
+scope and `VIEW_AUDIT_TABLE`. They are served by `AuditQueryController`, so
+`ArchitectureTest` requires `@RequiresAdminScope` on `AuditQueryController` and `@RequiresReadScope` on every other
+query controller.
+
+- **User detail.** `CanViewAuditUserPolicy` applies the same account-visibility rules as
+  `CanViewAccountPolicy`, using the context loaded by `AuditUserVisibilityPolicyInputResolver`. A target
+  outside the caller's visibility returns 403, and an unknown target returns the same generic 403 so existence is
+  not revealed. Both are decided only after the `VIEW_AUDIT_TABLE` check. `AuditUserDetailService` additionally
+  filters each profile with `CanViewProfilePolicy`, so `profiles` and `profileCount` never include profiles outside
+  the caller's visibility. Visibility is decided from lightweight account and profile rows (`AuditUserAccessRepository`); at most 100 visible
+  profiles are returned (active profile first, then by id), and only those have their roles and offices loaded, while
+  `profileCount` is the full visible count. History is returned newest first (maximum 500 entries), with reason keys read from `entra_description`. `lastLoginDate` is always absent
+  because no last-login data is held; null optional properties on the audit views are omitted from the JSON. The
+  service also repeats the account-visibility check against the account it loads, so access revoked after the
+  handler-level check still returns the generic 403.
+- **Deleted users.** `CanViewDeletedUsersAuditPolicy` limits the endpoint to active INTERNAL actors (403
+  otherwise). The existing deletion snapshot in `user_account_status_audit` does not record the deleted user's type or
+  Entra object id, and no schema change is made for this endpoint. Only non-internal users can be deleted through this
+  API, so every deleted record is treated as EXTERNAL: it is included only when the actor holds `VIEW_EXTERNAL_USER`,
+  and an actor without it receives an empty page without the repository being queried. Because the object id is not
+  retained, `userEntraObjectId` is omitted from each item (it is optional in the spec). Results are paged
+  (`page_number`, `page_size` up to 100) newest deletion first, `email_query` is a case-insensitive "contains" match
+  with `%`, `_` and `\` treated literally, and no matches return 200 with an empty `items` array and page metadata.
+  `deletedBy` is the deleting actor's Entra object id (the stored `status_changed_by` is their `entra_user.id`,
+  resolved on read); if that actor no longer exists the stored value is returned.
+  **Assumption to revisit:** if another application can delete INTERNAL users into the same table, those records would
+  also be treated as EXTERNAL. Retaining the type and object id on deletion would need a shared-schema migration in
+  laa-landing-page.
+
 ### Using existing permissions and policies
 
 Put `@RequiresPermission` on the message and include any applicable message-specific policies.
