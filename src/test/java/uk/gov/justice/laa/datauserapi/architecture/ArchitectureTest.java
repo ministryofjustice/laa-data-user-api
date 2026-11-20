@@ -34,6 +34,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserprofileaccess.UserProfileAccessQuery;
+import uk.gov.justice.laa.datauserapi.application.query.queryuserprofiles.UserProfileQuery;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyGuarded;
 import uk.gov.justice.laa.datauserapi.security.rbac.RequiresPermission;
@@ -246,6 +247,12 @@ class ArchitectureTest {
             .that().implement(UserProfileAccessQuery.class)
             .should().beAnnotatedWith(PolicyGuarded.class)
             .because("Profile access queries are authorised by policy before the handler runs, so a new one cannot skip it");
+
+    @ArchTest
+    static final ArchRule user_profile_queries_must_declare_their_authorisation = classes()
+            .that().implement(UserProfileQuery.class)
+            .should().beAnnotatedWith(PolicyGuarded.class)
+            .because("User profile queries are authorised by policy before the handler runs, so a new one cannot skip it");
 
     // =========================================================================
     // 2. Layer & Access Boundary Rules

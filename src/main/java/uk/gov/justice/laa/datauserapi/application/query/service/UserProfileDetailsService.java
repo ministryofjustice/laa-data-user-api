@@ -2,17 +2,18 @@ package uk.gov.justice.laa.datauserapi.application.query.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserProfileQueryMapper;
+import uk.gov.justice.laa.datauserapi.application.query.policy.ProfileVisibilityEvaluator;
 import uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyentrauser.GetActiveProfileQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
-import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
-import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -20,36 +21,42 @@ import java.util.stream.Collectors;
 public class UserProfileDetailsService {
 
     private final UserProfileQueryRepository repository;
-    private final QueryAuthorisationService authorisationService;
     private final UserProfileQueryMapper queryMapper;
     private final GetActiveProfileQueryMapper viewMapper;
 
     public UserProfileDetailsService(UserProfileQueryRepository repository,
-                                     QueryAuthorisationService authorisationService,
                                      UserProfileQueryMapper queryMapper,
                                      GetActiveProfileQueryMapper viewMapper) {
         this.repository = repository;
-        this.authorisationService = authorisationService;
         this.queryMapper = queryMapper;
         this.viewMapper = viewMapper;
     }
 
-    public UserProfileDetailView getActiveProfile(String userEntraObjectId, AuthenticatedEntraUser actor) {
-        AuthenticatedUserProfile actorProfile = authorisationService.requireActiveProfile(actor);
+    public UserProfileDetailView getActiveProfile(String userEntraObjectId, UUID authorizedProfileId) {
         UserProfileDto targetProfile = queryMapper.toActiveProfile(
-                repository.findActiveProfileWithDetailsAndRoles(userEntraObjectId), userEntraObjectId);
-        String targetFirmId = targetProfile.getFirm() != null ? targetProfile.getFirm().getId().toString() : null;
-        if (!authorisationService.canViewProfile(actorProfile, targetProfile.getUserType(), targetFirmId)) {
-            throw UserProfileNotFoundException.activeProfileForUser(userEntraObjectId);
-        }
+                repository.findProfileByIdWithDetailsAndRoles(userEntraObjectId, authorizedProfileId), userEntraObjectId);
         return viewMapper.mapProfileToDetailView(targetProfile);
     }
 
     public List<UserProfileSummaryView> getProfiles(String userEntraObjectId, AuthenticatedEntraUser actor) {
-        AuthenticatedUserProfile actorProfile = authorisationService.requireActiveProfile(actor);
-        return repository.findAllProfilesByUserEntraObjectId(userEntraObjectId).orElse(List.of()).stream()
-                .filter(profile -> authorisationService.canViewProfile(
-                        actorProfile, profile.userType(), profile.firmId()))
+        List<UserProfileSummaryView> allProfiles = repository.findAllProfilesByUserEntraObjectId(userEntraObjectId)
+                .orElse(List.of());
+        
+        if (allProfiles.isEmpty()) {
+            return List.of();
+        }
+
+        return allProfiles.stream()
+                .filter(profile -> {
+                    ProfileVisibilityContext context = buildContextFromSummary(profile);
+                    return ProfileVisibilityEvaluator.isProfileVisible(actor, context);
+                })
                 .collect(Collectors.toList());
+    }
+
+    private ProfileVisibilityContext buildContextFromSummary(UserProfileSummaryView profile) {
+        return new ProfileVisibilityContext(true, profile.userProfileId(), profile.userType(),
+                profile.firmId() == null || profile.firmId().isBlank()
+                        ? null : UUID.fromString(profile.firmId()));
     }
 }
