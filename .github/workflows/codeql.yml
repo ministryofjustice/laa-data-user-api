@@ -24,6 +24,11 @@ on:
   schedule:
     - cron: '40 3 * * 6'  
   workflow_call:
+    inputs:
+      run_tests:
+        description: Run tests as part of the CodeQL build
+        type: boolean
+        default: true
   workflow_dispatch:
 
 concurrency:
@@ -97,8 +102,8 @@ jobs:
 
     - name: Build JAR
       if: matrix.build-mode == 'manual'
-      # Dependabot needs compilation for analysis, not secret-dependent tests or Sentry uploads.
-      run: ./gradlew build ${{ github.actor == 'dependabot[bot]' && '-x test -x sentryUploadSourceBundleJava' || '' }}
+      # Direct PRs run tests separately, but CodeQL still needs their compiled classes.
+      run: ./gradlew build ${{ github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' && inputs.run_tests != true && 'testClasses -x test' || '' }} ${{ github.actor == 'dependabot[bot]' && '-x test -x sentryUploadSourceBundleJava' || '' }}
       env:
         GITHUB_ACTOR: ${{ github.actor }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
