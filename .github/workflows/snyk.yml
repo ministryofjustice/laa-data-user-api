@@ -7,7 +7,6 @@ on:
     types:
       - opened
       - reopened
-      - edited
       - synchronize
   schedule:
     - cron: '15 0 * * *'  # Run daily at 00:15 UTC
@@ -27,6 +26,10 @@ permissions:
   contents: read
   actions: read
   packages: read
+
+concurrency:
+  group: ${{ github.workflow }}-api-snyk-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   vulnerability-scan:
@@ -223,7 +226,7 @@ jobs:
   publish-sarif:
     name: Publish Snyk SARIF
     needs: vulnerability-scan
-    if: ${{ always() && vars.CODE_SCANNING_UPLOAD_ENABLED != 'false' }}
+    if: ${{ always() && !cancelled() && vars.CODE_SCANNING_UPLOAD_ENABLED != 'false' }}
     continue-on-error: true
     runs-on: ubuntu-latest
     permissions:
