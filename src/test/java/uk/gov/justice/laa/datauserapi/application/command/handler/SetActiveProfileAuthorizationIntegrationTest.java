@@ -44,6 +44,7 @@ class SetActiveProfileAuthorizationIntegrationTest {
 
     private static final UUID PROFILE_ID = UUID.randomUUID();
     private static final UUID USER_ID = UUID.randomUUID();
+    private static final UUID OWNER_ID = UUID.randomUUID();
 
     @Configuration
     @EnableMethodSecurity(proxyTargetClass = true)
@@ -81,7 +82,7 @@ class SetActiveProfileAuthorizationIntegrationTest {
                 .thenReturn(Optional.of(UserProfile.builder()
                         .id(PROFILE_ID)
                         .userType(UserType.EXTERNAL)
-                        .entraUser(EntraUser.builder().entraOid(USER_ID.toString()).build())
+                        .entraUser(EntraUser.builder().id(OWNER_ID).entraOid(USER_ID.toString()).build())
                         .build()));
     }
 
@@ -122,7 +123,7 @@ class SetActiveProfileAuthorizationIntegrationTest {
                 .thenReturn(Optional.of(UserProfile.builder()
                         .id(PROFILE_ID)
                         .userType(UserType.INTERNAL)
-                        .entraUser(EntraUser.builder().entraOid(USER_ID.toString()).build())
+                        .entraUser(EntraUser.builder().id(OWNER_ID).entraOid(USER_ID.toString()).build())
                         .build()));
 
         assertDenied(PolicyDenialReason.TARGET_PROFILE_INTERNAL,
@@ -142,32 +143,32 @@ class SetActiveProfileAuthorizationIntegrationTest {
     }
 
     @Test
-    void nonexistentProfileIsAllowedPastAuthorisationSoTheCommandCanReturnNotFound() {
+    void nonexistentProfileIsDeniedBeforeServiceRuns() {
         when(repository.findForSetActiveProfileAuthorization(PROFILE_ID)).thenReturn(Optional.empty());
-        AuthenticatedEntraUser actor = externalActor(PROFILE_ID);
-        SetActiveProfileCommand command = command();
-        when(service.setActiveProfile(command, actor)).thenReturn(CommandResult.success("updated"));
-
-        assertThat(handler.handle(command, actor).success()).isTrue();
-
-        verify(service).setActiveProfile(command, actor);
+        assertDenied(PolicyDenialReason.TARGET_PROFILE_NOT_FOUND, () -> handler.handle(command(), externalActor(PROFILE_ID)));
+        verifyNoInteractions(service);
     }
 
     @Test
-    void mismatchedUserIsNotRevealedByAuthorisationAndContinuesToCommandNotFoundHandling() {
+    void mismatchedUserIsDeniedBeforeServiceRuns() {
         when(repository.findForSetActiveProfileAuthorization(PROFILE_ID))
                 .thenReturn(Optional.of(UserProfile.builder()
                         .id(PROFILE_ID)
                         .userType(UserType.EXTERNAL)
-                        .entraUser(EntraUser.builder().entraOid(UUID.randomUUID().toString()).build())
+                        .entraUser(EntraUser.builder().id(OWNER_ID).entraOid(UUID.randomUUID().toString()).build())
                         .build()));
-        AuthenticatedEntraUser actor = externalActor(PROFILE_ID);
-        SetActiveProfileCommand command = command();
-        when(service.setActiveProfile(command, actor)).thenReturn(CommandResult.success("updated"));
+        assertDenied(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE, () -> handler.handle(command(), externalActor(PROFILE_ID)));
+        verifyNoInteractions(service);
+    }
 
-        assertThat(handler.handle(command, actor).success()).isTrue();
-
-        verify(service).setActiveProfile(command, actor);
+    @Test
+    void mismatchedOwnerIsDeniedEvenIfActorClaimsProfile() {
+        AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
+                .id(PROFILE_ID).activeProfile(true).userType(UserType.EXTERNAL).build();
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().id(UUID.randomUUID())
+                .entraOid(UUID.randomUUID().toString()).activeProfile(profile).userProfiles(Set.of(profile)).build();
+        assertDenied(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE, () -> handler.handle(command(), actor));
+        verifyNoInteractions(service);
     }
 
     private static SetActiveProfileCommand command() {
@@ -185,6 +186,7 @@ class SetActiveProfileAuthorizationIntegrationTest {
                 .userType(type)
                 .build();
         return AuthenticatedEntraUser.builder()
+                .id(OWNER_ID)
                 .entraOid(UUID.randomUUID().toString())
                 .activeProfile(profile)
                 .userProfiles(Set.of(profile))

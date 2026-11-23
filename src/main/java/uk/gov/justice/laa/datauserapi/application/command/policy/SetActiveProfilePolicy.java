@@ -17,18 +17,21 @@ public class SetActiveProfilePolicy implements AuthorizationPolicy<SetActiveProf
 
     @Override
     public @NonNull PolicyDecision evaluate(SetActiveProfileContext context, AuthenticatedEntraUser actor) {
-        if (!context.profileExists() || !context.profileBelongsToRequestedUser()) {
-            return PolicyDecision.allow();
-        }
-
         AuthenticatedUserProfile activeProfile = actor == null ? null : actor.activeProfile();
-        if (activeProfile == null || activeProfile.userType() != UserType.EXTERNAL) {
+        if (activeProfile == null || !activeProfile.activeProfile() || activeProfile.userType() != UserType.EXTERNAL) {
             return PolicyDecision.deny(PolicyDenialReason.ACTOR_NOT_EXTERNAL_USER);
         }
 
+        if (context == null || !context.profileExists()) {
+            return PolicyDecision.deny(PolicyDenialReason.TARGET_PROFILE_NOT_FOUND);
+        }
+        if (!context.profileBelongsToRequestedUser() || context.ownerId() == null
+                || !context.ownerId().equals(actor.id()) || context.profileId() == null) {
+            return PolicyDecision.deny(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE);
+        }
         boolean linkedExternalProfile = actor.userProfiles() != null
                 && actor.userProfiles().stream()
-                        .anyMatch(profile -> Objects.equals(profile.id(), context.profileId())
+                        .anyMatch(profile -> profile != null && Objects.equals(profile.id(), context.profileId())
                                 && profile.userType() == UserType.EXTERNAL);
         if (!linkedExternalProfile) {
             return PolicyDecision.deny(PolicyDenialReason.TARGET_PROFILE_NOT_VISIBLE);
@@ -39,4 +42,14 @@ public class SetActiveProfilePolicy implements AuthorizationPolicy<SetActiveProf
                 : PolicyDecision.deny(PolicyDenialReason.TARGET_PROFILE_INTERNAL);
     }
 
+    public PolicyDecision evaluateCurrentState(
+            SetActiveProfileContext context, AuthenticatedEntraUser actor, boolean activeExternalProfile) {
+        PolicyDecision decision = evaluate(context, actor);
+        if (!decision.granted()) {
+            return decision;
+        }
+        return activeExternalProfile
+                ? decision
+                : PolicyDecision.deny(PolicyDenialReason.ACTOR_NOT_EXTERNAL_USER);
+    }
 }

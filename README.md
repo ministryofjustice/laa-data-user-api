@@ -82,8 +82,8 @@ paginated and are capped at 500 roles, 100 applications and 100 offices, ordered
 
 `POST /api/v1/commands/users/set-active-profile` requires the `user_data.admin` scope and accepts
 `userEntraObjectId` and `userProfileId`. Only an external caller linked to the requested external
-profile may switch it. The profile must belong to the requested user; a missing user, missing profile,
-or ownership mismatch returns `404`. The operation is idempotent and subsequent active-profile queries
+profile may switch it. The profile must belong to the requested user; a missing or inaccessible user or profile, or an ownership
+mismatch returns the same generic `403`. The operation is idempotent and subsequent active-profile queries
 return the selected profile.
 
 Query service, handler, and controller results are checked recursively for entity

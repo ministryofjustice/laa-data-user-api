@@ -24,7 +24,8 @@ import uk.gov.justice.laa.datauserapi.contracts.response.CommandResult;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.exception.GlobalExceptionHandler;
-import uk.gov.justice.laa.datauserapi.exception.SetActiveProfileNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
+import uk.gov.justice.laa.datauserapi.exception.ForbiddenResponseConstants;
 
 import java.util.List;
 import java.util.UUID;
@@ -143,18 +144,18 @@ class SetActiveProfileCommandControllerTest {
     }
 
     @Test
-    void unknownUserOrProfileIsReturnedAsNotFound() throws Exception {
-        doThrow(new SetActiveProfileNotFoundException())
+    void unknownUserOrProfileIsReturnedAsForbidden() throws Exception {
+        doThrow(new UserProfileNotFoundException(PROFILE_ID))
                 .when(handler).handle(any(SetActiveProfileCommand.class), any(AuthenticatedEntraUser.class));
 
         mockMvc.perform(post(ENDPOINT).with(
                         org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors
                                 .authentication(adminAuthentication(externalActor())))
                         .contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
-                .andExpect(status().isNotFound())
+                .andExpect(status().isForbidden())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.detail").value("The requested resource was not found."));
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.detail").value(ForbiddenResponseConstants.DETAIL));
     }
 
     private static UsernamePasswordAuthenticationToken adminAuthentication(AuthenticatedEntraUser actor) {

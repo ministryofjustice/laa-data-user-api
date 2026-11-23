@@ -36,6 +36,7 @@ public class SetActiveProfilePolicyInputResolver
                 .map(profile -> new SetActiveProfileContext(
                         true,
                         profile.getId(),
+                        profile.getEntraUser().getId(),
                         profile.getEntraUser().getEntraOid()
                                 .equalsIgnoreCase(command.userEntraObjectId().toString()),
                         profile.getUserType()))
