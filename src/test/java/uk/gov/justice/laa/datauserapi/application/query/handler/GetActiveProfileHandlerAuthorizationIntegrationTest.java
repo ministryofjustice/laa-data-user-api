@@ -117,13 +117,13 @@ class GetActiveProfileHandlerAuthorizationIntegrationTest {
 
         GetActiveProfileQuery query = new GetActiveProfileQuery(TARGET_USER_ENTRA_OID);
 
-        when(service.getActiveProfile(TARGET_USER_ENTRA_OID, TARGET_PROFILE_ID))
+        when(service.getActiveProfile(TARGET_USER_ENTRA_OID, actor))
                 .thenReturn(expected);
 
         assertThat(handler.handle(query, actor))
                 .isSameAs(expected);
 
-        verify(service).getActiveProfile(TARGET_USER_ENTRA_OID, TARGET_PROFILE_ID);
+        verify(service).getActiveProfile(TARGET_USER_ENTRA_OID, actor);
     }
 
     @Test
@@ -137,13 +137,13 @@ class GetActiveProfileHandlerAuthorizationIntegrationTest {
 
         GetActiveProfileQuery query = new GetActiveProfileQuery(TARGET_USER_ENTRA_OID);
 
-        when(service.getActiveProfile(TARGET_USER_ENTRA_OID, profileId))
+        when(service.getActiveProfile(TARGET_USER_ENTRA_OID, actor))
                 .thenReturn(expected);
 
         assertThat(handler.handle(query, actor))
                 .isSameAs(expected);
 
-        verify(service).getActiveProfile(TARGET_USER_ENTRA_OID, profileId);
+        verify(service).getActiveProfile(TARGET_USER_ENTRA_OID, actor);
     }
 
     @Test
@@ -187,13 +187,13 @@ class GetActiveProfileHandlerAuthorizationIntegrationTest {
 
         GetActiveProfileQuery query = new GetActiveProfileQuery(TARGET_USER_ENTRA_OID);
 
-        when(service.getActiveProfile(TARGET_USER_ENTRA_OID, profileId))
+        when(service.getActiveProfile(TARGET_USER_ENTRA_OID, actor))
                 .thenReturn(expected);
 
         assertThat(handler.handle(query, actor))
                 .isSameAs(expected);
 
-        verify(service).getActiveProfile(TARGET_USER_ENTRA_OID, profileId);
+        verify(service).getActiveProfile(TARGET_USER_ENTRA_OID, actor);
     }
 
     @Test
@@ -222,13 +222,13 @@ class GetActiveProfileHandlerAuthorizationIntegrationTest {
 
         GetActiveProfileQuery query = new GetActiveProfileQuery(TARGET_USER_ENTRA_OID);
 
-        when(service.getActiveProfile(TARGET_USER_ENTRA_OID, profileId))
+        when(service.getActiveProfile(TARGET_USER_ENTRA_OID, actor))
                 .thenReturn(expected);
 
         assertThat(handler.handle(query, actor))
                 .isSameAs(expected);
 
-        verify(service).getActiveProfile(TARGET_USER_ENTRA_OID, profileId);
+        verify(service).getActiveProfile(TARGET_USER_ENTRA_OID, actor);
     }
 
     @Test
@@ -259,41 +259,32 @@ class GetActiveProfileHandlerAuthorizationIntegrationTest {
 
         GetActiveProfileQuery query = new GetActiveProfileQuery(TARGET_USER_ENTRA_OID);
 
-        when(service.getActiveProfile(TARGET_USER_ENTRA_OID, TARGET_PROFILE_ID))
+        when(service.getActiveProfile(TARGET_USER_ENTRA_OID, actor))
                 .thenReturn(expected);
 
         UserProfileDetailView result = handler.handle(query, actor);
 
         assertThat(result).isSameAs(expected);
-        verify(service).getActiveProfile(TARGET_USER_ENTRA_OID, TARGET_PROFILE_ID);
+        verify(service).getActiveProfile(TARGET_USER_ENTRA_OID, actor);
     }
 
     @Test
-    void multiFirmUserCannotViewUnauthorizedFirmWhenSwitchingContexts() {
-        UUID firmAprofileId = UUID.randomUUID();
-        UUID firmBprofileId = UUID.randomUUID();
-        UUID firmBid = UUID.randomUUID();
+    void handlerPassesTheUserEntraObjectIdAndActorThroughWithoutResolvingItsOwnProfileId() {
+        // The handler must never resolve its own profile ID from a second repository read: doing so would let a
+        // profile switch between the RBAC interceptor's read and the handler's read smuggle through a profile the
+        // policy never saw. It only forwards the query's user Entra OID and the authenticated actor, so the final
+        // visibility decision is made once, by the service, against the exact row it loads.
+        // See UserProfileDetailsServiceTest for the regression test covering that single-read recheck.
+        stubProfileVisibility(UserType.EXTERNAL, TARGET_PROFILE_ID, TARGET_FIRM_ID);
 
-        // Target has two profiles in different firms, but only Firm A's is active
-        when(repository.findActiveProfileVisibilityContext(TARGET_USER_ENTRA_OID))
-                .thenReturn(java.util.Optional.of(
-                        new ProfileVisibilityContext(true, firmAprofileId, UserType.EXTERNAL, TARGET_FIRM_ID)));
-
-        // Actor is authorized only for Firm A and has Firm A's profile as active
-        AuthenticatedEntraUser actor = external(firmAprofileId, TARGET_FIRM_ID);
-
-        GetActiveProfileQuery query = new GetActiveProfileQuery(TARGET_USER_ENTRA_OID);
-
+        AuthenticatedEntraUser actor = external(TARGET_PROFILE_ID, TARGET_FIRM_ID);
         UserProfileDetailView expected = mock(UserProfileDetailView.class);
-        when(service.getActiveProfile(TARGET_USER_ENTRA_OID, firmAprofileId))
-                .thenReturn(expected);
+        when(service.getActiveProfile(TARGET_USER_ENTRA_OID, actor)).thenReturn(expected);
 
-        // Handler should fetch only the Firm A profile that was authorized
-        UserProfileDetailView result = handler.handle(query, actor);
+        UserProfileDetailView result = handler.handle(new GetActiveProfileQuery(TARGET_USER_ENTRA_OID), actor);
 
         assertThat(result).isSameAs(expected);
-        // Verify service was called with the authorized Firm A profile ID, not any other profile
-        verify(service).getActiveProfile(TARGET_USER_ENTRA_OID, firmAprofileId);
+        verify(service).getActiveProfile(TARGET_USER_ENTRA_OID, actor);
     }
 
     @Test

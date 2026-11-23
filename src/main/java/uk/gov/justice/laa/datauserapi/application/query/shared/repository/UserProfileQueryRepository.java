@@ -45,11 +45,10 @@ public interface UserProfileQueryRepository extends Repository<EntraUser, UUID> 
         LEFT JOIN FETCH up.offices o
         LEFT JOIN FETCH up.firm f
         WHERE u.entraOid = :userEntraObjectId
-            AND up.id = :profileId
+            AND up.activeProfile = true
         """)
-    Optional<UserProfile> findProfileByIdWithDetailsAndRoles(
-            @Param("userEntraObjectId") String userEntraObjectId,
-            @Param("profileId") UUID profileId);
+    Optional<UserProfile> findActiveProfileWithDetailsAndRoles(
+            @Param("userEntraObjectId") String userEntraObjectId);
 
     @Query("""
         SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext(

@@ -10,6 +10,7 @@ import uk.gov.justice.laa.datauserapi.application.query.mapper.UserProfileQueryM
 import uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyentrauser.GetActiveProfileQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserprofiles.GetUserProfilesQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserProfileDetailsService;
+import uk.gov.justice.laa.datauserapi.application.query.service.UserProfileListVisibilityPolicyInputResolver;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
@@ -90,7 +91,8 @@ class GetUserProfilesHandlerTest {
         return new GetUserProfilesHandler(new UserProfileDetailsService(
                 userProfileQueryRepository,
                 mock(UserProfileQueryMapper.class),
-                mock(GetActiveProfileQueryMapper.class)));
+                mock(GetActiveProfileQueryMapper.class),
+                new UserProfileListVisibilityPolicyInputResolver(userProfileQueryRepository)));
     }
 
     private AuthenticatedEntraUser authenticatedTestUser() {

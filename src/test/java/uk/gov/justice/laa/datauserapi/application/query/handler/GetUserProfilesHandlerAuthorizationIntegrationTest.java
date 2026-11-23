@@ -68,11 +68,13 @@ class GetUserProfilesHandlerAuthorizationIntegrationTest {
         }
 
         @Bean
-        UserProfileDetailsService userProfileDetailsService(UserProfileQueryRepository repository) {
+        UserProfileDetailsService userProfileDetailsService(UserProfileQueryRepository repository,
+                                                              UserProfileListVisibilityPolicyInputResolver listVisibilityResolver) {
             return new UserProfileDetailsService(
                     repository,
                     mock(),
-                    mock());
+                    mock(),
+                    listVisibilityResolver);
         }
     }
 

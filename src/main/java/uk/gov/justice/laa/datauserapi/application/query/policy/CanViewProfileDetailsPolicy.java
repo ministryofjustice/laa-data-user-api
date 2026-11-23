@@ -11,7 +11,8 @@ import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
 /**
- * Authorization policy for viewing user profile details (getUserProfiles, getActiveProfile).
+ * Authorization policy for viewing a single user profile's details (getActiveProfile). The list query
+ * (getUserProfiles) is guarded separately by {@link CanViewProfileListPolicy}.
  * Uses the same visibility logic as {@link CanViewProfilePolicy}.
  *
  * An actor may view a profile when:

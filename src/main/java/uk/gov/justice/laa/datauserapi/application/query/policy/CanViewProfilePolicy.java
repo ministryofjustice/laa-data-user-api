@@ -23,9 +23,9 @@ import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
  * <p>Being internal is not enough to view other internal users: per the SiLAS roles matrix, External User Manager and
  * External User Admin are internal roles without {@code VIEW_INTERNAL_USER}.
  *
- * <p>This is deliberately stricter than {@code QueryAuthorisationService.canViewProfile}, which the profile detail
- * queries use: that rule lets any external actor view profiles in their own firm without a permission. The two agree
- * for internal actors, and a test keeps them in step.
+ * <p>This applies the same rule as {@link CanViewProfileDetailsPolicy}, via the shared
+ * {@link ProfileVisibilityEvaluator}: external actors need {@code VIEW_EXTERNAL_USER} to view same-firm
+ * colleagues in both cases. A test keeps the two policies in step.
  */
 @Component
 public class CanViewProfilePolicy implements AuthorizationPolicy<ProfileVisibilityContext> {
