@@ -21,8 +21,9 @@ import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUs
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
 
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.exception.InvalidUuidFormatException;
 
-
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -72,12 +73,12 @@ class UserAccountQueryControllerTest {
 
         UserSearchCriteria criteria = new UserSearchCriteria(
                 0, 20, null, null, null, null, null, null, null, null,
-                null, null, null, true, false, null, false);
+                null, null, null, true, false, null, false, false);
 
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .entraOid(ACTOR_OID)
                 .build();
-        when(searchUsersHandler.handle(any(SearchUsersQuery.class)))
+        when(searchUsersHandler.handle(any(SearchUsersQuery.class), any(AuthenticatedEntraUser.class)))
                 .thenReturn(page);
 
         ResponseEntity<UserAccountSummaryPage> result =
@@ -89,9 +90,8 @@ class UserAccountQueryControllerTest {
         ArgumentCaptor<SearchUsersQuery> captor =
                 ArgumentCaptor.forClass(SearchUsersQuery.class);
 
-        verify(searchUsersHandler).handle(captor.capture());
+        verify(searchUsersHandler).handle(captor.capture(), any(AuthenticatedEntraUser.class));
         assertEquals(criteria, captor.getValue().criteria());
-        assertEquals(ACTOR_OID, captor.getValue().actorOid());
 
         UserAccountSummaryPage expected =
                 new UserAccountSummaryPage(page.items(), page.page());
@@ -106,15 +106,26 @@ class UserAccountQueryControllerTest {
         AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
                 .entraOid(ACTOR_OID)
                 .build();
-        when(getUserAccountHandler.handle(any(GetUserAccountQuery.class)))
+        when(getUserAccountHandler.handle(any(GetUserAccountQuery.class), any(AuthenticatedEntraUser.class)))
                 .thenReturn(userView);
 
         ResponseEntity<UserView> result = controller.getUserAccount(USER_ENTRA_OBJECT_ID, user);
-        verify(getUserAccountHandler).handle(any(GetUserAccountQuery.class));
+        verify(getUserAccountHandler).handle(any(GetUserAccountQuery.class), any(AuthenticatedEntraUser.class));
         assertEquals(HttpStatus.OK, result.getStatusCode());
         assertNotNull(result.getBody());
         UserView expected = new UserView(null, null);
         assertEquals(expected, result.getBody());
+    }
+
+    @Test
+    void getUserAccount_withMalformedUuid_shouldThrowInvalidUuidFormatException() {
+        AuthenticatedEntraUser user = AuthenticatedEntraUser.builder()
+                .entraOid(ACTOR_OID)
+                .build();
+
+        assertThatThrownBy(() -> controller.getUserAccount("invalid-uuid", user))
+                .isInstanceOf(InvalidUuidFormatException.class)
+                .hasMessageContaining("userEntraObjectId must match UUID format");
     }
 
     @Test
@@ -143,3 +154,4 @@ class UserAccountQueryControllerTest {
         assertEquals(HttpStatus.OK, result.getStatusCode());
     }
 }
+

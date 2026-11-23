@@ -7,9 +7,7 @@ on:
     types:
       - opened
       - reopened
-      - edited
       - synchronize
-      - closed
   schedule:
     - cron: '15 0 * * *'  # Run daily at 00:15 UTC
   workflow_call:
@@ -28,6 +26,10 @@ permissions:
   contents: read
   actions: read
   packages: read
+
+concurrency:
+  group: ${{ github.workflow }}-api-snyk-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   vulnerability-scan:
@@ -144,7 +146,7 @@ jobs:
 
       - name: Send notification to Slack
         id: slack
-        if: always() && env.SHOULD_NOTIFY == 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        if: always() && env.SHOULD_NOTIFY == 'true' && github.event_name == 'schedule'
         uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
         with:
           payload: |
@@ -224,7 +226,7 @@ jobs:
   publish-sarif:
     name: Publish Snyk SARIF
     needs: vulnerability-scan
-    if: ${{ always() && vars.CODE_SCANNING_UPLOAD_ENABLED != 'false' }}
+    if: ${{ always() && !cancelled() && vars.CODE_SCANNING_UPLOAD_ENABLED != 'false' }}
     continue-on-error: true
     runs-on: ubuntu-latest
     permissions:

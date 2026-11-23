@@ -11,32 +11,40 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.retry.annotation.EnableRetry;
-import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.core.exception.ApiCallAttemptTimeoutException;
+import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
 import software.amazon.awssdk.core.exception.SdkClientException;
-import uk.gov.justice.laa.datauserapi.exception.CcmsNotificationException;
+import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
+import software.amazon.awssdk.services.sqs.model.SqsException;
 import uk.gov.justice.laa.datauserapi.application.command.registry.SqsClientRegistry;
-import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
+import uk.gov.justice.laa.datauserapi.application.command.dto.CcmsSyncProfile;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
-import uk.gov.justice.laa.datauserapi.entity.App;
-import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.Firm;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.exception.CcmsNotificationException;
+import uk.gov.justice.laa.datauserapi.exception.CcmsSyncException;
 
+import java.net.SocketTimeoutException;
+import java.time.LocalDateTime;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -57,8 +65,6 @@ class RoleChangeNotificationServiceTest {
     @Mock
     private SqsClientRegistry registry;
     @Mock
-    private UserProfileCommandRepository repository;
-    @Mock
     private SqsClient sqsClient;
 
     private RoleChangeNotificationService service;
@@ -73,7 +79,7 @@ class RoleChangeNotificationServiceTest {
         appender.start();
         logger.addAppender(appender);
         service = new RoleChangeNotificationService(registry,
-                new ObjectMapper().registerModule(new JavaTimeModule()), repository);
+                new ObjectMapper().registerModule(new JavaTimeModule()));
         EntraUser user = EntraUser.builder().entraOid("oid").firstName("A").lastName("B").email("a@b.com").build();
         profile = UserProfile.builder().entraUser(user).legacyUserId(UUID.randomUUID())
                 .userType(UserType.EXTERNAL).firm(Firm.builder().code("F1").build()).build();
@@ -169,7 +175,7 @@ class RoleChangeNotificationServiceTest {
         JsonProcessingException failure = new JsonProcessingException("invalid JSON") {};
         when(mapper.writeValueAsString(any())).thenThrow(failure);
         RoleChangeNotificationService notification =
-                new RoleChangeNotificationService(registry, mapper, repository);
+                new RoleChangeNotificationService(registry, mapper);
         when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
         when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
 
@@ -261,7 +267,6 @@ class RoleChangeNotificationServiceTest {
         context.register(RetryConfiguration.class);
         context.registerBean(SqsClientRegistry.class, () -> registry);
         context.registerBean(ObjectMapper.class, () -> mapper);
-        context.registerBean(UserProfileCommandRepository.class, () -> repository);
         context.register(RoleChangeNotificationService.class);
         context.refresh();
         return context;
@@ -273,46 +278,6 @@ class RoleChangeNotificationServiceTest {
     }
 
     @Test
-    void roleSyncDoesNothingWithoutProfiles() {
-        when(repository.findUserProfilesForCcmsSync()).thenReturn(List.of());
-
-        service.ccmsRoleSync();
-
-        verify(repository, never()).save(any());
-    }
-
-    @Test
-    void roleSyncMarksProfileSuccessfulAfterSending() {
-        App app = App.builder().entraOid(APP).build();
-        AppRole role = AppRole.builder().roleIdentifier("R").legacySync(true).app(app).build();
-        profile.setAppRoles(new HashSet<>(Set.of(role)));
-        when(repository.findUserProfilesForCcmsSync()).thenReturn(List.of(profile));
-        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
-        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
-        when(sqsClient.sendMessage(any(SendMessageRequest.class)))
-                .thenReturn(SendMessageResponse.builder().messageId("m").build());
-
-        service.ccmsRoleSync();
-
-        assertThat(profile.isLastCcmsSyncSuccessful()).isTrue();
-        verify(repository).save(profile);
-    }
-
-    @Test
-    void roleSyncMarksProfileUnsuccessfulWhenSkipped() {
-        App app = App.builder().entraOid(APP).build();
-        AppRole role = AppRole.builder().roleIdentifier("R").legacySync(true).app(app).build();
-        profile.setAppRoles(new HashSet<>(Set.of(role)));
-        when(repository.findUserProfilesForCcmsSync()).thenReturn(List.of(profile));
-        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.empty());
-
-        service.ccmsRoleSync();
-
-        assertThat(profile.isLastCcmsSyncSuccessful()).isFalse();
-        verify(repository).save(profile);
-    }
-
-    @Test
     void skipsWhenQueueBecomesNoneBetweenLookups() {
         when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE), Optional.of("NONE"));
         when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
@@ -321,32 +286,47 @@ class RoleChangeNotificationServiceTest {
         verifyNoInteractions(sqsClient);
     }
 
-    @Test
-    void roleSyncWithMultipleAppsIsUnsuccessfulWhenAnyAppFails() {
-        AppRole good = AppRole.builder().roleIdentifier("R1").legacySync(true).app(App.builder().entraOid(APP).build()).build();
-        AppRole bad = AppRole.builder().roleIdentifier("R2").legacySync(true).app(App.builder().entraOid("other").build()).build();
-        profile.setAppRoles(new HashSet<>(Set.of(good, bad)));
-        when(repository.findUserProfilesForCcmsSync()).thenReturn(List.of(profile));
+    @ParameterizedTest
+    @MethodSource("downstreamFailures")
+    void syncMessageClassifiesDownstreamFailure(RuntimeException failure, CcmsSyncException.Reason reason) {
         when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
         when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
-        when(registry.getSqsQueueUrl("other")).thenReturn(Optional.empty());
-        when(sqsClient.sendMessage(any(SendMessageRequest.class)))
-                .thenReturn(SendMessageResponse.builder().messageId("m").build());
+        when(sqsClient.sendMessage(any(SendMessageRequest.class))).thenThrow(failure);
 
-        service.ccmsRoleSync();
+        assertThatThrownBy(() -> service.sendSyncMessage(snapshot(), APP, Set.of("R"), LocalDateTime.of(2026, 1, 1, 0, 0)))
+                .isInstanceOfSatisfying(CcmsSyncException.class,
+                        ex -> {
+                            assertThat(ex.reason()).isEqualTo(reason);
+                            assertThat(ex).hasCause(failure);
+                        });
+    }
 
-        assertThat(profile.isLastCcmsSyncSuccessful()).isFalse();
+    private static Stream<Arguments> downstreamFailures() {
+        return Stream.of(
+                Arguments.of(ApiCallTimeoutException.create(1000), CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT),
+                Arguments.of(ApiCallAttemptTimeoutException.create(1000), CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT),
+                Arguments.of(SdkClientException.create("unreachable"), CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE),
+                Arguments.of(SdkClientException.create("read timed out", new SocketTimeoutException()),
+                        CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT),
+                Arguments.of(SqsException.builder().statusCode(503).message("Unavailable").build(),
+                        CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE),
+                Arguments.of(SqsException.builder().statusCode(429).message("Throttled").build(),
+                        CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE),
+                Arguments.of(SqsException.builder().statusCode(504).message("Timeout").build(),
+                        CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT),
+                Arguments.of(SqsException.builder().statusCode(500).message("Unexpected").build(),
+                        CcmsSyncException.Reason.DOWNSTREAM_REJECTED));
     }
 
     @Test
-    void roleSyncContinuesAfterProfileError() {
-        profile.setAppRoles(null);
-        when(repository.findUserProfilesForCcmsSync()).thenReturn(List.of(profile));
+    void syncMessageRejectsUnexpectedResponse() {
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+        when(sqsClient.sendMessage(any(SendMessageRequest.class))).thenReturn(SendMessageResponse.builder().build());
 
-        service.ccmsRoleSync();
-
-        verify(repository, never()).save(any());
-        assertFailureEvents("Failed to sync CCMS roles for profile", "INVALID_PROFILE", 1);
+        assertThatThrownBy(() -> service.sendSyncMessage(snapshot(), APP, Set.of("R"), LocalDateTime.of(2026, 1, 1, 0, 0)))
+                .isInstanceOfSatisfying(CcmsSyncException.class,
+                        ex -> assertThat(ex.reason()).isEqualTo(CcmsSyncException.Reason.INVALID_RESPONSE));
     }
 
     @AfterEach
@@ -366,4 +346,76 @@ class RoleChangeNotificationServiceTest {
             assertThat(event.getThrowableProxy()).isNotNull();
         });
     }
+
+    @Test
+    void syncMessageReportsMissingClientAsUnavailable() {
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.sendSyncMessage(snapshot(), APP, Set.of("R"), LocalDateTime.of(2026, 1, 1, 0, 0)))
+                .isInstanceOfSatisfying(CcmsSyncException.class,
+                        ex -> assertThat(ex.reason()).isEqualTo(CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE));
+    }
+
+    @Test
+    void syncRetriesKeepThePayloadAndDeduplicationIdStable() {
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+        when(sqsClient.sendMessage(any(SendMessageRequest.class)))
+                .thenReturn(SendMessageResponse.builder().messageId("message").build());
+        var snapshot = snapshot();
+        var timestamp = LocalDateTime.of(2026, 1, 1, 0, 0);
+
+        service.sendSyncMessage(snapshot, APP, Set.of("R", "OTHER"), timestamp);
+        service.sendSyncMessage(snapshot, APP, Set.of("OTHER", "R"), timestamp);
+
+        var requests = ArgumentCaptor.forClass(SendMessageRequest.class);
+        verify(sqsClient, times(2)).sendMessage(requests.capture());
+        assertThat(requests.getAllValues().get(0)).isEqualTo(requests.getAllValues().get(1));
+        assertThat(requests.getValue().messageBody()).contains("\"vendorNumber\":\"F1\"", "\"timestampNow\":\"2026-01-01T00:00:00.000Z\"");
+    }
+
+    @Test
+    void differentApplicationsDoNotDeduplicateEachOthersMessages() {
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+        when(registry.getSqsQueueUrl("other")).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient("other")).thenReturn(Optional.of(sqsClient));
+        when(sqsClient.sendMessage(any(SendMessageRequest.class)))
+                .thenReturn(SendMessageResponse.builder().messageId("message").build());
+        var snapshot = snapshot();
+        var timestamp = LocalDateTime.of(2026, 1, 1, 0, 0);
+
+        service.sendSyncMessage(snapshot, APP, Set.of("R"), timestamp);
+        service.sendSyncMessage(snapshot, "other", Set.of("R"), timestamp);
+
+        var requests = ArgumentCaptor.forClass(SendMessageRequest.class);
+        verify(sqsClient, times(2)).sendMessage(requests.capture());
+        assertThat(requests.getAllValues()).extracting(SendMessageRequest::messageDeduplicationId).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void syncSerializationFailurePreservesCauseAndIsNotLoggedByTransport() throws JsonProcessingException {
+        var mapper = mock(ObjectMapper.class);
+        var failure = new JsonProcessingException("invalid JSON") {};
+        when(mapper.writeValueAsString(any())).thenThrow(failure);
+        when(registry.getSqsQueueUrl(APP)).thenReturn(Optional.of(QUEUE));
+        when(registry.getSqsClient(APP)).thenReturn(Optional.of(sqsClient));
+        var notification = new RoleChangeNotificationService(registry, mapper);
+
+        assertThatThrownBy(() -> notification.sendSyncMessage(snapshot(), APP, Set.of("R"),
+                LocalDateTime.of(2026, 1, 1, 0, 0)))
+                .isInstanceOfSatisfying(CcmsSyncException.class, ex -> {
+                    assertThat(ex.reason()).isEqualTo(CcmsSyncException.Reason.MESSAGE_PREPARATION_FAILURE);
+                    assertThat(ex.getCause()).hasCause(failure);
+                });
+        verifyNoInteractions(sqsClient);
+        assertThat(appender.list).isEmpty();
+    }
+
+    private CcmsSyncProfile snapshot() {
+        return new CcmsSyncProfile(UUID.randomUUID(), "oid", profile.getLegacyUserId(), "A", "B", "a@b.com",
+                profile.getUserType(), "F1", Map.of(APP, Set.of("R")));
+    }
+
 }

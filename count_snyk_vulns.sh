@@ -21,6 +21,8 @@ extract_findings() {
        })) as $rules
     |
     .results[]? |
+    # Snyk keeps policy-suppressed results in SARIF for audit.
+    select(any(.suppressions[]?; .kind == "external" and .status == "accepted") | not) |
     ($rules[.ruleId] // {score: 0, level: "", desc: "", fixes: []}) as $r |
     (if $r.score > 0 then ($r.score | from_score)
      else ((.level // $r.level) | from_level)

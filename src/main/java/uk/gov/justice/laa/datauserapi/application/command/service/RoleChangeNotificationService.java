@@ -9,44 +9,41 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.dao.DataAccessException;
+import uk.gov.justice.laa.datauserapi.application.command.dto.CcmsSyncProfile;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.ApiCallAttemptTimeoutException;
+import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 import uk.gov.justice.laa.datauserapi.application.command.model.CcmsMessage;
 import uk.gov.justice.laa.datauserapi.application.command.registry.SqsClientRegistry;
-import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
-import uk.gov.justice.laa.datauserapi.entity.AppRole;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.exception.CcmsSyncException;
 import uk.gov.justice.laa.datauserapi.exception.CcmsNotificationException;
 import uk.gov.justice.laa.datauserapi.exception.ExceptionLogFields;
 
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class RoleChangeNotificationService {
+public class RoleChangeNotificationService implements CcmsSyncSender {
 
     private final SqsClientRegistry sqsClientRegistry;
     private final ObjectMapper objectMapper;
-    private final UserProfileCommandRepository userProfileRepository;
 
     private static final String USER_TYPE_ATTRIBUTE = "userType";
 
@@ -93,6 +90,45 @@ public class RoleChangeNotificationService {
     }
 
 
+    @Override
+    public void sendSyncMessage(CcmsSyncProfile profile, String appOid, Set<String> roles, LocalDateTime timestamp) {
+        var client = sqsClientRegistry.getSqsClient(appOid);
+        var queue = sqsClientRegistry.getSqsQueueUrl(appOid).filter(url -> !"NONE".equalsIgnoreCase(url));
+        if (client.isEmpty() || queue.isEmpty()) {
+            throw new CcmsSyncException(CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE);
+        }
+        var message = CcmsMessage.builder().userName(profile.legacyUserId().toString())
+                .firstName(profile.firstName()).lastName(profile.lastName()).email(profile.email())
+                .vendorNumber(profile.vendorNumber()).timestamp(timestamp)
+                .responsibilityKey(roles.stream().sorted().toList()).build();
+        String deduplicationKey = profile.id() + "|" + appOid + "|" + String.join("|", roles.stream().sorted().toList())
+                + "|" + timestamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HH"));
+        String deduplicationId = UUID.nameUUIDFromBytes(deduplicationKey.getBytes(StandardCharsets.UTF_8)).toString();
+        try {
+            sendPreparedMessage(client.get(), queue.get(), message, profile.userType(), deduplicationId);
+        } catch (ApiCallTimeoutException | ApiCallAttemptTimeoutException ex) {
+            throw new CcmsSyncException(CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT, ex);
+        } catch (AwsServiceException ex) {
+            CcmsSyncException.Reason reason = switch (ex.statusCode()) {
+                case 408, 504 -> CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT;
+                case 429, 503 -> CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE;
+                default -> CcmsSyncException.Reason.DOWNSTREAM_REJECTED;
+            };
+            throw new CcmsSyncException(reason, ex);
+        } catch (SdkClientException ex) {
+            for (Throwable cause = ex.getCause(); cause != null; cause = cause.getCause()) {
+                if (cause instanceof java.net.SocketTimeoutException
+                        || cause instanceof java.net.http.HttpTimeoutException
+                        || cause instanceof java.util.concurrent.TimeoutException) {
+                    throw new CcmsSyncException(CcmsSyncException.Reason.DOWNSTREAM_TIMEOUT, ex);
+                }
+            }
+            throw new CcmsSyncException(CcmsSyncException.Reason.DOWNSTREAM_UNAVAILABLE, ex);
+        } catch (CcmsNotificationException ex) {
+            throw new CcmsSyncException(CcmsSyncException.Reason.MESSAGE_PREPARATION_FAILURE, ex);
+        }
+    }
+
     private boolean sendRoleChangeNotificationToSqs(UserProfile userProfile, String appEntraOid, Set<String> newPuiRoles, Set<String> oldPuiRoles) {
         Optional<SqsClient> sqsClientOpt = sqsClientRegistry.getSqsClient(appEntraOid);
         Optional<String> sqsQueueUrlOpt = sqsClientRegistry.getSqsQueueUrl(appEntraOid);
@@ -123,33 +159,14 @@ public class RoleChangeNotificationService {
                 ccmsMessageBuilder.vendorNumber(userProfile.getFirm().getCode());
             }
 
-            CcmsMessage message = ccmsMessageBuilder.build();
-            String messageBody;
-            try {
-                messageBody = objectMapper.writeValueAsString(message);
-            } catch (JsonProcessingException ex) {
-                throw new CcmsNotificationException("CCMS message serialization failed", ex);
-            }
             log.info("CCMS role change message generated",
                     kv("userProfileId", userProfile.getId()),
                     kv("entraOid", userProfile.getEntraUser().getEntraOid()),
                     kv("legacyUserId", userProfile.getLegacyUserId()),
                     kv("ccmsRoles", newPuiRoles));
 
-            Map<String, MessageAttributeValue> userTypeAttribute = Map.of(USER_TYPE_ATTRIBUTE, MessageAttributeValue.builder()
-                    .stringValue(userProfile.getUserType().toString())
-                    .dataType("String")
-                    .build());
-
-            SendMessageRequest sendMessageRequest = SendMessageRequest.builder()
-                    .queueUrl(sqsQueueUrl)
-                    .messageBody(messageBody)
-                    .messageAttributes(userTypeAttribute)
-                    .messageGroupId(userProfile.getLegacyUserId().toString())
-                    .messageDeduplicationId(generateDeduplicationId(userProfile, newPuiRoles))
-                    .build();
-
-            SendMessageResponse response = sqsClient.sendMessage(sendMessageRequest);
+            SendMessageResponse response = sendPreparedMessage(sqsClient, sqsQueueUrl, ccmsMessageBuilder.build(),
+                    userProfile.getUserType(), generateDeduplicationId(userProfile, newPuiRoles));
             log.info("CCMS role change message sent to queue",
                     kv("userProfileId", userProfile.getId()),
                     kv("entraOid", entraUser.getEntraOid()),
@@ -161,6 +178,26 @@ public class RoleChangeNotificationService {
                     kv("applicationEntraOid", appEntraOid));
         }
         return true;
+    }
+
+    private SendMessageResponse sendPreparedMessage(SqsClient client, String queue, CcmsMessage message,
+                                                    UserType userType, String deduplicationId) {
+        String messageBody;
+        try {
+            messageBody = objectMapper.writeValueAsString(message);
+        } catch (JsonProcessingException ex) {
+            throw new CcmsNotificationException("CCMS message serialization failed", ex);
+        }
+        var request = SendMessageRequest.builder().queueUrl(queue).messageBody(messageBody)
+                .messageAttributes(Map.of(USER_TYPE_ATTRIBUTE, MessageAttributeValue.builder()
+                        .stringValue(userType.toString()).dataType("String").build()))
+                .messageGroupId(message.getUserName()).messageDeduplicationId(deduplicationId).build();
+        SendMessageResponse response = client.sendMessage(request);
+        if (response == null || response.messageId() == null || response.messageId().isBlank()
+                || (response.sdkHttpResponse() != null && !response.sdkHttpResponse().isSuccessful())) {
+            throw new CcmsSyncException(CcmsSyncException.Reason.INVALID_RESPONSE);
+        }
+        return response;
     }
 
     @Recover
@@ -203,79 +240,4 @@ public class RoleChangeNotificationService {
 
         return UUID.nameUUIDFromBytes(content.getBytes()).toString();
     }
-
-
-    @Async
-    public void ccmsRoleSync() {
-        List<UserProfile> profiles = userProfileRepository.findUserProfilesForCcmsSync();
-
-        if (profiles.isEmpty()) {
-            log.info("No profiles found for CCMS role sync",
-                    kv("profileCount", 0));
-            return;
-        }
-
-        AtomicInteger successful = new AtomicInteger();
-        AtomicInteger unsuccessful = new AtomicInteger();
-
-        profiles.forEach(profile -> {
-            try {
-                if (profile.getAppRoles() == null) {
-                    throw new CcmsNotificationException(CcmsNotificationException.Reason.INVALID_PROFILE,
-                            "CCMS profile roles are unavailable", null);
-                }
-                Map<String, Set<String>> ccmsRolesMap = profile.getAppRoles().stream()
-                        .filter(AppRole::isLegacySync)
-                        .collect(Collectors.groupingBy(role -> role.getApp().getEntraOid(),
-                                Collectors.collectingAndThen(
-                                        Collectors.mapping(AppRole::getRoleIdentifier, Collectors.toSet()),
-                                        HashSet::new
-                                )));
-
-                boolean notificationSuccess = profile.isLastCcmsSyncSuccessful();
-                boolean ccmsSyncResult = true;
-                for (Map.Entry<String, Set<String>> ccmsRoles : ccmsRolesMap.entrySet()) {
-                    boolean currentSyncResult = sendMessage(profile, ccmsRoles.getKey(), ccmsRoles.getValue(), Collections.emptySet());
-                    ccmsSyncResult = ccmsSyncResult && currentSyncResult;
-                    notificationSuccess = ccmsSyncResult;
-
-                    log.info("CCMS role sync completed for profile",
-                            kv("userProfileId", profile.getId()),
-                            kv("entraOid", profile.getEntraUser().getEntraOid()),
-                            kv("successful", notificationSuccess));
-                }
-
-                profile.setLastCcmsSyncSuccessful(notificationSuccess);
-                userProfileRepository.save(profile);
-
-                if (notificationSuccess) {
-                    successful.incrementAndGet();
-                } else {
-                    unsuccessful.incrementAndGet();
-                }
-            } catch (CcmsNotificationException | SdkException | DataAccessException e) {
-                log.error("Failed to sync CCMS roles for profile",
-                        ExceptionLogFields.exceptionGroup(e), ExceptionLogFields.exceptionReason(e),
-                        kv("userProfileId", profile.getId()),
-                        kv("entraOid", profile.getEntraUser().getEntraOid()),
-                        kv("failureType", e instanceof DataAccessException ? "DATABASE_FAILURE" : "NOTIFICATION_FAILURE"),
-                        e);
-                unsuccessful.incrementAndGet();
-            } catch (RuntimeException e) {
-                // Keep independent profile syncs running after an unexpected fault.
-                log.error("Unexpected CCMS role sync failure",
-                        ExceptionLogFields.exceptionGroup(e), ExceptionLogFields.exceptionReason(e),
-                        kv("userProfileId", profile.getId()),
-                        kv("failureType", "SYSTEM_FAILURE"),
-                        e);
-                unsuccessful.incrementAndGet();
-            }
-
-        });
-
-        log.info("CCMS role sync completed",
-                kv("successfulProfiles", successful.get()),
-                kv("unsuccessfulProfiles", unsuccessful.get()));
-    }
-
 }

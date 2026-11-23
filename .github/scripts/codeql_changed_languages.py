@@ -1,0 +1,59 @@
+import json
+import os
+from pathlib import PurePosixPath
+import subprocess
+import sys
+
+
+LANGUAGES = ("actions", "java-kotlin")
+JAVA_SUFFIXES = {".java", ".kt", ".kts"}
+DOC_SUFFIXES = {".md", ".rst", ".adoc"}
+
+
+def select_languages(paths):
+    selected = set()
+    for path in paths:
+        name = PurePosixPath(path).name
+        suffix = PurePosixPath(path).suffix.lower()
+        if (
+            path == ".github/workflows/codeql.yml"
+            or path.startswith((".github/codeql/", ".github/scripts/codeql_changed_languages"))
+            or suffix in {".ql", ".qll", ".qls"}
+        ):
+            return list(LANGUAGES)
+        if suffix in DOC_SUFFIXES:
+            continue
+
+        matched = False
+        if path.startswith((".github/workflows/", ".github/actions/")) or name in {"action.yml", "action.yaml"}:
+            selected.add("actions")
+            matched = True
+        if (
+            suffix in JAVA_SUFFIXES
+            or name.endswith((".gradle", ".gradle.kts"))
+            or name in {"gradle.properties", "gradlew", "gradlew.bat", "pom.xml", "mvnw", "mvnw.cmd"}
+            or path.startswith(("gradle/", "buildSrc/"))
+        ):
+            selected.add("java-kotlin")
+            matched = True
+        if not matched:
+            return list(LANGUAGES)
+    return [language for language in LANGUAGES if language in selected]
+
+
+def main():
+    if len(sys.argv) != 2 or not sys.argv[1]:
+        raise ValueError("A pull request base commit is required")
+    diff = subprocess.run(
+        ["git", "diff", "--name-only", "-z", "--no-renames", sys.argv[1], "HEAD", "--"],
+        check=True,
+        stdout=subprocess.PIPE,
+    )
+    paths = [os.fsdecode(path) for path in diff.stdout.split(b"\0") if path]
+    languages = select_languages(paths)
+    print(f"Changed files: {len(paths)}; CodeQL languages: {', '.join(languages) or 'none'}", file=sys.stderr)
+    print(json.dumps(languages, separators=(',', ':')))
+
+
+if __name__ == "__main__":
+    main()
