@@ -13,7 +13,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext;
-import uk.gov.justice.laa.datauserapi.application.query.service.QueryAuthorisationService;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -114,36 +113,24 @@ class CanViewProfilePolicyTest {
     }
 
     @Test
-    void agreesWithTheProfileDetailVisibilityRuleForEveryInternalActorAndTarget() {
-        QueryAuthorisationService detailRule = new QueryAuthorisationService();
+    void agreesWithTheProfileDetailVisibilityRuleForEveryActorAndTarget() {
+        CanViewProfileDetailsPolicy detailsPolicy = new CanViewProfileDetailsPolicy();
         UUID otherFirm = UUID.randomUUID();
         List<AuthenticatedEntraUser> actors = List.of(
                 internalWith(), internalWith(Permission.VIEW_INTERNAL_USER), internalWith(Permission.VIEW_EXTERNAL_USER),
-                internalWith(Permission.VIEW_INTERNAL_USER, Permission.VIEW_EXTERNAL_USER));
+                internalWith(Permission.VIEW_INTERNAL_USER, Permission.VIEW_EXTERNAL_USER),
+                external(FIRM_ID), external(FIRM_ID, Permission.VIEW_EXTERNAL_USER));
         List<ProfileVisibilityContext> targets = List.of(
                 profile(UserType.INTERNAL, null), profile(UserType.EXTERNAL, FIRM_ID),
                 profile(UserType.EXTERNAL, otherFirm), profile(UserType.EXTERNAL, null));
 
         for (AuthenticatedEntraUser actor : actors) {
             for (ProfileVisibilityContext target : targets) {
-                String firmId = target.firmId() == null ? null : target.firmId().toString();
-                boolean expected = detailRule.canViewProfile(actor.activeProfile(), target.userType(), firmId);
-
                 assertThat(policy.evaluate(target, actor).granted())
                         .as("actor %s, target %s", actor.activeProfile(), target)
-                        .isEqualTo(expected);
+                        .isEqualTo(detailsPolicy.evaluate(target, actor).granted());
             }
         }
-    }
-
-    @Test
-    void isStricterThanTheProfileDetailRuleForExternalActorsWithoutViewExternalPermission() {
-        AuthenticatedEntraUser colleagueViewer = external(FIRM_ID);
-        ProfileVisibilityContext colleague = profile(UserType.EXTERNAL, FIRM_ID);
-
-        assertThat(new QueryAuthorisationService().canViewProfile(
-                colleagueViewer.activeProfile(), colleague.userType(), FIRM_ID.toString())).isTrue();
-        assertThat(policy.evaluate(colleague, colleagueViewer).granted()).isFalse();
     }
 
     private static AuthenticatedEntraUser internalWith(Permission... permissions) {

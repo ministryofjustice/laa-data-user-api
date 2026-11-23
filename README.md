@@ -64,10 +64,10 @@ before the handler and its read-only transaction run. `UserProfileVisibilityPoli
 profile's facts with one lookup and the pure `CanViewProfilePolicy` applies the profile visibility rules: an
 external actor may always view their own profile, and may view other profiles in their own firm only if they hold
 `VIEW_EXTERNAL_USER`; an internal actor with `VIEW_INTERNAL_USER` may view internal profiles, and an internal
-actor with `VIEW_EXTERNAL_USER` may view external profiles. The internal rules match
-`QueryAuthorisationService.canViewProfile` (kept in step by a test). The external same-firm rule is deliberately
-stricter than the profile detail queries, which let any external actor view profiles in their own firm without a
-permission. Being internal alone is not enough: per the SiLAS roles
+actor with `VIEW_EXTERNAL_USER` may view external profiles. `CanViewProfileDetailsPolicy` and
+`CanViewProfileListPolicy` (used by the `getActiveProfile` and `getUserProfiles` queries) apply the same rule
+through the shared `ProfileVisibilityEvaluator`, so external actors need `VIEW_EXTERNAL_USER` to see same-firm
+colleagues everywhere, not just here. Being internal alone is not enough: per the SiLAS roles
 matrix, External User Manager and External User Admin are internal roles without `VIEW_INTERNAL_USER`. A missing
 profile and a profile the caller cannot view both return the same generic `403` (`application/problem+json`, detail
 "You do not possess the required scopes or permissions to perform this operation."); the `title` and `detail`
@@ -195,8 +195,9 @@ The filter runs before security,
 so authentication failures share the same request ID, and restores the previous context even when a request fails.
 Existing log statements need no correlation-ID arguments. Logs outside a request have no correlation ID.
 `MdcTaskDecorator` captures MDC at submission and restores the worker's previous context after completion or failure.
-It is configured on the default `taskExecutor`, `bulkDeactivationExecutor`, and `silasStatusRefreshExecutor`, covering
-both unnamed and named `@Async` methods. Configure the same decorator on any future application executor.
+It is configured on the default `taskExecutor`, `bulkDeactivationExecutor`, `silasStatusRefreshExecutor`, and
+`ccmsRoleSyncExecutor`, covering both unnamed and named `@Async` methods. Configure the same decorator on any future
+application executor.
 `CorrelationIdInterceptor` forwards the active MDC ID on Tech Services HTTP requests automatically; no header is
 added when no ID is present. It reads MDC for each call, so shared clients do not retain another request's ID.
 This provides request correlation across cooperating HTTP services, not distributed tracing. Azure SDK token
@@ -290,8 +291,8 @@ Their handlers retain message-level authorization and transaction boundaries.
 Reactivation delegates to `ReactivateUserService`; locked target loading, the hierarchy recheck,
 Tech Services, and the local update remain in one transaction. `UserSearchService` owns trusted
 search criteria and pagination preparation, and `UserAccountDetailsService` coordinates account
-retrieval. Both query services are read-only and use `QueryAuthorisationService` for active actor
-context; denied account or active-profile visibility returns a generic 403 response.
+retrieval. Both query services are read-only and are guarded via `@PolicyGuarded` (`CanSearchUsersPolicy`,
+`CanViewAccountPolicy`); denied account or active-profile visibility returns a generic 403 response.
 The lifecycle service loads and refreshes the target once per deactivation or reactivation transaction,
 invokes the outbound step using a DTO, then updates the same locked entity without another lookup.
 Reactivation still reads authorization facts before execution and rechecks the refreshed state under

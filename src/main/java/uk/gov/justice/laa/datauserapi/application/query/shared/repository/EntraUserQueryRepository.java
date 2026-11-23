@@ -46,13 +46,12 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
     @Query(
             value = """
                 SELECT DISTINCT u
-                FROM EntraUser u JOIN u.userProfiles up LEFT JOIN up.appRoles ar LEFT JOIN up.firm f
-                WHERE((:#{#criteria.actorInternal()} = TRUE AND up.userType = UserType.INTERNAL)
-                    OR
-                    (:#{#criteria.actorExternal()} = TRUE AND up.firm.id = :#{#criteria.actorFirmId})
-                    OR
-                    (:#{#criteria.actorInternal()} = TRUE AND :#{#criteria.canViewExternalUsers} = TRUE AND up.userType = UserType.EXTERNAL))
-
+                FROM EntraUser u LEFT JOIN u.userProfiles up LEFT JOIN up.appRoles ar LEFT JOIN ar.app a LEFT JOIN up.firm f
+                WHERE((:#{#criteria.actorInternal()} = TRUE AND :#{#criteria.canViewInternalUsers} = TRUE AND up.userType = UserType.INTERNAL)
+                OR
+                  (:#{#criteria.actorExternal()} = TRUE AND :#{#criteria.canViewExternalUsers} = TRUE AND up.firm.id = :#{#criteria.actorFirmId})
+                OR
+                  (:#{#criteria.actorInternal()} = TRUE AND :#{#criteria.canViewExternalUsers} = TRUE AND (u.multiFirmUser = true OR up IS NULL OR up.userType = UserType.EXTERNAL)))
                 AND (:#{#criteria.user} IS NULL
                     OR :#{#criteria.user} = ''
                     OR LOWER(u.email) LIKE LOWER(CONCAT('%', :#{#criteria.user}, '%'))
@@ -62,7 +61,7 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
                     OR :#{#criteria.emailQuery} = ''
                     OR LOWER(u.email) LIKE LOWER(
                     CONCAT('%', :#{#criteria.emailQuery}, '%')))
-
+                
                 AND (:#{#criteria.firmId} IS NULL OR up.firm.code = :#{#criteria.firmId})
 
                 AND (:#{#criteria.firm} IS NULL OR :#{#criteria.firm} = '' OR LOWER(f.name) LIKE LOWER(CONCAT('%', :#{#criteria.firm}, '%'))
@@ -72,31 +71,23 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
 
                 AND (:#{#criteria.userAccountStatus} IS NULL OR u.userAccountStatus = :#{#criteria.userAccountStatus})
 
-                AND (:#{#criteria.appId} IS NULL OR ar.app.id = :#{#criteria.appId})
+                AND (:#{#criteria.appId} IS NULL OR ar IS NOT NULL AND ar.app.id = :#{#criteria.appId})
+                
+                AND (:#{#criteria.appEntraClientId} IS NULL OR ar IS NOT NULL AND ar.app.entraAppId = :#{#criteria.appEntraClientId})
+                
+                AND (:#{#criteria.appRoleId} IS NULL OR ar IS NOT NULL AND ar.id = :#{#criteria.appRoleId})
 
-                AND (:#{#criteria.appEntraClientId} IS NULL OR ar.app.entraAppId = :#{#criteria.appEntraClientId})
-
-                AND( :#{#criteria.neverActivatedFilter} IS NULL OR :#{#criteria.neverActivatedFilter} = FALSE
-                                OR u.userAccountStatus = UserAccountStatus.ACTIVATION_REQUIRED)
-
-                AND (:#{#criteria.appRoleId} IS NULL OR ar.id = :#{#criteria.appRoleId})
+                AND( :#{#criteria.neverActivatedFilter} IS NULL OR :#{#criteria.neverActivatedFilter} = FALSE OR u.userAccountStatus = UserAccountStatus.ACTIVATION_REQUIRED)
 
                 """,
             countQuery = """
                 SELECT COUNT(DISTINCT u)
-                FROM EntraUser u
-                    JOIN u.userProfiles up
-                    LEFT JOIN up.appRoles ar
-                    LEFT JOIN up.firm f
-
-                WHERE
-                (
-                    (:#{#criteria.actorInternal()} = TRUE AND up.userType = UserType.INTERNAL)
-                    OR
-                    (:#{#criteria.actorExternal()} = TRUE AND up.firm.id = :#{#criteria.actorFirmId})
-                    OR
-                    (:#{#criteria.actorInternal()} = TRUE AND :#{#criteria.canViewExternalUsers} = TRUE AND up.userType = UserType.EXTERNAL)
-                )
+                FROM EntraUser u LEFT JOIN u.userProfiles up LEFT JOIN up.appRoles ar LEFT JOIN ar.app a LEFT JOIN up.firm f
+                WHERE((:#{#criteria.actorInternal()} = TRUE AND :#{#criteria.canViewInternalUsers} = TRUE AND up.userType = UserType.INTERNAL)
+                OR
+                  (:#{#criteria.actorExternal()} = TRUE AND :#{#criteria.canViewExternalUsers} = TRUE AND up.firm.id = :#{#criteria.actorFirmId})
+                OR
+                    (:#{#criteria.actorInternal()} = TRUE AND :#{#criteria.canViewExternalUsers} = TRUE AND (u.multiFirmUser = true OR up IS NULL OR up.userType = UserType.EXTERNAL)))
 
                 AND (:#{#criteria.user} IS NULL
                     OR :#{#criteria.user} = ''
@@ -118,14 +109,13 @@ public interface EntraUserQueryRepository extends Repository<EntraUser, UUID> {
 
                 AND (:#{#criteria.userAccountStatus} IS NULL OR u.userAccountStatus = :#{#criteria.userAccountStatus})
 
-                AND (:#{#criteria.appId} IS NULL OR ar.app.id = :#{#criteria.appId})
-
-                AND (:#{#criteria.appEntraClientId} IS NULL OR ar.app.entraAppId = :#{#criteria.appEntraClientId})
-
+                AND (:#{#criteria.appId} IS NULL OR ar IS NOT NULL AND ar.app.id = :#{#criteria.appId})
+                
+                AND (:#{#criteria.appEntraClientId} IS NULL OR ar IS NOT NULL AND ar.app.entraAppId = :#{#criteria.appEntraClientId})
+           
+                AND (:#{#criteria.appRoleId} IS NULL OR ar IS NOT NULL AND ar.id = :#{#criteria.appRoleId})
+               
                 AND( :#{#criteria.neverActivatedFilter} IS NULL OR :#{#criteria.neverActivatedFilter} = FALSE OR u.userAccountStatus = UserAccountStatus.ACTIVATION_REQUIRED)
-
-
-                AND (:#{#criteria.appRoleId} IS NULL OR ar.id = :#{#criteria.appRoleId})
                 """
     )
     Page<EntraUser> searchUsers(

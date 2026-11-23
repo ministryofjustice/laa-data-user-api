@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserSearchService;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryPage;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -15,11 +16,12 @@ class SearchUsersHandlerTest {
     @Test
     void delegatesQueryAndPreservesResult() {
         UserSearchService service = mock(UserSearchService.class);
-        SearchUsersQuery query = new SearchUsersQuery(null, "actor");
+        SearchUsersQuery query = new SearchUsersQuery(null);
+        AuthenticatedEntraUser actor = mock(AuthenticatedEntraUser.class);
         UserAccountSummaryPage expected = mock(UserAccountSummaryPage.class);
-        when(service.search(query)).thenReturn(expected);
+        when(service.search(query, actor)).thenReturn(expected);
 
-        assertThat(new SearchUsersHandler(service).handle(query)).isSameAs(expected);
-        verify(service).search(query);
+        assertThat(new SearchUsersHandler(service).handle(query, actor)).isSameAs(expected);
+        verify(service).search(query, actor);
     }
 }

@@ -2,11 +2,25 @@ name: Linter Check
 
 on:
   pull_request:
-    types: [ opened, edited, reopened, synchronize ]
+    types: [ opened, reopened, synchronize ]
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!deployment/**'
+      - '!.ash/**'
+      - '!.github/workflows/**'
+      - '.github/workflows/linter-check.yml'
+      - '**/*.java'
+      - '**/*.gradle*'
+      - '**/checkstyle*.xml'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-api-linter-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:

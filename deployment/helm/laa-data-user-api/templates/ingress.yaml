@@ -23,7 +23,7 @@ metadata:
       more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload";
     nginx.ingress.kubernetes.io/server-snippet: |
       set $http1_reject 0;
-      if ($server_protocol = "HTTP/1.1") {
+      if ($server_protocol != "HTTP/2.0") {
         set $http1_reject 1;
       }
       if ($uri ~ "^/actuator/health") {
