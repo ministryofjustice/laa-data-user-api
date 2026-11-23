@@ -12,6 +12,8 @@ import uk.gov.justice.laa.datauserapi.application.query.dto.AccountStatusHistory
 import uk.gov.justice.laa.datauserapi.application.query.dto.UserAccountStatusView;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetActiveProfileHandler;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfilesHandler;
+import uk.gov.justice.laa.datauserapi.application.query.queryuserprofiles.GetUserProfilesQuery;
+import uk.gov.justice.laa.datauserapi.application.query.queryuserprofiles.GetActiveProfileQuery;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserAccountHandler;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
@@ -78,14 +80,16 @@ public class UserAccountQueryController {
     @GetMapping("/users/{userEntraObjectId}/profiles")
     public ResponseEntity<UserProfileSummaryList> getUserProfiles(@PathVariable String userEntraObjectId,
                                                                           @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        List<UserProfileSummaryView> readModel = getUserProfilesHandler.handle(userEntraObjectId, authenticatedUser);
+        List<UserProfileSummaryView> readModel = getUserProfilesHandler.handle(
+                new GetUserProfilesQuery(userEntraObjectId), authenticatedUser);
         return ResponseEntity.ok(new UserProfileSummaryList(readModel));
     }
 
     @GetMapping("/users/{userEntraObjectId}/active-profile")
     public ResponseEntity<UserProfileDetailView> getActiveProfile(@PathVariable String userEntraObjectId,
                                                                    @AuthenticationPrincipal AuthenticatedEntraUser authenticatedUser) {
-        UserProfileDetailView readModel = getActiveProfileHandler.handle(userEntraObjectId, authenticatedUser);
+        UserProfileDetailView readModel = getActiveProfileHandler.handle(
+                new GetActiveProfileQuery(userEntraObjectId), authenticatedUser);
         return ResponseEntity.ok(readModel);
     }
 }
