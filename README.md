@@ -80,6 +80,12 @@ derived from the assigned roles; `/offices` returns every office of the profile'
 unrestricted office access, otherwise only its assigned offices belonging to that firm. Results are not
 paginated and are capped at 500 roles, 100 applications and 100 offices, ordered deterministically.
 
+`POST /api/v1/commands/users/set-active-profile` requires the `user_data.admin` scope and accepts
+`userEntraObjectId` and `userProfileId`. Only an external caller linked to the requested external
+profile may switch it. The profile must belong to the requested user; a missing user, missing profile,
+or ownership mismatch returns `404`. The operation is idempotent and subsequent active-profile queries
+return the selected profile.
+
 Query service, handler, and controller results are checked recursively for entity
 leakage through collections, wrappers, DTO fields, and projection accessors.
 Tech Services calls intentionally precede database updates; this ordering is unchanged.
