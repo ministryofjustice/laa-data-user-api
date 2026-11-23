@@ -51,9 +51,8 @@ def main():
     )
     paths = [os.fsdecode(path) for path in diff.stdout.split(b"\0") if path]
     languages = select_languages(paths)
-    print(f"Changed files: {len(paths)}; CodeQL languages: {', '.join(languages) or 'none'}")
-    with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-        output.write(f"languages={json.dumps(languages, separators=(',', ':'))}\n")
+    print(f"Changed files: {len(paths)}; CodeQL languages: {', '.join(languages) or 'none'}", file=sys.stderr)
+    print(json.dumps(languages, separators=(',', ':')))
 
 
 if __name__ == "__main__":

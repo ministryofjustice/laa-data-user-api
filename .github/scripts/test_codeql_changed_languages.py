@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -54,14 +53,14 @@ class CodeQLChangedLanguagesTest(unittest.TestCase):
             (repo / "Example.java").rename(repo / "README.md")
             subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "rename"], cwd=repo, check=True)
-            output = repo / "output"
-            subprocess.run(
+            result = subprocess.run(
                 [sys.executable, str(script), base],
                 cwd=repo,
-                env={**os.environ, "GITHUB_OUTPUT": str(output)},
+                stdout=subprocess.PIPE,
+                text=True,
                 check=True,
             )
-            self.assertEqual(output.read_text(encoding="utf-8"), 'languages=["java-kotlin"]\n')
+            self.assertEqual(result.stdout.strip(), '["java-kotlin"]')
 
 
 if __name__ == "__main__":

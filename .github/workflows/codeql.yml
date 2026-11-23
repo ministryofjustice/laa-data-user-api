@@ -63,7 +63,8 @@ jobs:
           # A PR must not control the detector used to classify its own changes.
           if git cat-file -e "$BASE_SHA:.github/scripts/codeql_changed_languages.py"; then
             git show "$BASE_SHA:.github/scripts/codeql_changed_languages.py" > "$RUNNER_TEMP/codeql_changed_languages.py"
-            python3 "$RUNNER_TEMP/codeql_changed_languages.py" "$BASE_SHA"
+            LANGUAGES=$(python3 "$RUNNER_TEMP/codeql_changed_languages.py" "$BASE_SHA")
+            printf 'languages=%s\n' "$LANGUAGES" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::Change detector unavailable on the base commit; scanning all languages."
             echo 'languages=["actions","java-kotlin"]' >> "$GITHUB_OUTPUT"
