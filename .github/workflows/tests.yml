@@ -3,6 +3,17 @@ name: Tests
 on:
   pull_request:
     types: [ opened, reopened, synchronize ]
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!deployment/**'
+      - '!.ash/**'
+      - '!.github/workflows/**'
+      - '.github/workflows/tests.yml'
+      - 'src/**'
+      - 'contracts/**'
+      - '**/*.java'
+      - '**/*.gradle*'
 
 permissions:
   contents: read
