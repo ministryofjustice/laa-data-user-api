@@ -113,7 +113,7 @@ dependencies {
     implementation 'software.amazon.awssdk:ssm'
     implementation 'software.amazon.awssdk:sts'
 
-    implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
+    implementation 'net.logstash.logback:logstash-logback-encoder:9.0'
 
     // Utilities & Core Framework Enhancements
     implementation 'org.projectlombok:lombok'
