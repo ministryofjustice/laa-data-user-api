@@ -19,6 +19,7 @@ public enum PolicyDenialReason {
     TARGET_PROFILE_OUTSIDE_ACTOR_FIRM("target profile is not in provider admin's firm"),
     TARGET_FIRM_OUTSIDE_ACTOR_FIRM("target firm is not the provider admin's firm"),
     ACTOR_NO_ACTIVE_PROFILE("actor has no active profile with a determinable user type"),
+    ACTOR_NOT_EXTERNAL_USER("actor must have an active external profile"),
     TARGET_PROFILE_NOT_FOUND("target profile does not exist"),
     TARGET_PROFILE_NOT_VISIBLE("actor cannot view the target profile");
 

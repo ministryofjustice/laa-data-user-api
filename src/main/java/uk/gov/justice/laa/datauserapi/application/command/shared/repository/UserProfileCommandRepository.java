@@ -41,6 +41,13 @@ public interface UserProfileCommandRepository extends JpaRepository<UserProfile,
             """)
     Optional<UserProfile> findCcmsSyncProfile(@Param("id") UUID id);
 
+    @Query("""
+            SELECT p FROM UserProfile p
+            JOIN FETCH p.entraUser
+            WHERE p.id = :profileId
+            """)
+    Optional<UserProfile> findForSetActiveProfileAuthorization(@Param("profileId") UUID profileId);
+
     @Modifying(clearAutomatically = true)
     @Query("""
             UPDATE UserProfile p

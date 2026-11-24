@@ -80,6 +80,12 @@ derived from the assigned roles; `/offices` returns every office of the profile'
 unrestricted office access, otherwise only its assigned offices belonging to that firm. Results are not
 paginated and are capped at 500 roles, 100 applications and 100 offices, ordered deterministically.
 
+`POST /api/v1/commands/users/set-active-profile` requires the `user_data.admin` scope and accepts
+`userEntraObjectId` and `userProfileId`. Only an external caller linked to the requested external
+profile may switch it. The profile must belong to the requested user; a missing or inaccessible user
+or profile, or an ownership mismatch returns the same generic `403`. The operation is idempotent and
+subsequent active-profile queries return the selected profile.
+
 The app and role catalogue queries (`GET /api/v1/queries/apps`, `/apps/{appId}`, `/apps/{appId}/roles`,
 `/app-roles/{appRoleId}` and `/role-restrictions`) are read-only and require `user_data.read`. Every query message
 implements `AppCatalogueQuery` and declares `@RequiresPermission(Permission.VIEW_LAA_APP_METADATA)`, which an ArchUnit
