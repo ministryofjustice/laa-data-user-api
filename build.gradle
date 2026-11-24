@@ -80,7 +80,7 @@ dependencyManagement {
         // Snyk: guava (high), commons-compress (high/medium), plexus-utils (medium)
         dependency 'com.google.guava:guava:33.8.0-jre'
         dependency 'org.apache.commons:commons-compress:1.26.0'
-        dependency 'org.codehaus.plexus:plexus-utils:3.6.1'
+        dependency 'org.codehaus.plexus:plexus-utils:4.2.0'
     }
 }
 
