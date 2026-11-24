@@ -32,12 +32,30 @@ on:
         type: boolean
         required: false
         default: false
-
-# ECR_ROLE_TO_ASSUME are GitHub Environment secrets. Unlike Environment vars, Environment
-# secrets do NOT cross the workflow_call boundary just because the `deploy` job below
-# declares `environment: ${{ inputs.environment }}` - the calling workflow must also
-# pass `secrets: inherit` (or list each secret explicitly) when it does `uses:` on this
-# workflow, otherwise every `secrets.*` reference here resolves to an empty string.
+    # Callers explicitly forward these names so environment secrets remain available.
+    secrets:
+      ECR_ROLE_TO_ASSUME:
+        required: false
+      KUBE_CERT:
+        required: false
+      KUBE_TOKEN:
+        required: false
+      KUBE_CLUSTER:
+        required: false
+      KUBE_NAMESPACE:
+        required: false
+      TECH_SERVICES_AZURE_CLIENT_ID:
+        required: false
+      TECH_SERVICES_TENANT_ID:
+        required: false
+      TECH_SERVICES_AZURE_CLIENT_SECRET:
+        required: false
+      TECH_SERVICES_BASE_URL:
+        required: false
+      SENTRY_DSN:
+        required: false
+      AZURE_APP_URI:
+        required: false
 
 jobs:
   deploy:
