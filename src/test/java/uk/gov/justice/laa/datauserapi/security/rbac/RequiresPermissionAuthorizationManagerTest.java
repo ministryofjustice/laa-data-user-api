@@ -54,6 +54,10 @@ class RequiresPermissionAuthorizationManagerTest {
     @RequiresPermission(value = Permission.ENABLE_EXTERNAL_USER, policies = ReactivationHierarchyPolicy.class)
     record ContextCommand(UUID targetUserEntraObjectId) implements TargetsUser {}
 
+    @RequiresPermission(value = Permission.DELETE_EXTERNAL_USER,
+            policies = {TargetPolicy.class, OpaFeaturePolicy.class})
+    record FlaggedPolicyCommand(UUID targetUserEntraObjectId) implements TargetsUser {}
+
     static class ContextResolver implements AuthorizationPolicyInputResolver<TargetsUser, UserDeactivationContext> {
         final AtomicInteger calls = new AtomicInteger();
         RuntimeException failure;
@@ -96,6 +100,22 @@ class RequiresPermissionAuthorizationManagerTest {
         public @NonNull PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
             return message.targetUserEntraObjectId().equals(allowedTarget)
                     ? PolicyDecision.allow() : PolicyDecision.DENY;
+        }
+    }
+
+    @OpaReplacement
+    static class OpaFeaturePolicy implements AuthorizationPolicy<TargetsUser> {
+        final AtomicInteger calls = new AtomicInteger();
+
+        @Override
+        public AuthorizationPolicyFeature feature() {
+            return AuthorizationPolicyFeature.OPA;
+        }
+
+        @Override
+        public @NonNull PolicyDecision evaluate(TargetsUser message, AuthenticatedEntraUser actor) {
+            calls.incrementAndGet();
+            return PolicyDecision.allow();
         }
     }
 
@@ -155,6 +175,9 @@ class RequiresPermissionAuthorizationManagerTest {
         }
 
         public void context(ContextCommand c, AuthenticatedEntraUser actor) {
+        }
+
+        public void flagged(FlaggedPolicyCommand c, AuthenticatedEntraUser actor) {
         }
     }
 
@@ -261,6 +284,62 @@ class RequiresPermissionAuthorizationManagerTest {
         global.grant = true;
         assertThat(decide("policy", new Object[]{external, new PolicyCommand(target)}, noAuth)).isTrue();
         assertThat(global.calls).hasValue(2);
+    }
+
+    @Test
+    void legacyAndOpaPoliciesCanBeEnabledIndependently() throws Exception {
+        UUID allowedTarget = UUID.randomUUID();
+        TargetPolicy legacyPolicy = new TargetPolicy();
+        legacyPolicy.allowedTarget = allowedTarget;
+        OpaFeaturePolicy opaPolicy = new OpaFeaturePolicy();
+        policies.put(TargetPolicy.class, legacyPolicy);
+        policies.put(OpaFeaturePolicy.class, opaPolicy);
+        ExternalOnlyGlobalPolicy global = new ExternalOnlyGlobalPolicy();
+        globals.add(global);
+        var actor = RbacTestActors.externalActorWith(UUID.randomUUID(), Permission.DELETE_EXTERNAL_USER);
+        final FlaggedPolicyCommand command = new FlaggedPolicyCommand(UUID.randomUUID());
+
+        RequiresPermissionAuthorizationManager legacyOnly =
+                new RequiresPermissionAuthorizationManager(policies::get, () -> globals, () -> inputResolvers,
+                        true, false);
+        global.grant = true;
+        assertThat(decide(legacyOnly, "flagged",
+                new Object[]{new FlaggedPolicyCommand(allowedTarget), actor}, noAuth)).isTrue();
+        assertThat(opaPolicy.calls).hasValue(0);
+        global.calls.set(0);
+
+        RequiresPermissionAuthorizationManager opaOnly =
+                new RequiresPermissionAuthorizationManager(policies::get, () -> globals, () -> inputResolvers,
+                        false, true);
+        assertThat(decide(opaOnly, "flagged", new Object[]{command, actor}, noAuth)).isTrue();
+        assertThat(opaPolicy.calls).hasValue(1);
+        assertThat(global.calls).hasValue(0);
+
+        RequiresPermissionAuthorizationManager noFineGrainedPolicies =
+                new RequiresPermissionAuthorizationManager(policies::get, () -> globals, () -> inputResolvers,
+                        false, false);
+        assertThat(decide(noFineGrainedPolicies, "flagged", new Object[]{command, actor}, noAuth)).isFalse();
+        assertThat(opaPolicy.calls).hasValue(1);
+        assertThat(decide(noFineGrainedPolicies, "flagged",
+                new Object[]{command, RbacTestActors.externalActorWith(UUID.randomUUID())}, noAuth)).isFalse();
+    }
+
+    @Test
+    void legacyPoliciesRemainEnabledForCommandsWithoutAnOpaReplacement() throws Exception {
+        UUID allowedTarget = UUID.randomUUID();
+        final AllowPolicy allow = registerPolicies(allowedTarget);
+        ExternalOnlyGlobalPolicy global = new ExternalOnlyGlobalPolicy();
+        global.grant = true;
+        globals.add(global);
+        RequiresPermissionAuthorizationManager opaOnly =
+                new RequiresPermissionAuthorizationManager(policies::get, () -> globals, () -> inputResolvers,
+                        false, true);
+        var actor = RbacTestActors.externalActorWith(UUID.randomUUID(), Permission.DELETE_EXTERNAL_USER);
+
+        assertThat(decide(opaOnly, "policy",
+                new Object[]{actor, new PolicyCommand(UUID.randomUUID())}, noAuth)).isFalse();
+        assertThat(global.calls).hasValue(1);
+        assertThat(allow.calls).hasValue(1);
     }
 
     @Test
@@ -413,12 +492,17 @@ class RequiresPermissionAuthorizationManagerTest {
     }
 
     private boolean decide(String methodName, Object[] args, Supplier<Authentication> auth) throws Exception {
+        return decide(manager, methodName, args, auth);
+    }
+
+    private boolean decide(RequiresPermissionAuthorizationManager authorizationManager,
+                           String methodName, Object[] args, Supplier<Authentication> auth) throws Exception {
         Method method = java.util.Arrays.stream(Handlers.class.getMethods())
                 .filter(m -> m.getName().equals(methodName)).findFirst().orElseThrow();
         MethodInvocation invocation = mock(MethodInvocation.class);
         when(invocation.getMethod()).thenReturn(method);
         when(invocation.getThis()).thenReturn(new Handlers());
         when(invocation.getArguments()).thenReturn(args);
-        return manager.authorize(auth, invocation).isGranted();
+        return authorizationManager.authorize(auth, invocation).isGranted();
     }
 }

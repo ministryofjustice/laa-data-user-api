@@ -18,6 +18,10 @@ on:
         description: 'Image tag to deploy (commit sha for dev, release version for release)'
         type: string
         required: true
+      policy_bundle_ref:
+        description: 'Git ref containing the OPA policies to bundle and deploy'
+        type: string
+        required: true
       allowlist_cidr:
         description: 'Precomputed allowlist CIDR list (dev only; empty elsewhere)'
         type: string
@@ -28,30 +32,12 @@ on:
         type: boolean
         required: false
         default: false
-    # Callers explicitly forward these names so environment secrets remain available.
-    secrets:
-      ECR_ROLE_TO_ASSUME:
-        required: false
-      KUBE_CERT:
-        required: false
-      KUBE_TOKEN:
-        required: false
-      KUBE_CLUSTER:
-        required: false
-      KUBE_NAMESPACE:
-        required: false
-      TECH_SERVICES_AZURE_CLIENT_ID:
-        required: false
-      TECH_SERVICES_TENANT_ID:
-        required: false
-      TECH_SERVICES_AZURE_CLIENT_SECRET:
-        required: false
-      TECH_SERVICES_BASE_URL:
-        required: false
-      SENTRY_DSN:
-        required: false
-      AZURE_APP_URI:
-        required: false
+
+# ECR_ROLE_TO_ASSUME are GitHub Environment secrets. Unlike Environment vars, Environment
+# secrets do NOT cross the workflow_call boundary just because the `deploy` job below
+# declares `environment: ${{ inputs.environment }}` - the calling workflow must also
+# pass `secrets: inherit` (or list each secret explicitly) when it does `uses:` on this
+# workflow, otherwise every `secrets.*` reference here resolves to an empty string.
 
 jobs:
   deploy:
@@ -63,6 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.policy_bundle_ref }}
           persist-credentials: false
 
       # Assume role in Cloud Platform
