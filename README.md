@@ -64,10 +64,10 @@ before the handler and its read-only transaction run. `UserProfileVisibilityPoli
 profile's facts with one lookup and the pure `CanViewProfilePolicy` applies the profile visibility rules: an
 external actor may always view their own profile, and may view other profiles in their own firm only if they hold
 `VIEW_EXTERNAL_USER`; an internal actor with `VIEW_INTERNAL_USER` may view internal profiles, and an internal
-actor with `VIEW_EXTERNAL_USER` may view external profiles. The internal rules match
-`QueryAuthorisationService.canViewProfile` (kept in step by a test). The external same-firm rule is deliberately
-stricter than the profile detail queries, which let any external actor view profiles in their own firm without a
-permission. Being internal alone is not enough: per the SiLAS roles
+actor with `VIEW_EXTERNAL_USER` may view external profiles. `CanViewProfileDetailsPolicy` and
+`CanViewProfileListPolicy` (used by the `getActiveProfile` and `getUserProfiles` queries) apply the same rule
+through the shared `ProfileVisibilityEvaluator`, so external actors need `VIEW_EXTERNAL_USER` to see same-firm
+colleagues everywhere, not just here. Being internal alone is not enough: per the SiLAS roles
 matrix, External User Manager and External User Admin are internal roles without `VIEW_INTERNAL_USER`. A missing
 profile and a profile the caller cannot view both return the same generic `403` (`application/problem+json`, detail
 "You do not possess the required scopes or permissions to perform this operation."); the `title` and `detail`
@@ -82,9 +82,19 @@ paginated and are capped at 500 roles, 100 applications and 100 offices, ordered
 
 `POST /api/v1/commands/users/set-active-profile` requires the `user_data.admin` scope and accepts
 `userEntraObjectId` and `userProfileId`. Only an external caller linked to the requested external
-profile may switch it. The profile must belong to the requested user; a missing or inaccessible user or profile, or an ownership
-mismatch returns the same generic `403`. The operation is idempotent and subsequent active-profile queries
-return the selected profile.
+profile may switch it. The profile must belong to the requested user; a missing or inaccessible user
+or profile, or an ownership mismatch returns the same generic `403`. The operation is idempotent and
+subsequent active-profile queries return the selected profile.
+
+The app and role catalogue queries (`GET /api/v1/queries/apps`, `/apps/{appId}`, `/apps/{appId}/roles`,
+`/app-roles/{appRoleId}` and `/role-restrictions`) are read-only and require `user_data.read`. Every query message
+implements `AppCatalogueQuery` and declares `@RequiresPermission(Permission.VIEW_LAA_APP_METADATA)`, which an ArchUnit
+rule enforces. Only active applications and their roles are returned; an unknown or inactive application, or an
+unknown role, is a generic `404` and an active application with no matching roles is `200` with `items: []`. `appId`
+and `app_id` are the internal SiLAS app ID; `/apps/{appId}/roles` takes `user_type` (`INTERNAL` or `EXTERNAL`, each
+also including `BOTH` roles). `/role-restrictions` is paged (`page_number` from 0, `page_size` 1 to 100) and lists
+restrictions whose assigning and assignable roles are both in active applications; its `app_id` filter and the app
+fields of each item refer to the role being assigned. Lists are capped at 100 applications and 500 roles.
 
 Query service, handler, and controller results are checked recursively for entity
 leakage through collections, wrappers, DTO fields, and projection accessors.
@@ -287,8 +297,8 @@ Their handlers retain message-level authorization and transaction boundaries.
 Reactivation delegates to `ReactivateUserService`; locked target loading, the hierarchy recheck,
 Tech Services, and the local update remain in one transaction. `UserSearchService` owns trusted
 search criteria and pagination preparation, and `UserAccountDetailsService` coordinates account
-retrieval. Both query services are read-only and use `QueryAuthorisationService` for active actor
-context; denied account or active-profile visibility returns a generic 403 response.
+retrieval. Both query services are read-only and are guarded via `@PolicyGuarded` (`CanSearchUsersPolicy`,
+`CanViewAccountPolicy`); denied account or active-profile visibility returns a generic 403 response.
 The lifecycle service loads and refreshes the target once per deactivation or reactivation transaction,
 invokes the outbound step using a DTO, then updates the same locked entity without another lookup.
 Reactivation still reads authorization facts before execution and rechecks the refreshed state under
