@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - 'deployment/helm/**'
+      - '.github/workflows/reusable-helm-deploy.yml'
+      - '.github/workflows/helm-lint.yml'
+      - '.github/scripts/test_opa_deploy.py'
+      - 'opa/**'
   workflow_dispatch:
 
 permissions:
@@ -36,7 +40,9 @@ jobs:
         run: |
           helm lint deployment/helm/laa-data-user-api \
             -f deployment/helm/laa-data-user-api/values.yaml \
-            -f deployment/helm/laa-data-user-api/values-${ENVIRONMENT}.yaml
+            -f deployment/helm/laa-data-user-api/values-${ENVIRONMENT}.yaml \
+            --set-string opa.bundleRef=test \
+            --set-string opa.bundleData=test
         env:
           ENVIRONMENT: ${{ matrix.environment }}
 
@@ -49,6 +55,14 @@ jobs:
             --set image.repository=laa-data-user-api \
             --set image.tag=test \
             --set rdsDbIdentifier=test-rds-id \
-            --set envName=${ENVIRONMENT} > /dev/null
+            --set envName=${ENVIRONMENT} \
+            --set-string opa.bundleRef=test \
+            --set-string opa.bundleData=test > /dev/null
         env:
           ENVIRONMENT: ${{ matrix.environment }}
+
+      - name: Test OPA deployment
+        if: matrix.environment == 'dev'
+        run: python3 .github/scripts/test_opa_deploy.py
+        env:
+          TEST_REAL_DOCKER: '1'

@@ -66,7 +66,7 @@ dependencyManagement {
             entry 'logback-core'
         }
         // Snyk: postgresql (high/medium)
-        dependency 'org.postgresql:postgresql:42.7.14'
+        dependency 'org.postgresql:postgresql:42.7.15'
         // Snyk: proton-j (6 high)
         dependency 'org.apache.qpid:proton-j:0.35.0'
         // Snyk: hibernate-validator EL injection (medium)

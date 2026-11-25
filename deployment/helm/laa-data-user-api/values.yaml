@@ -2,7 +2,7 @@ replicaCount: 3
 springProfile: "local"
 opa:
   url: "http://localhost:8181"
-  image: "openpolicyagent/opa:0.68.0-rootless"
+  image: "openpolicyagent/opa:0.68.0"
   bundleRef: ""
   bundleData: ""
   resources:
