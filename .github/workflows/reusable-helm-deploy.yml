@@ -146,17 +146,65 @@ jobs:
           version: 'v3.21.3'
 
       - name: Deploy to Cloud Platform
+        shell: bash
         run: |
+          set -o pipefail
+          chart=deployment/helm/laa-data-user-api
+          values=(
+            -f "$chart/values.yaml"
+            -f "$chart/values-${HELM_VALUES_ENV}.yaml"
+            -f "$chart/values-secrets.generated.yaml"
+          )
+          opa_setting=$(yq eval-all -o=json -I=0 \
+            '. as $item ireduce ({}; . * $item) | [(.authorization | has("opaEnabled")), .authorization.opaEnabled]' \
+            "$chart/values.yaml" "$chart/values-${HELM_VALUES_ENV}.yaml" \
+            "$chart/values-secrets.generated.yaml")
+          case "$opa_setting" in
+            '[true,true]'|'[true,false]'|'[false,null]') ;;
+            *)
+              echo "authorization.opaEnabled must be a boolean" >&2
+              exit 1
+              ;;
+          esac
+          opa_enabled=${OPA_ENABLED:-false}
+          case "$opa_enabled" in
+            true|false) ;;
+            *)
+              echo "OPA_ENABLED must be true or false" >&2
+              exit 1
+              ;;
+          esac
+          if [[ "$opa_enabled" == true && "$opa_setting" == '[false,null]' ]]; then
+            echo "OPA_ENABLED cannot be enabled: the selected chart does not support OPA" >&2
+            exit 1
+          fi
+          bundle_args=(--set "authorization.opaEnabled=$opa_enabled")
+          case "$opa_enabled" in
+            true)
+              bundle_dir=$(mktemp -d "${RUNNER_TEMP}/opa-bundle.XXXXXXXX")
+              trap 'rm -f "$bundle_dir/bundle.tar.gz"; rmdir "$bundle_dir"' EXIT
+              docker run --rm --user "$(id -u):$(id -g)" \
+                --volume "$GITHUB_WORKSPACE/opa/policies:/policies:ro" \
+                --volume "$bundle_dir:/bundle" \
+                openpolicyagent/opa:0.68.0 build -b -o /bundle/bundle.tar.gz /policies
+              bundle_ref=$(sha256sum "$bundle_dir/bundle.tar.gz" | cut -d ' ' -f1)
+              bundle_args+=(
+                --set-string "opa.bundleRef=$bundle_ref"
+                --set-file "opa.bundleData=$bundle_dir/bundle.tar.gz"
+              )
+              ;;
+          esac
+
           helm upgrade --install laa-data-user-api deployment/helm/laa-data-user-api \
             --namespace "${KUBE_NAMESPACE}" \
-            -f deployment/helm/laa-data-user-api/values.yaml \
-            -f "deployment/helm/laa-data-user-api/values-${HELM_VALUES_ENV}.yaml" \
-            -f deployment/helm/laa-data-user-api/values-secrets.generated.yaml \
+            "${values[@]}" \
+            "${bundle_args[@]}" \
             --atomic \
             --timeout 7m0s
         env:
           KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
           HELM_VALUES_ENV: ${{ inputs.helm_values_env }}
+          OPA_ENABLED: ${{ vars.OPA_ENABLED || 'false' }}
 
       - name: Wait for new deployment to finish
         if: inputs.wait_for_rollout

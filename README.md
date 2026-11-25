@@ -331,17 +331,19 @@ other result types are rejected rather than coerced into authorization decisions
 
 Enforcement can be controlled independently with `APP_AUTHORIZATION_OPA_ENABLED` and
 `APP_AUTHORIZATION_LEGACY_POLICIES_ENABLED` (or the matching `authorization.opaEnabled` and
-`authorization.legacyPoliciesEnabled` Helm values). Both default to `true` to preserve current behavior.
+`authorization.legacyPoliciesEnabled` Helm values). Application and chart defaults are `true`, but GitHub
+deployments override OPA enablement with the `OPA_ENABLED` GitHub Environment variable. Set it to `true`
+to enable OPA for that environment; `false` or an unset variable disables it. Other values fail deployment.
 When both engines are enabled, both policy sets run. Disabling legacy policies skips them only for commands
 that declare an enabled OPA replacement; legacy policies remain enforced for commands without one. If OPA is
 disabled, legacy policies are automatically enabled as a fallback. Declared permissions and OAuth scope checks
 remain active whichever policy engine is enabled.
-Setting the Helm value `authorization.opaEnabled=false` also omits the OPA sidecar, bundle ConfigMap,
-bundle annotation, and OPA volumes, so Java-only deployments do not require a policy bundle.
-The deployment workflow resolves this setting from the merged base, environment, and generated Helm values.
-Older release charts without `authorization.opaEnabled` default to OPA disabled; explicitly supplied settings
-must still be booleans.
-When disabled, it skips bundle creation, S3 publication, and bundle-specific Helm arguments.
+Disabling OPA also omits the sidecar, bundle ConfigMap, bundle annotation, and OPA volumes, so Java-only
+deployments do not require a policy bundle. The GitHub Environment variable takes precedence over the Helm
+values. Older release charts without `authorization.opaEnabled` can only be deployed with OPA disabled.
+When enabled, the deployment workflow builds a bundle from the checked-out policies and passes it to Helm;
+the bundle's SHA-256 identifies its immutable ConfigMap. When disabled, it skips bundle creation and
+bundle-specific Helm arguments.
 When enabled, OPA's readiness probe checks `/health?bundles=true` on a separate diagnostic listener
 on port 8182. The pod is not Ready if OPA is unresponsive or its bundle is not ready; the policy API
 remains bound to loopback on port 8181.
