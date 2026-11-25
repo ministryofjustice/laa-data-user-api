@@ -20,7 +20,8 @@ public enum PolicyDenialReason {
     TARGET_FIRM_OUTSIDE_ACTOR_FIRM("target firm is not the provider admin's firm"),
     ACTOR_NO_ACTIVE_PROFILE("actor has no active profile with a determinable user type"),
     TARGET_PROFILE_NOT_FOUND("target profile does not exist"),
-    TARGET_PROFILE_NOT_VISIBLE("actor cannot view the target profile");
+    TARGET_PROFILE_NOT_VISIBLE("actor cannot view the target profile"),
+    ACTOR_NO_EXPORT_PERMISSION("actor has no permission to export audit data");
 
     private final String description;
 

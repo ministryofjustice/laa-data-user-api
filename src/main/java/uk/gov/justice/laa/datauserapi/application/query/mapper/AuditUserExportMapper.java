@@ -1,0 +1,93 @@
+package uk.gov.justice.laa.datauserapi.application.query.mapper;
+
+import org.springframework.stereotype.Component;
+import uk.gov.justice.laa.datauserapi.application.query.dto.AuditUserExportRow;
+import uk.gov.justice.laa.datauserapi.entity.App;
+import uk.gov.justice.laa.datauserapi.entity.AppRole;
+import uk.gov.justice.laa.datauserapi.entity.EntraUser;
+import uk.gov.justice.laa.datauserapi.entity.Firm;
+import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.model.AuthzRole;
+import uk.gov.justice.laa.datauserapi.model.AuthzRoleType;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+/**
+ * Maps a {@link UserProfile} to a row of the User Access Audit CSV, preserving the legacy
+ * export's column values and conventions. Kept separate from {@code AuditUserExportService} so
+ * that entity-to-CSV-value mapping (a single responsibility) is independently testable from
+ * fetch orchestration.
+ */
+@Component
+public class AuditUserExportMapper {
+
+    private static final String YES = "Yes";
+    private static final String NO = "No";
+
+    /**
+     * Maps a batch of fetched profiles to CSV rows, in the given {@code orderedIds} order (the
+     * order established by the filtering/pagination query). Profiles are keyed and re-ordered
+     * here, inside the mapper, so that entity access and entity-identity concerns stay out of
+     * {@code AuditUserExportService}.
+     */
+    public List<AuditUserExportRow> toRows(List<UUID> orderedIds, List<UserProfile> profiles) {
+        Map<UUID, UserProfile> detailsById = profiles.stream()
+                .collect(Collectors.toMap(UserProfile::getId, Function.identity()));
+
+        return orderedIds.stream()
+                .map(detailsById::get)
+                .filter(Objects::nonNull)
+                .map(this::toRow)
+                .toList();
+    }
+
+    public AuditUserExportRow toRow(UserProfile profile) {
+        EntraUser entraUser = profile.getEntraUser();
+        Firm firm = profile.getFirm();
+        Set<AppRole> appRoles = profile.getAppRoles();
+
+        return new AuditUserExportRow(
+                entraUser.getFirstName() + " " + entraUser.getLastName(),
+                entraUser.getEmail(),
+                firm != null ? firm.getName() : "",
+                firm != null ? firm.getCode() : "",
+                entraUser.isMultiFirmUser() ? YES : NO,
+                isProviderAdmin(appRoles) ? YES : NO,
+                distinctAppNames(appRoles),
+                entraUser.getUserAccountStatus().getValue(),
+                roleNames(appRoles)
+        );
+    }
+
+    private boolean isProviderAdmin(Set<AppRole> appRoles) {
+        return appRoles.stream()
+                .filter(AppRole::isAuthzRole)
+                .map(AppRole::getName)
+                .map(AuthzRole::fromRoleName)
+                .flatMap(role -> role.stream())
+                .anyMatch(role -> role.getAuthzRoleType() == AuthzRoleType.PROVIDER_ADMIN);
+    }
+
+    private String distinctAppNames(Set<AppRole> appRoles) {
+        return appRoles.stream()
+                .map(AppRole::getApp)
+                .map(App::getName)
+                .distinct()
+                .sorted(Comparator.naturalOrder())
+                .collect(Collectors.joining(", "));
+    }
+
+    private String roleNames(Set<AppRole> appRoles) {
+        return appRoles.stream()
+                .map(AppRole::getName)
+                .sorted(Comparator.naturalOrder())
+                .collect(Collectors.joining(", "));
+    }
+}
