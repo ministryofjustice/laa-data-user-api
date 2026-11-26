@@ -324,7 +324,7 @@ bundle annotation, and OPA volumes, so Java-only deployments do not require a po
 The deployment workflow resolves this setting from the merged base, environment, and generated Helm values.
 Older release charts without `authorization.opaEnabled` default to OPA disabled; explicitly supplied settings
 must still be booleans.
-When disabled, it skips bundle creation, S3 publication, and bundle-specific Helm arguments.
+When disabled, it skips bundle creation and bundle-specific Helm arguments.
 When enabled, OPA's readiness probe checks `/health?bundles=true` on a separate diagnostic listener
 on port 8182. The pod is not Ready if OPA is unresponsive or its bundle is not ready; the policy API
 remains bound to loopback on port 8181.
@@ -336,11 +336,10 @@ opa run --server --addr=127.0.0.1:8181 opa/policies
 ```
 
 The `OPA_URL` environment variable can override the default `http://localhost:8181`. Policy tests run with
-`opa test opa/policies opa/tests -v`. Deployments build and publish the policy bundle to
-an environment-, image-version-, and content-addressed S3 key. The deploy workflow passes that exact reference
-and bundle to Helm; Helm stores each bundle in a versioned immutable ConfigMap, and the OPA sidecar loads it
-from a shared local volume. This keeps policy data aligned with the deployed image and allows Helm rollback to
-restore the matching bundle.
+`opa test opa/policies opa/tests -v`. Deployments build the policy bundle from the selected policy ref and
+pass it directly to Helm. Helm stores each bundle in a content-addressed immutable ConfigMap, and the OPA
+sidecar loads it from a shared local volume. This keeps policy data aligned with the deployed image and
+allows Helm rollback to restore the matching bundle without requiring S3.
 
 ### Current caller permissions
 
@@ -423,39 +422,23 @@ application entries are invalid. No-op requests require no change permission and
 Update responses contain the requested final roles only, not roles from unmentioned applications.
 
 After authorisation, the command acquires deterministic profile locks and catalogue read locks, reloads
-trusted facts and requires the snapshot to match. A short serialisable transaction commits role changes
-and CCMS outbox rows together. Changed facts or concurrent serialisation conflicts return a generic 409;
-clients should refresh before retrying. No database lock is held during an OPA or SQS call.
-The catalogue lock is intentionally coarse for this trial; measure contention before broad rollout.
+trusted facts and requires the snapshot to match. A short serialisable transaction commits the role changes.
+Changed facts or concurrent serialisation conflicts return a generic 409; clients should refresh before retrying.
+No database lock is held during an OPA or SQS call. The catalogue lock is intentionally coarse for this trial;
+measure contention before broad rollout.
 
-**Deployment prerequisite:** integrate [`database/role-change-outbox.sql`](database/role-change-outbox.sql)
-into the schema-owning `laa-landing-page` migration mechanism and apply it before this API is deployed.
-This repository does not run that SQL automatically and no sibling project is changed. Drain in-flight
-legacy role notifications before enabling the trial writers and route a trial profile's role edits through
-these endpoints rather than concurrent legacy writers. The legacy CCMS retry query excludes profiles
-with pending outbox work; ordinary retry behaviour resumes once that work is delivered.
-
-HTTP 200 confirms the local commit and durable notification work, **not** downstream completion.
-Only changes to legacy-synchronised responsibilities create CCMS messages, including an empty
-responsibility list when the final role is removed. Existing application-to-SQS configuration is reused;
-no unsupported Tech Services role-assignment API is invented. A scheduled dispatcher claims up to 20
-profile-ordered events, uses five-minute recoverable leases, a ten-second SQS call timeout and bounded
-retry delays. `APP_ROLE_OUTBOX_POLL_DELAY_MS` controls polling (default 1000 ms). Failed items remain
-pending; monitor `role_outbox_retry`, `role_outbox_acknowledgement_failed`, pending age and attempt count.
-The profile sync flag becomes successful only after all its pending events are delivered to SQS.
-
-Delivery is **at least once**. Event UUIDs are stable SQS deduplication IDs; `eventId` and `eventSequence`
-message attributes support consumer idempotency and stale-message rejection. SQS's five-minute deduplication
-window is not a permanent exactly-once guarantee: the consumer must deduplicate repeated events and reject
-older sequences, including after a worker pause or lost acknowledgement. Validate that consumer behaviour
-before production rollout. Delivered payloads contain personal data; configure an approved retention job
-that deletes only delivered rows after the agreed retention period, never pending rows. Profile deletion
-cascades outbox deletion; it must not overlap in-flight trial delivery during the trial.
+Only changes to legacy-synchronised responsibilities create CCMS messages, including an empty responsibility
+list when the final role is removed. Existing application-to-SQS configuration and retry behaviour are reused.
+Notifications are sent only after the role-change transaction commits, so a failed SQS send does not roll back
+the role update. HTTP 200 confirms the local role commit and immediate notification attempt, not downstream
+processing. A failed send leaves the profile sync flag unsuccessful; the existing scheduled profile sync
+retries while the profile still has legacy-synchronised roles. There is no durable outbox, so a failed
+notification after removal of the final legacy-synchronised role is not automatically retried.
 
 `opa_trial_decision` structured events include operation, actor/target identifiers, typed reason, both
 engines' results/filters, mismatch indicator and evaluation duration. Denials and mismatches are WARN.
-Database-backed tests exercise real OPA/Java parity, protected transitions, rollback, leases, ordering
-and transaction-free remote calls; Rego tests cover policy decisions. These are not deployment evidence:
+Database-backed tests exercise real OPA/Java parity, protected transitions, rollback, and transaction-free
+remote calls; Rego tests cover policy decisions. These are not deployment evidence:
 measure zero discrepancies, at most 500 ms added end-to-end latency and a healthy zero-downtime policy
 rollout within ten minutes in a deployment-equivalent environment.
 

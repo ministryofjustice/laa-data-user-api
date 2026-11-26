@@ -149,18 +149,12 @@ jobs:
             --volume "$RUNNER_TEMP/opa-bundle:/bundle" \
             openpolicyagent/opa:0.68.0 build -b -o /bundle/bundle.tar.gz /tmp/opa/policies
 
-      - name: Publish OPA policy bundle
+      - name: Identify OPA policy bundle
         if: steps.opa-setting.outputs.enabled == 'true'
-        id: publish-bundle
+        id: policy-bundle
         run: |
           BUNDLE_SHA256="$(sha256sum "$RUNNER_TEMP/opa-bundle/bundle.tar.gz" | cut -d' ' -f1)"
-          BUNDLE_KEY="laa-data-user-api/${ENVIRONMENT}/${IMAGE_TAG}/${BUNDLE_SHA256}/bundle.tar.gz"
-          OPA_BUNDLE_REF="s3://laa-opa-bundles/${BUNDLE_KEY}"
-          aws s3 cp "$RUNNER_TEMP/opa-bundle/bundle.tar.gz" "$OPA_BUNDLE_REF"
-          echo "bundle_ref=${OPA_BUNDLE_REF}" >> "$GITHUB_OUTPUT"
-        env:
-          ENVIRONMENT: ${{ inputs.environment }}
-          IMAGE_TAG: ${{ inputs.image_tag }}
+          echo "bundle_ref=sha256:${BUNDLE_SHA256}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
@@ -186,7 +180,7 @@ jobs:
           KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
           HELM_VALUES_ENV: ${{ inputs.helm_values_env }}
           OPA_ENABLED: ${{ steps.opa-setting.outputs.enabled }}
-          OPA_BUNDLE_REF: ${{ steps.publish-bundle.outputs.bundle_ref }}
+          OPA_BUNDLE_REF: ${{ steps.policy-bundle.outputs.bundle_ref }}
 
       - name: Wait for new deployment to finish
         if: inputs.wait_for_rollout

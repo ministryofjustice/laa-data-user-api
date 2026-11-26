@@ -1051,7 +1051,9 @@ paths:
         Uses internal SiLAS application and role UUIDs. Unmentioned applications remain unchanged;
         an empty role list clears a listed application. Duplicate application entries are invalid.
         ASSIGN/REMOVE permissions apply only to actual additions/removals respectively.
-        HTTP 200 confirms the local commit and durable notification work, not downstream completion.
+        HTTP 200 confirms the local role commit and immediate notification attempt, not downstream processing.
+        Changed legacy-synchronised roles are notified after commit; a notification failure does not roll back
+        the role update.
         Missing/inaccessible targets return a generic 403; changed facts require refresh and retry (409).
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]

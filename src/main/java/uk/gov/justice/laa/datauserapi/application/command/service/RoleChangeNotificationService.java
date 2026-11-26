@@ -18,6 +18,7 @@ import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 import uk.gov.justice.laa.datauserapi.application.command.model.CcmsMessage;
+import uk.gov.justice.laa.datauserapi.application.command.dto.RoleNotificationDetails;
 import uk.gov.justice.laa.datauserapi.application.command.registry.SqsClientRegistry;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
@@ -65,62 +66,71 @@ public class RoleChangeNotificationService {
             backoff = @Backoff(delay = 100)
     )
     public boolean sendMessage(UserProfile userProfile, String appEntraOid, Set<String> newPuiRoles, Set<String> oldPuiRoles) {
+        return sendMessage(details(userProfile), appEntraOid, newPuiRoles, oldPuiRoles);
+    }
+
+    @Retryable(
+            retryFor = {CcmsNotificationException.class, SdkException.class},
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 100)
+    )
+    public boolean sendMessage(RoleNotificationDetails profile, String appEntraOid, Set<String> newPuiRoles,
+                               Set<String> oldPuiRoles) {
+        return sendMessageInternal(profile, appEntraOid, newPuiRoles, oldPuiRoles);
+    }
+
+    private boolean sendMessageInternal(RoleNotificationDetails profile, String appEntraOid,
+                                        Set<String> newPuiRoles, Set<String> oldPuiRoles) {
         Optional<String> sqsQueueUrlOpt = sqsClientRegistry.getSqsQueueUrl(appEntraOid);
-        // Skip until queue is ready for env
         if (sqsQueueUrlOpt.isEmpty() || "NONE".equalsIgnoreCase(sqsQueueUrlOpt.get())) {
             log.info("Skipping CCMS update because the queue is unavailable",
-                    kv("entraOid", userProfile.getEntraUser().getEntraOid()),
-                    kv("applicationEntraOid", appEntraOid));
+                    kv("entraOid", profile.entraOid()), kv("applicationEntraOid", appEntraOid));
             return false;
         }
 
         try {
             log.info("Initializing CCMS role change message",
-                    kv("entraOid", userProfile.getEntraUser().getEntraOid()),
-                    kv("applicationEntraOid", appEntraOid));
-            return sendRoleChangeNotificationToSqs(userProfile, appEntraOid, newPuiRoles, oldPuiRoles);
+                    kv("entraOid", profile.entraOid()), kv("applicationEntraOid", appEntraOid));
+            return sendRoleChangeNotificationToSqs(profile, appEntraOid, newPuiRoles, oldPuiRoles);
         } catch (CcmsNotificationException | SdkException e) {
             log.warn("CCMS notification attempt failed",
                     ExceptionLogFields.exceptionGroup(e), ExceptionLogFields.exceptionReason(e),
-                    kv("entraOid", userProfile.getEntraUser().getEntraOid()),
-                    kv("applicationEntraOid", appEntraOid),
+                    kv("entraOid", profile.entraOid()), kv("applicationEntraOid", appEntraOid),
                     kv("reason", e instanceof CcmsNotificationException notification
                             ? notification.reason() : "SDK_FAILURE"),
-                    kv("exceptionMessage", e.getMessage()),
-                    e);
+                    kv("exceptionMessage", e.getMessage()), e);
             throw e;
         }
     }
 
-
-    private boolean sendRoleChangeNotificationToSqs(UserProfile userProfile, String appEntraOid, Set<String> newPuiRoles, Set<String> oldPuiRoles) {
+    private boolean sendRoleChangeNotificationToSqs(RoleNotificationDetails profile, String appEntraOid,
+                                                     Set<String> newPuiRoles, Set<String> oldPuiRoles) {
         Optional<SqsClient> sqsClientOpt = sqsClientRegistry.getSqsClient(appEntraOid);
         Optional<String> sqsQueueUrlOpt = sqsClientRegistry.getSqsQueueUrl(appEntraOid);
         if (sqsClientOpt.isEmpty() || sqsQueueUrlOpt.isEmpty() || "NONE".equalsIgnoreCase(sqsQueueUrlOpt.get())) {
             log.info("Skipping CCMS update because the queue or client is unavailable",
-                    kv("entraOid", userProfile.getEntraUser().getEntraOid()),
+                    kv("entraOid", profile.entraOid()),
                     kv("applicationEntraOid", appEntraOid));
             return false;
         }
 
         SqsClient sqsClient = sqsClientOpt.get();
         String sqsQueueUrl = sqsQueueUrlOpt.get();
-        EntraUser entraUser = userProfile.getEntraUser();
         if (!newPuiRoles.equals(oldPuiRoles)) {
             log.info("Generating CCMS role change message",
-                    kv("userProfileId", userProfile.getId()),
-                    kv("entraOid", userProfile.getEntraUser().getEntraOid()),
+                    kv("userProfileId", profile.profileId()),
+                    kv("entraOid", profile.entraOid()),
                     kv("applicationEntraOid", appEntraOid));
             CcmsMessage.CcmsMessageBuilder ccmsMessageBuilder = CcmsMessage.builder()
-                    .userName(userProfile.getLegacyUserId().toString())
-                    .firstName(entraUser.getFirstName())
-                    .lastName(entraUser.getLastName())
+                    .userName(profile.legacyUserId().toString())
+                    .firstName(profile.firstName())
+                    .lastName(profile.lastName())
                     .timestamp(LocalDateTime.now())
-                    .email(entraUser.getEmail())
+                    .email(profile.email())
                     .responsibilityKey(newPuiRoles.stream().toList());
 
-            if (UserType.EXTERNAL.equals(userProfile.getUserType())) {
-                ccmsMessageBuilder.vendorNumber(userProfile.getFirm().getCode());
+            if (UserType.EXTERNAL.equals(profile.userType())) {
+                ccmsMessageBuilder.vendorNumber(profile.firmCode());
             }
 
             CcmsMessage message = ccmsMessageBuilder.build();
@@ -131,13 +141,13 @@ public class RoleChangeNotificationService {
                 throw new CcmsNotificationException("CCMS message serialization failed", ex);
             }
             log.info("CCMS role change message generated",
-                    kv("userProfileId", userProfile.getId()),
-                    kv("entraOid", userProfile.getEntraUser().getEntraOid()),
-                    kv("legacyUserId", userProfile.getLegacyUserId()),
+                    kv("userProfileId", profile.profileId()),
+                    kv("entraOid", profile.entraOid()),
+                    kv("legacyUserId", profile.legacyUserId()),
                     kv("ccmsRoles", newPuiRoles));
 
             Map<String, MessageAttributeValue> userTypeAttribute = Map.of(USER_TYPE_ATTRIBUTE, MessageAttributeValue.builder()
-                    .stringValue(userProfile.getUserType().toString())
+                    .stringValue(profile.userType().toString())
                     .dataType("String")
                     .build());
 
@@ -145,19 +155,19 @@ public class RoleChangeNotificationService {
                     .queueUrl(sqsQueueUrl)
                     .messageBody(messageBody)
                     .messageAttributes(userTypeAttribute)
-                    .messageGroupId(userProfile.getLegacyUserId().toString())
-                    .messageDeduplicationId(generateDeduplicationId(userProfile, newPuiRoles))
+                    .messageGroupId(profile.legacyUserId().toString())
+                    .messageDeduplicationId(generateDeduplicationId(profile, newPuiRoles))
                     .build();
 
             SendMessageResponse response = sqsClient.sendMessage(sendMessageRequest);
             log.info("CCMS role change message sent to queue",
-                    kv("userProfileId", userProfile.getId()),
-                    kv("entraOid", entraUser.getEntraOid()),
+                    kv("userProfileId", profile.profileId()),
+                    kv("entraOid", profile.entraOid()),
                     kv("messageId", response.messageId()));
         } else {
             log.info("No CCMS roles changed; skipping notification",
-                    kv("userProfileId", userProfile.getId()),
-                    kv("entraOid", userProfile.getEntraUser().getEntraOid()),
+                    kv("userProfileId", profile.profileId()),
+                    kv("entraOid", profile.entraOid()),
                     kv("applicationEntraOid", appEntraOid));
         }
         return true;
@@ -181,6 +191,18 @@ public class RoleChangeNotificationService {
         return recordRetryFailure(e, userProfile, appEntraOid);
     }
 
+    @Recover
+    public boolean recoverFromRetryFailure(CcmsNotificationException e, RoleNotificationDetails profile,
+                                           String appEntraOid, Set<String> newPuiRoles, Set<String> oldPuiRoles) {
+        return recordRetryFailure(e, profile, appEntraOid);
+    }
+
+    @Recover
+    public boolean recoverFromRetryFailure(SdkException e, RoleNotificationDetails profile,
+                                           String appEntraOid, Set<String> newPuiRoles, Set<String> oldPuiRoles) {
+        return recordRetryFailure(e, profile, appEntraOid);
+    }
+
     private boolean recordRetryFailure(RuntimeException e, UserProfile userProfile, String appEntraOid) {
         log.error("All CCMS notification retries failed; continuing with database update",
                 ExceptionLogFields.exceptionGroup(e), ExceptionLogFields.exceptionReason(e),
@@ -193,15 +215,34 @@ public class RoleChangeNotificationService {
         return false;
     }
 
-    private String generateDeduplicationId(UserProfile userProfile, Set<String> newPuiRoles) {
-        String content = userProfile.getEntraUser().getEntraOid() + "-"
-                + userProfile.getLegacyUserId() + "-"
+    private boolean recordRetryFailure(RuntimeException e, RoleNotificationDetails profile, String appEntraOid) {
+        log.error("All CCMS notification retries failed; continuing with database update",
+                ExceptionLogFields.exceptionGroup(e), ExceptionLogFields.exceptionReason(e),
+                kv("userProfileId", profile.profileId()),
+                kv("entraOid", profile.entraOid()),
+                kv("applicationEntraOid", appEntraOid),
+                kv("reason", e instanceof CcmsNotificationException notification
+                        ? notification.reason() : "SDK_FAILURE"),
+                e);
+        return false;
+    }
+
+    private String generateDeduplicationId(RoleNotificationDetails profile, Set<String> newPuiRoles) {
+        String content = profile.entraOid() + "-"
+                + profile.legacyUserId() + "-"
                 + newPuiRoles.stream()
                 .sorted()
                 .reduce("", (a, b) -> a + b) + "-"
                 + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HH"));
 
         return UUID.nameUUIDFromBytes(content.getBytes()).toString();
+    }
+
+    private static RoleNotificationDetails details(UserProfile userProfile) {
+        EntraUser entraUser = userProfile.getEntraUser();
+        return new RoleNotificationDetails(userProfile.getId(), entraUser.getEntraOid(), userProfile.getLegacyUserId(),
+                userProfile.getUserType(), userProfile.getFirm() == null ? null : userProfile.getFirm().getCode(),
+                entraUser.getFirstName(), entraUser.getLastName(), entraUser.getEmail());
     }
 
 

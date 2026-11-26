@@ -2,7 +2,6 @@ package uk.gov.justice.laa.datauserapi.security.opa.trial;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManagerFactory;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.List;
@@ -41,11 +40,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.containers.BindMode;
 import uk.gov.justice.laa.datauserapi.application.command.handler.ProfileRoleChangeHandler;
+import uk.gov.justice.laa.datauserapi.application.command.dto.RoleNotificationDetails;
+import uk.gov.justice.laa.datauserapi.application.command.service.ProfileRoleChangePersistenceService;
 import uk.gov.justice.laa.datauserapi.application.command.service.ProfileRoleChangeService;
-import uk.gov.justice.laa.datauserapi.application.command.service.RoleChangeOutboxState;
-import uk.gov.justice.laa.datauserapi.application.command.service.RoleChangeOutboxWriter;
-import uk.gov.justice.laa.datauserapi.application.command.service.RoleChangeOutboxDispatcher;
-import uk.gov.justice.laa.datauserapi.application.command.registry.SqsClientRegistry;
+import uk.gov.justice.laa.datauserapi.application.command.service.RoleChangeNotificationService;
 import uk.gov.justice.laa.datauserapi.application.command.shared.repository.ProfileRoleChangeRepository;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.ProfileRoleChangeCommand;
 import uk.gov.justice.laa.datauserapi.application.query.handler.ProfileTrialQueryHandler;
@@ -102,18 +100,14 @@ class ProfileTrialDatabaseIntegrationTest {
     @Autowired private ProfileTrialFactsLoader loader;
     @Autowired private OpaAuthorizationClient client;
     @Autowired private JavaProfileTrialRules javaRules;
-    @Autowired private RoleChangeOutboxState outbox;
-    @Autowired private RoleChangeOutboxDispatcher dispatcher;
-    @Autowired private SqsClientRegistry registry;
+    @Autowired private RoleChangeNotificationService notifications;
     @Autowired private PlatformTransactionManager transactions;
     @Autowired private EntityManagerFactory entityManagerFactory;
     private AuthenticatedEntraUser actor;
 
     @BeforeEach
-    void seed() throws Exception {
-        org.mockito.Mockito.reset(registry);
-        jdbc.execute("DROP TABLE IF EXISTS role_change_outbox");
-        jdbc.execute(Files.readString(Path.of("database/role-change-outbox.sql")));
+    void seed() {
+        org.mockito.Mockito.reset(notifications);
         jdbc.execute("CREATE TABLE IF NOT EXISTS role_assignment (id UUID PRIMARY KEY, assigning_role_id UUID, assignable_role_id UUID)");
         jdbc.execute("TRUNCATE role_assignment, user_profile_app_role, user_profile_office, role_permission,"
                 + " app_role, user_profile, entra_user, office, firm, app CASCADE");
@@ -198,27 +192,42 @@ class ProfileTrialDatabaseIntegrationTest {
     }
 
     @Test
-    void assignsRolesAtomicallyAndQueuesTheFinalEmptySetWhenClearingAnApplication() {
+    void commitsRoleChangesBeforeSendingNotificationsAndSkipsNoOps() {
+        org.mockito.Mockito.when(notifications.sendMessage(
+                org.mockito.ArgumentMatchers.<RoleNotificationDetails>any(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anySet(), org.mockito.ArgumentMatchers.anySet()))
+                .thenAnswer(invocation -> {
+                    assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+                    return true;
+                });
         commands.handle(command(ProfileTrialOperation.ASSIGN, Set.of(ROLE, OTHER_ROLE), Map.of()), actor);
         assertThat(roleCount()).isEqualTo(2);
-        assertThat(pendingCount()).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT last_sync_successful FROM user_profile WHERE id=?", Boolean.class, TARGET))
+                .isTrue();
+        org.mockito.Mockito.verify(notifications).sendMessage(org.mockito.ArgumentMatchers.<RoleNotificationDetails>any(),
+                org.mockito.ArgumentMatchers.eq(APP.toString()), org.mockito.ArgumentMatchers.eq(Set.of("ROLE_A")),
+                org.mockito.ArgumentMatchers.eq(Set.of()));
+        org.mockito.Mockito.verify(notifications).sendMessage(org.mockito.ArgumentMatchers.<RoleNotificationDetails>any(),
+                org.mockito.ArgumentMatchers.eq(OTHER_APP.toString()), org.mockito.ArgumentMatchers.eq(Set.of("ROLE_B")),
+                org.mockito.ArgumentMatchers.eq(Set.of()));
         commands.handle(command(ProfileTrialOperation.UPDATE, Set.of(), Map.of(APP, Set.of())), actor);
         assertThat(jdbc.queryForList("SELECT app_role_id FROM user_profile_app_role WHERE user_profile_id=?", UUID.class, TARGET))
                 .containsExactly(OTHER_ROLE);
-        assertThat(jdbc.queryForObject("SELECT payload FROM role_change_outbox ORDER BY id DESC LIMIT 1", String.class))
-                .contains("\"responsibilityKey\":[]");
-        long count = pendingCount();
+        org.mockito.Mockito.verify(notifications).sendMessage(org.mockito.ArgumentMatchers.<RoleNotificationDetails>any(),
+                org.mockito.ArgumentMatchers.eq(APP.toString()), org.mockito.ArgumentMatchers.eq(Set.of()),
+                org.mockito.ArgumentMatchers.eq(Set.of("ROLE_A")));
         commands.handle(command(ProfileTrialOperation.UPDATE, Set.of(), Map.of(APP, Set.of())), actor);
-        assertThat(pendingCount()).isEqualTo(count);
+        org.mockito.Mockito.verify(notifications, org.mockito.Mockito.times(3)).sendMessage(
+                org.mockito.ArgumentMatchers.<RoleNotificationDetails>any(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anySet(), org.mockito.ArgumentMatchers.anySet());
     }
 
     @Test
-    void rollbackDoesNotLeavePartialRoleChangesOrOutboxEvents() {
+    void rollbackDoesNotLeavePartialRoleChangesWhenNotificationDetailsAreInvalid() {
         jdbc.update("UPDATE user_profile SET legacy_user_id=NULL WHERE id=?", TARGET);
         assertThatThrownBy(() -> commands.handle(command(ProfileTrialOperation.ASSIGN, Set.of(ROLE), Map.of()), actor))
                 .isInstanceOf(CcmsNotificationException.class);
         assertThat(roleCount()).isZero();
-        assertThat(pendingCount()).isZero();
     }
 
     @Test
@@ -231,7 +240,6 @@ class ProfileTrialDatabaseIntegrationTest {
         AFTER_OPA.set(() -> jdbc.update("UPDATE entra_user SET enabled=false WHERE id=?", ACTOR));
         assertThatThrownBy(() -> commands.handle(command(ProfileTrialOperation.ASSIGN, Set.of(ROLE), Map.of()), actor))
                 .isInstanceOf(ProfileRoleConflictException.class);
-        assertThat(pendingCount()).isZero();
     }
 
     @Test
@@ -243,43 +251,21 @@ class ProfileTrialDatabaseIntegrationTest {
     }
 
     @Test
-    void leaseOwnershipRetriesAndPerProfileOrderingSurviveWorkerReplacement() {
-        commands.handle(command(ProfileTrialOperation.ASSIGN, Set.of(ROLE), Map.of()), actor);
-        commands.handle(command(ProfileTrialOperation.UPDATE, Set.of(), Map.of(APP, Set.of())), actor);
-        var first = outbox.claim().getFirst();
-        assertThat(outbox.claim()).isEmpty();
-        outbox.complete(first, false);
-        assertThat(outbox.claim()).isEmpty();
-        jdbc.update("UPDATE role_change_outbox SET next_attempt_at=now()-interval '1 second'");
-        var retried = outbox.claim().getFirst();
-        assertThat(retried.eventId()).isEqualTo(first.eventId());
-        outbox.complete(first, true);
-        assertThat(pendingCount()).isEqualTo(2);
-        outbox.complete(retried, true);
-        var next = outbox.claim().getFirst();
-        assertThat(next.id()).isGreaterThan(first.id());
-        outbox.complete(next, true);
-        assertThat(pendingCount()).isZero();
-        assertThat(jdbc.queryForObject("SELECT last_sync_successful FROM user_profile WHERE id=?", Boolean.class, TARGET)).isTrue();
-    }
-
-    @Test
-    void remoteDeliverySuspendsAmbientTransactionsAndUsesStableIdempotencyMetadata() {
-        commands.handle(command(ProfileTrialOperation.ASSIGN, Set.of(ROLE), Map.of()), actor);
-        var sqs = org.mockito.Mockito.mock(software.amazon.awssdk.services.sqs.SqsClient.class);
-        org.mockito.Mockito.when(registry.getSqsQueueUrl(APP.toString())).thenReturn(java.util.Optional.of("https://sqs.test/roles.fifo"));
-        org.mockito.Mockito.when(registry.getSqsClient(APP.toString())).thenReturn(java.util.Optional.of(sqs));
-        org.mockito.Mockito.when(sqs.sendMessage(org.mockito.ArgumentMatchers.any(software.amazon.awssdk.services.sqs.model.SendMessageRequest.class)))
+    void failedPostCommitNotificationLeavesSyncFlagUnsuccessful() {
+        org.mockito.Mockito.when(notifications.sendMessage(
+                org.mockito.ArgumentMatchers.<RoleNotificationDetails>any(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anySet(), org.mockito.ArgumentMatchers.anySet()))
                 .thenAnswer(invocation -> {
                     assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
-                    software.amazon.awssdk.services.sqs.model.SendMessageRequest request = invocation.getArgument(0);
-                    assertThat(request.messageGroupId()).isEqualTo(TARGET.toString());
-                    assertThat(request.messageDeduplicationId()).isEqualTo(request.messageAttributes().get("eventId").stringValue());
-                    assertThat(request.messageAttributes().get("eventSequence").stringValue()).isNotBlank();
-                    return software.amazon.awssdk.services.sqs.model.SendMessageResponse.builder().messageId("delivered").build();
+                    return false;
                 });
-        new TransactionTemplate(transactions).executeWithoutResult(status -> dispatcher.dispatch());
-        assertThat(pendingCount()).isZero();
+        commands.handle(command(ProfileTrialOperation.ASSIGN, Set.of(ROLE), Map.of()), actor);
+        assertThat(roleCount()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT last_sync_successful FROM user_profile WHERE id=?", Boolean.class, TARGET))
+                .isFalse();
+        org.mockito.Mockito.verify(notifications).sendMessage(org.mockito.ArgumentMatchers.<RoleNotificationDetails>any(),
+                org.mockito.ArgumentMatchers.eq(APP.toString()), org.mockito.ArgumentMatchers.eq(Set.of("ROLE_A")),
+                org.mockito.ArgumentMatchers.eq(Set.of()));
     }
 
     @Test
@@ -287,12 +273,14 @@ class ProfileTrialDatabaseIntegrationTest {
         jdbc.update("INSERT INTO user_profile_app_role VALUES (?,?)", TARGET, ROLE);
         jdbc.update("DELETE FROM role_permission WHERE permission='ASSIGN_EXTERNAL_USER_ROLES'");
         commands.handle(command(ProfileTrialOperation.ASSIGN, Set.of(ROLE), Map.of()), actor);
-        assertThat(pendingCount()).isZero();
+        org.mockito.Mockito.verifyNoInteractions(notifications);
         assertThatThrownBy(() -> commands.handle(command(ProfileTrialOperation.ASSIGN, Set.of(OTHER_ROLE), Map.of()), actor))
                 .isInstanceOf(AccessDeniedException.class);
         commands.handle(command(ProfileTrialOperation.UPDATE, Set.of(), Map.of(APP, Set.of())), actor);
         assertThat(roleCount()).isZero();
-        assertThat(pendingCount()).isEqualTo(1);
+        org.mockito.Mockito.verify(notifications).sendMessage(org.mockito.ArgumentMatchers.<RoleNotificationDetails>any(),
+                org.mockito.ArgumentMatchers.eq(APP.toString()), org.mockito.ArgumentMatchers.eq(Set.of()),
+                org.mockito.ArgumentMatchers.eq(Set.of("ROLE_A")));
     }
 
     @Test
@@ -395,10 +383,6 @@ class ProfileTrialDatabaseIntegrationTest {
         return jdbc.queryForObject("SELECT count(*) FROM user_profile_app_role WHERE user_profile_id=?", Long.class, TARGET);
     }
 
-    private long pendingCount() {
-        return jdbc.queryForObject("SELECT count(*) FROM role_change_outbox WHERE delivered_at IS NULL", Long.class);
-    }
-
     @Configuration
     @EnableMethodSecurity(proxyTargetClass = true)
     @EnableTransactionManagement(proxyTargetClass = true)
@@ -406,7 +390,8 @@ class ProfileTrialDatabaseIntegrationTest {
         ProfileTrialFactsRepository.class})
     @Import({RbacMethodSecurityConfig.class, ProfileTrialDecisionPolicy.class, ProfileTrialInputResolver.class,
         ProfileTrialFactsLoader.class, ProfileTrialRoleViewMapper.class, ProfileRoleChangeService.class,
-        RoleChangeOutboxWriter.class, RoleChangeOutboxState.class, RoleChangeOutboxDispatcher.class, ProfileRoleChangeHandler.class,
+        ProfileRoleChangePersistenceService.class,
+        ProfileRoleChangeHandler.class,
         ProfileTrialQueryHandler.class, ProfileTrialQueryService.class, ProfileTrialReadMapper.class,
         GetActiveProfileQueryMapper.class, MapperConfig.class, JavaProfileTrialRules.class, ProfileTrialAuthorizer.class})
     static class Config {
@@ -466,8 +451,9 @@ class ProfileTrialDatabaseIntegrationTest {
         }
 
         @Bean
-        SqsClientRegistry registry() {
-            return org.mockito.Mockito.mock(SqsClientRegistry.class);
+        @org.springframework.context.annotation.Primary
+        RoleChangeNotificationService notifications() {
+            return org.mockito.Mockito.mock(RoleChangeNotificationService.class);
         }
 
         @Bean
