@@ -7,8 +7,7 @@ import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.JpaTransactionManager;
@@ -99,9 +98,9 @@ class AuditUserExportQueryRepositoryTest {
         AuditUserExportCriteria criteria =
                 new AuditUserExportCriteria(null, null, "F1", null, null, null, null);
 
-        Page<UUID> page = repository.findMatchingProfileIds(criteria, PageRequest.of(0, 50));
+        List<UUID> ids = repository.findMatchingProfileIds(criteria, null, Limit.of(50));
 
-        assertThat(page.getContent()).containsExactlyInAnyOrder(
+        assertThat(ids).containsExactlyInAnyOrder(
                 EXTERNAL_PROFILE_ID, MULTI_FIRM_PROFILE_IN_FIRM_ID, NEVER_ACTIVATED_PROFILE_ID);
     }
 
@@ -110,9 +109,9 @@ class AuditUserExportQueryRepositoryTest {
         AuditUserExportCriteria criteria =
                 new AuditUserExportCriteria(null, null, "F2", null, null, null, null);
 
-        Page<UUID> page = repository.findMatchingProfileIds(criteria, PageRequest.of(0, 50));
+        List<UUID> ids = repository.findMatchingProfileIds(criteria, null, Limit.of(50));
 
-        assertThat(page.getContent()).containsExactly(MULTI_FIRM_PROFILE_IN_OTHER_FIRM_ID);
+        assertThat(ids).containsExactly(MULTI_FIRM_PROFILE_IN_OTHER_FIRM_ID);
     }
 
     @Test
@@ -120,9 +119,9 @@ class AuditUserExportQueryRepositoryTest {
         AuditUserExportCriteria criteria =
                 new AuditUserExportCriteria(UserType.INTERNAL, null, null, null, null, null, null);
 
-        Page<UUID> page = repository.findMatchingProfileIds(criteria, PageRequest.of(0, 50));
+        List<UUID> ids = repository.findMatchingProfileIds(criteria, null, Limit.of(50));
 
-        assertThat(page.getContent()).containsExactly(INTERNAL_PROFILE_ID);
+        assertThat(ids).containsExactly(INTERNAL_PROFILE_ID);
     }
 
     @Test
@@ -130,9 +129,9 @@ class AuditUserExportQueryRepositoryTest {
         AuditUserExportCriteria criteria =
                 new AuditUserExportCriteria(null, null, "F1", null, null, null, true);
 
-        Page<UUID> page = repository.findMatchingProfileIds(criteria, PageRequest.of(0, 50));
+        List<UUID> ids = repository.findMatchingProfileIds(criteria, null, Limit.of(50));
 
-        assertThat(page.getContent()).containsExactly(NEVER_ACTIVATED_PROFILE_ID);
+        assertThat(ids).containsExactly(NEVER_ACTIVATED_PROFILE_ID);
     }
 
     @Test
@@ -140,9 +139,9 @@ class AuditUserExportQueryRepositoryTest {
         AuditUserExportCriteria criteria =
                 new AuditUserExportCriteria(null, null, "F1", "0001", null, null, null);
 
-        Page<UUID> page = repository.findMatchingProfileIds(criteria, PageRequest.of(0, 50));
+        List<UUID> ids = repository.findMatchingProfileIds(criteria, null, Limit.of(50));
 
-        assertThat(page.getContent()).containsExactly(EXTERNAL_PROFILE_ID);
+        assertThat(ids).containsExactly(EXTERNAL_PROFILE_ID);
     }
 
     @Test
@@ -150,9 +149,9 @@ class AuditUserExportQueryRepositoryTest {
         AuditUserExportCriteria criteria =
                 new AuditUserExportCriteria(null, null, "F1", null, null, ROLE_ID, null);
 
-        Page<UUID> page = repository.findMatchingProfileIds(criteria, PageRequest.of(0, 50));
+        List<UUID> ids = repository.findMatchingProfileIds(criteria, null, Limit.of(50));
 
-        assertThat(page.getContent()).containsExactly(EXTERNAL_PROFILE_ID);
+        assertThat(ids).containsExactly(EXTERNAL_PROFILE_ID);
     }
 
     @Test
@@ -181,9 +180,31 @@ class AuditUserExportQueryRepositoryTest {
         AuditUserExportCriteria criteria =
                 new AuditUserExportCriteria(null, null, "F1", "0001", null, null, null);
 
-        Page<UUID> page = repository.findMatchingProfileIds(criteria, PageRequest.of(0, 50));
+        List<UUID> ids = repository.findMatchingProfileIds(criteria, null, Limit.of(50));
 
-        assertThat(page.getContent()).containsExactlyInAnyOrder(EXTERNAL_PROFILE_ID, unrestrictedProfileId);
+        assertThat(ids).containsExactlyInAnyOrder(EXTERNAL_PROFILE_ID, unrestrictedProfileId);
+    }
+
+    @Test
+    void findMatchingProfileIds_profileDeletedBetweenBatches_doesNotSkipLaterProfiles() {
+        // Seeded profiles, ordered by id ascending: EXTERNAL_PROFILE_ID (2) < MULTI_FIRM_PROFILE_IN_FIRM_ID (4)
+        // < MULTI_FIRM_PROFILE_IN_OTHER_FIRM_ID (5) < INTERNAL_PROFILE_ID (7) < NEVER_ACTIVATED_PROFILE_ID (9).
+        AuditUserExportCriteria allProfiles = new AuditUserExportCriteria(null, null, null, null, null, null, null);
+
+        List<UUID> firstBatch = repository.findMatchingProfileIds(allProfiles, null, Limit.of(2));
+        assertThat(firstBatch).containsExactly(EXTERNAL_PROFILE_ID, MULTI_FIRM_PROFILE_IN_FIRM_ID);
+        UUID lastSeenId = firstBatch.get(firstBatch.size() - 1);
+
+        // Simulate a profile within the already-read batch being deleted mid-export. Offset
+        // pagination would shift the next OFFSET left by one and skip a not-yet-exported profile;
+        // keyset pagination (id > lastSeenId) must not be affected by this at all.
+        jdbc.update("DELETE FROM user_profile_app_role WHERE user_profile_id = ?", EXTERNAL_PROFILE_ID);
+        jdbc.update("DELETE FROM user_profile_office WHERE user_profile_id = ?", EXTERNAL_PROFILE_ID);
+        jdbc.update("DELETE FROM user_profile WHERE id = ?", EXTERNAL_PROFILE_ID);
+
+        List<UUID> secondBatch = repository.findMatchingProfileIds(allProfiles, lastSeenId, Limit.of(2));
+
+        assertThat(secondBatch).containsExactly(MULTI_FIRM_PROFILE_IN_OTHER_FIRM_ID, INTERNAL_PROFILE_ID);
     }
 
     private void insertUser(UUID id, String email, String status) {

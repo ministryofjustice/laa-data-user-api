@@ -20,7 +20,10 @@ import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
  * view permission matching the requested scope:
  *
  * <ul>
- *     <li>INTERNAL-only export requires {@link Permission#VIEW_INTERNAL_USER}.</li>
+ *     <li>INTERNAL-only export requires an INTERNAL actor holding
+ *     {@link Permission#VIEW_INTERNAL_USER}; holding the permission alone is not sufficient,
+ *     since permission assignment is role-configuration driven and not type-safe at the actor
+ *     level.</li>
  *     <li>Single-firm export requires {@link Permission#VIEW_EXTERNAL_USER}; an external actor
  *     may only export their own firm.</li>
  * </ul>
@@ -48,7 +51,8 @@ public class CanExportAuditUsersPolicy implements AuthorizationPolicy<AuditUserE
         }
 
         if (context.requestsInternalOnly()) {
-            if (!ActorPermissions.has(actor, Permission.VIEW_INTERNAL_USER)) {
+            if (actorProfile.userType() != UserType.INTERNAL
+                    || !ActorPermissions.has(actor, Permission.VIEW_INTERNAL_USER)) {
                 return PolicyDecision.deny(PolicyDenialReason.ACTOR_NO_VIEW_PERMISSION);
             }
             return PolicyDecision.allow();

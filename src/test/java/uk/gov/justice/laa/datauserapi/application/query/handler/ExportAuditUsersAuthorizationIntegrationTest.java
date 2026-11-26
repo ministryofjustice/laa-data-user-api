@@ -157,6 +157,18 @@ class ExportAuditUsersAuthorizationIntegrationTest {
     }
 
     @Test
+    void externalActorWithViewInternalPermissionIsDeniedInternalOnlyExport() {
+        AuthenticatedEntraUser actor = external(
+                ACTOR_FIRM_ID, Permission.EXPORT_AUDIT_DATA, Permission.VIEW_INTERNAL_USER);
+
+        assertDeniedWith(
+                PolicyDenialReason.ACTOR_NO_VIEW_PERMISSION,
+                () -> handler.handle(new ExportAuditUsersQuery(internalOnlyCriteria()), actor));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void firmExportWithoutViewExternalPermissionIsDenied() {
         AuthenticatedEntraUser actor = external(ACTOR_FIRM_ID, Permission.EXPORT_AUDIT_DATA);
 
