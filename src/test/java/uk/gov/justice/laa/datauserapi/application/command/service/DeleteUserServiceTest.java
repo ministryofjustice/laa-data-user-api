@@ -96,7 +96,8 @@ class DeleteUserServiceTest {
     @Test
     void deletesProfilesAndUserAndRecordsAudit() {
         UserProfile profile = UserProfile.builder().build();
-        EntraUser user = EntraUser.builder().entraOid(targetId.toString()).userProfiles(Set.of(profile)).build();
+        EntraUser user = EntraUser.builder().entraOid(targetId.toString())
+                .userProfiles(new HashSet<>(Set.of(profile))).build();
         UserAccountStatusAudit audit = UserAccountStatusAudit.builder().build();
         CommandResult expected = CommandResult.success("deleted");
         when(entraUserCommandRepository.findByEntraOid(targetId.toString())).thenReturn(Optional.of(user));

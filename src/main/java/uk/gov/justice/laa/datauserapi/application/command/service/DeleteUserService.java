@@ -118,6 +118,9 @@ public class DeleteUserService {
         // flush so the join table rows (roles, offices) are gone before the profile rows
         userProfileCommandRepository.saveAll(profiles);
         userProfileCommandRepository.flush();
+        if (entraUser.getUserProfiles() != null) {
+            entraUser.getUserProfiles().clear();
+        }
         userProfileCommandRepository.deleteAll(profiles);
         userProfileCommandRepository.flush();
     }
@@ -135,9 +138,6 @@ public class DeleteUserService {
     }
 
     private void removeEntraUser(EntraUser entraUser) {
-        if (entraUser.getUserProfiles() != null) {
-            entraUser.setUserProfiles(Set.of());
-        }
         entraUserCommandRepository.delete(entraUser);
         entraUserCommandRepository.flush();
     }

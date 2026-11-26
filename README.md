@@ -42,6 +42,9 @@ To run the full suite of unit and integration tests:
 ./gradlew test
 ```
 
+The delete-user persistence regression test uses PostgreSQL Testcontainers to verify that deleting a user
+removes their profiles and associations while preserving other users and recording the deletion audit.
+
 ### CQRS-lite boundaries
 
 Commands and queries share a database but use separate application packages and
