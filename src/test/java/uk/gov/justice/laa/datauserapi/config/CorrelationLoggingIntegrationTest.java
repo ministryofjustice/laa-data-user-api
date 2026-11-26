@@ -34,7 +34,8 @@ class CorrelationLoggingIntegrationTest {
     @Test
     void realAsyncProxiesPropagateRequestContextOnEveryExecutorAndDoNotLeakIt() throws Exception {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(
-                AsyncConfig.class, BulkDeactivationConfig.class, SilasStatusRefreshConfig.class, AsyncWorker.class)) {
+                AsyncConfig.class, BulkDeactivationConfig.class, SilasStatusRefreshConfig.class,
+                CcmsRoleSyncConfig.class, AsyncWorker.class)) {
             AsyncWorker worker = context.getBean(AsyncWorker.class);
             MockHttpServletResponse response = new MockHttpServletResponse();
             MockHttpServletRequest incoming = new MockHttpServletRequest();
@@ -46,6 +47,7 @@ class CorrelationLoggingIntegrationTest {
                     assertThat(worker.defaultContext().get(5, TimeUnit.SECONDS)).containsEntry("correlationId", id);
                     assertThat(worker.bulkContext().get(5, TimeUnit.SECONDS)).containsEntry("correlationId", id);
                     assertThat(worker.refreshContext().get(5, TimeUnit.SECONDS)).containsEntry("correlationId", id);
+                    assertThat(worker.ccmsContext().get(5, TimeUnit.SECONDS)).containsEntry("correlationId", id);
                 } catch (Exception ex) {
                     throw new jakarta.servlet.ServletException(ex);
                 }
@@ -55,6 +57,7 @@ class CorrelationLoggingIntegrationTest {
             assertThat(worker.defaultContext().get(5, TimeUnit.SECONDS)).isEmpty();
             assertThat(worker.bulkContext().get(5, TimeUnit.SECONDS)).isEmpty();
             assertThat(worker.refreshContext().get(5, TimeUnit.SECONDS)).isEmpty();
+            assertThat(worker.ccmsContext().get(5, TimeUnit.SECONDS)).isEmpty();
         }
     }
 
@@ -104,6 +107,11 @@ class CorrelationLoggingIntegrationTest {
 
         @Async("silasStatusRefreshExecutor")
         public CompletableFuture<Map<String, String>> refreshContext() {
+            return capturedContext();
+        }
+
+        @Async("ccmsRoleSyncExecutor")
+        public CompletableFuture<Map<String, String>> ccmsContext() {
             return capturedContext();
         }
 

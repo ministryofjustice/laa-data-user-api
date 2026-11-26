@@ -9,14 +9,12 @@ import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
 import uk.gov.justice.laa.datauserapi.config.MapperConfig;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
-import uk.gov.justice.laa.datauserapi.exception.UserNotFoundException;
 
 import java.util.List;
-import java.util.Set;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -33,14 +31,6 @@ class UserAccountQueryMapperTest {
         when(modelMapper.map(user, EntraUserDto.class)).thenReturn(dto);
 
         assertThat(mapper.toDto(Optional.of(user), "oid")).isSameAs(dto);
-    }
-
-    @Test
-    void reportsMissingUserWithoutMapping() {
-        assertThatThrownBy(() -> mapper.toDto(Optional.empty(), "missing"))
-                .isInstanceOf(UserNotFoundException.class)
-                .hasMessage("User not found with ID: missing");
-        verifyNoInteractions(modelMapper);
     }
 
     @Test

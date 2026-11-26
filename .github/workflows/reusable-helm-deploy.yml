@@ -32,12 +32,30 @@ on:
         type: boolean
         required: false
         default: false
-
-# ECR_ROLE_TO_ASSUME are GitHub Environment secrets. Unlike Environment vars, Environment
-# secrets do NOT cross the workflow_call boundary just because the `deploy` job below
-# declares `environment: ${{ inputs.environment }}` - the calling workflow must also
-# pass `secrets: inherit` (or list each secret explicitly) when it does `uses:` on this
-# workflow, otherwise every `secrets.*` reference here resolves to an empty string.
+    # Callers explicitly forward these names so environment secrets remain available.
+    secrets:
+      ECR_ROLE_TO_ASSUME:
+        required: false
+      KUBE_CERT:
+        required: false
+      KUBE_TOKEN:
+        required: false
+      KUBE_CLUSTER:
+        required: false
+      KUBE_NAMESPACE:
+        required: false
+      TECH_SERVICES_AZURE_CLIENT_ID:
+        required: false
+      TECH_SERVICES_TENANT_ID:
+        required: false
+      TECH_SERVICES_AZURE_CLIENT_SECRET:
+        required: false
+      TECH_SERVICES_BASE_URL:
+        required: false
+      SENTRY_DSN:
+        required: false
+      AZURE_APP_URI:
+        required: false
 
 jobs:
   deploy:
@@ -50,6 +68,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.policy_bundle_ref }}
+          persist-credentials: false
 
       # Assume role in Cloud Platform
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
@@ -62,7 +81,7 @@ jobs:
         id: login-ecr
 
       - name: Configure kubectl
-        uses: ./.github/actions/configure-kubectl
+        uses: $/.github/actions/configure-kubectl
         with:
           kube-cert: ${{ secrets.KUBE_CERT }}
           kube-token: ${{ secrets.KUBE_TOKEN }}
@@ -121,66 +140,71 @@ jobs:
           ALLOWLIST_CIDR: ${{ inputs.allowlist_cidr }}
           AZURE_APP_URI: ${{ secrets.AZURE_APP_URI }}
 
-      - name: Resolve OPA deployment setting
-        id: opa-setting
-        run: |
-          AUTHORIZATION="$(yq eval-all '. as $item ireduce ({}; . * $item) | .authorization' \
-            deployment/helm/laa-data-user-api/values.yaml \
-            "deployment/helm/laa-data-user-api/values-${HELM_VALUES_ENV}.yaml" \
-            deployment/helm/laa-data-user-api/values-secrets.generated.yaml)"
-          if [ "$(printf '%s\n' "$AUTHORIZATION" | yq 'has("opaEnabled")' -)" = false ]; then
-            OPA_ENABLED=false
-          else
-            OPA_ENABLED="$(printf '%s\n' "$AUTHORIZATION" | yq '.opaEnabled | select(tag == "!!bool")' -)"
-          fi
-          case "$OPA_ENABLED" in
-            true|false) echo "enabled=${OPA_ENABLED}" >> "$GITHUB_OUTPUT" ;;
-            *) echo "::error::authorization.opaEnabled must be true or false"; exit 1 ;;
-          esac
-        env:
-          HELM_VALUES_ENV: ${{ inputs.helm_values_env }}
-
-      - name: Build OPA policy bundle
-        if: steps.opa-setting.outputs.enabled == 'true'
-        run: |
-          mkdir -p "$RUNNER_TEMP/opa-bundle"
-          docker run --rm --user 0:0 \
-            --volume "$GITHUB_WORKSPACE/opa:/tmp/opa:ro" \
-            --volume "$RUNNER_TEMP/opa-bundle:/bundle" \
-            openpolicyagent/opa:0.68.0 build -b -o /bundle/bundle.tar.gz /tmp/opa/policies
-
-      - name: Identify OPA policy bundle
-        if: steps.opa-setting.outputs.enabled == 'true'
-        id: policy-bundle
-        run: |
-          BUNDLE_SHA256="$(sha256sum "$RUNNER_TEMP/opa-bundle/bundle.tar.gz" | cut -d' ' -f1)"
-          echo "bundle_ref=sha256:${BUNDLE_SHA256}" >> "$GITHUB_OUTPUT"
-
       - name: Set up Helm
-        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
           version: 'v3.21.3'
 
       - name: Deploy to Cloud Platform
+        shell: bash
         run: |
-          OPA_ARGS=()
-          if [ "$OPA_ENABLED" = true ]; then
-            OPA_ARGS+=(--set-string "opa.bundleRef=${OPA_BUNDLE_REF}"
-              --set-file "opa.bundleData=${RUNNER_TEMP}/opa-bundle/bundle.tar.gz")
+          set -o pipefail
+          chart=deployment/helm/laa-data-user-api
+          values=(
+            -f "$chart/values.yaml"
+            -f "$chart/values-${HELM_VALUES_ENV}.yaml"
+            -f "$chart/values-secrets.generated.yaml"
+          )
+          opa_setting=$(yq eval-all -o=json -I=0 \
+            '. as $item ireduce ({}; . * $item) | [(.authorization | has("opaEnabled")), .authorization.opaEnabled]' \
+            "$chart/values.yaml" "$chart/values-${HELM_VALUES_ENV}.yaml" \
+            "$chart/values-secrets.generated.yaml")
+          case "$opa_setting" in
+            '[true,true]'|'[true,false]'|'[false,null]') ;;
+            *)
+              echo "authorization.opaEnabled must be a boolean" >&2
+              exit 1
+              ;;
+          esac
+          opa_enabled=${OPA_ENABLED:-false}
+          case "$opa_enabled" in
+            true|false) ;;
+            *)
+              echo "OPA_ENABLED must be true or false" >&2
+              exit 1
+              ;;
+          esac
+          if [[ "$opa_enabled" == true && "$opa_setting" == '[false,null]' ]]; then
+            echo "OPA_ENABLED cannot be enabled: the selected chart does not support OPA" >&2
+            exit 1
           fi
+          bundle_args=(--set "authorization.opaEnabled=$opa_enabled")
+          case "$opa_enabled" in
+            true)
+              bundle_dir=$(mktemp -d "${RUNNER_TEMP}/opa-bundle.XXXXXXXX")
+              trap 'rm -f "$bundle_dir/bundle.tar.gz"; rmdir "$bundle_dir"' EXIT
+              docker run --rm --user "$(id -u):$(id -g)" \
+                --volume "$GITHUB_WORKSPACE/opa/policies:/policies:ro" \
+                --volume "$bundle_dir:/bundle" \
+                openpolicyagent/opa:0.68.0 build -b -o /bundle/bundle.tar.gz /policies
+              bundle_ref=$(sha256sum "$bundle_dir/bundle.tar.gz" | cut -d ' ' -f1)
+              bundle_args+=(
+                --set-string "opa.bundleRef=$bundle_ref"
+                --set-file "opa.bundleData=$bundle_dir/bundle.tar.gz"
+              )
+              ;;
+          esac
+
           helm upgrade --install laa-data-user-api deployment/helm/laa-data-user-api \
             --namespace "${KUBE_NAMESPACE}" \
-            -f deployment/helm/laa-data-user-api/values.yaml \
-            -f "deployment/helm/laa-data-user-api/values-${HELM_VALUES_ENV}.yaml" \
-            -f deployment/helm/laa-data-user-api/values-secrets.generated.yaml \
-            "${OPA_ARGS[@]}" \
+            "${values[@]}" \
+            "${bundle_args[@]}" \
             --atomic \
             --timeout 7m0s
         env:
           KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
           HELM_VALUES_ENV: ${{ inputs.helm_values_env }}
-          OPA_ENABLED: ${{ steps.opa-setting.outputs.enabled }}
-          OPA_BUNDLE_REF: ${{ steps.policy-bundle.outputs.bundle_ref }}
+          OPA_ENABLED: ${{ vars.OPA_ENABLED || 'false' }}
 
       - name: Wait for new deployment to finish
         if: inputs.wait_for_rollout

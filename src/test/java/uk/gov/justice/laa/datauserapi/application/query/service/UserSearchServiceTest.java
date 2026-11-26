@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
-import uk.gov.justice.laa.datauserapi.application.query.handler.SearchUsersHandler;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -16,20 +15,18 @@ import uk.gov.justice.laa.datauserapi.contracts.response.UserAccountSummaryView;
 import uk.gov.justice.laa.datauserapi.contracts.dto.UserSearchCriteria;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserViewMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryusersearch.SearchUsersQuery;
-import uk.gov.justice.laa.datauserapi.dto.AppRoleDto;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
+import uk.gov.justice.laa.datauserapi.dto.AuthenticatedUserProfile;
 import uk.gov.justice.laa.datauserapi.dto.EntraUserDto;
-import uk.gov.justice.laa.datauserapi.dto.FirmDto;
-import uk.gov.justice.laa.datauserapi.dto.UserProfileDto;
-import uk.gov.justice.laa.datauserapi.exception.InvalidActorContextException;
 import uk.gov.justice.laa.datauserapi.model.Permission;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
-import java.util.List;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -45,146 +42,110 @@ class UserSearchServiceTest {
     @Spy
     private UserViewMapper userViewMapper = new UserViewMapper();
 
-    private SearchUsersHandler handler;
+    private UserSearchService service;
 
     @BeforeEach
     void setUp() {
-        handler = new SearchUsersHandler(new UserSearchService(queryService, userViewMapper,
-                new QueryAuthorisationService()));
+        service = new UserSearchService(queryService, userViewMapper);
     }
 
     @Test
     void shouldReturnPagedResultsForInternalActor() {
-        UserProfileDto profile = mock(UserProfileDto.class);
-
-        when(profile.isActiveProfile()).thenReturn(true);
-        when(profile.getUserType()).thenReturn(UserType.INTERNAL);
-        when(profile.getAppRoles()).thenReturn(List.of());
-
-        EntraUserDto actor = mock(EntraUserDto.class);
-        when(actor.getUserProfiles()).thenReturn(Set.of(profile));
+        AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
+                .userType(UserType.INTERNAL)
+                .appRoles(Set.of())
+                .build();
+        
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder()
+                .entraOid("actorOid")
+                .activeProfile(profile)
+                .build();
 
         EntraUserDto user = mock(EntraUserDto.class);
-
         UserAccountSummaryView summary = mock(UserAccountSummaryView.class);
 
-        SearchUsersQuery query = new SearchUsersQuery(criteria(), "actorOid");
+        SearchUsersQuery query = new SearchUsersQuery(criteria());
+        Page<EntraUserDto> page = new PageImpl<>(java.util.List.of(user));
 
-        Page<EntraUserDto> page = new PageImpl<>(List.of(user));
-
-        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
         when(queryService.searchUsers(any(), any())).thenReturn(page);
         doReturn(summary).when(userViewMapper).mapToUserAccountSummaryView(user);
 
-        UserAccountSummaryPage result = handler.handle(query);
+        UserAccountSummaryPage result = service.search(query, actor);
 
         assertThat(result.items()).containsExactly(summary);
         verify(queryService).searchUsers(any(), any());
     }
 
     @Test
-    void shouldThrowWhenActorHasNoActiveProfile() {
-        UserProfileDto profile = mock(UserProfileDto.class);
-
-        when(profile.isActiveProfile()).thenReturn(false);
-
-        EntraUserDto actor = mock(EntraUserDto.class);
-        when(actor.getUserProfiles()).thenReturn(Set.of(profile));
-        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
-
-        SearchUsersQuery query = new SearchUsersQuery(criteria(), "actorOid");
-
-        assertThatThrownBy(() -> handler.handle(query)).isInstanceOf(InvalidActorContextException.class);
-    }
-
-    @Test
-    void shouldThrowWhenActorUserTypeCannotBeDetermined() {
-        UserProfileDto profile = mock(UserProfileDto.class);
-
-        when(profile.isActiveProfile()).thenReturn(true);
-        when(profile.getUserType()).thenReturn(null);
-
-        EntraUserDto actor = mock(EntraUserDto.class);
-        when(actor.getUserProfiles()).thenReturn(Set.of(profile));
-        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
-
-        SearchUsersQuery query = new SearchUsersQuery(mock(UserSearchCriteria.class), "actorOid");
-
-        assertThatThrownBy(() -> handler.handle(query))
-                .isInstanceOf(InvalidActorContextException.class)
-                .hasMessage("Actor user type cannot be determined");
-    }
-
-    @Test
     void shouldPassActorFirmIdForExternalUsers() {
-        FirmDto firm = mock(FirmDto.class);
         UUID firmId = UUID.randomUUID();
+        AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
+                .userType(UserType.EXTERNAL)
+                .firmId(firmId)
+                .appRoles(Set.of())
+                .build();
+        
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder()
+                .entraOid("actorOid")
+                .activeProfile(profile)
+                .build();
 
-        when(firm.getId()).thenReturn(firmId);
-
-        UserProfileDto profile = mock(UserProfileDto.class);
-        when(profile.isActiveProfile()).thenReturn(true);
-        when(profile.getUserType()).thenReturn(UserType.EXTERNAL);
-        when(profile.getFirm()).thenReturn(firm);
-        when(profile.getAppRoles()).thenReturn(List.of());
-
-        EntraUserDto actor = mock(EntraUserDto.class);
-        when(actor.getUserProfiles()).thenReturn(Set.of(profile));
-
-        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
+        SearchUsersQuery query = new SearchUsersQuery(criteria());
         when(queryService.searchUsers(any(), any())).thenReturn(Page.empty());
 
-        SearchUsersQuery query = new SearchUsersQuery(criteria(), "actorOid");
-
-        handler.handle(query);
+        service.search(query, actor);
 
         ArgumentCaptor<UserSearchCriteria> captor = ArgumentCaptor.forClass(UserSearchCriteria.class);
-
         verify(queryService).searchUsers(captor.capture(), any());
         assertThat(captor.getValue().actorFirmId()).isEqualTo(firmId);
     }
 
     @Test
     void shouldSetCanViewExternalUsersWhenPermissionPresent() {
-        AppRoleDto role = mock(AppRoleDto.class);
+        AuthenticatedAppRole role = new AuthenticatedAppRole(
+                UUID.randomUUID(), "role", 0, null, false,
+                null, null, "desc", true, null, 
+                Set.copyOf(Arrays.asList(Permission.VIEW_EXTERNAL_USER))
+        );
+        
+        AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
+                .userType(UserType.INTERNAL)
+                .appRoles(Set.of(role))
+                .build();
+        
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder()
+                .entraOid("actorOid")
+                .activeProfile(profile)
+                .build();
 
-        when(role.getPermissions())
-                .thenReturn(Set.of(Permission.VIEW_EXTERNAL_USER));
-
-        UserProfileDto profile = mock(UserProfileDto.class);
-
-        when(profile.isActiveProfile()).thenReturn(true);
-        when(profile.getUserType()).thenReturn(UserType.INTERNAL);
-        when(profile.getAppRoles()).thenReturn(List.of(role));
-
-        EntraUserDto actor = mock(EntraUserDto.class);
-        when(actor.getUserProfiles()).thenReturn(Set.of(profile));
-
-        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
+        SearchUsersQuery query = new SearchUsersQuery(criteria());
         when(queryService.searchUsers(any(), any())).thenReturn(Page.empty());
 
-        handler.handle(new SearchUsersQuery(criteria(), "actorOid"));
+        service.search(query, actor);
 
         ArgumentCaptor<UserSearchCriteria> captor = ArgumentCaptor.forClass(UserSearchCriteria.class);
-
         verify(queryService).searchUsers(captor.capture(), any());
         assertThat(captor.getValue().canViewExternalUsers()).isTrue();
     }
 
     @Test
     void shouldUseDefaultPagingValues() {
-        UserProfileDto profile = internalProfile();
+        AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
+                .userType(UserType.INTERNAL)
+                .appRoles(Set.of())
+                .build();
+        
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder()
+                .entraOid("actorOid")
+                .activeProfile(profile)
+                .build();
 
-        EntraUserDto actor = mock(EntraUserDto.class);
-        when(actor.getUserProfiles()).thenReturn(Set.of(profile));
-
-        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
+        SearchUsersQuery query = new SearchUsersQuery(criteria());
         when(queryService.searchUsers(any(), any())).thenReturn(Page.empty());
 
-        handler.handle(new SearchUsersQuery(criteria(), "actorOid"));
+        service.search(query, actor);
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-
         verify(queryService).searchUsers(any(), pageableCaptor.capture());
         assertThat(pageableCaptor.getValue().getPageNumber()).isEqualTo(0);
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(20);
@@ -192,47 +153,40 @@ class UserSearchServiceTest {
 
     @Test
     void shouldCapPageSizeAt100() {
-        UserProfileDto profile = internalProfile();
-
-        EntraUserDto actor = mock(EntraUserDto.class);
-        when(actor.getUserProfiles()).thenReturn(Set.of(profile));
-
-        when(queryService.findByEntraOid("actorOid")).thenReturn(actor);
-        when(queryService.searchUsers(any(), any())).thenReturn(Page.empty());
+        AuthenticatedUserProfile profile = AuthenticatedUserProfile.builder()
+                .userType(UserType.INTERNAL)
+                .appRoles(Set.of())
+                .build();
+        
+        AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder()
+                .entraOid("actorOid")
+                .activeProfile(profile)
+                .build();
 
         UserSearchCriteria criteria = new UserSearchCriteria(
                 0, 500, null,
                 null, null, null, null,
                 null, null, null, null,
-                null, false, false, null, null, false
+                null, false, false, null, null, false, false
         );
 
-        handler.handle(new SearchUsersQuery(criteria, "actorOid"));
+        SearchUsersQuery query = new SearchUsersQuery(criteria);
+        when(queryService.searchUsers(any(), any())).thenReturn(Page.empty());
+
+        service.search(query, actor);
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-
         verify(queryService).searchUsers(any(), pageableCaptor.capture());
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(100);
     }
 
-    private UserProfileDto internalProfile() {
-        UserProfileDto profile = mock(UserProfileDto.class);
-
-        when(profile.isActiveProfile()).thenReturn(true);
-        when(profile.getUserType()).thenReturn(UserType.INTERNAL);
-        when(profile.getAppRoles()).thenReturn(List.of());
-
-        return profile;
-    }
-
     private UserSearchCriteria criteria() {
-        UserSearchCriteria criteria = new UserSearchCriteria(
+        return new UserSearchCriteria(
                 null, null, null, null,
                 null, null, null,
                 null, null, null, null,
-                null, false, false, null, null, false
+                null, false, false, null, null, false, false
         );
-        return criteria;
     }
 
 }

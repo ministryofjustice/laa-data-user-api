@@ -3,6 +3,7 @@ package uk.gov.justice.laa.datauserapi.application.query.shared.repository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
+import uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
@@ -48,5 +49,36 @@ public interface UserProfileQueryRepository extends Repository<EntraUser, UUID> 
         """)
     Optional<UserProfile> findActiveProfileWithDetailsAndRoles(
             @Param("userEntraObjectId") String userEntraObjectId);
-}
 
+    @Query("""
+        SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext(
+            true,
+            up.id,
+            up.userType,
+            f.id
+        )
+        FROM UserProfile up
+        LEFT JOIN up.firm f
+        JOIN up.entraUser u
+        WHERE u.entraOid = :userEntraObjectId
+        ORDER BY up.activeProfile DESC, up.id ASC
+        """)
+    List<ProfileVisibilityContext> findProfileVisibilityContexts(
+            @Param("userEntraObjectId") String userEntraObjectId);
+
+    @Query("""
+        SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext(
+            true,
+            up.id,
+            up.userType,
+            f.id
+        )
+        FROM UserProfile up
+        LEFT JOIN up.firm f
+        JOIN up.entraUser u
+        WHERE u.entraOid = :userEntraObjectId
+            AND up.activeProfile = true
+        """)
+    Optional<ProfileVisibilityContext> findActiveProfileVisibilityContext(
+            @Param("userEntraObjectId") String userEntraObjectId);
+}

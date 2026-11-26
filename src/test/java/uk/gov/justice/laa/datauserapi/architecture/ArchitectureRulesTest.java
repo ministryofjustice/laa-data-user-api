@@ -15,6 +15,8 @@ import uk.gov.justice.laa.datauserapi.application.command.service.CommandService
 import uk.gov.justice.laa.datauserapi.application.query.handler.QueryHandlerBoundaryFixtures;
 import uk.gov.justice.laa.datauserapi.application.query.handler.GetUserProfileAppsHandler;
 import uk.gov.justice.laa.datauserapi.application.query.handler.QueryHandler;
+import uk.gov.justice.laa.datauserapi.application.query.queryappcatalogue.AppCatalogueQuery;
+import uk.gov.justice.laa.datauserapi.application.query.queryappcatalogue.GetAppsQuery;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.QueryRepositoryBoundaryFixtures;
 import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 
@@ -27,6 +29,27 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ArchitectureRulesTest {
+
+    @Test
+    void enforcesCcmsSnapshotAndDomainBoundaries() {
+        assertViolation(ArchitectureTest.ccms_profile_orchestration_uses_snapshots_not_persistence_or_http,
+                CcmsRoleSyncProfileService.class);
+        assertViolation(ArchitectureTest.ccms_sync_failures_are_independent_of_http, CcmsSyncExceptionFixture.class);
+        ArchitectureTest.ccms_profile_orchestration_uses_snapshots_not_persistence_or_http.check(importClasses(
+                uk.gov.justice.laa.datauserapi.application.command.service.CcmsRoleSyncProfileService.class));
+        ArchitectureTest.ccms_sync_failures_are_independent_of_http.check(importClasses(
+                uk.gov.justice.laa.datauserapi.exception.CcmsSyncException.class));
+    }
+
+    static class CcmsRoleSyncProfileService {
+        UserProfile profile;
+        uk.gov.justice.laa.datauserapi.application.command.shared.repository.UserProfileCommandRepository repository;
+        org.springframework.http.HttpStatus status;
+    }
+
+    static class CcmsSyncExceptionFixture extends RuntimeException {
+        org.springframework.http.HttpStatus status;
+    }
 
     @Test
     void requiresExplicitGroupsRatherThanInheritedOrMissingGroups() {
@@ -153,6 +176,13 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    void requiresCatalogueQueriesToDeclarePermission() {
+        ArchRule rule = ArchitectureTest.app_catalogue_queries_must_require_a_permission;
+        assertViolation(rule, UnguardedCatalogueQuery.class);
+        rule.check(importClasses(GetAppsQuery.class));
+    }
+
+    @Test
     void requiresReadOnlyTransactionsOnQueryComponents() {
         ArchRule rule = classes().should(ArchitectureTest.declareReadOnlyTransaction());
         assertViolation(rule, WritableComponent.class);
@@ -220,6 +250,9 @@ class ArchitectureRulesTest {
 
     private void assertViolation(ArchRule rule, Class<?> type) {
         assertThat(rule.evaluate(importClasses(type)).hasViolation()).isTrue();
+    }
+
+    record UnguardedCatalogueQuery() implements AppCatalogueQuery {
     }
 
     interface ReadRepository extends Repository<UserProfile, UUID> {

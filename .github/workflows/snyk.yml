@@ -7,12 +7,15 @@ on:
     types:
       - opened
       - reopened
-      - edited
       - synchronize
-      - closed
   schedule:
     - cron: '15 0 * * *'  # Run daily at 00:15 UTC
   workflow_call:
+    inputs:
+      scan_branch:
+        description: Branch to scan instead of the triggering ref
+        type: string
+        required: false
     secrets:
       SNYK_TOKEN:
         required: true
@@ -28,13 +31,18 @@ permissions:
   contents: read
   actions: read
   packages: read
-  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-api-snyk-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   vulnerability-scan:
     # Dependabot can upload SARIF on pull_request events, but not on pushes.
     if: ${{ github.event_name != 'push' || github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.checkout.outputs.commit }}
     env:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       SNYK_ORG_ID: ${{ secrets.SNYK_ORG_ID }}
@@ -47,10 +55,14 @@ jobs:
           fi
 
       - name: Git checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.scan_branch }}
+          persist-credentials: false
 
       - name: Set up JDK
-        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: 'corretto'
           java-version: '25'
@@ -119,12 +131,6 @@ jobs:
           path: sarif_files/
           retention-days: 15
 
-      # A snyk.sarif file is generated in the above steps, which is uploaded to GitHub Code Scanning
-      - name: Upload result to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
-        with:
-          sarif_file: sarif_files
-
       - name: Run SARIF severity count 
         run: |
           chmod +x ./count_snyk_vulns.sh
@@ -149,7 +155,7 @@ jobs:
 
       - name: Send notification to Slack
         id: slack
-        if: always() && env.SHOULD_NOTIFY == 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        if: always() && env.SHOULD_NOTIFY == 'true' && github.event_name == 'schedule'
         uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
         with:
           payload: |
@@ -166,7 +172,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Scan Summary:*"
+                    "text": "*Scan Summary:* ${{ inputs.scan_branch || github.ref_name }}"
                   }
                 },
                 {
@@ -225,3 +231,33 @@ jobs:
           else
             echo "No vulnerabilities found."
           fi
+
+  publish-sarif:
+    name: Publish Snyk SARIF
+    needs: vulnerability-scan
+    if: ${{ always() && !cancelled() && vars.CODE_SCANNING_UPLOAD_ENABLED != 'false' }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.scan_branch && needs.vulnerability-scan.outputs.commit || '' }}
+          persist-credentials: false
+
+      - name: Download Snyk SARIF files
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: snyk-sarif-files
+          path: sarif_files
+
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: sarif_files
+          ref: ${{ inputs.scan_branch && format('refs/heads/{0}', inputs.scan_branch) || '' }}
+          sha: ${{ inputs.scan_branch && needs.vulnerability-scan.outputs.commit || '' }}

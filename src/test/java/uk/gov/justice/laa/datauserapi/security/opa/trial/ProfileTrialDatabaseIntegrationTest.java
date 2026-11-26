@@ -286,7 +286,8 @@ class ProfileTrialDatabaseIntegrationTest {
     @Test
     void trustedRoleCompatibilityAndAssignmentRestrictionsAffectQueriesAndWrites() {
         jdbc.update("UPDATE app_role SET user_type_restriction=ARRAY['INTERNAL'] WHERE id=?", ROLE);
-        jdbc.update("INSERT INTO role_assignment VALUES (?,?,?)", UUID.randomUUID(), OTHER_ROLE, OTHER_ROLE);
+        jdbc.update("INSERT INTO role_assignment (assigning_role_id, assignable_role_id) VALUES (?,?)",
+                OTHER_ROLE, OTHER_ROLE);
         var assignable = queries.handle(query(ProfileTrialOperation.ASSIGNABLE, TARGET, null), actor).roles();
         assertThat(assignable.items()).extracting(uk.gov.justice.laa.datauserapi.contracts.dto.AppRoleView::appRoleId)
                 .contains(MANAGER.toString()).doesNotContain(ROLE.toString(), OTHER_ROLE.toString());

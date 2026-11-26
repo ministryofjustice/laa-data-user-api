@@ -17,6 +17,10 @@ jobs:
   zap_active_scan:
     name: Isolated ${{ matrix.scan }} scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
     timeout-minutes: 90
 
     strategy:
@@ -37,13 +41,23 @@ jobs:
       ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:stable@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6
 
     steps:
+      - name: Obtain Octo STS Token
+        uses: octo-sts/action@6177b4481c00308b3839969c3eca88c96a91775f # v1.0.0
+        id: octo_sts
+        with:
+          scope: ministryofjustice/laa-landing-page
+          identity: ministryofjustice-laa-data-user-api
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Checkout shared database migrations
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ministryofjustice/laa-landing-page
+          token: ${{ steps.octo_sts.outputs.token }}
           ref: 1704ab9d8836e3ab9ed189f945298dca738604da
           path: shared-schema
           sparse-checkout: src/main/resources/db/changelog
@@ -53,7 +67,7 @@ jobs:
         run: python3 -B -m unittest discover -s .github/scripts -p 'test_zap_*.py'
 
       - name: Set up JDK
-        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: '25'

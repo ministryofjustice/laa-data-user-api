@@ -33,7 +33,9 @@ import uk.gov.justice.laa.datauserapi.security.RequiresSystemAdminScope;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import uk.gov.justice.laa.datauserapi.application.query.queryappcatalogue.AppCatalogueQuery;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserprofileaccess.UserProfileAccessQuery;
+import uk.gov.justice.laa.datauserapi.application.query.queryuserprofiles.UserProfileQuery;
 import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyGuarded;
 import uk.gov.justice.laa.datauserapi.security.rbac.RequiresPermission;
@@ -141,6 +143,18 @@ class ArchitectureTest {
                     "..application.command.controller..",
                     "..application.query.controller..")
             .because("Services implement workflows below the handler and controller entry points");
+
+    @ArchTest
+    static final ArchRule ccms_profile_orchestration_uses_snapshots_not_persistence_or_http = noClasses()
+            .that().haveSimpleName("CcmsRoleSyncProfileService")
+            .should().dependOnClassesThat().resideInAnyPackage("..entity..", "..repository..", "org.springframework.http..")
+            .because("CCMS orchestration coordinates short persistence operations and delivery through snapshot contracts");
+
+    @ArchTest
+    static final ArchRule ccms_sync_failures_are_independent_of_http = noClasses()
+            .that().haveSimpleNameStartingWith("CcmsSyncException")
+            .should().dependOnClassesThat().resideInAPackage("org.springframework.http..")
+            .because("Background synchronisation outcomes are domain reasons rather than HTTP response codes");
 
     @ArchTest
     static final ArchRule query_side_must_not_access_external_mutation_clients = noClasses()
@@ -251,6 +265,18 @@ class ArchitectureTest {
             .that().implement(UserProfileAccessQuery.class)
             .should().beAnnotatedWith(PolicyGuarded.class)
             .because("Profile access queries are authorised by policy before the handler runs, so a new one cannot skip it");
+
+    @ArchTest
+    static final ArchRule app_catalogue_queries_must_require_a_permission = classes()
+            .that().implement(AppCatalogueQuery.class)
+            .should().beAnnotatedWith(RequiresPermission.class)
+            .because("Catalogue queries are authorised by permission before the handler runs, so a new one cannot skip it");
+
+    @ArchTest
+    static final ArchRule user_profile_queries_must_declare_their_authorisation = classes()
+            .that().implement(UserProfileQuery.class)
+            .should().beAnnotatedWith(PolicyGuarded.class)
+            .because("User profile queries are authorised by policy before the handler runs, so a new one cannot skip it");
 
     // =========================================================================
     // 2. Layer & Access Boundary Rules

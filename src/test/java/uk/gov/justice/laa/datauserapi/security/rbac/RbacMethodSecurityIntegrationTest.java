@@ -24,6 +24,8 @@ import uk.gov.justice.laa.datauserapi.application.command.handler.BulkDeactivate
 import uk.gov.justice.laa.datauserapi.application.command.handler.CommandHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.DeactivateUserHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.ReactivateUserHandler;
+import uk.gov.justice.laa.datauserapi.application.command.handler.TriggerCcmsRoleSyncHandler;
+import uk.gov.justice.laa.datauserapi.application.command.service.CcmsRoleSyncService;
 import uk.gov.justice.laa.datauserapi.application.command.service.ReactivateUserService;
 import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserDetailsHandler;
 import uk.gov.justice.laa.datauserapi.application.command.handler.UpdateUserProfileOfficesHandler;
@@ -55,6 +57,7 @@ import uk.gov.justice.laa.datauserapi.application.command.useraccount.BulkDeacti
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeactivateUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.DeleteUserCommand;
 import uk.gov.justice.laa.datauserapi.application.command.useraccount.ReactivateUserCommand;
+import uk.gov.justice.laa.datauserapi.application.command.ccms.TriggerCcmsRoleSyncCommand;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.RefreshSilasStatusCommand;
 import uk.gov.justice.laa.datauserapi.application.command.userprofile.UpdateUserProfileOfficesCommand;
 import uk.gov.justice.laa.datauserapi.contracts.domain.DeactivateUserReason;
@@ -161,7 +164,7 @@ class RbacMethodSecurityIntegrationTest {
     @EnableTransactionManagement(proxyTargetClass = true)
     @Import({RbacMethodSecurityConfig.class, UpdateUserDetailsHandler.class,
         UpdateUserProfileOfficesHandler.class, UpdateUserProfileUnrestrictedOfficesHandler.class,
-        ReactivateUserHandler.class})
+        ReactivateUserHandler.class, TriggerCcmsRoleSyncHandler.class})
     static class TestConfig {
         @Bean
         PlatformTransactionManager transactionManager() {
@@ -211,6 +214,11 @@ class RbacMethodSecurityIntegrationTest {
         @Bean
         UserProfileOfficeService userProfileOfficeService() {
             return mock(UserProfileOfficeService.class);
+        }
+
+        @Bean
+        CcmsRoleSyncService ccmsRoleSyncService() {
+            return mock(CcmsRoleSyncService.class);
         }
 
         @Bean
@@ -434,6 +442,12 @@ class RbacMethodSecurityIntegrationTest {
 
     @Autowired
     private FakeRefreshHandler refreshHandler;
+
+    @Autowired
+    private TriggerCcmsRoleSyncHandler ccmsRoleSyncHandler;
+
+    @Autowired
+    private CcmsRoleSyncService ccmsRoleSyncService;
 
     @Autowired
     private FakeUpdateOfficesHandler officesHandler;
@@ -903,6 +917,21 @@ class RbacMethodSecurityIntegrationTest {
                 .isInstanceOf(AccessDeniedException.class);
         assertThat(refreshHandler.handle(new RefreshSilasStatusCommand(),
                 RbacTestActors.actorWith(Permission.UPDATE_USER_PROFILE_SILAS_STATUS)).success()).isTrue();
+    }
+
+    @Test
+    void ccmsRoleSyncRequiresItsPermission() {
+        authenticate();
+        TriggerCcmsRoleSyncCommand command = new TriggerCcmsRoleSyncCommand();
+        CcmsRoleSyncService service = AopTestUtils.getUltimateTargetObject(ccmsRoleSyncService);
+
+        assertThatThrownBy(() -> ccmsRoleSyncHandler.handle(command, RbacTestActors.actorWith()))
+                .isInstanceOf(AccessDeniedException.class);
+        verifyNoInteractions(service);
+
+        AuthenticatedEntraUser actor = RbacTestActors.actorWith(Permission.TRIGGER_CCMS_ROLE_SYNC);
+        assertThat(ccmsRoleSyncHandler.handle(command, actor).success()).isTrue();
+        verify(service).sync(actor.entraOid());
     }
 
     @Test

@@ -1,0 +1,51 @@
+name: Tests
+
+on:
+  pull_request:
+    types: [ opened, reopened, synchronize ]
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!deployment/**'
+      - '!.ash/**'
+      - '!.github/workflows/**'
+      - '.github/workflows/tests.yml'
+      - 'src/**'
+      - 'contracts/**'
+      - '**/*.java'
+      - '**/*.gradle*'
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: ${{ github.workflow }}-api-tests-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: Run Tests
+    # Dependabot PRs currently skip the secret-dependent Gradle tests.
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: 'corretto'
+          java-version: '25'
+
+      - name: Run Gradle tests
+        run: ./gradlew test
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ENVIRONMENT: ${{ vars.ENV_NAME }}

@@ -42,6 +42,9 @@ To run the full suite of unit and integration tests:
 ./gradlew test
 ```
 
+The delete-user persistence regression test uses PostgreSQL Testcontainers to verify that deleting a user
+removes their profiles and associations while preserving other users and recording the deletion audit.
+
 ### CQRS-lite boundaries
 
 Commands and queries share a database but use separate application packages and
@@ -64,10 +67,10 @@ before the handler and its read-only transaction run. `UserProfileVisibilityPoli
 profile's facts with one lookup and the pure `CanViewProfilePolicy` applies the profile visibility rules: an
 external actor may always view their own profile, and may view other profiles in their own firm only if they hold
 `VIEW_EXTERNAL_USER`; an internal actor with `VIEW_INTERNAL_USER` may view internal profiles, and an internal
-actor with `VIEW_EXTERNAL_USER` may view external profiles. The internal rules match
-`QueryAuthorisationService.canViewProfile` (kept in step by a test). The external same-firm rule is deliberately
-stricter than the profile detail queries, which let any external actor view profiles in their own firm without a
-permission. Being internal alone is not enough: per the SiLAS roles
+actor with `VIEW_EXTERNAL_USER` may view external profiles. `CanViewProfileDetailsPolicy` and
+`CanViewProfileListPolicy` (used by the `getActiveProfile` and `getUserProfiles` queries) apply the same rule
+through the shared `ProfileVisibilityEvaluator`, so external actors need `VIEW_EXTERNAL_USER` to see same-firm
+colleagues everywhere, not just here. Being internal alone is not enough: per the SiLAS roles
 matrix, External User Manager and External User Admin are internal roles without `VIEW_INTERNAL_USER`. A missing
 profile and a profile the caller cannot view both return the same generic `403` (`application/problem+json`, detail
 "You do not possess the required scopes or permissions to perform this operation."); the `title` and `detail`
@@ -79,6 +82,22 @@ All data is selected by the requested profile ID, not by the owning account. `/a
 derived from the assigned roles; `/offices` returns every office of the profile's firm when the profile has
 unrestricted office access, otherwise only its assigned offices belonging to that firm. Results are not
 paginated and are capped at 500 roles, 100 applications and 100 offices, ordered deterministically.
+
+`POST /api/v1/commands/users/set-active-profile` requires the `user_data.admin` scope and accepts
+`userEntraObjectId` and `userProfileId`. Only an external caller linked to the requested external
+profile may switch it. The profile must belong to the requested user; a missing or inaccessible user
+or profile, or an ownership mismatch returns the same generic `403`. The operation is idempotent and
+subsequent active-profile queries return the selected profile.
+
+The app and role catalogue queries (`GET /api/v1/queries/apps`, `/apps/{appId}`, `/apps/{appId}/roles`,
+`/app-roles/{appRoleId}` and `/role-restrictions`) are read-only and require `user_data.read`. Every query message
+implements `AppCatalogueQuery` and declares `@RequiresPermission(Permission.VIEW_LAA_APP_METADATA)`, which an ArchUnit
+rule enforces. Only active applications and their roles are returned; an unknown or inactive application, or an
+unknown role, is a generic `404` and an active application with no matching roles is `200` with `items: []`. `appId`
+and `app_id` are the internal SiLAS app ID; `/apps/{appId}/roles` takes `user_type` (`INTERNAL` or `EXTERNAL`, each
+also including `BOTH` roles). `/role-restrictions` is paged (`page_number` from 0, `page_size` 1 to 100) and lists
+restrictions whose assigning and assignable roles are both in active applications; its `app_id` filter and the app
+fields of each item refer to the role being assigned. Lists are capped at 100 applications and 500 roles.
 
 Query service, handler, and controller results are checked recursively for entity
 leakage through collections, wrappers, DTO fields, and projection accessors.
@@ -185,8 +204,9 @@ The filter runs before security,
 so authentication failures share the same request ID, and restores the previous context even when a request fails.
 Existing log statements need no correlation-ID arguments. Logs outside a request have no correlation ID.
 `MdcTaskDecorator` captures MDC at submission and restores the worker's previous context after completion or failure.
-It is configured on the default `taskExecutor`, `bulkDeactivationExecutor`, and `silasStatusRefreshExecutor`, covering
-both unnamed and named `@Async` methods. Configure the same decorator on any future application executor.
+It is configured on the default `taskExecutor`, `bulkDeactivationExecutor`, `silasStatusRefreshExecutor`, and
+`ccmsRoleSyncExecutor`, covering both unnamed and named `@Async` methods. Configure the same decorator on any future
+application executor.
 `CorrelationIdInterceptor` forwards the active MDC ID on Tech Services HTTP requests automatically; no header is
 added when no ID is present. It reads MDC for each call, so shared clients do not retain another request's ID.
 This provides request correlation across cooperating HTTP services, not distributed tracing. Azure SDK token
@@ -280,8 +300,8 @@ Their handlers retain message-level authorization and transaction boundaries.
 Reactivation delegates to `ReactivateUserService`; locked target loading, the hierarchy recheck,
 Tech Services, and the local update remain in one transaction. `UserSearchService` owns trusted
 search criteria and pagination preparation, and `UserAccountDetailsService` coordinates account
-retrieval. Both query services are read-only and use `QueryAuthorisationService` for active actor
-context; denied account or active-profile visibility returns a generic 403 response.
+retrieval. Both query services are read-only and are guarded via `@PolicyGuarded` (`CanSearchUsersPolicy`,
+`CanViewAccountPolicy`); denied account or active-profile visibility returns a generic 403 response.
 The lifecycle service loads and refreshes the target once per deactivation or reactivation transaction,
 invokes the outbound step using a DTO, then updates the same locked entity without another lookup.
 Reactivation still reads authorization facts before execution and rechecks the refreshed state under
@@ -314,17 +334,19 @@ other result types are rejected rather than coerced into authorization decisions
 
 Enforcement can be controlled independently with `APP_AUTHORIZATION_OPA_ENABLED` and
 `APP_AUTHORIZATION_LEGACY_POLICIES_ENABLED` (or the matching `authorization.opaEnabled` and
-`authorization.legacyPoliciesEnabled` Helm values). Both default to `true` to preserve current behavior.
+`authorization.legacyPoliciesEnabled` Helm values). Application and chart defaults are `true`, but GitHub
+deployments override OPA enablement with the `OPA_ENABLED` GitHub Environment variable. Set it to `true`
+to enable OPA for that environment; `false` or an unset variable disables it. Other values fail deployment.
 When both engines are enabled, both policy sets run. Disabling legacy policies skips them only for commands
 that declare an enabled OPA replacement; legacy policies remain enforced for commands without one. If OPA is
 disabled, legacy policies are automatically enabled as a fallback. Declared permissions and OAuth scope checks
 remain active whichever policy engine is enabled.
-Setting the Helm value `authorization.opaEnabled=false` also omits the OPA sidecar, bundle ConfigMap,
-bundle annotation, and OPA volumes, so Java-only deployments do not require a policy bundle.
-The deployment workflow resolves this setting from the merged base, environment, and generated Helm values.
-Older release charts without `authorization.opaEnabled` default to OPA disabled; explicitly supplied settings
-must still be booleans.
-When disabled, it skips bundle creation and bundle-specific Helm arguments.
+Disabling OPA also omits the sidecar, bundle ConfigMap, bundle annotation, and OPA volumes, so Java-only
+deployments do not require a policy bundle. The GitHub Environment variable takes precedence over the Helm
+values. Older release charts without `authorization.opaEnabled` can only be deployed with OPA disabled.
+When enabled, the deployment workflow builds the policy bundle from the selected policy ref and passes it
+directly to Helm. Helm stores the content-addressed bundle in an immutable ConfigMap. When disabled, the
+workflow skips bundle creation and bundle-specific Helm arguments.
 When enabled, OPA's readiness probe checks `/health?bundles=true` on a separate diagnostic listener
 on port 8182. The pod is not Ready if OPA is unresponsive or its bundle is not ready; the policy API
 remains bound to loopback on port 8181.
@@ -336,10 +358,9 @@ opa run --server --addr=127.0.0.1:8181 opa/policies
 ```
 
 The `OPA_URL` environment variable can override the default `http://localhost:8181`. Policy tests run with
-`opa test opa/policies opa/tests -v`. Deployments build the policy bundle from the selected policy ref and
-pass it directly to Helm. Helm stores each bundle in a content-addressed immutable ConfigMap, and the OPA
-sidecar loads it from a shared local volume. This keeps policy data aligned with the deployed image and
-allows Helm rollback to restore the matching bundle without requiring S3.
+`opa test opa/policies opa/tests -v`. The workflow builds the bundle from the checked-out policy ref and
+passes it to Helm without publishing to S3. The OPA sidecar loads the bundle from a shared local volume.
+This keeps policy data aligned with the deployed image and allows Helm rollback to restore the matching bundle.
 
 ### Current caller permissions
 

@@ -24,8 +24,19 @@ jobs:
     permissions:
       id-token: write # This is required for requesting the JWT
       contents: read # This is required for actions/checkout
-    uses: ./.github/workflows/reusable-helm-deploy.yml
-    secrets: inherit
+    uses: $/.github/workflows/reusable-helm-deploy.yml
+    secrets:
+      ECR_ROLE_TO_ASSUME: ${{ secrets.ECR_ROLE_TO_ASSUME }}
+      KUBE_CERT: ${{ secrets.KUBE_CERT }}
+      KUBE_TOKEN: ${{ secrets.KUBE_TOKEN }}
+      KUBE_CLUSTER: ${{ secrets.KUBE_CLUSTER }}
+      KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
+      TECH_SERVICES_AZURE_CLIENT_ID: ${{ secrets.TECH_SERVICES_AZURE_CLIENT_ID }}
+      TECH_SERVICES_TENANT_ID: ${{ secrets.TECH_SERVICES_TENANT_ID }}
+      TECH_SERVICES_AZURE_CLIENT_SECRET: ${{ secrets.TECH_SERVICES_AZURE_CLIENT_SECRET }}
+      TECH_SERVICES_BASE_URL: ${{ secrets.TECH_SERVICES_BASE_URL }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      AZURE_APP_URI: ${{ secrets.AZURE_APP_URI }}
     with:
       environment: ${{ inputs.environment }}
       helm_values_env: ${{ inputs.environment }}
