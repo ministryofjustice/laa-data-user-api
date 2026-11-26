@@ -11,6 +11,11 @@ on:
   schedule:
     - cron: '15 0 * * *'  # Run daily at 00:15 UTC
   workflow_call:
+    inputs:
+      scan_branch:
+        description: Branch to scan instead of the triggering ref
+        type: string
+        required: false
     secrets:
       SNYK_TOKEN:
         required: true
@@ -36,6 +41,8 @@ jobs:
     # Dependabot can upload SARIF on pull_request events, but not on pushes.
     if: ${{ github.event_name != 'push' || github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.checkout.outputs.commit }}
     env:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       SNYK_ORG_ID: ${{ secrets.SNYK_ORG_ID }}
@@ -48,8 +55,10 @@ jobs:
           fi
 
       - name: Git checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.scan_branch }}
           persist-credentials: false
 
       - name: Set up JDK
@@ -163,7 +172,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Scan Summary:*"
+                    "text": "*Scan Summary:* ${{ inputs.scan_branch || github.ref_name }}"
                   }
                 },
                 {
@@ -237,6 +246,7 @@ jobs:
       - name: Git checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.scan_branch && needs.vulnerability-scan.outputs.commit || '' }}
           persist-credentials: false
 
       - name: Download Snyk SARIF files
@@ -249,3 +259,5 @@ jobs:
         uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: sarif_files
+          ref: ${{ inputs.scan_branch && format('refs/heads/{0}', inputs.scan_branch) || '' }}
+          sha: ${{ inputs.scan_branch && needs.vulnerability-scan.outputs.commit || '' }}
