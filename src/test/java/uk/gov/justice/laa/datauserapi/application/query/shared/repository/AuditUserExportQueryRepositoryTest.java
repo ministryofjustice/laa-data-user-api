@@ -207,6 +207,27 @@ class AuditUserExportQueryRepositoryTest {
         assertThat(secondBatch).containsExactly(MULTI_FIRM_PROFILE_IN_OTHER_FIRM_ID, INTERNAL_PROFILE_ID);
     }
 
+    @Test
+    void findDetailsWithRoles_whenProfileSelectedByIdQueryIsDeletedBeforeDetailQueryRuns_hydratesOnlySurvivors() {
+        // Proves the real precondition the AuditUserExportBatch.selectedIdCount() fix depends on:
+        // findMatchingProfileIds can select a profile that findDetailsWithRoles can no longer
+        // hydrate moments later, so the number of IDs selected and the number of rows eventually
+        // produced are genuinely not always equal in this schema.
+        List<UUID> selectedIds =
+                repository.findMatchingProfileIds(
+                        new AuditUserExportCriteria(null, null, null, null, null, null, null), null, Limit.of(2));
+        assertThat(selectedIds).containsExactly(EXTERNAL_PROFILE_ID, MULTI_FIRM_PROFILE_IN_FIRM_ID);
+
+        jdbc.update("DELETE FROM user_profile_app_role WHERE user_profile_id = ?", EXTERNAL_PROFILE_ID);
+        jdbc.update("DELETE FROM user_profile_office WHERE user_profile_id = ?", EXTERNAL_PROFILE_ID);
+        jdbc.update("DELETE FROM user_profile WHERE id = ?", EXTERNAL_PROFILE_ID);
+
+        List<UserProfile> hydrated = repository.findDetailsWithRoles(selectedIds);
+
+        assertThat(hydrated).extracting(UserProfile::getId).containsExactly(MULTI_FIRM_PROFILE_IN_FIRM_ID);
+        assertThat(hydrated).hasSizeLessThan(selectedIds.size());
+    }
+
     private void insertUser(UUID id, String email, String status) {
         jdbc.update("""
             INSERT INTO entra_user (id, entra_oid, first_name, last_name, email, status, enabled, invitation_status)

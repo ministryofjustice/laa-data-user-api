@@ -78,7 +78,31 @@ class AuditUserExportBatchReaderTest {
 
             assertThat(batch.rows()).containsExactly(row, row);
             assertThat(batch.lastSeenId()).isEqualTo(secondId);
+            assertThat(batch.selectedIdCount()).isEqualTo(2);
             verify(entityManager).clear();
+        }
+
+        @Test
+        void readBatch_whenProfileDeletedAfterIdQuery_selectedIdCountReflectsIdsNotMappedRows() {
+            UUID firstId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+            UUID secondId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+            List<UUID> ids = List.of(firstId, secondId);
+            AuditUserExportRow row = new AuditUserExportRow(
+                    "Name", "email@example.com", "Firm", "F1", "No", "No", "App", "ACTIVE", "Role");
+
+            when(repository.findMatchingProfileIds(CRITERIA, null, Limit.of(2))).thenReturn(ids);
+            when(repository.findDetailsWithRoles(ids)).thenReturn(List.of());
+            // Simulates one of the two selected profiles being deleted before the detail query
+            // ran: the mapper only returns a row for the profile still present.
+            when(mapper.toRows(ids, List.of())).thenReturn(List.of(row));
+
+            AuditUserExportBatch batch = batchReader.readBatch(CRITERIA, null, 2);
+
+            assertThat(batch.rows()).containsExactly(row);
+            // selectedIdCount must still equal the number of IDs selected (2), not the number of
+            // rows successfully mapped (1); callers rely on this to decide whether more batches
+            // may follow, and using rows().size() here would end the export early.
+            assertThat(batch.selectedIdCount()).isEqualTo(2);
         }
 
         @Test
@@ -90,6 +114,7 @@ class AuditUserExportBatchReaderTest {
 
             assertThat(batch.rows()).isEmpty();
             assertThat(batch.lastSeenId()).isEqualTo(previousCursor);
+            assertThat(batch.selectedIdCount()).isZero();
             verify(entityManager).clear();
         }
     }

@@ -28,6 +28,12 @@ import java.util.UUID;
  * is called after mapping each batch to DTOs to detach them immediately, bounding retention to
  * roughly one batch regardless of the export's total size.
  *
+ * <p>The returned {@link AuditUserExportBatch#selectedIdCount()} is the number of IDs
+ * {@link AuditUserExportQueryRepository#findMatchingProfileIds} returned, not the number of rows
+ * successfully mapped: a profile selected by that query can be deleted before
+ * {@link AuditUserExportQueryRepository#findDetailsWithRoles} runs, so {@code rows.size()} alone
+ * cannot be used to tell whether this was the export's last batch.
+ *
  * <p>Lives in {@code shared.repository} (rather than {@code service}) because it is one of the
  * few places in the query side allowed to reference persistence entities directly, and because a
  * distinct Spring bean is required here: a short-lived transaction can only be opened via a
@@ -61,6 +67,6 @@ public class AuditUserExportBatchReader {
 
         entityManager.clear();
 
-        return new AuditUserExportBatch(rows, newLastSeenId);
+        return new AuditUserExportBatch(rows, newLastSeenId, ids.size());
     }
 }

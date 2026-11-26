@@ -56,7 +56,11 @@ public class AuditUserExportService {
 
             AuditUserExportBatch batch = batchReader.readBatch(criteria, lastSeenId.get(), BATCH_SIZE);
             lastSeenId.set(batch.lastSeenId());
-            if (batch.rows().size() < BATCH_SIZE) {
+            // A profile selected by the ID query can be deleted before the detail query runs, so
+            // rows.size() can be smaller than the batch actually selected; exhaustion must be
+            // decided from selectedIdCount(), not rows().size(), or such a deletion would make a
+            // full batch look short and silently truncate the rest of the export.
+            if (batch.selectedIdCount() < BATCH_SIZE) {
                 done.set(true);
             }
             return batch.rows();

@@ -51,7 +51,7 @@ class AuditUserExportServiceTest {
     @Test
     void export_withNoMatches_writesHeaderOnlyCsvAfterSingleBatchRead() throws Exception {
         when(batchReader.readBatch(eq(CRITERIA), isNull(), eq(BATCH_SIZE)))
-                .thenReturn(new AuditUserExportBatch(List.of(), null));
+                .thenReturn(new AuditUserExportBatch(List.of(), null, 0));
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         service.export(CRITERIA, out);
@@ -69,8 +69,34 @@ class AuditUserExportServiceTest {
 
         // A full-sized batch signals more may follow; the trailing short batch ends the export.
         List<AuditUserExportRow> firstRows = fullBatchOf(rowNamed("Alice"));
-        AuditUserExportBatch firstBatch = new AuditUserExportBatch(firstRows, firstId);
-        AuditUserExportBatch secondBatch = new AuditUserExportBatch(List.of(rowNamed("Bob")), secondId);
+        AuditUserExportBatch firstBatch = new AuditUserExportBatch(firstRows, firstId, BATCH_SIZE);
+        AuditUserExportBatch secondBatch = new AuditUserExportBatch(List.of(rowNamed("Bob")), secondId, 1);
+
+        when(batchReader.readBatch(CRITERIA, null, BATCH_SIZE)).thenReturn(firstBatch);
+        when(batchReader.readBatch(CRITERIA, firstId, BATCH_SIZE)).thenReturn(secondBatch);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        service.export(CRITERIA, out);
+
+        String csv = out.toString(StandardCharsets.UTF_8);
+        assertThat(csv).contains("Alice").contains("Bob");
+        verify(batchReader).readBatch(CRITERIA, null, BATCH_SIZE);
+        verify(batchReader).readBatch(CRITERIA, firstId, BATCH_SIZE);
+        verifyNoMoreInteractions(batchReader);
+    }
+
+    @Test
+    void export_whenFullBatchLosesRowsToConcurrentDeletion_stillReadsNextBatch() throws Exception {
+        UUID firstId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID secondId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+
+        // Simulates a profile deleted between the ID query and the detail query: the batch's
+        // selectedIdCount is still a full batch (more may follow) even though one fewer row was
+        // actually mapped. Without the fix, the service would read rows().size() (BATCH_SIZE - 1)
+        // and stop here, silently dropping Bob and anything selected after this batch.
+        List<AuditUserExportRow> firstRows = fullBatchOf(rowNamed("Alice"), BATCH_SIZE - 1);
+        AuditUserExportBatch firstBatch = new AuditUserExportBatch(firstRows, firstId, BATCH_SIZE);
+        AuditUserExportBatch secondBatch = new AuditUserExportBatch(List.of(rowNamed("Bob")), secondId, 1);
 
         when(batchReader.readBatch(CRITERIA, null, BATCH_SIZE)).thenReturn(firstBatch);
         when(batchReader.readBatch(CRITERIA, firstId, BATCH_SIZE)).thenReturn(secondBatch);
@@ -86,7 +112,11 @@ class AuditUserExportServiceTest {
     }
 
     private static List<AuditUserExportRow> fullBatchOf(AuditUserExportRow row) {
-        return java.util.stream.Stream.generate(() -> row).limit(BATCH_SIZE).toList();
+        return fullBatchOf(row, BATCH_SIZE);
+    }
+
+    private static List<AuditUserExportRow> fullBatchOf(AuditUserExportRow row, int count) {
+        return java.util.stream.Stream.generate(() -> row).limit(count).toList();
     }
 
     private static AuditUserExportRow rowNamed(String name) {
