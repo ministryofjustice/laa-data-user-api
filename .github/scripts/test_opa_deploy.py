@@ -108,6 +108,22 @@ pathlib.Path(bundle_dir, "bundle.tar.gz").write_bytes(pathlib.Path(os.environ["T
             cwd=self.workspace, env=env, text=True, capture_output=True,
         )
 
+    def test_service_account_is_selected_only_for_dev(self):
+        for environment in ("dev", "test", "prd"):
+            with self.subTest(environment=environment):
+                result = self.run_deploy(HELM_VALUES_ENV=environment)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                deployment = json.loads(subprocess.check_output(
+                    [self.yq, "-o=json", "-I=0", 'select(.kind == "Deployment")', str(self.output)],
+                    text=True,
+                ))
+                pod_spec = deployment["spec"]["template"]["spec"]
+                if environment == "dev":
+                    self.assertEqual(pod_spec["serviceAccountName"], "irsa-laa-data-user-api-development")
+                else:
+                    self.assertNotIn("serviceAccountName", pod_spec)
+                self.assertFalse(pod_spec["automountServiceAccountToken"])
+
     def test_enabled_builds_and_renders_binary_bundle(self):
         self.generated.write_text("authorization:\n  opaEnabled: false\n")
         result = self.run_deploy(OPA_ENABLED="true")

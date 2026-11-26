@@ -23,6 +23,9 @@ spec:
         laa-data-user-api/opa-bundle-ref: {{ .Values.opa.bundleRef | quote }}
       {{- end }}
     spec:
+      {{- with .Values.serviceAccountName }}
+      serviceAccountName: {{ . | quote }}
+      {{- end }}
       securityContext:
         runAsUser: 10000
         runAsNonRoot: true
