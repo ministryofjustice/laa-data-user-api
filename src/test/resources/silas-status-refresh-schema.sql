@@ -26,6 +26,10 @@ CREATE TABLE app_role (
     firm_type_restriction TEXT[], user_type_restriction TEXT[]
 );
 CREATE TABLE role_permission (app_role_id UUID REFERENCES app_role, permission VARCHAR(255));
+CREATE TABLE role_assignment (
+    assigning_role_id UUID REFERENCES app_role, assignable_role_id UUID REFERENCES app_role,
+    PRIMARY KEY (assigning_role_id, assignable_role_id)
+);
 CREATE TABLE office (
     id UUID PRIMARY KEY, code VARCHAR(255), firm_id UUID REFERENCES firm,
     address_line_1 VARCHAR(255), address_line_2 VARCHAR(255), address_line_3 VARCHAR(255),

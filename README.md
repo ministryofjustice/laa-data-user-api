@@ -83,10 +83,10 @@ before the handler and its read-only transaction run. `UserProfileVisibilityPoli
 profile's facts with one lookup and the pure `CanViewProfilePolicy` applies the profile visibility rules: an
 external actor may always view their own profile, and may view other profiles in their own firm only if they hold
 `VIEW_EXTERNAL_USER`; an internal actor with `VIEW_INTERNAL_USER` may view internal profiles, and an internal
-actor with `VIEW_EXTERNAL_USER` may view external profiles. The internal rules match
-`QueryAuthorisationService.canViewProfile` (kept in step by a test). The external same-firm rule is deliberately
-stricter than the profile detail queries, which let any external actor view profiles in their own firm without a
-permission. Being internal alone is not enough: per the SiLAS roles
+actor with `VIEW_EXTERNAL_USER` may view external profiles. `CanViewProfileDetailsPolicy` and
+`CanViewProfileListPolicy` (used by the `getActiveProfile` and `getUserProfiles` queries) apply the same rule
+through the shared `ProfileVisibilityEvaluator`, so external actors need `VIEW_EXTERNAL_USER` to see same-firm
+colleagues everywhere, not just here. Being internal alone is not enough: per the SiLAS roles
 matrix, External User Manager and External User Admin are internal roles without `VIEW_INTERNAL_USER`. A missing
 profile and a profile the caller cannot view both return the same generic `403` (`application/problem+json`, detail
 "You do not possess the required scopes or permissions to perform this operation."); the `title` and `detail`
@@ -98,6 +98,22 @@ All data is selected by the requested profile ID, not by the owning account. `/a
 derived from the assigned roles; `/offices` returns every office of the profile's firm when the profile has
 unrestricted office access, otherwise only its assigned offices belonging to that firm. Results are not
 paginated and are capped at 500 roles, 100 applications and 100 offices, ordered deterministically.
+
+`POST /api/v1/commands/users/set-active-profile` requires the `user_data.admin` scope and accepts
+`userEntraObjectId` and `userProfileId`. Only an external caller linked to the requested external
+profile may switch it. The profile must belong to the requested user; a missing or inaccessible user
+or profile, or an ownership mismatch returns the same generic `403`. The operation is idempotent and
+subsequent active-profile queries return the selected profile.
+
+The app and role catalogue queries (`GET /api/v1/queries/apps`, `/apps/{appId}`, `/apps/{appId}/roles`,
+`/app-roles/{appRoleId}` and `/role-restrictions`) are read-only and require `user_data.read`. Every query message
+implements `AppCatalogueQuery` and declares `@RequiresPermission(Permission.VIEW_LAA_APP_METADATA)`, which an ArchUnit
+rule enforces. Only active applications and their roles are returned; an unknown or inactive application, or an
+unknown role, is a generic `404` and an active application with no matching roles is `200` with `items: []`. `appId`
+and `app_id` are the internal SiLAS app ID; `/apps/{appId}/roles` takes `user_type` (`INTERNAL` or `EXTERNAL`, each
+also including `BOTH` roles). `/role-restrictions` is paged (`page_number` from 0, `page_size` 1 to 100) and lists
+restrictions whose assigning and assignable roles are both in active applications; its `app_id` filter and the app
+fields of each item refer to the role being assigned. Lists are capped at 100 applications and 500 roles.
 
 Query service, handler, and controller results are checked recursively for entity
 leakage through collections, wrappers, DTO fields, and projection accessors.
@@ -156,13 +172,13 @@ scoped and fail closed if they have no firm.
 
 Other reusable command-side policies in `application.command.policy` are:
 
-| Policy                            | Capability           | Rule                                                                                                      |
-|-----------------------------------|----------------------|-----------------------------------------------------------------------------------------------------------|
-| `NotSelfTargetPolicy`             | `TargetsUser`        | The actor cannot target their own Entra account.                                                          |
-| `ExternalTargetOnlyPolicy`        | `TargetsUser`        | The target user must not be an internal user.                                                             |
+| Policy                            | Capability                                              | Rule                                                                                                                    |
+|-----------------------------------|---------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `NotSelfTargetPolicy`             | `TargetsUser`                                           | The actor cannot target their own Entra account.                                                                        |
+| `ExternalTargetOnlyPolicy`        | `TargetsUser`                                           | The target user must not be an internal user.                                                                           |
 | `ReactivationHierarchyPolicy`     | `UserDeactivationContext` (resolved from `TargetsUser`) | The target must be deactivated, and the actor's authorization roles must permit reactivation for its deactivation type. |
-| `NotSelfProfileTargetPolicy`      | `TargetsUserProfile` | The actor cannot target a profile belonging to their own account.                                         |
-| `ExternalProfileTargetOnlyPolicy` | `TargetsUserProfile` | The target profile must not belong to an internal user.                                                   |
+| `NotSelfProfileTargetPolicy`      | `TargetsUserProfile`                                    | The actor cannot target a profile belonging to their own account.                                                       |
+| `ExternalProfileTargetOnlyPolicy` | `TargetsUserProfile`                                    | The target profile must not belong to an internal user.                                                                 |
 
 For example, `DeactivateUserCommand` requires `DISABLE_EXTERNAL_USER`, cannot target the actor,
 must target an external user, and is subject to the global
@@ -204,8 +220,9 @@ The filter runs before security,
 so authentication failures share the same request ID, and restores the previous context even when a request fails.
 Existing log statements need no correlation-ID arguments. Logs outside a request have no correlation ID.
 `MdcTaskDecorator` captures MDC at submission and restores the worker's previous context after completion or failure.
-It is configured on the default `taskExecutor`, `bulkDeactivationExecutor`, and `silasStatusRefreshExecutor`, covering
-both unnamed and named `@Async` methods. Configure the same decorator on any future application executor.
+It is configured on the default `taskExecutor`, `bulkDeactivationExecutor`, `silasStatusRefreshExecutor`, and
+`ccmsRoleSyncExecutor`, covering both unnamed and named `@Async` methods. Configure the same decorator on any future
+application executor.
 `CorrelationIdInterceptor` forwards the active MDC ID on Tech Services HTTP requests automatically; no header is
 added when no ID is present. It reads MDC for each call, so shared clients do not retain another request's ID.
 This provides request correlation across cooperating HTTP services, not distributed tracing. Azure SDK token
@@ -299,8 +316,8 @@ Their handlers retain message-level authorization and transaction boundaries.
 Reactivation delegates to `ReactivateUserService`; locked target loading, the hierarchy recheck,
 Tech Services, and the local update remain in one transaction. `UserSearchService` owns trusted
 search criteria and pagination preparation, and `UserAccountDetailsService` coordinates account
-retrieval. Both query services are read-only and use `QueryAuthorisationService` for active actor
-context; denied account or active-profile visibility returns a generic 403 response.
+retrieval. Both query services are read-only and are guarded via `@PolicyGuarded` (`CanSearchUsersPolicy`,
+`CanViewAccountPolicy`); denied account or active-profile visibility returns a generic 403 response.
 The lifecycle service loads and refreshes the target once per deactivation or reactivation transaction,
 invokes the outbound step using a DTO, then updates the same locked entity without another lookup.
 Reactivation still reads authorization facts before execution and rechecks the refreshed state under
@@ -309,6 +326,61 @@ Each user is processed in an independent transaction. Internal per-user outcomes
 invalid identifiers, denied access, missing users, downstream failures, rejected operations, and
 unexpected system failures; the HTTP response retains its aggregate counts. Expected failures
 are logged at `WARN`, unexpected runtime failures at `ERROR`, and remaining users still run.
+Multi-firm conversion requires both `EDIT_EXTERNAL_USER` and `CONVERT_USER_TO_MULTI_FIRM` through
+the command's `@RequiresPermission(match = ALL)` declaration. `InternalActorOnlyPolicy` requires an
+active internal actor profile; the existing self-target and external-target policies also apply.
+These checks run at the handler boundary before the write transaction opens.
+`ConvertToMultiFirmService` owns the lock-refresh-check-update sequence, including the
+already-converted conflict check under the row lock. Active-profile retrieval and profile-list filtering
+delegate to the read-only `UserProfileDetailsService`, with shared actor-context validation in
+`QueryAuthorisationService` and entity mapping confined to `UserProfileQueryMapper`.
+`RefreshSilasStatusHandler` retains scheduling-rejection handling at the submission boundary:
+rejected work returns a failure result, while unexpected submission failures propagate.
+Failures after asynchronous work starts are logged by the configured uncaught-exception handler;
+previously committed batches remain updated.
+
+### OPA lifecycle trial
+
+Deactivate and reactivate commands additionally send the actor's role and permission context and the target's
+account, firm, and deactivation facts to the OPA sidecar. OPA applies the same-firm, self-target, external-user,
+and reactivation-hierarchy rules in `opa/policies/authz/lifecycle.rego`. The existing Java RBAC checks remain
+in place during this trial; OPA is an additional enforcing gate, and an unavailable or malformed OPA response
+fails closed with HTTP 503. Only a JSON boolean `result` is accepted; strings, numbers, nulls, and
+other result types are rejected rather than coerced into authorization decisions.
+
+Enforcement can be controlled independently with `APP_AUTHORIZATION_OPA_ENABLED` and
+`APP_AUTHORIZATION_LEGACY_POLICIES_ENABLED` (or the matching `authorization.opaEnabled` and
+`authorization.legacyPoliciesEnabled` Helm values). Application and chart defaults are `true`, but GitHub
+deployments override OPA enablement with the `OPA_ENABLED` GitHub Environment variable. Set it to `true`
+to enable OPA for that environment; `false` or an unset variable disables it. Other values fail deployment.
+When both engines are enabled, both policy sets run. Disabling legacy policies skips them only for commands
+that declare an enabled OPA replacement; legacy policies remain enforced for commands without one. If OPA is
+disabled, legacy policies are automatically enabled as a fallback. Declared permissions and OAuth scope checks
+remain active whichever policy engine is enabled.
+Disabling OPA also omits the sidecar, bundle ConfigMap, bundle annotation, and OPA volumes, so Java-only
+deployments do not require a policy bundle. The GitHub Environment variable takes precedence over the Helm
+values. Older release charts without `authorization.opaEnabled` can only be deployed with OPA disabled.
+When enabled, the deployment workflow builds a bundle from the checked-out policies and passes it to Helm;
+the bundle's SHA-256 identifies its immutable ConfigMap. When disabled, it skips bundle creation and
+bundle-specific Helm arguments.
+When enabled, OPA's readiness probe checks `/health?bundles=true` on a separate diagnostic listener
+on port 8182. The pod is not Ready if OPA is unresponsive or its bundle is not ready; the policy API
+remains bound to loopback on port 8181.
+
+Locally, start OPA with the policy directory before running the API:
+
+```bash
+opa run --server --addr=127.0.0.1:8181 opa/policies
+```
+
+The `OPA_URL` environment variable can override the default `http://localhost:8181`. Policy tests run with
+`opa test opa/policies opa/tests -v`. Deployments build and publish the policy bundle to
+an environment-, image-version-, and content-addressed S3 key. The deploy workflow passes that exact reference
+and bundle to Helm; Helm stores each bundle in a versioned immutable ConfigMap, and the OPA sidecar loads it
+from a shared local volume. This keeps policy data aligned with the deployed image and allows Helm rollback to
+restore the matching bundle.
+
+### Using existing permissions and policies
 
 `ReactivationPolicyInputResolver` loads active state and the recorded deactivation type with one
 lookup after permission and global-policy checks. `ReactivationHierarchyPolicy` evaluates that
@@ -514,6 +586,7 @@ The application relies on several environment variables for configuration. Below
 | `TECH_SERVICES_AZURE_CLIENT_SECRET` | The Azure AD client secret for the Tech Services API.                                                                                             | None                      | GitHub Actions secret                                              |
 | `TECH_SERVICES_TENANT_ID`           | The Azure AD tenant ID for the Tech Services API.                                                                                                 | None                      | GitHub Actions secret                                              |
 | `TECH_SERVICES_BASE_URL`            | The base URL for the Tech Services API.                                                                                                           | None                      | GitHub Actions secret                                              |
+| `OPA_URL`                           | Base URL for the local OPA sidecar used by lifecycle authorization.                                                                               | `http://localhost:8181`   | Helm value / environment variable                                  |
 | `SLACK_WEBHOOK_URL`                 | Slack Incoming Webhook URL the `laa-data-user-api-uptime-check` CronJob posts to on a failed external health check. Not consumed by the main app. | None                      | K8s Secret `slack-alert-webhook-secret`                            |
 | `TECH_SERVICES_CALLS_ENABLED`       | Whether to enable calls to the Tech Services API.                                                                                                 | `false`                   | Not yet wired into the Helm chart (`application.yml` default only) |
 | `TECH_SERVICES_LAA_BUSINESS_UNIT`   | The business unit for the Tech Services API.                                                                                                      | `laa`                     | Not yet wired into the Helm chart (`application.yml` default only) |
@@ -638,11 +711,11 @@ gpr.token=your-classic-token-with-read:packages-scope
 
 ### Versioning policy
 
-| Change type | Version bump | Example |
-|---|---|---|
-| Bug fix, no API surface change | Patch | `1.0.0` → `1.0.1` |
-| New optional field added to a record | Minor | `1.0.0` → `1.1.0` |
-| Field removed, renamed, or type changed | **Major** | `1.0.0` → `2.0.0` |
+| Change type                             | Version bump | Example           |
+|-----------------------------------------|--------------|-------------------|
+| Bug fix, no API surface change          | Patch        | `1.0.0` → `1.0.1` |
+| New optional field added to a record    | Minor        | `1.0.0` → `1.1.0` |
+| Field removed, renamed, or type changed | **Major**    | `1.0.0` → `2.0.0` |
 
 Breaking changes (major bumps) require coordinating with all consumers before merging.
 

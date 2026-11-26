@@ -54,5 +54,6 @@ public record UserSearchCriteria(
         Boolean actorInternal,
         Boolean actorExternal,
         UUID actorFirmId,
-        Boolean canViewExternalUsers
+        Boolean canViewExternalUsers,
+        Boolean canViewInternalUsers
 ) {}

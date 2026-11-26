@@ -1,0 +1,13 @@
+{{- if .Values.authorization.opaEnabled }}
+{{- $bundleRef := required "opa.bundleRef is required when OPA is enabled" .Values.opa.bundleRef }}
+{{- $bundleData := required "opa.bundleData is required when OPA is enabled" .Values.opa.bundleData }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: laa-data-user-api-opa-bundle-{{ $bundleRef | sha256sum | trunc 12 }}
+  annotations:
+    laa-data-user-api/opa-bundle-ref: {{ $bundleRef | quote }}
+immutable: true
+binaryData:
+  bundle.tar.gz: {{ $bundleData | b64enc | quote }}
+{{- end }}

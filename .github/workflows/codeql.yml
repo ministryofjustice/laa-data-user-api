@@ -20,16 +20,63 @@ on:
     types:
       - opened
       - reopened
-      - edited
       - synchronize
   schedule:
     - cron: '40 3 * * 6'  
   workflow_call:
+    inputs:
+      full_scan:
+        description: Run all languages when called from a pull request
+        type: boolean
+        default: true
+      run_tests:
+        description: Run tests as part of the CodeQL build
+        type: boolean
+        default: true
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-api-codeql-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  changes:
+    name: Detect CodeQL changes
+    if: ${{ github.event_name == 'pull_request' && inputs.full_scan != true }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      languages: ${{ steps.languages.outputs.languages }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select languages
+        id: languages
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # A PR must not control the detector used to classify its own changes.
+          if git cat-file -e "$BASE_SHA:.github/scripts/codeql_changed_languages.py"; then
+            git show "$BASE_SHA:.github/scripts/codeql_changed_languages.py" > "$RUNNER_TEMP/codeql_changed_languages.py"
+            LANGUAGES=$(python3 "$RUNNER_TEMP/codeql_changed_languages.py" "$BASE_SHA")
+            printf 'languages=%s\n' "$LANGUAGES" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Change detector unavailable on the base commit; scanning all languages."
+            echo 'languages=["actions","java-kotlin"]' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test change detector
+        run: python3 -B -m unittest discover -s .github/scripts -p test_codeql_changed_languages.py
+
   analyze:
     name: Analyze (${{ matrix.language }})
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || inputs.full_scan == true || needs.changes.result != 'success' || needs.changes.outputs.languages != '[]') }}
     # Runner size impacts CodeQL analysis time. To learn more, please see:
     #   - https://gh.io/recommended-hardware-resources-for-running-codeql
     #   - https://gh.io/supported-runners-and-hardware-resources
@@ -47,11 +94,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-        - language: actions
-          build-mode: none
-        - language: java-kotlin
-          build-mode: manual # Use manual build mode so we can specify the correct JDK and Gradle build commands.
+        language: ${{ fromJSON(needs.changes.outputs.languages || '["actions","java-kotlin"]') }}
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
         # Use `c-cpp` to analyze code written in C, C++ or both
         # Use 'java-kotlin' to analyze code written in Java, Kotlin or both
@@ -67,7 +110,7 @@ jobs:
         persist-credentials: false
 
     - name: Set up JDK
-      uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+      uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
       with:
         distribution: 'corretto'
         java-version: '25'
@@ -77,7 +120,7 @@ jobs:
       uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
       with:
         languages: ${{ matrix.language }}
-        build-mode: ${{ matrix.build-mode }}
+        build-mode: ${{ matrix.language == 'java-kotlin' && 'manual' || 'none' }}
         # If you wish to specify custom queries, you can do so here or in a config file.
         # By default, queries listed here will override any specified in a config file.
         # Prefix the list here with "+" to use these queries and those in the config file.
@@ -92,12 +135,26 @@ jobs:
     # ℹ️ Command-line programs to run using the OS shell.
     # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
 
-    - name: Build JAR
-      if: matrix.build-mode == 'manual'
-      # Dependabot needs compilation for analysis, not secret-dependent tests or Sentry uploads.
-      run: ./gradlew build ${{ github.actor == 'dependabot[bot]' && '-x test -x sentryUploadSourceBundleJava' || '' }}
+    - name: Build for CodeQL
+      if: matrix.language == 'java-kotlin'
+      run: |
+        if [ "$GITHUB_EVENT_NAME" = 'pull_request' ] && [ "$FULL_SCAN" != 'true' ] && [ "$FULL_SCAN" != 'false' ]; then
+          if [ "$GITHUB_ACTOR" = 'dependabot[bot]' ]; then
+            ./gradlew classes
+          else
+            ./gradlew testClasses
+          fi
+        elif [ "$GITHUB_ACTOR" = 'dependabot[bot]' ]; then
+          ./gradlew build -x test -x sentryUploadSourceBundleJava
+        elif [ "$RUN_TESTS" = 'false' ] || { [ "$GITHUB_EVENT_NAME" = 'pull_request' ] && [ "$RUN_TESTS" != 'true' ]; }; then
+          ./gradlew build testClasses -x test
+        else
+          ./gradlew build
+        fi
       env:
         GITHUB_ACTOR: ${{ github.actor }}
+        FULL_SCAN: ${{ toJSON(inputs.full_scan) }}
+        RUN_TESTS: ${{ toJSON(inputs.run_tests) }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -109,7 +166,7 @@ jobs:
         category: "/language:${{matrix.language}}"
         output: codeql-results
     - name: Report CodeQL results
-      if: always()
+      if: ${{ always() && !cancelled() }}
       run: |
         echo "=== CodeQL Scan Results (threshold: $MIN_LEVEL) ==="
         set +e
@@ -185,10 +242,12 @@ jobs:
         set -e
 
     - name: Collect CodeQL SARIF reports
-      if: always()
+      if: ${{ always() && !cancelled() }}
+      env:
+        CODEQL_LANGUAGE: ${{ matrix.language }}
       run: |
         set +e
-        DEST="$GITHUB_WORKSPACE/codeql-sarif-results-${{ matrix.language }}"
+        DEST="$GITHUB_WORKSPACE/codeql-sarif-results-$CODEQL_LANGUAGE"
         mkdir -p "$DEST"
         
         echo "Searching for SARIF files..."
@@ -202,7 +261,7 @@ jobs:
         ls -lh "$DEST"/ || echo "Directory is empty"
 
     - name: Upload CodeQL SARIF report artifact
-      if: always()
+      if: ${{ always() && !cancelled() }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: codeql-sarif-results-${{ matrix.language }}

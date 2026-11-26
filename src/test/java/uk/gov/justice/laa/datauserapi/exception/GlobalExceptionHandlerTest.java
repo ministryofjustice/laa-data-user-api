@@ -343,6 +343,22 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void handleOpaUnavailable_shouldReturn503WithProblemDetail() {
+        OpaUnavailableException ex = new OpaUnavailableException("OPA authorization request failed");
+
+        ResponseEntity<ProblemDetail> response = handler.handleOpaUnavailable(ex, request);
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
+        assertProblemContentType(response);
+        assertNotNull(response.getBody());
+        assertEquals(503, response.getBody().status());
+        assertEquals("Service Unavailable", response.getBody().title());
+        assertThat(appender.list).singleElement().satisfies(event ->
+                assertThat(event.getArgumentArray()).extracting(Object::toString)
+                        .contains("exception_group=opa_unavailable", "exception_reason=opa_unavailable"));
+    }
+
+    @Test
     void handleAccessDenied_shouldReturn403ForPlainAccessDenied() {
         ResponseEntity<ProblemDetail> response = handler.handleAccessDenied(new AccessDeniedException("denied"), request);
 

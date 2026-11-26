@@ -59,7 +59,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(UserAccountCommandController.class)
+@WebMvcTest(value = UserAccountCommandController.class, properties = {
+    "app.authorization.legacy-policies-enabled=true",
+    "app.authorization.opa-enabled=true"
+})
 @Import({
     JacksonConfig.class,
     SecurityConfig.class,
