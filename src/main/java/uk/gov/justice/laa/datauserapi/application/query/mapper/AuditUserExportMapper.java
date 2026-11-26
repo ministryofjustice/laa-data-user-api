@@ -19,24 +19,12 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * Maps a {@link UserProfile} to a row of the User Access Audit CSV, preserving the legacy
- * export's column values and conventions. Kept separate from {@code AuditUserExportService} so
- * that entity-to-CSV-value mapping (a single responsibility) is independently testable from
- * fetch orchestration.
- */
 @Component
 public class AuditUserExportMapper {
 
     private static final String YES = "Yes";
     private static final String NO = "No";
 
-    /**
-     * Maps a batch of fetched profiles to CSV rows, in the given {@code orderedIds} order (the
-     * order established by the filtering/pagination query). Profiles are keyed and re-ordered
-     * here, inside the mapper, so that entity access and entity-identity concerns stay out of
-     * {@code AuditUserExportService}.
-     */
     public List<AuditUserExportRow> toRows(List<UUID> orderedIds, List<UserProfile> profiles) {
         Map<UUID, UserProfile> detailsById = profiles.stream()
                 .collect(Collectors.toMap(UserProfile::getId, Function.identity()));

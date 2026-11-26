@@ -18,17 +18,6 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Streams every profile matching an audit user export request straight to the response, without
  * ever holding the full result (or a single long-lived transaction) in memory.
- *
- * <p>Each batch of matching profiles is fetched and mapped by {@link AuditUserExportBatchReader}
- * in its own short read-only transaction; this class only tracks the keyset paging cursor (the
- * last-seen profile ID, not a page number — see {@link AuditUserExportBatchReader} for why) and
- * hands each batch to {@link CsvExportWriter} as soon as it arrives, so the CSV is written
- * incrementally and memory use stays bounded by a single batch, not the whole export.
- *
- * <p>{@link #export} itself opens no transaction ({@code NOT_SUPPORTED}): by the time it runs,
- * {@code ExportAuditUsersHandler} has already authorised the request, and the class-level
- * {@code @Transactional(readOnly = true)} (required for every query service) would otherwise hold
- * a transaction open for the full duration of the export.
  */
 @Service
 @Transactional(readOnly = true)
@@ -56,10 +45,6 @@ public class AuditUserExportService {
 
             AuditUserExportBatch batch = batchReader.readBatch(criteria, lastSeenId.get(), BATCH_SIZE);
             lastSeenId.set(batch.lastSeenId());
-            // A profile selected by the ID query can be deleted before the detail query runs, so
-            // rows.size() can be smaller than the batch actually selected; exhaustion must be
-            // decided from selectedIdCount(), not rows().size(), or such a deletion would make a
-            // full batch look short and silently truncate the rest of the export.
             if (batch.selectedIdCount() < BATCH_SIZE) {
                 done.set(true);
             }

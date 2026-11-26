@@ -12,26 +12,6 @@ import uk.gov.justice.laa.datauserapi.security.rbac.AuthorizationPolicy;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDecision;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
-/**
- * An actor may export audit users when they have an active profile, hold
- * {@link Permission#EXPORT_AUDIT_DATA}, the request is constrained to one firm or to
- * INTERNAL-only (checked again here, from trusted context, so a caller invoking the handler
- * directly cannot bypass the controller's {@code @Valid} request-shape validation), and hold the
- * view permission matching the requested scope:
- *
- * <ul>
- *     <li>INTERNAL-only export requires an INTERNAL actor holding
- *     {@link Permission#VIEW_INTERNAL_USER}; holding the permission alone is not sufficient,
- *     since permission assignment is role-configuration driven and not type-safe at the actor
- *     level.</li>
- *     <li>Single-firm export requires {@link Permission#VIEW_EXTERNAL_USER}; an external actor
- *     may only export their own firm.</li>
- * </ul>
- *
- * <p>The request's shape (constrained to one firm or to INTERNAL-only) is also validated via
- * {@code @Valid} on {@code AuditUserExportCriteria} at the controller, giving a friendlier 400
- * response for the common case; the check in this policy is the fail-closed backstop.
- */
 @Component
 public class CanExportAuditUsersPolicy implements AuthorizationPolicy<AuditUserExportAuthorizationContext> {
 

@@ -25,12 +25,6 @@ import java.util.function.Supplier;
  *
  * <p>Writes incrementally to the supplied {@link OutputStream} (no intermediate in-memory CSV
  * string, no temporary files) and writes a header-only CSV when there are no rows.
- *
- * <p>Every textual cell is passed through {@link FormulaInjectionGuard} before being written, so a
- * value beginning with a formula-triggering character (e.g. a user-supplied name starting with
- * {@code =}) cannot be evaluated as a formula when the export is opened in a spreadsheet
- * application. {@link CsvGenerator.Feature#STRICT_CHECK_FOR_QUOTING} only governs CSV syntax
- * (quoting/escaping) and does not address this on its own.
  */
 @Component
 public class CsvExportWriter {
@@ -47,14 +41,6 @@ public class CsvExportWriter {
         }
     }
 
-    /**
-     * Writes a large export in batches, without ever holding the full result in memory:
-     * {@code batchSupplier} is called repeatedly, writing each returned batch to the output
-     * stream as soon as it arrives, until it returns {@code null} (the sentinel for "no more
-     * batches"). The supplier is always called at least once, so a request with zero matching
-     * rows still produces a valid header-only CSV (its first call must return an empty, not
-     * null, list in that case).
-     */
     public <T> void writeBatches(OutputStream outputStream, Class<T> rowType, Supplier<List<T>> batchSupplier)
             throws IOException {
         CsvSchema schema = csvMapper.schemaFor(rowType).withHeader().withLineSeparator("\n");
@@ -67,10 +53,7 @@ public class CsvExportWriter {
     }
 
     /**
-     * Neutralises CSV/spreadsheet formula injection (a.k.a. CSV injection): a cell whose value
-     * begins with {@code =}, {@code +}, {@code -}, {@code @}, a tab, or a carriage return is
-     * prefixed with a leading apostrophe so Excel/Sheets/LibreOffice render it as literal text
-     * rather than evaluating it as a formula when the file is opened.
+     * Neutralises CSV/spreadsheet formula injection (a.k.a. CSV injection).
      */
     private static final class FormulaInjectionGuard extends JsonSerializer<String> {
 

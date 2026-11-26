@@ -9,10 +9,6 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * <p>Column names and order are the existing, preserved contract from the legacy export and must
  * not change without a corresponding spec/AC change: {@code Name, Email, Firm name, Firm ID,
  * Multi-firm, Provider Admin, App Access, SiLAS Account Status, Roles Assigned}.
- *
- * <p>{@code appAccess} and {@code rolesAssigned} always reflect the full set of apps/roles on the
- * matching profile; the export's filters control which rows are included, not which roles are
- * shown within an included row.
  */
 @JsonPropertyOrder({
     "Name", "Email", "Firm name", "Firm ID", "Multi-firm", "Provider Admin",

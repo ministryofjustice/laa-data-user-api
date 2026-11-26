@@ -10,27 +10,6 @@ import uk.gov.justice.laa.datauserapi.entity.UserProfile;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Profile-level filtering for the audit user CSV export.
- *
- * <p>Deliberately separate from {@link EntraUserQueryRepository#searchUsers}, which works at the
- * account level and returns every profile for a matched account; the export must instead show a
- * multi-firm user only in the single firm (or INTERNAL) context being exported.
- *
- * <p>Filtering and detail-loading are split in two steps to avoid both N+1 queries and Hibernate's
- * {@code MultipleBagFetchException}/in-memory pagination problems that come from paginating a
- * query that already {@code JOIN FETCH}es multiple collections ({@code appRoles}, {@code offices}):
- * {@link #findMatchingProfileIds} applies every filter and returns a batch of matching profile IDs
- * only; {@link #findDetailsWithRoles} then batch-loads full details, with {@code appRoles} fetched,
- * for a given set of IDs. {@code offices} is never fetched there since the export never reads it;
- * office filtering happens entirely in {@link #findMatchingProfileIds}.
- *
- * <p>{@link #findMatchingProfileIds} uses keyset ("seek") pagination, not an offset {@code Page}:
- * each call returns up to {@code limit} IDs greater than {@code lastSeenId}, ordered ascending.
- * Unlike offset pagination, this remains correct when profiles are inserted or deleted between
- * batches of the same export, since each batch is defined relative to the last ID actually seen,
- * not a row count that can shift under concurrent writes.
- */
 @org.springframework.stereotype.Repository
 public interface AuditUserExportQueryRepository extends Repository<UserProfile, UUID> {
 
