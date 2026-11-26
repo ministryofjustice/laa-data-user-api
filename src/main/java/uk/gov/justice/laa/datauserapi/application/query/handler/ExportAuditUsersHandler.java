@@ -1,17 +1,16 @@
 package uk.gov.justice.laa.datauserapi.application.query.handler;
 
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import uk.gov.justice.laa.datauserapi.application.query.dto.AuditUserExportRow;
+import uk.gov.justice.laa.datauserapi.application.query.dto.ExportBody;
 import uk.gov.justice.laa.datauserapi.application.query.queryauditusersexport.ExportAuditUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.AuditUserExportService;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
 
-import java.util.List;
-
 @Component
 @Transactional(readOnly = true)
-public class ExportAuditUsersHandler implements QueryHandler<ExportAuditUsersQuery, List<AuditUserExportRow>> {
+public class ExportAuditUsersHandler implements QueryHandler<ExportAuditUsersQuery, ExportBody> {
 
     private final AuditUserExportService service;
 
@@ -20,7 +19,9 @@ public class ExportAuditUsersHandler implements QueryHandler<ExportAuditUsersQue
     }
 
     @Override
-    public List<AuditUserExportRow> handle(ExportAuditUsersQuery query, AuthenticatedEntraUser actor) {
-        return service.export(query);
+    @Transactional(propagation = Propagation.NOT_SUPPORTED, readOnly = true)
+    public ExportBody handle(ExportAuditUsersQuery query, AuthenticatedEntraUser actor) {
+        return outputStream -> service.export(query.criteria(), outputStream);
     }
 }
+

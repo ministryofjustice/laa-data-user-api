@@ -31,6 +31,7 @@ public class AuditUserExportAuthorizationPolicyInputResolver
     public AuditUserExportAuthorizationContext resolve(ExportAuditUsersQuery message) {
         return new AuditUserExportAuthorizationContext(
                 message.criteria().userType(),
-                message.criteria().firmId());
+                message.criteria().firmId(),
+                message.criteria().isScopedToOneFirmOrInternalOnly());
     }
 }

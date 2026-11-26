@@ -156,16 +156,34 @@ class AuditUserExportQueryRepositoryTest {
     }
 
     @Test
-    void findDetailsWithRolesAndOffices_hydratesEntraUserRolesAndOffices() {
+    void findDetailsWithRoles_hydratesEntraUserAndRoles() {
         List<UserProfile> profiles =
-                repository.findDetailsWithRolesAndOffices(List.of(EXTERNAL_PROFILE_ID));
+                repository.findDetailsWithRoles(List.of(EXTERNAL_PROFILE_ID));
 
         assertThat(profiles).hasSize(1);
         UserProfile profile = profiles.getFirst();
         assertThat(profile.getEntraUser().getEmail()).isEqualTo("external@example.test");
         assertThat(profile.getFirm().getCode()).isEqualTo("F1");
         assertThat(profile.getAppRoles()).extracting(role -> role.getId()).containsExactly(ROLE_ID);
-        assertThat(profile.getOffices()).extracting(office -> office.getId()).containsExactly(OFFICE_ID);
+    }
+
+    @Test
+    void findMatchingProfileIds_officeFilter_includesUnrestrictedOfficeAccessProfilesWithNoExplicitOffice() {
+        UUID unrestrictedUserId = new UUID(0, 50);
+        UUID unrestrictedProfileId = new UUID(0, 51);
+        insertUser(unrestrictedUserId, "unrestricted@example.test", "ACTIVE");
+        jdbc.update("""
+            INSERT INTO user_profile (id, entra_user_id, user_type, active_profile, firm_id, silas_status,
+                unrestricted_office_access)
+            VALUES (?, ?, 'EXTERNAL', TRUE, ?, 'COMPLETE', TRUE)
+            """, unrestrictedProfileId, unrestrictedUserId, FIRM_ID);
+
+        AuditUserExportCriteria criteria =
+                new AuditUserExportCriteria(null, null, "F1", "0001", null, null, null);
+
+        Page<UUID> page = repository.findMatchingProfileIds(criteria, PageRequest.of(0, 50));
+
+        assertThat(page.getContent()).containsExactlyInAnyOrder(EXTERNAL_PROFILE_ID, unrestrictedProfileId);
     }
 
     private void insertUser(UUID id, String email, String status) {

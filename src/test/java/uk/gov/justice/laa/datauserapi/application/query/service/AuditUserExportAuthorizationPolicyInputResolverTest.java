@@ -23,6 +23,7 @@ class AuditUserExportAuthorizationPolicyInputResolverTest {
         assertThat(context.requestedUserType()).isEqualTo(UserType.EXTERNAL);
         assertThat(context.requestedFirmId()).isEqualTo("FIRM001");
         assertThat(context.requestsInternalOnly()).isFalse();
+        assertThat(context.scopedToOneFirmOrInternalOnly()).isTrue();
     }
 
     @Test
@@ -34,6 +35,17 @@ class AuditUserExportAuthorizationPolicyInputResolverTest {
 
         assertThat(context.requestsInternalOnly()).isTrue();
         assertThat(context.requestedFirmId()).isNull();
+        assertThat(context.scopedToOneFirmOrInternalOnly()).isTrue();
+    }
+
+    @Test
+    void resolve_unconstrainedRequest_isNotScopedToOneFirmOrInternalOnly() {
+        AuditUserExportCriteria criteria =
+                new AuditUserExportCriteria(null, null, null, null, null, null, null);
+
+        var context = resolver.resolve(new ExportAuditUsersQuery(criteria));
+
+        assertThat(context.scopedToOneFirmOrInternalOnly()).isFalse();
     }
 
     @Test

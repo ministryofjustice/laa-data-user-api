@@ -4,26 +4,30 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import uk.gov.justice.laa.datauserapi.application.query.dto.AuditUserExportRow;
-import uk.gov.justice.laa.datauserapi.application.query.mapper.AuditUserExportMapper;
-import uk.gov.justice.laa.datauserapi.application.query.queryauditusersexport.ExportAuditUsersQuery;
-import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AuditUserExportQueryRepository;
+import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AuditUserExportBatchReader;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AuditUserExportCriteria;
+import uk.gov.justice.laa.datauserapi.service.csv.CsvExportWriter;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Fetches and maps every profile matching an audit user export request.
+ * Streams every profile matching an audit user export request straight to the response, without
+ * ever holding the full result (or a single long-lived transaction) in memory.
  *
- * <p>Matching is done in two steps to bound memory while avoiding both N+1 queries and
- * Hibernate's {@code MultipleBagFetchException}: a batch of matching profile IDs is paginated
- * from {@link AuditUserExportQueryRepository#findMatchingProfileIds}, then that batch's full
- * details (with {@code appRoles}/{@code offices} fetched) are loaded in one query via
- * {@link AuditUserExportQueryRepository#findDetailsWithRolesAndOffices}. This repeats until every
- * matching profile has been loaded and mapped.
+ * <p>Each page of matching profiles is fetched and mapped by {@link AuditUserExportBatchReader}
+ * in its own short read-only transaction; this class only tracks the paging cursor and hands each
+ * batch to {@link CsvExportWriter} as soon as it arrives, so the CSV is written incrementally and
+ * memory use stays bounded by a single batch, not the whole export.
+ *
+ * <p>{@link #export} itself opens no transaction ({@code NOT_SUPPORTED}): by the time it runs,
+ * {@code ExportAuditUsersHandler} has already authorised the request, and the class-level
+ * {@code @Transactional(readOnly = true)} (required for every query service) would otherwise hold
+ * a transaction open for the full duration of the export.
  */
 @Service
 @Transactional(readOnly = true)
@@ -31,35 +35,28 @@ public class AuditUserExportService {
 
     private static final int BATCH_SIZE = 500;
 
-    private final AuditUserExportQueryRepository repository;
-    private final AuditUserExportMapper mapper;
+    private final AuditUserExportBatchReader batchReader;
+    private final CsvExportWriter csvExportWriter;
 
-    public AuditUserExportService(AuditUserExportQueryRepository repository, AuditUserExportMapper mapper) {
-        this.repository = repository;
-        this.mapper = mapper;
+    public AuditUserExportService(AuditUserExportBatchReader batchReader, CsvExportWriter csvExportWriter) {
+        this.batchReader = batchReader;
+        this.csvExportWriter = csvExportWriter;
     }
 
-    public List<AuditUserExportRow> export(ExportAuditUsersQuery query) {
-        AuditUserExportCriteria criteria = query.criteria();
-        List<AuditUserExportRow> rows = new ArrayList<>();
+    @Transactional(propagation = Propagation.NOT_SUPPORTED, readOnly = true)
+    public void export(AuditUserExportCriteria criteria, OutputStream outputStream) throws IOException {
+        AtomicReference<Pageable> nextPageable = new AtomicReference<>(PageRequest.of(0, BATCH_SIZE));
 
-        Pageable pageable = PageRequest.of(0, BATCH_SIZE);
-        Page<UUID> page = repository.findMatchingProfileIds(criteria, pageable);
-        rows.addAll(mapBatch(page.getContent()));
+        csvExportWriter.writeBatches(outputStream, AuditUserExportRow.class, () -> {
+            Pageable pageable = nextPageable.get();
+            if (pageable == null) {
+                return null;
+            }
 
-        while (page.hasNext()) {
-            page = repository.findMatchingProfileIds(criteria, page.nextPageable());
-            rows.addAll(mapBatch(page.getContent()));
-        }
-
-        return rows;
-    }
-
-    private List<AuditUserExportRow> mapBatch(List<UUID> ids) {
-        if (ids.isEmpty()) {
-            return List.of();
-        }
-
-        return mapper.toRows(ids, repository.findDetailsWithRolesAndOffices(ids));
+            Page<AuditUserExportRow> page = batchReader.readBatch(criteria, pageable);
+            nextPageable.set(page.hasNext() ? page.nextPageable() : null);
+            return page.getContent();
+        });
     }
 }
+

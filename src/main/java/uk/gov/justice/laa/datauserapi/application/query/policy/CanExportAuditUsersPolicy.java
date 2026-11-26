@@ -14,8 +14,10 @@ import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 
 /**
  * An actor may export audit users when they have an active profile, hold
- * {@link Permission#EXPORT_AUDIT_DATA}, and hold the view permission matching the requested
- * scope:
+ * {@link Permission#EXPORT_AUDIT_DATA}, the request is constrained to one firm or to
+ * INTERNAL-only (checked again here, from trusted context, so a caller invoking the handler
+ * directly cannot bypass the controller's {@code @Valid} request-shape validation), and hold the
+ * view permission matching the requested scope:
  *
  * <ul>
  *     <li>INTERNAL-only export requires {@link Permission#VIEW_INTERNAL_USER}.</li>
@@ -23,8 +25,9 @@ import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
  *     may only export their own firm.</li>
  * </ul>
  *
- * <p>The request's shape (constrained to one firm or to INTERNAL-only) is validated separately,
- * before authorisation, via {@code AuditUserExportCriteria}.
+ * <p>The request's shape (constrained to one firm or to INTERNAL-only) is also validated via
+ * {@code @Valid} on {@code AuditUserExportCriteria} at the controller, giving a friendlier 400
+ * response for the common case; the check in this policy is the fail-closed backstop.
  */
 @Component
 public class CanExportAuditUsersPolicy implements AuthorizationPolicy<AuditUserExportAuthorizationContext> {
@@ -38,6 +41,10 @@ public class CanExportAuditUsersPolicy implements AuthorizationPolicy<AuditUserE
 
         if (!ActorPermissions.has(actor, Permission.EXPORT_AUDIT_DATA)) {
             return PolicyDecision.deny(PolicyDenialReason.ACTOR_NO_EXPORT_PERMISSION);
+        }
+
+        if (!context.scopedToOneFirmOrInternalOnly()) {
+            return PolicyDecision.deny(PolicyDenialReason.EXPORT_SCOPE_NOT_CONSTRAINED);
         }
 
         if (context.requestsInternalOnly()) {

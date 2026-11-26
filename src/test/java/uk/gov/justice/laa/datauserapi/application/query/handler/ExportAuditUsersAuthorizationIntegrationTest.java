@@ -12,7 +12,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
-import uk.gov.justice.laa.datauserapi.application.query.dto.AuditUserExportRow;
+import uk.gov.justice.laa.datauserapi.application.query.dto.ExportBody;
 import uk.gov.justice.laa.datauserapi.application.query.policy.CanExportAuditUsersPolicy;
 import uk.gov.justice.laa.datauserapi.application.query.queryauditusersexport.ExportAuditUsersQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.AuditUserExportAuthorizationPolicyInputResolver;
@@ -27,7 +27,7 @@ import uk.gov.justice.laa.datauserapi.security.rbac.PolicyAuthorizationDenial;
 import uk.gov.justice.laa.datauserapi.security.rbac.PolicyDenialReason;
 import uk.gov.justice.laa.datauserapi.security.rbac.RbacMethodSecurityConfig;
 
-import java.util.List;
+import java.io.ByteArrayOutputStream;
 import java.util.Set;
 import java.util.UUID;
 
@@ -37,7 +37,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 /**
  * Proves {@link CanExportAuditUsersPolicy} through the real Spring-proxied
@@ -105,6 +104,34 @@ class ExportAuditUsersAuthorizationIntegrationTest {
     }
 
     @Test
+    void unconstrainedRequestBypassingControllerValidationIsDeniedByPolicy() {
+        AuthenticatedEntraUser actor = internal(
+                Permission.EXPORT_AUDIT_DATA, Permission.VIEW_INTERNAL_USER, Permission.VIEW_EXTERNAL_USER);
+        AuditUserExportCriteria unconstrainedCriteria =
+                new AuditUserExportCriteria(null, null, null, null, null, null, null);
+
+        assertDeniedWith(
+                PolicyDenialReason.EXPORT_SCOPE_NOT_CONSTRAINED,
+                () -> handler.handle(new ExportAuditUsersQuery(unconstrainedCriteria), actor));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void conflictingRequestBypassingControllerValidationIsDeniedByPolicy() {
+        AuthenticatedEntraUser actor = internal(
+                Permission.EXPORT_AUDIT_DATA, Permission.VIEW_INTERNAL_USER, Permission.VIEW_EXTERNAL_USER);
+        AuditUserExportCriteria conflictingCriteria =
+                new AuditUserExportCriteria(UserType.INTERNAL, null, ACTOR_FIRM_ID, null, null, null, null);
+
+        assertDeniedWith(
+                PolicyDenialReason.EXPORT_SCOPE_NOT_CONSTRAINED,
+                () -> handler.handle(new ExportAuditUsersQuery(conflictingCriteria), actor));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void internalOnlyExportWithoutViewInternalPermissionIsDenied() {
         AuthenticatedEntraUser actor = internal(Permission.EXPORT_AUDIT_DATA);
 
@@ -116,15 +143,17 @@ class ExportAuditUsersAuthorizationIntegrationTest {
     }
 
     @Test
-    void internalOnlyExportWithPermissionsReachesService() {
+    void internalOnlyExportWithPermissionsReachesService() throws Exception {
         AuthenticatedEntraUser actor = internal(Permission.EXPORT_AUDIT_DATA, Permission.VIEW_INTERNAL_USER);
-        ExportAuditUsersQuery query = new ExportAuditUsersQuery(internalOnlyCriteria());
-        List<AuditUserExportRow> expected = List.of();
-        when(service.export(query)).thenReturn(expected);
+        AuditUserExportCriteria criteria = internalOnlyCriteria();
+        ExportAuditUsersQuery query = new ExportAuditUsersQuery(criteria);
 
-        assertThat(handler.handle(query, actor)).isSameAs(expected);
+        ExportBody body = handler.handle(query, actor);
+        assertThat(body).isNotNull();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        body.writeTo(out);
 
-        verify(service).export(query);
+        verify(service).export(criteria, out);
     }
 
     @Test
@@ -139,16 +168,18 @@ class ExportAuditUsersAuthorizationIntegrationTest {
     }
 
     @Test
-    void externalActorRequestingOwnFirmReachesService() {
+    void externalActorRequestingOwnFirmReachesService() throws Exception {
         AuthenticatedEntraUser actor =
                 external(ACTOR_FIRM_ID, Permission.EXPORT_AUDIT_DATA, Permission.VIEW_EXTERNAL_USER);
-        ExportAuditUsersQuery query = new ExportAuditUsersQuery(firmCriteria(ACTOR_FIRM_ID));
-        List<AuditUserExportRow> expected = List.of();
-        when(service.export(query)).thenReturn(expected);
+        AuditUserExportCriteria criteria = firmCriteria(ACTOR_FIRM_ID);
+        ExportAuditUsersQuery query = new ExportAuditUsersQuery(criteria);
 
-        assertThat(handler.handle(query, actor)).isSameAs(expected);
+        ExportBody body = handler.handle(query, actor);
+        assertThat(body).isNotNull();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        body.writeTo(out);
 
-        verify(service).export(query);
+        verify(service).export(criteria, out);
     }
 
     @Test
@@ -164,15 +195,17 @@ class ExportAuditUsersAuthorizationIntegrationTest {
     }
 
     @Test
-    void internalActorRequestingFirmExportReachesService() {
+    void internalActorRequestingFirmExportReachesService() throws Exception {
         AuthenticatedEntraUser actor = internal(Permission.EXPORT_AUDIT_DATA, Permission.VIEW_EXTERNAL_USER);
-        ExportAuditUsersQuery query = new ExportAuditUsersQuery(firmCriteria(OTHER_FIRM_ID));
-        List<AuditUserExportRow> expected = List.of();
-        when(service.export(query)).thenReturn(expected);
+        AuditUserExportCriteria criteria = firmCriteria(OTHER_FIRM_ID);
+        ExportAuditUsersQuery query = new ExportAuditUsersQuery(criteria);
 
-        assertThat(handler.handle(query, actor)).isSameAs(expected);
+        ExportBody body = handler.handle(query, actor);
+        assertThat(body).isNotNull();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        body.writeTo(out);
 
-        verify(service).export(query);
+        verify(service).export(criteria, out);
     }
 
     private static void assertDeniedWith(PolicyDenialReason reason, ThrowableAssert.ThrowingCallable call) {

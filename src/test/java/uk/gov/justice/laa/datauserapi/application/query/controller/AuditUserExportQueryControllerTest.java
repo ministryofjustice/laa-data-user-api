@@ -7,20 +7,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
-import uk.gov.justice.laa.datauserapi.application.query.dto.AuditUserExportRow;
+import uk.gov.justice.laa.datauserapi.application.query.dto.ExportBody;
 import uk.gov.justice.laa.datauserapi.application.query.handler.ExportAuditUsersHandler;
 import uk.gov.justice.laa.datauserapi.application.query.queryauditusersexport.ExportAuditUsersQuery;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AuditUserExportCriteria;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
-import uk.gov.justice.laa.datauserapi.service.csv.CsvExportWriter;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,20 +31,20 @@ class AuditUserExportQueryControllerTest {
     @Mock
     private ExportAuditUsersHandler handler;
 
-    private final CsvExportWriter csvExportWriter = new CsvExportWriter();
-
     private static final Clock FIXED_CLOCK =
             Clock.fixed(Instant.parse("2024-03-15T14:32:00Z"), ZoneOffset.UTC);
 
+    private static final ExportBody NO_OP_BODY = outputStream -> { };
+
     @Test
     void exportAuditUsers_firmScoped_setsCsvContentTypeAndFirmFilename() throws Exception {
-        AuditUserExportQueryController controller =
-                new AuditUserExportQueryController(handler, csvExportWriter, FIXED_CLOCK);
+        AuditUserExportQueryController controller = new AuditUserExportQueryController(handler, FIXED_CLOCK);
         AuditUserExportCriteria criteria =
                 new AuditUserExportCriteria(UserType.EXTERNAL, null, "FIRM001", null, null, null, null);
         AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().entraOid("actor-oid").build();
+        ExportBody body = outputStream -> outputStream.write("Name,Email\n".getBytes(StandardCharsets.UTF_8));
         when(handler.handle(any(ExportAuditUsersQuery.class), any(AuthenticatedEntraUser.class)))
-                .thenReturn(List.of());
+                .thenReturn(body);
 
         ResponseEntity<StreamingResponseBody> response = controller.exportAuditUsers(criteria, actor);
 
@@ -62,13 +60,12 @@ class AuditUserExportQueryControllerTest {
 
     @Test
     void exportAuditUsers_internalOnly_usesInternalFilenameSegment() {
-        AuditUserExportQueryController controller =
-                new AuditUserExportQueryController(handler, csvExportWriter, FIXED_CLOCK);
+        AuditUserExportQueryController controller = new AuditUserExportQueryController(handler, FIXED_CLOCK);
         AuditUserExportCriteria criteria =
                 new AuditUserExportCriteria(UserType.INTERNAL, null, null, null, null, null, null);
         AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().entraOid("actor-oid").build();
         when(handler.handle(any(ExportAuditUsersQuery.class), any(AuthenticatedEntraUser.class)))
-                .thenReturn(List.of());
+                .thenReturn(NO_OP_BODY);
 
         ResponseEntity<StreamingResponseBody> response = controller.exportAuditUsers(criteria, actor);
 
@@ -78,13 +75,12 @@ class AuditUserExportQueryControllerTest {
 
     @Test
     void exportAuditUsers_passesCriteriaThroughQuery() {
-        AuditUserExportQueryController controller =
-                new AuditUserExportQueryController(handler, csvExportWriter, FIXED_CLOCK);
+        AuditUserExportQueryController controller = new AuditUserExportQueryController(handler, FIXED_CLOCK);
         AuditUserExportCriteria criteria =
                 new AuditUserExportCriteria(UserType.INTERNAL, null, null, null, null, null, null);
         AuthenticatedEntraUser actor = AuthenticatedEntraUser.builder().entraOid("actor-oid").build();
         when(handler.handle(any(ExportAuditUsersQuery.class), any(AuthenticatedEntraUser.class)))
-                .thenReturn(List.of());
+                .thenReturn(NO_OP_BODY);
 
         controller.exportAuditUsers(criteria, actor);
 

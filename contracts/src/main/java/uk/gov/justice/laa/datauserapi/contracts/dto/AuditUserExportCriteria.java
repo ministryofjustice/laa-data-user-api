@@ -47,7 +47,7 @@ public record AuditUserExportCriteria(
         boolean firmIdProvided = firmId != null && !firmId.isBlank();
         boolean internalOnly = userType == UserType.INTERNAL;
         if (internalOnly) {
-            return !firmIdProvided;
+            return firmId == null;
         }
         return firmIdProvided;
     }

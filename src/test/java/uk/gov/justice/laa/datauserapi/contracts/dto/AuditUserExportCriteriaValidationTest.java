@@ -41,6 +41,22 @@ class AuditUserExportCriteriaValidationTest {
     }
 
     @Test
+    void internalOnlyRequest_withEmptyFirmId_isInvalid() {
+        AuditUserExportCriteria criteria =
+                new AuditUserExportCriteria(UserType.INTERNAL, null, "", null, null, null, null);
+
+        assertThat(validator.validate(criteria)).isNotEmpty();
+    }
+
+    @Test
+    void internalOnlyRequest_withWhitespaceOnlyFirmId_isInvalid() {
+        AuditUserExportCriteria criteria =
+                new AuditUserExportCriteria(UserType.INTERNAL, null, "   ", null, null, null, null);
+
+        assertThat(validator.validate(criteria)).isNotEmpty();
+    }
+
+    @Test
     void firmScopedRequest_withFirmIdAndNonInternalUserType_isValid() {
         AuditUserExportCriteria criteria =
                 new AuditUserExportCriteria(UserType.EXTERNAL, null, "FIRM001", null, null, null, null);

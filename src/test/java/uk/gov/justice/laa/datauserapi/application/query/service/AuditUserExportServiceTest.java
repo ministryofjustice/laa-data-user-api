@@ -9,105 +9,83 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import uk.gov.justice.laa.datauserapi.application.query.dto.AuditUserExportRow;
-import uk.gov.justice.laa.datauserapi.application.query.mapper.AuditUserExportMapper;
-import uk.gov.justice.laa.datauserapi.application.query.queryauditusersexport.ExportAuditUsersQuery;
-import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AuditUserExportQueryRepository;
+import uk.gov.justice.laa.datauserapi.application.query.shared.repository.AuditUserExportBatchReader;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.dto.AuditUserExportCriteria;
-import uk.gov.justice.laa.datauserapi.entity.UserProfile;
+import uk.gov.justice.laa.datauserapi.service.csv.CsvExportWriter;
 
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+/**
+ * Verifies the paging cursor loop reads and writes one batch at a time (via the real
+ * {@link CsvExportWriter}) and never accumulates the whole export in memory, rather than
+ * re-testing fetching/mapping, which belongs to {@code AuditUserExportBatchReader}.
+ */
 @ExtendWith(MockitoExtension.class)
 class AuditUserExportServiceTest {
 
     @Mock
-    private AuditUserExportQueryRepository repository;
+    private AuditUserExportBatchReader batchReader;
 
-    @Mock
-    private AuditUserExportMapper mapper;
+    private final CsvExportWriter csvExportWriter = new CsvExportWriter();
 
     private AuditUserExportService service;
 
     private static final AuditUserExportCriteria CRITERIA =
             new AuditUserExportCriteria(UserType.INTERNAL, null, null, null, null, null, null);
+    private static final Pageable FIRST_PAGE = PageRequest.of(0, 500);
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
-        service = new AuditUserExportService(repository, mapper);
+        service = new AuditUserExportService(batchReader, csvExportWriter);
     }
 
     @Test
-    void export_withNoMatches_returnsEmptyListWithoutFetchingDetails() {
-        when(repository.findMatchingProfileIds(eq(CRITERIA), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 500), 0));
+    void export_withNoMatches_writesHeaderOnlyCsvAfterSingleBatchRead() throws Exception {
+        when(batchReader.readBatch(eq(CRITERIA), eq(FIRST_PAGE)))
+                .thenReturn(new PageImpl<>(List.of(), FIRST_PAGE, 0));
 
-        List<AuditUserExportRow> rows = service.export(new ExportAuditUsersQuery(CRITERIA));
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        service.export(CRITERIA, out);
 
-        assertThat(rows).isEmpty();
-        verifyNoMoreInteractions(mapper);
+        assertThat(out.toString(StandardCharsets.UTF_8)).isEqualTo("Name,Email,Firm name,Firm ID,Multi-firm,"
+                + "Provider Admin,App Access,SiLAS Account Status,Roles Assigned\n");
+        verify(batchReader).readBatch(CRITERIA, FIRST_PAGE);
+        verifyNoMoreInteractions(batchReader);
     }
 
     @Test
-    void export_mapsEachMatchingProfileBatch() {
-        UUID first = UUID.randomUUID();
-        UUID second = UUID.randomUUID();
-        List<UUID> ids = List.of(first, second);
+    void export_readsEveryPageUntilExhaustedWithoutAccumulatingFullResult() throws Exception {
+        AuditUserExportRow row1 = rowNamed("Alice");
+        AuditUserExportRow row2 = rowNamed("Bob");
 
-        when(repository.findMatchingProfileIds(eq(CRITERIA), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(ids, PageRequest.of(0, 500), 2));
-
-        UserProfile firstProfile = mock(UserProfile.class);
-        UserProfile secondProfile = mock(UserProfile.class);
-        when(repository.findDetailsWithRolesAndOffices(ids))
-                .thenReturn(List.of(secondProfile, firstProfile));
-
-        AuditUserExportRow firstRow = mock(AuditUserExportRow.class);
-        AuditUserExportRow secondRow = mock(AuditUserExportRow.class);
-        when(mapper.toRows(ids, List.of(secondProfile, firstProfile)))
-                .thenReturn(List.of(firstRow, secondRow));
-
-        List<AuditUserExportRow> rows = service.export(new ExportAuditUsersQuery(CRITERIA));
-
-        assertThat(rows).containsExactly(firstRow, secondRow);
-    }
-
-    @Test
-    void export_fetchesEveryPageUntilExhausted() {
-        UUID id1 = UUID.randomUUID();
-        UUID id2 = UUID.randomUUID();
-
-        Pageable firstPageable = PageRequest.of(0, 500);
+        Pageable secondPage = FIRST_PAGE.next();
         // Total elements exceed the page size so a second page genuinely exists.
-        Page<UUID> firstPage = new PageImpl<>(List.of(id1), firstPageable, 501);
-        Page<UUID> secondPage = new PageImpl<>(List.of(id2), firstPageable.next(), 501);
+        Page<AuditUserExportRow> firstBatch = new PageImpl<>(List.of(row1), FIRST_PAGE, 501);
+        Page<AuditUserExportRow> secondBatch = new PageImpl<>(List.of(row2), secondPage, 501);
 
-        when(repository.findMatchingProfileIds(eq(CRITERIA), eq(firstPageable))).thenReturn(firstPage);
-        when(repository.findMatchingProfileIds(eq(CRITERIA), eq(firstPageable.next()))).thenReturn(secondPage);
+        when(batchReader.readBatch(CRITERIA, FIRST_PAGE)).thenReturn(firstBatch);
+        when(batchReader.readBatch(CRITERIA, secondPage)).thenReturn(secondBatch);
 
-        UserProfile profile1 = mock(UserProfile.class);
-        UserProfile profile2 = mock(UserProfile.class);
-        when(repository.findDetailsWithRolesAndOffices(List.of(id1))).thenReturn(List.of(profile1));
-        when(repository.findDetailsWithRolesAndOffices(List.of(id2))).thenReturn(List.of(profile2));
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        service.export(CRITERIA, out);
 
-        AuditUserExportRow row1 = mock(AuditUserExportRow.class);
-        AuditUserExportRow row2 = mock(AuditUserExportRow.class);
-        when(mapper.toRows(List.of(id1), List.of(profile1))).thenReturn(List.of(row1));
-        when(mapper.toRows(List.of(id2), List.of(profile2))).thenReturn(List.of(row2));
+        String csv = out.toString(StandardCharsets.UTF_8);
+        assertThat(csv).contains("Alice").contains("Bob");
+        verify(batchReader).readBatch(CRITERIA, FIRST_PAGE);
+        verify(batchReader).readBatch(CRITERIA, secondPage);
+        verifyNoMoreInteractions(batchReader);
+    }
 
-        List<AuditUserExportRow> rows = service.export(new ExportAuditUsersQuery(CRITERIA));
-
-        assertThat(rows).containsExactly(row1, row2);
-        verify(repository).findMatchingProfileIds(CRITERIA, firstPageable);
-        verify(repository).findMatchingProfileIds(CRITERIA, firstPageable.next());
+    private static AuditUserExportRow rowNamed(String name) {
+        return new AuditUserExportRow(name, "email@example.com", "Firm", "F1", "No", "No", "App", "ACTIVE", "Role");
     }
 }
