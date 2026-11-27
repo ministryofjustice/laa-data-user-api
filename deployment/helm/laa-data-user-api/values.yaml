@@ -3,6 +3,7 @@ springProfile: "local"
 serviceAccountName: ""
 opa:
   url: "http://localhost:8181"
+  bucketSecretName: ""
   image: "openpolicyagent/opa:0.68.0"
   bundleRef: ""
   bundleData: ""

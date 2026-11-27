@@ -1,3 +1,5 @@
+opa:
+  bucketSecretName: "s3-bucket-opa"
 ingress:
   className: "modsec-non-prod"
   host: "laa-data-user-api-test.cloud-platform.service.justice.gov.uk"

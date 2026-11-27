@@ -124,6 +124,25 @@ pathlib.Path(bundle_dir, "bundle.tar.gz").write_bytes(pathlib.Path(os.environ["T
                     self.assertNotIn("serviceAccountName", pod_spec)
                 self.assertFalse(pod_spec["automountServiceAccountToken"])
 
+    def test_opa_bucket_secret_is_available_in_dev_and_test(self):
+        for environment in ("dev", "test", "prd"):
+            with self.subTest(environment=environment):
+                result = self.run_deploy(HELM_VALUES_ENV=environment)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                deployment = json.loads(subprocess.check_output(
+                    [self.yq, "-o=json", "-I=0", 'select(.kind == "Deployment")', str(self.output)],
+                    text=True,
+                ))
+                containers = deployment["spec"]["template"]["spec"]["containers"]
+                env = {item["name"]: item for item in containers[0]["env"]}
+                if environment == "prd":
+                    self.assertNotIn("OPA_S3_BUCKET_NAME", env)
+                else:
+                    self.assertEqual(env["OPA_S3_BUCKET_NAME"]["valueFrom"]["secretKeyRef"], {
+                        "name": "s3-bucket-opa",
+                        "key": "bucket_name",
+                    })
+
     def test_enabled_builds_and_renders_binary_bundle(self):
         self.generated.write_text("authorization:\n  opaEnabled: false\n")
         result = self.run_deploy(OPA_ENABLED="true")
