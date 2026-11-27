@@ -180,6 +180,23 @@ class ArchitectureTest {
             .should(exposeOnlyReadMethods());
 
     @ArchTest
+    static final ArchRule shared_authorisation_repositories_must_not_expose_writes = noClasses()
+            .that().resideInAPackage("..application.shared.repository..")
+            .should().beAssignableTo(CrudRepository.class);
+
+    @ArchTest
+    static final ArchRule shared_authorisation_repository_methods_must_be_reads = classes()
+            .that().resideInAPackage("..application.shared.repository..")
+            .and().areAssignableTo(org.springframework.data.repository.Repository.class)
+            .should(exposeOnlyReadMethods());
+
+    @ArchTest
+    static final ArchRule trial_policy_contracts_must_not_contain_persistence_dependencies = noClasses()
+            .that().resideInAPackage("..security.opa.trial..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                    ENTITY_PACKAGE, "..repository..", "jakarta.persistence..");
+
+    @ArchTest
     static final ArchRule query_transaction_overrides_must_be_read_only = methods()
             .that().areDeclaredInClassesThat().resideInAPackage(QUERY_PACKAGE)
             .should(useOnlyReadOnlyTransactions());
@@ -272,6 +289,27 @@ class ArchitectureTest {
             .because("Controllers must delegate to handlers/services and never interact directly with database repositories");
 
     @ArchTest
+    static final ArchRule caller_permissions_components_must_not_access_persistence = noClasses()
+            .that().haveNameMatching(".*\\.(CurrentUserPermissionsController|CurrentUserPermissionsService|OpaAuthorizationClient)")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                    "..repository..", "..entity..", "jakarta.persistence..", "org.springframework.jdbc..", "org.springframework.data..")
+            .because("Caller permissions come only from JWT roles and the OPA bundle");
+
+    @ArchTest
+    static final ArchRule caller_permissions_must_not_open_a_database_transaction = classes()
+            .that().haveSimpleName("CurrentUserPermissionsService")
+            .should(new ArchCondition<>("suspend database transactions around OPA calls") {
+                @Override
+                public void check(JavaClass item, ConditionEvents events) {
+                    boolean suspendsTransactions = item.isAnnotatedWith(Transactional.class)
+                            && item.getAnnotationOfType(Transactional.class).propagation()
+                            == org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED;
+                    events.add(new SimpleConditionEvent(item, suspendsTransactions,
+                            item.getName() + " must suspend database transactions"));
+                }
+            });
+
+    @ArchTest
     static final ArchRule repositories_should_only_be_accessed_by_handlers_services_and_mappers = classes()
             .that().resideInAPackage("..repository..")
             .should().onlyBeAccessed().byAnyPackage(
@@ -280,6 +318,8 @@ class ArchitectureTest {
                     "..application.command.mapper..",
                     "..application.command.useraccount..",
                     "..application.query.service..",
+                    "..application.query.mapper..",
+                    "..application.shared.mapper..",
                     "..application.query.handler..",
                     "..repository..",
                     "..authorisation.."
@@ -322,12 +362,13 @@ class ArchitectureTest {
             .layer("QueryService").definedBy("..application.query.service..")
             .layer("QueryRepository").definedBy("..application.query.shared.repository..")
             .layer("QueryHandler").definedBy("..application.query.handler..")
+            .layer("QueryMapper").definedBy("..application.query.mapper..")
             .layer("Authorisation").definedBy("..authorisation..")
 
             .whereLayer("QueryController").mayNotBeAccessedByAnyLayer()
             .whereLayer("QueryHandler").mayOnlyBeAccessedByLayers("QueryController")
             .whereLayer("QueryService").mayOnlyBeAccessedByLayers("QueryController", "QueryHandler")
-            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "Authorisation");
+            .whereLayer("QueryRepository").mayOnlyBeAccessedByLayers("QueryService", "QueryMapper", "Authorisation");
 
     // =========================================================================
     // 5. Naming Conventions & Stereotype Annotations

@@ -4,6 +4,7 @@ public class CcmsNotificationException extends RuntimeException
         implements LaaDataApiException<CcmsNotificationException.Reason> {
 
     public enum Reason {
+        QUEUE_UNAVAILABLE,
         SERIALIZATION_FAILURE,
         INVALID_PROFILE
     }

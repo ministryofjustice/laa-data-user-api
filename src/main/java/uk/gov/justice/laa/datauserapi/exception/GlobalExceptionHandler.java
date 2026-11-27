@@ -184,6 +184,16 @@ public class GlobalExceptionHandler {
         return forbiddenResponse(request);
     }
 
+    @ExceptionHandler(ProfileRoleConflictException.class)
+    public ResponseEntity<ProblemDetail> handleProfileRoleConflict(ProfileRoleConflictException ex, HttpServletRequest request) {
+        log.warn("Profile role update requires a fresh authorization decision",
+                ExceptionLogFields.exceptionGroup(ex), ExceptionLogFields.exceptionReason(ex),
+                kv("requestUri", request.getRequestURI()), ex);
+        return problemResponse(HttpStatus.CONFLICT, new ProblemDetail(
+                URI.create("https://silas.laa.gov.uk/errors/conflict"), "Conflict", 409,
+                "The resource changed. Refresh and retry the operation.", URI.create(request.getRequestURI()), null));
+    }
+
     @ExceptionHandler(UserAlreadyMultiFirmException.class)
     public ResponseEntity<ProblemDetail> handleUserAlreadyMultiFirm(
             UserAlreadyMultiFirmException ex,

@@ -22,7 +22,7 @@ import uk.gov.justice.laa.datauserapi.application.query.mapper.UserProfileQueryM
 import uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyentrauser.GetActiveProfileQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileSilasStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileDetailView;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
@@ -153,7 +153,7 @@ class UserProfileDetailsServiceTest {
     private static UserProfileSummaryView summary(UUID profileId, UUID firmId) {
         return new UserProfileSummaryView(
                 profileId, true, UserType.EXTERNAL, "user@example.com", "John Doe", "Firm Name",
-                firmId.toString(), false, UserAccountStatus.ACTIVE, UserProfileStatus.COMPLETE, true);
+                firmId.toString(), false, UserAccountStatus.ACTIVE, UserProfileSilasStatus.COMPLETE, true);
     }
 
     private static AuthenticatedEntraUser external(UUID profileId, UUID firmId, Permission... permissions) {

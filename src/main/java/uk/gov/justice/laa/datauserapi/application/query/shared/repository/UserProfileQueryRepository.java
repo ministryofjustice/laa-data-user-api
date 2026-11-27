@@ -26,7 +26,7 @@ public interface UserProfileQueryRepository extends Repository<EntraUser, UUID> 
             COALESCE(CAST(f.id AS STRING), ''),
             u.multiFirmUser,
             u.userAccountStatus,
-            up.userProfileStatus,
+            up.silasStatus,
             CASE WHEN SIZE(up.appRoles) > 0 THEN true ELSE false END
         )
         FROM EntraUser u

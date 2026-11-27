@@ -38,6 +38,45 @@ tags:
     description: Operational commands triggered by system administrators. Used by SiLAS team only.
 
 paths:
+  /current-user/permissions:
+    get:
+      operationId: queryCurrentUserPermissions
+      tags: [User Account]
+      summary: Resolve the authenticated caller's UI permissions
+      description: |
+        Resolves permissions from the validated JWT roles claim using the OPA bundle.
+        No database lookup is performed. Requires user_data.read or user_data.admin.
+        Roles are exact, case-sensitive display names; recognised roles contribute their
+        combined permissions, while unknown roles grant nothing. No recognised permissions,
+        or a missing or malformed roles claim, results in 403.
+        The UI may retain this result alongside its session identifier and refresh on re-login.
+        Backend authorisation remains authoritative; the UI must gracefully handle later 403s.
+      security:
+        - entraIdOAuth: ["api://devlexternal.onmicrosoft.com/laa-data-user-api/user_data.read"]
+        - entraIdOAuth: ["api://devlexternal.onmicrosoft.com/laa-data-user-api/user_data.admin"]
+      responses:
+        '200':
+          description: The caller's sorted, deduplicated permissions
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserPermissionsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: OPA is unavailable or returned a malformed or inconsistent decision
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
   # --- User Account queries ---
   /api/v1/queries/users:
     get:
@@ -158,9 +197,10 @@ paths:
       tags: [User Profiles]
       summary: Search user profiles
       description: |
-        app_id_filter and app_role_id_filter can be used to retrieve a set of users with access to a specified app or app role respectively.
+        app_id and app_role_id can be used to retrieve a set of users with access to a specified app or app role respectively.
         firm_id can be used to retrieve a set of users with access to a firm and office_id will limit to just a set LAA office account. These filters can be used in conjunction e.g. to get a set of users with the 'Billing approver' role for a set firm/office.
-        This endpoint will only return user profile that the actor user included in the JWT has access to view.
+        Authorisation constraints are applied in the database before pagination; client filters cannot widen access.
+        sort_by supports id, createdDate and userType with an optional asc/desc direction.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
@@ -197,12 +237,15 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /api/v1/queries/user-profiles/{userProfileId}:
     get:
       operationId: queryUserProfileById
       tags: [User Profiles]
       summary: Get user profile detail
+      description: Missing and inaccessible profiles return the same generic 403 response.
       parameters:
         - $ref: '#/components/parameters/UserProfileId'
       responses:
@@ -218,8 +261,35 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/queries/user-profiles/{userProfileId}/assignable-roles:
+    get:
+      operationId: queryAssignableUserProfileRoles
+      tags: [User Profiles]
+      summary: Get compatible roles the caller may assign to a profile
+      description: |
+        Requires the target-type ASSIGN permission and applies firm scope, enabled application,
+        user/firm-type compatibility and role-assignment restrictions.
+        Missing and inaccessible profiles return the same generic 403 response.
+      parameters:
+        - $ref: '#/components/parameters/UserProfileId'
+      responses:
+        '200':
+          description: Assignable roles, ordered by application, role ordinal and role ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppRoleViewList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /api/v1/queries/user-profiles/{userProfileId}/app-roles:
     get:
@@ -920,6 +990,10 @@ paths:
       operationId: commandUserProfileAssignAppRoles
       tags: [User Profiles]
       summary: Assign app roles to profile
+      description: |
+        Adds roles without removing existing roles. Only actual additions require the target-type ASSIGN permission.
+        HTTP 200 confirms local persistence and durable CCMS notification work, not downstream processing.
+        Missing/inaccessible targets return a generic 403; changed authorisation facts require refresh and retry (409).
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
@@ -930,7 +1004,7 @@ paths:
               $ref: '#/components/schemas/AssignAppRolesCommand'
       responses:
         '200':
-          description: Roles assigned
+          description: Role changes and applicable notifications committed atomically
           content:
             application/json:
               schema:
@@ -941,16 +1015,10 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-        '502':
-          $ref: '#/components/responses/BadGateway'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
-        '504':
-          $ref: '#/components/responses/GatewayTimeout'
 
   /api/v1/commands/user-profiles/remove-app-roles:
     post:
@@ -992,6 +1060,14 @@ paths:
       operationId: commandUserProfileUpdateAppRoles
       tags: [User Profiles]
       summary: Updates roles for a specified set of apps
+      description: |
+        Uses internal SiLAS application and role UUIDs. Unmentioned applications remain unchanged;
+        an empty role list clears a listed application. Duplicate application entries are invalid.
+        ASSIGN/REMOVE permissions apply only to actual additions/removals respectively.
+        HTTP 200 confirms the local role commit and immediate notification attempt, not downstream processing.
+        Changed legacy-synchronised roles are notified after commit; a notification failure does not roll back
+        the role update.
+        Missing/inaccessible targets return a generic 403; changed facts require refresh and retry (409).
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       requestBody:
@@ -1002,7 +1078,7 @@ paths:
               $ref: '#/components/schemas/UpdateAppRolesCommand'
       responses:
         '200':
-          description: App roles updated
+          description: Roles updated; appRoles contains only the requested final roles
           content:
             application/json:
               schema:
@@ -1013,16 +1089,10 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-        '502':
-          $ref: '#/components/responses/BadGateway'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
-        '504':
-          $ref: '#/components/responses/GatewayTimeout'
 
   /api/v1/commands/user-profiles/update-offices:
     post:
@@ -1652,6 +1722,20 @@ components:
             $ref: '#/components/schemas/ProblemDetail'
 
   schemas:
+    CurrentUserPermissionsResponse:
+      type: object
+      required: [permissions]
+      properties:
+        permissions:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^[A-Z][A-Z0-9_]*$'
+          example: [EDIT_EXTERNAL_USER, VIEW_EXTERNAL_USER]
+
     ProblemDetail:
       type: object
       description: RFC 9457 problem detail

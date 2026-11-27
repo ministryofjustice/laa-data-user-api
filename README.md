@@ -344,9 +344,9 @@ remain active whichever policy engine is enabled.
 Disabling OPA also omits the sidecar, bundle ConfigMap, bundle annotation, and OPA volumes, so Java-only
 deployments do not require a policy bundle. The GitHub Environment variable takes precedence over the Helm
 values. Older release charts without `authorization.opaEnabled` can only be deployed with OPA disabled.
-When enabled, the deployment workflow builds a bundle from the checked-out policies and passes it to Helm;
-the bundle's SHA-256 identifies its immutable ConfigMap. When disabled, it skips bundle creation and
-bundle-specific Helm arguments.
+When enabled, the deployment workflow builds the policy bundle from the selected policy ref and passes it
+directly to Helm. Helm stores the content-addressed bundle in an immutable ConfigMap. When disabled, the
+workflow skips bundle creation and bundle-specific Helm arguments.
 When enabled, OPA's readiness probe checks `/health?bundles=true` on a separate diagnostic listener
 on port 8182. The pod is not Ready if OPA is unresponsive or its bundle is not ready; the policy API
 remains bound to loopback on port 8181.
@@ -358,11 +358,121 @@ opa run --server --addr=127.0.0.1:8181 opa/policies
 ```
 
 The `OPA_URL` environment variable can override the default `http://localhost:8181`. Policy tests run with
-`opa test opa/policies opa/tests -v`. Deployments build and publish the policy bundle to
-an environment-, image-version-, and content-addressed S3 key. The deploy workflow passes that exact reference
-and bundle to Helm; Helm stores each bundle in a versioned immutable ConfigMap, and the OPA sidecar loads it
-from a shared local volume. This keeps policy data aligned with the deployed image and allows Helm rollback to
-restore the matching bundle.
+`opa test opa/policies opa/tests -v`. The workflow builds the bundle from the checked-out policy ref and
+passes it to Helm without publishing to S3. The OPA sidecar loads the bundle from a shared local volume.
+This keeps policy data aligned with the deployed image and allows Helm rollback to restore the matching bundle.
+
+### Current caller permissions
+
+`GET /current-user/permissions` resolves UI permissions from a validated JWT's `roles` claim,
+for example `"roles": ["Global Admin", "External User Manager"]`. The caller must have the
+`user_data.read` or `user_data.admin` OAuth scope. This self-call accepts no target user or roles
+from request parameters. A dedicated stateless security chain uses the configured JWT decoder
+without the database-backed actor converter; other endpoints keep their existing authentication.
+Unlike actor-based queries, this JWT-only self-call delegates directly to a read-side service:
+scope validation protects the entry point, and OPA owns permission resolution. The service suspends
+transactions while calling OPA rather than opening a read-only database transaction.
+
+The API posts `{"input":{"roles":[...]}}` to OPA at
+`/v1/data/authz/permissions/caller_permissions`. `opa/policies/authz/role_permission.rego` owns
+the application/role-to-permission mapping. Role names are exact, case-sensitive display names,
+as issued in the trusted JWT; the supplied names are unique across the mapped applications.
+Duplicate roles and permissions are deduplicated. Unknown roles grant nothing; recognised roles
+still contribute their permissions. Missing, malformed, empty, or entirely unknown roles deny access.
+The mapping is explicit: an administrator does not inherit permissions absent from its listed grants.
+
+OPA returns `{"result":{"allow":true,"permissions":["EDIT_EXTERNAL_USER","VIEW_EXTERNAL_USER"]}}`
+on success, or `{"result":{"allow":false,"permissions":[]}}` on denial. The API returns
+HTTP 200 with `{"permissions":[...]}` (sorted and deduplicated), a generic 403 on denial,
+401 for a missing or invalid JWT, or 503 for an OPA outage or malformed/inconsistent decision.
+The response contains at most 100 distinct permissions; an OPA decision exceeding that limit
+fails closed with 503. The policy tests guard the mapping against exceeding this limit.
+No database lookup, database transaction, or database fallback is used by this flow.
+This endpoint always requires OPA, independently of the lifecycle trial feature flags; deployments
+without an available OPA sidecar/bundle cannot resolve permissions and receive 503.
+
+The response uses `Cache-Control: no-store` to prevent HTTP cache storage. The UI can explicitly
+save the result alongside its session identifier and refresh it on re-login; the API does not
+create a session. Session caching can show stale controls after role changes or a bundle deployment.
+These permissions are UI hints, not an authorisation credential: backend query/command checks remain
+authoritative, and the UI must handle 403 responses gracefully. JWT roles themselves remain unchanged
+until a new token is issued, even if server-side role assignments change.
+
+Run policy checks with `opa test opa/policies opa/tests -v`.
+
+### OPA profile and role-management trial
+
+The following additional endpoints use the independently controlled Java and OPA engines:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/queries/user-profiles` | Filter and paginate visible profiles |
+| GET | `/api/v1/queries/user-profiles/{userProfileId}` | Read a visible profile, including roles and offices |
+| GET | `/api/v1/queries/user-profiles/{userProfileId}/assignable-roles` | List compatible roles the caller may assign |
+| POST | `/api/v1/commands/user-profiles/assign-app-roles` | Add roles without removing existing roles |
+| POST | `/api/v1/commands/user-profiles/update-app-roles` | Replace roles for explicitly listed applications |
+
+Queries require `user_data.read` or `user_data.admin`; commands require `user_data.admin`.
+These actor-based endpoints retain database-backed authentication. A shared, read-only facts loader
+materialises trusted actor/target profiles, the role catalogue, role permissions and `role_assignment`
+restrictions in a short transaction. The resolver then calls `/v1/data/authz/trial` without a database
+transaction. The pure entry-point policy authorises this decision and the interceptor binds its immutable
+plan into the message; caller-supplied plans are never trusted.
+
+`opa/policies/authz/profile_trial.rego` uses the bundle's `role_permission.rego` mapping, not database
+permission grants. Java still evaluates the database mapping for comparison and fallback. With both
+engines enabled, both must allow and their filters are intersected, never unioned. OPA-only mode enforces
+OPA while still comparing Java; Java-only mode makes no OPA call. Both flags off falls back to Java.
+An OPA outage or malformed decision fails closed with 503 whenever OPA is enabled, without Java fallback.
+This does not replace Java authorisation on unrelated endpoints or alter the JWT-only permissions endpoint.
+
+Internal callers need the relevant internal/external view permission. External callers are restricted to
+external profiles in their own firm and need `VIEW_EXTERNAL_USER`. Database predicates apply these
+constraints **before** pagination and combine client filters with AND. Page selection and batched detail
+hydration share a short repeatable-read transaction. Search supports name/email, firm name/ID, user type,
+SiLAS status, Entra application client ID (`app_id`), SiLAS role ID (`app_role_id`), office account code
+(`office_id`), and the multi-firm/firm-admin toggles. Pages contain at most 100 results.
+The firm-admin toggle tests for an authorisation role independently of application and role filters.
+Profile search and non-paginated profile summaries return the SiLAS profile status; search uses the same
+status for filtering.
+`sort_by` accepts `id`, `createdDate` or `userType` with optional `,asc`/`,desc`, and may be repeated.
+Missing and inaccessible target profiles return the same generic 403. The final detail read discards
+previously managed entities before checking the target's firm and type, including when Open EntityManager
+in View is enabled.
+
+Assignment requires `ASSIGN_INTERNAL_USER_ROLES` or `ASSIGN_EXTERNAL_USER_ROLES` for actual additions.
+Actual removals require the corresponding REMOVE permission. Enabled applications, user/firm-type
+compatibility and permitted assigning authorisation roles constrain additions and assignable-role results.
+Empty compatibility/assignment restrictions mean unrestricted. Removal does not require the removed
+role to remain assignable. Unknown/mismatched role/application identifiers deny access.
+Updates preserve unmentioned applications; an empty role list clears a listed application. Repeated
+application entries are invalid. No-op requests require no change permission and do not enqueue messages.
+Update responses contain the requested final roles only, not roles from unmentioned applications.
+
+After authorisation, the command acquires deterministic profile locks and catalogue read locks, reloads
+trusted facts and requires the snapshot to match. A short serialisable transaction commits the role changes.
+Changed facts or concurrent serialisation conflicts return a generic 409; clients should refresh before retrying.
+No database lock is held during an OPA or SQS call. The catalogue lock is intentionally coarse for this trial;
+measure contention before broad rollout.
+
+Only changes to legacy-synchronised responsibilities create CCMS messages, including an empty responsibility
+list when the final role is removed. Existing application-to-SQS configuration and retry behaviour are reused.
+Notifications are sent only after the role-change transaction commits, so a failed SQS send does not roll back
+the role update. HTTP 200 confirms the local role commit and immediate notification attempt, not downstream
+processing. A failed send sets the profile sync flag unsuccessful; the existing scheduled profile sync
+can retry applications that still have legacy-synchronised roles. There is no durable outbox: a failed
+notification after removal of the final legacy-synchronised role is not automatically retried.
+Concurrent changes can deliver notifications out of commit order, and a later successful change can
+mark the profile synchronised despite an earlier failed notification for another application. CCMS can
+therefore retain or regain revoked responsibilities; this trial requires operational reconciliation
+until durable, ordered per-application delivery is implemented.
+
+`opa_trial_decision` structured events include operation, actor/target identifiers, typed reason, both
+engines' results/filters, mismatch indicator and evaluation duration. Denials and mismatches are WARN.
+Database-backed tests exercise real OPA/Java parity, protected transitions, rollback, and transaction-free
+remote calls; Rego tests cover policy decisions. These are not deployment evidence:
+measure zero discrepancies, at most 500 ms added end-to-end latency and a healthy zero-downtime policy
+rollout within ten minutes in a deployment-equivalent environment.
 
 ### Using existing permissions and policies
 

@@ -4,6 +4,8 @@ public class InvalidRequestException extends IllegalArgumentException
         implements LaaDataApiException<InvalidRequestException.Reason> {
 
     public enum Reason {
+        INVALID_PROFILE_SORT,
+        INVALID_ROLE_UPDATE,
         INVALID_DEACTIVATION_REASON,
         INVALID_FIRM_SORT
     }
