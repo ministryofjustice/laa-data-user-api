@@ -25,7 +25,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    uses: ./.github/workflows/reusable-helm-deploy.yml
+    uses: $/.github/workflows/reusable-helm-deploy.yml
     secrets:
       ECR_ROLE_TO_ASSUME: ${{ secrets.ECR_ROLE_TO_ASSUME }}
       KUBE_CERT: ${{ secrets.KUBE_CERT }}
