@@ -81,7 +81,7 @@ jobs:
         id: login-ecr
 
       - name: Configure kubectl
-        uses: $/.github/actions/configure-kubectl
+        uses: ./.github/actions/configure-kubectl
         with:
           kube-cert: ${{ secrets.KUBE_CERT }}
           kube-token: ${{ secrets.KUBE_TOKEN }}

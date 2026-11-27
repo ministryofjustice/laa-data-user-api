@@ -530,7 +530,9 @@ docker build -t laa-data-user-api .
 
 Pushes to `main` deploy automatically to `development` (`.github/workflows/deploy_dev.yml`), building a fresh image tagged with the commit SHA.
 
-Deploying a specific, already-tested build to `test` or `prod` is a separate, manual two-step process — the same image built for dev is promoted, nothing is rebuilt:
+To deploy the current `main` commit to `test` without creating a release, wait for its development image build to complete, then run `Deploy Main to Test` (`.github/workflows/deploy_test.yml`) from the Actions tab with the `main` branch selected. It deploys the existing SHA-tagged image and the chart and policies from that same commit; it does not rebuild the image. The run fails if the image is unavailable.
+
+Deploying a specific, already-tested release to `test` or `prod` is a separate, manual two-step process — the same image built for dev is promoted, nothing is rebuilt:
 
 1. **Cut a release** — tag a commit already on `main`:
    ```bash
