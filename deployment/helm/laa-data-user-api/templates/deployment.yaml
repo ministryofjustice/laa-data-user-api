@@ -84,6 +84,13 @@ spec:
               value: {{ .Values.sentrySampleRate | quote }}
             - name: OPA_URL
               value: {{ .Values.opa.url | quote }}
+            {{- with .Values.opa.bucketSecretName }}
+            - name: OPA_S3_BUCKET_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . | quote }}
+                  key: bucket_name
+            {{- end }}
             - name: APP_AUTHORIZATION_LEGACY_POLICIES_ENABLED
               value: {{ .Values.authorization.legacyPoliciesEnabled | quote }}
             - name: APP_AUTHORIZATION_OPA_ENABLED
