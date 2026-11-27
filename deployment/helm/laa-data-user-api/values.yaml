@@ -1,5 +1,6 @@
 replicaCount: 3
 springProfile: "local"
+serviceAccountName: ""
 opa:
   url: "http://localhost:8181"
   image: "openpolicyagent/opa:0.68.0"
