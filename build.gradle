@@ -61,7 +61,7 @@ dependencyManagement {
             entry 'jackson-core'
         }
         // Snyk: logback-classic directory traversal advisories
-        dependencySet(group: 'ch.qos.logback', version: '1.6.6') {
+        dependencySet(group: 'ch.qos.logback', version: '1.6.7') {
             entry 'logback-classic'
             entry 'logback-core'
         }
