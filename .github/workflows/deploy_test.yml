@@ -1,0 +1,45 @@
+name: Deploy Main to Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-ref:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require main
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          if [[ "$REF" != "refs/heads/main" ]]; then
+            echo "::error::Select the main branch when running this workflow."
+            exit 1
+          fi
+
+  deploy:
+    needs: validate-ref
+    permissions:
+      id-token: write
+      contents: read
+    uses: $/.github/workflows/reusable-helm-deploy.yml
+    secrets:
+      ECR_ROLE_TO_ASSUME: ${{ secrets.ECR_ROLE_TO_ASSUME }}
+      KUBE_CERT: ${{ secrets.KUBE_CERT }}
+      KUBE_TOKEN: ${{ secrets.KUBE_TOKEN }}
+      KUBE_CLUSTER: ${{ secrets.KUBE_CLUSTER }}
+      KUBE_NAMESPACE: ${{ secrets.KUBE_NAMESPACE }}
+      TECH_SERVICES_AZURE_CLIENT_ID: ${{ secrets.TECH_SERVICES_AZURE_CLIENT_ID }}
+      TECH_SERVICES_TENANT_ID: ${{ secrets.TECH_SERVICES_TENANT_ID }}
+      TECH_SERVICES_AZURE_CLIENT_SECRET: ${{ secrets.TECH_SERVICES_AZURE_CLIENT_SECRET }}
+      TECH_SERVICES_BASE_URL: ${{ secrets.TECH_SERVICES_BASE_URL }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      AZURE_APP_URI: ${{ secrets.AZURE_APP_URI }}
+    with:
+      environment: test
+      helm_values_env: test
+      image_tag: ${{ github.sha }}
+      policy_bundle_ref: ${{ github.sha }}
+      wait_for_rollout: true
