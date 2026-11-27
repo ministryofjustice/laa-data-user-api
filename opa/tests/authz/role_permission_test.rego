@@ -21,6 +21,15 @@ test_multiple_roles_return_the_union_without_duplicates if {
 	]}
 }
 
+test_all_mapped_permissions_fit_the_api_response_limit if {
+	permissions := {permission |
+		application := role_permissions[_]
+		role := application[_]
+		permission := role[_]
+	}
+	count(permissions) <= 100
+}
+
 test_unknown_role_does_not_add_permissions_to_recognised_roles if {
 	actual := caller_permissions with input as {"roles": ["Unknown Role", "Internal User Viewer"]}
 	actual == {"allow": true, "permissions": ["VIEW_AUDIT_TABLE", "VIEW_INTERNAL_USER"]}

@@ -54,7 +54,6 @@ public class SecurityConfig {
     public SecurityFilterChain currentUserPermissionsSecurityFilterChain(HttpSecurity http) throws Exception {
         http
             .securityMatcher("/current-user/permissions")
-            .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authorise -> authorise
                 .requestMatchers(HttpMethod.GET, "/current-user/permissions")

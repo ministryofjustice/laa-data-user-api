@@ -385,6 +385,8 @@ OPA returns `{"result":{"allow":true,"permissions":["EDIT_EXTERNAL_USER","VIEW_E
 on success, or `{"result":{"allow":false,"permissions":[]}}` on denial. The API returns
 HTTP 200 with `{"permissions":[...]}` (sorted and deduplicated), a generic 403 on denial,
 401 for a missing or invalid JWT, or 503 for an OPA outage or malformed/inconsistent decision.
+The response contains at most 100 distinct permissions; an OPA decision exceeding that limit
+fails closed with 503. The policy tests guard the mapping against exceeding this limit.
 No database lookup, database transaction, or database fallback is used by this flow.
 This endpoint always requires OPA, independently of the lifecycle trial feature flags; deployments
 without an available OPA sidecar/bundle cannot resolve permissions and receive 503.

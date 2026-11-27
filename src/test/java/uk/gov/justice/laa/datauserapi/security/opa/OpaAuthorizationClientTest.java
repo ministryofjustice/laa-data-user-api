@@ -10,6 +10,7 @@ import uk.gov.justice.laa.datauserapi.exception.OpaUnavailableException;
 
 import java.util.Set;
 import java.util.List;
+import java.util.stream.IntStream;
 import java.net.SocketTimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -101,6 +102,37 @@ class OpaAuthorizationClientTest {
         assertThat(new OpaAuthorizationClient(builder.build()).callerPermissions(List.of("Global Admin")))
                 .hasValue(List.of("EDIT_EXTERNAL_USER", "VIEW_EXTERNAL_USER"));
         server.verify();
+    }
+
+    @Test
+    void acceptsTheMaximumNumberOfDistinctCallerPermissions() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost:8181");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://localhost:8181/v1/data/authz/permissions/caller_permissions"))
+                .andRespond(withSuccess(permissionsResponse(100), MediaType.APPLICATION_JSON));
+
+        assertThat(new OpaAuthorizationClient(builder.build()).callerPermissions(List.of("Global Admin")))
+                .hasValueSatisfying(permissions -> assertThat(permissions).hasSize(100));
+        server.verify();
+    }
+
+    @Test
+    void rejectsCallerPermissionsAboveTheResponseLimit() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost:8181");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://localhost:8181/v1/data/authz/permissions/caller_permissions"))
+                .andRespond(withSuccess(permissionsResponse(101), MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> new OpaAuthorizationClient(builder.build()).callerPermissions(List.of("Global Admin")))
+                .isInstanceOf(OpaUnavailableException.class);
+        server.verify();
+    }
+
+    private static String permissionsResponse(int count) {
+        String permissions = IntStream.range(0, count)
+                .mapToObj(index -> "\"PERMISSION_" + index + "\"")
+                .collect(java.util.stream.Collectors.joining(","));
+        return "{\"result\":{\"allow\":true,\"permissions\":[" + permissions + "]}}";
     }
 
     @Test

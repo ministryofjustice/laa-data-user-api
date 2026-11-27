@@ -3,6 +3,8 @@ package uk.gov.justice.laa.datauserapi.application.query.controller;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +39,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpMethod.POST;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -186,6 +189,15 @@ class CurrentUserPermissionsControllerTest {
     }
 
     @Test
+    void postWithCsrfTokenIsAlsoDenied() throws Exception {
+        when(decoder.decode("valid")).thenReturn(token(List.of("Global Admin"), "user_data.read"));
+        mvc.perform(post("/current-user/permissions").header("Authorization", "Bearer " + "valid").with(csrf()))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(users);
+        opa.verify();
+    }
+
+    @Test
     void otherEndpointsStillUseDatabaseBackedAuthentication() throws Exception {
         when(decoder.decode("valid")).thenReturn(token(List.of("Global Admin"), "user_data.read"));
         when(users.findByEntraOid("actor-oid")).thenReturn(Optional.empty());
@@ -218,6 +230,23 @@ class CurrentUserPermissionsControllerTest {
                         {"result":{"allow":"true","permissions":["VIEW_INTERNAL_USER"]}}
                         """, MediaType.APPLICATION_JSON));
         mvc.perform(get("/current-user/permissions").header("Authorization", "Bearer valid"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.permissions").doesNotExist());
+        verifyNoInteractions(users);
+        opa.verify();
+    }
+
+    @Test
+    void oversizedOpaDecisionReturns503InsteadOfPermissions() throws Exception {
+        when(decoder.decode("valid")).thenReturn(token(List.of("Global Admin"), "user_data.read"));
+        String permissions = IntStream.range(0, 101)
+                .mapToObj(index -> "\"PERMISSION_" + index + "\"")
+                .collect(Collectors.joining(","));
+        opa.expect(requestTo("http://opa/v1/data/authz/permissions/caller_permissions"))
+                .andRespond(withSuccess("{\"result\":{\"allow\":true,\"permissions\":[" + permissions + "]}}",
+                        MediaType.APPLICATION_JSON));
+
+        mvc.perform(get("/current-user/permissions").header("Authorization", "Bearer " + "valid"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.permissions").doesNotExist());
         verifyNoInteractions(users);

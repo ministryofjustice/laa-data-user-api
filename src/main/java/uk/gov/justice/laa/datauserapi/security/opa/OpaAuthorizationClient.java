@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.HashSet;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
+import uk.gov.justice.laa.datauserapi.contracts.response.CurrentUserPermissionsResponse;
 import uk.gov.justice.laa.datauserapi.security.opa.trial.ProfileTrialInput;
 import uk.gov.justice.laa.datauserapi.security.opa.trial.ProfileTrialDecision;
 
@@ -70,6 +71,9 @@ public class OpaAuthorizationClient {
                 throw new OpaUnavailableException("OPA caller permissions response contained an invalid permission");
             }
             permissions.add(permission.stringValue());
+            if (permissions.size() > CurrentUserPermissionsResponse.MAX_PERMISSIONS) {
+                throw new OpaUnavailableException("OPA caller permissions response exceeded the permission limit");
+            }
         }
         boolean allowed = result.get("allow").booleanValue();
         if (allowed == permissions.isEmpty()) {
