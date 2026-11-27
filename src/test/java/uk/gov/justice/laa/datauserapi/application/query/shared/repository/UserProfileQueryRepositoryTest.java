@@ -29,6 +29,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import jakarta.persistence.EntityManagerFactory;
 import uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileSilasStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
 import uk.gov.justice.laa.datauserapi.entity.EntraUser;
@@ -87,6 +88,8 @@ class UserProfileQueryRepositoryTest {
 
     @Test
     void findAllProfilesByUserEntraObjectIdReturnsEverySummaryForTheUser() {
+        jdbc.update("UPDATE user_profile SET status='PENDING', silas_status='NO_ACCESS_ASSIGNED' WHERE id=?", ACTIVE_PROFILE_ID);
+        jdbc.update("UPDATE user_profile SET status='COMPLETE', silas_status='ACTIVATION_REQUIRED' WHERE id=?", INACTIVE_PROFILE_ID);
         List<UserProfileSummaryView> profiles =
                 repository.findAllProfilesByUserEntraObjectId(USER_ENTRA_OID).orElseThrow();
 
@@ -97,6 +100,9 @@ class UserProfileQueryRepositoryTest {
         assertThat(active.userProfileId()).isEqualTo(ACTIVE_PROFILE_ID);
         assertThat(active.firmId()).isEqualTo(FIRM_ID.toString());
         assertThat(active.hasAppRoles()).isTrue();
+        assertThat(active.profileStatus()).isEqualTo(UserProfileSilasStatus.NO_ACCESS_ASSIGNED);
+        assertThat(profiles.stream().filter(profile -> !profile.activeProfile()).findFirst().orElseThrow().profileStatus())
+                .isEqualTo(UserProfileSilasStatus.ACTIVATION_REQUIRED);
     }
 
     @Test

@@ -1,7 +1,7 @@
 package uk.gov.justice.laa.datauserapi.contracts.response;
 
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileSilasStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 
 import java.util.UUID;
@@ -16,6 +16,6 @@ public record UserProfileSummaryView (
         String firmId,
         boolean multiFirmUser,
         UserAccountStatus accountStatus,
-        UserProfileStatus profileStatus,
+        UserProfileSilasStatus profileStatus,
         boolean hasAppRoles
 ) {}

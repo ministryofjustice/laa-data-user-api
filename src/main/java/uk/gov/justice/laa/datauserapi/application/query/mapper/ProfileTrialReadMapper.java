@@ -8,6 +8,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -33,13 +34,17 @@ import uk.gov.justice.laa.datauserapi.exception.UserProfileNotFoundException;
 public class ProfileTrialReadMapper {
     private final ProfileTrialQueryRepository repository;
     private final ProfileTrialRoleViewMapper roleMapper;
+    private final EntityManager entityManager;
 
-    public ProfileTrialReadMapper(ProfileTrialQueryRepository repository, ProfileTrialRoleViewMapper roleMapper) {
+    public ProfileTrialReadMapper(ProfileTrialQueryRepository repository, ProfileTrialRoleViewMapper roleMapper,
+                                  EntityManager entityManager) {
         this.repository = repository;
         this.roleMapper = roleMapper;
+        this.entityManager = entityManager;
     }
 
     public UserProfileSummaryPage search(ProfileTrialQuery query) {
+        entityManager.clear();
         var criteria = query.criteria();
         int number = criteria.pageNumber() == null ? 0 : criteria.pageNumber();
         int size = criteria.pageSize() == null ? 20 : criteria.pageSize();
@@ -68,6 +73,7 @@ public class ProfileTrialReadMapper {
     }
 
     public UserProfileDetailView detail(ProfileTrialQuery query) {
+        entityManager.clear();
         var target = query.plan().input().target();
         UserProfile profile = repository.findDetails(Set.of(target.id())).stream()
                 .filter(p -> p.getUserType() == target.userType())
@@ -126,7 +132,7 @@ public class ProfileTrialReadMapper {
             if (Boolean.TRUE.equals(criteria.multiFirm())) {
                 predicates.add(builder.isTrue(root.get("entraUser").get("multiFirmUser")));
             }
-            if (criteria.appId() != null || criteria.appRoleId() != null || Boolean.TRUE.equals(criteria.firmAdmin())) {
+            if (criteria.appId() != null || criteria.appRoleId() != null) {
                 var role = root.join("appRoles");
                 if (criteria.appId() != null) {
                     predicates.add(builder.equal(role.get("app").get("entraAppId"), criteria.appId().toString()));
@@ -134,11 +140,13 @@ public class ProfileTrialReadMapper {
                 if (criteria.appRoleId() != null) {
                     predicates.add(builder.equal(role.get("id"), criteria.appRoleId()));
                 }
-                if (Boolean.TRUE.equals(criteria.firmAdmin())) {
-                    predicates.add(builder.isTrue(role.get("authzRole")));
-                    predicates.add(builder.equal(role.get("name"),
-                            uk.gov.justice.laa.datauserapi.model.AuthzRole.FIRM_USER_MANAGER.getRoleName()));
-                }
+                criteriaQuery.distinct(true);
+            }
+            if (Boolean.TRUE.equals(criteria.firmAdmin())) {
+                var adminRole = root.join("appRoles");
+                predicates.add(builder.isTrue(adminRole.get("authzRole")));
+                predicates.add(builder.equal(adminRole.get("name"),
+                        uk.gov.justice.laa.datauserapi.model.AuthzRole.FIRM_USER_MANAGER.getRoleName()));
                 criteriaQuery.distinct(true);
             }
             if (criteria.officeId() != null) {
@@ -158,6 +166,6 @@ public class ProfileTrialReadMapper {
         return new UserProfileSummaryView(p.getId(), p.isActiveProfile(), p.getUserType(), u.getEmail(),
                 u.getFirstName() + " " + u.getLastName(), p.getFirm() == null ? "" : p.getFirm().getName(),
                 p.getFirm() == null ? "" : p.getFirm().getId().toString(), u.isMultiFirmUser(), u.getUserAccountStatus(),
-                p.getUserProfileStatus(), !p.getAppRoles().isEmpty());
+                p.getSilasStatus(), !p.getAppRoles().isEmpty());
     }
 }

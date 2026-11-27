@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import uk.gov.justice.laa.datauserapi.application.query.dto.ProfileVisibilityContext;
 import uk.gov.justice.laa.datauserapi.application.query.mapper.UserProfileQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryactiveprofilebyentrauser.GetActiveProfileQueryMapper;
 import uk.gov.justice.laa.datauserapi.application.query.queryuserprofiles.GetUserProfilesQuery;
@@ -13,7 +12,7 @@ import uk.gov.justice.laa.datauserapi.application.query.service.UserProfileDetai
 import uk.gov.justice.laa.datauserapi.application.query.service.UserProfileListVisibilityPolicyInputResolver;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileSilasStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedEntraUser;
@@ -73,7 +72,7 @@ class GetUserProfilesHandlerTest {
         UUID firmId = UUID.randomUUID();
         UserProfileSummaryView profile = new UserProfileSummaryView(
                 profileId, true, UserType.EXTERNAL, "user@example.com", "John Doe",
-                "Firm Name", firmId.toString(), false, UserAccountStatus.ACTIVE, UserProfileStatus.COMPLETE, true);
+                "Firm Name", firmId.toString(), false, UserAccountStatus.ACTIVE, UserProfileSilasStatus.COMPLETE, true);
 
         when(userProfileQueryRepository.findAllProfilesByUserEntraObjectId(userEntraObjectId))
                 .thenReturn(Optional.of(List.of(profile)));

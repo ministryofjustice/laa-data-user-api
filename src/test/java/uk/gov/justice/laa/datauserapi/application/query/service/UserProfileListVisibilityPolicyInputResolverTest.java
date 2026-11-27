@@ -17,7 +17,7 @@ import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewProfileLis
 import uk.gov.justice.laa.datauserapi.application.query.queryuserprofiles.GetUserProfilesQuery;
 import uk.gov.justice.laa.datauserapi.application.query.shared.repository.UserProfileQueryRepository;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountStatus;
-import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileStatus;
+import uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileSilasStatus;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView;
 import uk.gov.justice.laa.datauserapi.dto.AuthenticatedAppRole;
@@ -86,7 +86,7 @@ class UserProfileListVisibilityPolicyInputResolverTest {
         return new UserProfileSummaryView(
                 profileId, true, userType, "user@example.com", "John Doe", "Firm Name",
                 firmId == null ? "" : firmId.toString(), false, UserAccountStatus.ACTIVE,
-                UserProfileStatus.COMPLETE, true);
+                UserProfileSilasStatus.COMPLETE, true);
     }
 
     private static AuthenticatedEntraUser external(UUID firmId, Permission... permissions) {

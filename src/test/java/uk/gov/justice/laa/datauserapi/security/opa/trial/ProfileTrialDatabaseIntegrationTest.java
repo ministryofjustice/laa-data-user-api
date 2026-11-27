@@ -169,6 +169,67 @@ class ProfileTrialDatabaseIntegrationTest {
     }
 
     @Test
+    void detailHttpRequestRejectsFirmMoveAfterAuthorizationWithOpenEntityManagerInView() throws Exception {
+        var interceptor = new org.springframework.orm.jpa.support.OpenEntityManagerInViewInterceptor();
+        interceptor.setEntityManagerFactory(entityManagerFactory);
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders
+                .standaloneSetup(new uk.gov.justice.laa.datauserapi.application.query.controller.ProfileTrialQueryController(queries))
+                .addInterceptors(new org.springframework.web.servlet.handler.WebRequestHandlerInterceptorAdapter(interceptor))
+                .setCustomArgumentResolvers(new org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver())
+                .setControllerAdvice(new uk.gov.justice.laa.datauserapi.exception.GlobalExceptionHandler())
+                .build();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/v1/queries/user-profiles/{id}", TARGET))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.firmId").value(FIRM.toString()));
+        AFTER_OPA.set(() -> jdbc.update("UPDATE user_profile SET firm_id=? WHERE id=?", OTHER_FIRM, TARGET));
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/v1/queries/user-profiles/{id}", TARGET))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.firmId").doesNotExist());
+        assertThat(jdbc.queryForObject("SELECT firm_id FROM user_profile WHERE id=?", UUID.class, TARGET))
+                .isEqualTo(OTHER_FIRM);
+    }
+
+    @Test
+    void firmAdministratorFilterComposesWithIndependentApplicationAndRoleFilters() {
+        jdbc.update("UPDATE app SET entra_app_id=? WHERE id=?", OTHER_APP.toString(), OTHER_APP);
+        jdbc.update("INSERT INTO user_profile_app_role VALUES (?,?),(?,?)", TARGET, MANAGER, TARGET, OTHER_ROLE);
+        var criteria = new ProfileSearchCriteria(0, 20, null, null, null, null, null, null,
+                OTHER_APP, OTHER_ROLE, null, null, true);
+        var request = new ProfileTrialRequest(ProfileTrialOperation.SEARCH, null, Set.of(), Map.of(), actor);
+        var page = queries.handle(new ProfileTrialQuery(request, criteria, null), actor).page();
+        assertThat(page.items()).extracting(uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView::userProfileId)
+                .containsExactly(TARGET);
+        var applicationOnly = new ProfileSearchCriteria(0, 20, null, null, null, null, null, null,
+                OTHER_APP, null, null, null, true);
+        var roleOnly = new ProfileSearchCriteria(0, 20, null, null, null, null, null, null,
+                null, OTHER_ROLE, null, null, true);
+        assertThat(queries.handle(new ProfileTrialQuery(request, applicationOnly, null), actor).page().items()).hasSize(1);
+        assertThat(queries.handle(new ProfileTrialQuery(request, roleOnly, null), actor).page().items()).hasSize(1);
+
+        UUID untrustedManager = new UUID(3, 4);
+        insertRole(untrustedManager, APP, "Firm User Manager", false, false);
+        jdbc.update("DELETE FROM user_profile_app_role WHERE user_profile_id=? AND app_role_id=?", TARGET, MANAGER);
+        jdbc.update("INSERT INTO user_profile_app_role VALUES (?,?)", TARGET, untrustedManager);
+        assertThat(queries.handle(new ProfileTrialQuery(request, criteria, null), actor).page().items()).isEmpty();
+    }
+
+    @Test
+    void searchReturnsTheSilasStatusUsedByItsStatusFilter() {
+        jdbc.update("UPDATE user_profile SET silas_status='NO_ACCESS_ASSIGNED', status='COMPLETE' WHERE id=?", TARGET);
+        var criteria = new ProfileSearchCriteria(0, 20, null, null, null, null, null,
+                uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileSilasStatus.NO_ACCESS_ASSIGNED,
+                null, null, null, null, null);
+        var request = new ProfileTrialRequest(ProfileTrialOperation.SEARCH, null, Set.of(), Map.of(), actor);
+        var page = queries.handle(new ProfileTrialQuery(request, criteria, null), actor).page();
+        assertThat(page.items()).singleElement()
+                .extracting(uk.gov.justice.laa.datauserapi.contracts.response.UserProfileSummaryView::profileStatus)
+                .isEqualTo(uk.gov.justice.laa.datauserapi.contracts.domain.UserProfileSilasStatus.NO_ACCESS_ASSIGNED);
+    }
+
+    @Test
     void detailMappingDoesNotTriggerPerRoleOrUnrelatedProfileQueries() {
         for (int i = 10; i < 30; i++) {
             UUID id = new UUID(3, i);

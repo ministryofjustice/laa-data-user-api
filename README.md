@@ -432,8 +432,13 @@ constraints **before** pagination and combine client filters with AND. Page sele
 hydration share a short repeatable-read transaction. Search supports name/email, firm name/ID, user type,
 SiLAS status, Entra application client ID (`app_id`), SiLAS role ID (`app_role_id`), office account code
 (`office_id`), and the multi-firm/firm-admin toggles. Pages contain at most 100 results.
+The firm-admin toggle tests for an authorisation role independently of application and role filters.
+Profile search and non-paginated profile summaries return the SiLAS profile status; search uses the same
+status for filtering.
 `sort_by` accepts `id`, `createdDate` or `userType` with optional `,asc`/`,desc`, and may be repeated.
-Missing and inaccessible target profiles return the same generic 403.
+Missing and inaccessible target profiles return the same generic 403. The final detail read discards
+previously managed entities before checking the target's firm and type, including when Open EntityManager
+in View is enabled.
 
 Assignment requires `ASSIGN_INTERNAL_USER_ROLES` or `ASSIGN_EXTERNAL_USER_ROLES` for actual additions.
 Actual removals require the corresponding REMOVE permission. Enabled applications, user/firm-type
@@ -454,9 +459,13 @@ Only changes to legacy-synchronised responsibilities create CCMS messages, inclu
 list when the final role is removed. Existing application-to-SQS configuration and retry behaviour are reused.
 Notifications are sent only after the role-change transaction commits, so a failed SQS send does not roll back
 the role update. HTTP 200 confirms the local role commit and immediate notification attempt, not downstream
-processing. A failed send leaves the profile sync flag unsuccessful; the existing scheduled profile sync
-retries while the profile still has legacy-synchronised roles. There is no durable outbox, so a failed
+processing. A failed send sets the profile sync flag unsuccessful; the existing scheduled profile sync
+can retry applications that still have legacy-synchronised roles. There is no durable outbox: a failed
 notification after removal of the final legacy-synchronised role is not automatically retried.
+Concurrent changes can deliver notifications out of commit order, and a later successful change can
+mark the profile synchronised despite an earlier failed notification for another application. CCMS can
+therefore retain or regain revoked responsibilities; this trial requires operational reconciliation
+until durable, ordered per-application delivery is implemented.
 
 `opa_trial_decision` structured events include operation, actor/target identifiers, typed reason, both
 engines' results/filters, mismatch indicator and evaluation duration. Denials and mismatches are WARN.
