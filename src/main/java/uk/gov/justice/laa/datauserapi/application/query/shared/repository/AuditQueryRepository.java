@@ -1,0 +1,64 @@
+package uk.gov.justice.laa.datauserapi.application.query.shared.repository;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.Repository;
+import org.springframework.data.repository.query.Param;
+import uk.gov.justice.laa.datauserapi.application.query.dto.AuditStatusHistoryRow;
+import uk.gov.justice.laa.datauserapi.application.query.dto.DeletedUserAuditRow;
+import uk.gov.justice.laa.datauserapi.entity.UserAccountStatusAudit;
+
+import java.util.List;
+import java.util.UUID;
+
+@org.springframework.stereotype.Repository
+public interface AuditQueryRepository extends Repository<UserAccountStatusAudit, UUID> {
+
+    @Query("""
+        SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.AuditStatusHistoryRow(
+            eu.entraOid,
+            a.userAccountAuditStatus,
+            a.statusChangedDate,
+            a.statusChangedBy,
+            r.entraDescription,
+            r.name
+        )
+        FROM UserAccountStatusAudit a
+        JOIN EntraUser eu ON a.entraUserId = eu.id
+        LEFT JOIN a.deactivateUserReasonLookup r
+        WHERE eu.entraOid = :userEntraObjectId
+        ORDER BY a.statusChangedDate DESC, a.id DESC
+        """)
+    List<AuditStatusHistoryRow> findStatusHistory(@Param("userEntraObjectId") String userEntraObjectId,
+                                                  Pageable pageable);
+
+    /**
+     * Pages deleted-user snapshots. {@code emailPattern} is a lower-case LIKE pattern using {@code \} as the escape.
+     * Deletions store the deleting actor's {@code entra_user.id}; it is returned as that actor's Entra object id when
+     * the actor still exists, otherwise as stored.
+     */
+    @Query(value = """
+        SELECT new uk.gov.justice.laa.datauserapi.application.query.dto.DeletedUserAuditRow(
+            a.userName,
+            a.userEmail,
+            COALESCE(d.entraOid, a.statusChangedBy),
+            a.statusChangedDate,
+            r.code,
+            r.label
+        )
+        FROM UserAccountStatusAudit a
+        LEFT JOIN a.deleteUserReasonEntity r
+        LEFT JOIN EntraUser d ON CAST(d.id AS STRING) = a.statusChangedBy
+        WHERE a.userAccountAuditStatus = uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus.DELETED
+            AND COALESCE(LOWER(a.userEmail), '') LIKE :emailPattern ESCAPE '\\'
+        ORDER BY a.statusChangedDate DESC, a.id DESC
+        """,
+        countQuery = """
+        SELECT COUNT(a)
+        FROM UserAccountStatusAudit a
+        WHERE a.userAccountAuditStatus = uk.gov.justice.laa.datauserapi.contracts.domain.UserAccountAuditStatus.DELETED
+            AND COALESCE(LOWER(a.userEmail), '') LIKE :emailPattern ESCAPE '\\'
+        """)
+    Page<DeletedUserAuditRow> findDeletedUsers(@Param("emailPattern") String emailPattern, Pageable pageable);
+}

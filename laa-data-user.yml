@@ -532,6 +532,9 @@ paths:
       operationId: queryAuditUserDetail
       tags: [User Account Security Audit & Management]
       summary: Get audit user detail
+      description: >-
+        Requires the `VIEW_AUDIT_TABLE` permission. Returns 403 both when the target is outside the caller's
+        visibility and when it does not exist, so account existence is not revealed.
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
@@ -549,14 +552,16 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /api/v1/queries/audit/users/deleted:
     get:
       operationId: queryAuditUsersDeleted
       tags: [User Account Security Audit & Management]
       summary: List deleted users
+      description: >-
+        Requires the `VIEW_AUDIT_TABLE` permission and an INTERNAL caller. Deleted users are treated as EXTERNAL
+        (only non-internal users can be deleted through this API), so they are included only when the caller holds
+        `VIEW_EXTERNAL_USER`; otherwise the page is empty.
       security:
         - entraIdOAuth: ["api://user-data/user_data.admin"]
       parameters:
@@ -2152,11 +2157,13 @@ components:
     DeletedUserAuditView:
       type: object
       description: Read model of deleted users for audit purposes
-      required: [ userEntraObjectId, email, deletedBy, deletedDate, deleteReasonLabel ]
+      required: [ email, deletedBy, deletedDate, deleteReasonLabel ]
       properties:
         userEntraObjectId:
           type: string
           format: uuid
+          description: >-
+            Not currently returned: the deletion snapshot does not retain the deleted user's Entra object id.
         name:
           type: string
         email:

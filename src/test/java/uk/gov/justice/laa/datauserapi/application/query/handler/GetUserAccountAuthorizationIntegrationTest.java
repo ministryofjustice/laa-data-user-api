@@ -17,6 +17,7 @@ import uk.gov.justice.laa.datauserapi.application.query.policy.CanViewAccountPol
 import uk.gov.justice.laa.datauserapi.application.query.queryuserbyid.GetUserAccountQuery;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountDetailsService;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountQueryService;
+import uk.gov.justice.laa.datauserapi.application.query.mapper.UserAccountVisibilityContextFactory;
 import uk.gov.justice.laa.datauserapi.application.query.service.UserAccountVisibilityPolicyInputResolver;
 import uk.gov.justice.laa.datauserapi.contracts.domain.UserType;
 import uk.gov.justice.laa.datauserapi.contracts.response.UserView;
@@ -60,7 +61,8 @@ class GetUserAccountAuthorizationIntegrationTest {
         RbacMethodSecurityConfig.class,
         GetUserAccountHandler.class,
         CanViewAccountPolicy.class,
-        UserAccountVisibilityPolicyInputResolver.class
+        UserAccountVisibilityPolicyInputResolver.class,
+        UserAccountVisibilityContextFactory.class
     })
     static class TestConfig {
 
