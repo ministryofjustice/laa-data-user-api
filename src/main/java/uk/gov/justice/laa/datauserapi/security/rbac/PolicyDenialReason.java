@@ -21,7 +21,9 @@ public enum PolicyDenialReason {
     ACTOR_NO_ACTIVE_PROFILE("actor has no active profile with a determinable user type"),
     ACTOR_NOT_EXTERNAL_USER("actor must have an active external profile"),
     TARGET_PROFILE_NOT_FOUND("target profile does not exist"),
-    TARGET_PROFILE_NOT_VISIBLE("actor cannot view the target profile");
+    TARGET_PROFILE_NOT_VISIBLE("actor cannot view the target profile"),
+    ACTOR_NO_EXPORT_PERMISSION("actor has no permission to export audit data"),
+    EXPORT_SCOPE_NOT_CONSTRAINED("export request is not constrained to a single firm or to INTERNAL users only");
 
     private final String description;
 

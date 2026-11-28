@@ -98,6 +98,7 @@ dependencies {
     implementation 'org.springframework.retry:spring-retry:2.0.13'
     implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springDocVersion}"
     implementation 'com.fasterxml.jackson.core:jackson-annotations:2.22'
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-csv:2.23.0'
     implementation 'io.sentry:sentry-spring-boot-4:8.43.2'
     implementation('com.azure.spring:spring-cloud-azure-starter-active-directory:7.4.0') {
         exclude group: 'org.springframework.boot', module: 'spring-boot-jackson2'

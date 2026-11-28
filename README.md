@@ -99,6 +99,42 @@ also including `BOTH` roles). `/role-restrictions` is paged (`page_number` from 
 restrictions whose assigning and assignable roles are both in active applications; its `app_id` filter and the app
 fields of each item refer to the role being assigned. Lists are capped at 100 applications and 500 roles.
 
+The User Access Audit CSV export (`GET /api/v1/queries/audit/users/export`) is read-only and requires the
+stricter `user_data.admin` scope (an ArchUnit exception to the usual `user_data.read` requirement for query
+controllers, since it is accepted as a superset of read) plus `EXPORT_AUDIT_DATA`, authorised via
+`ExportAuditUsersQuery`'s `@PolicyGuarded(CanExportAuditUsersPolicy.class)`. The request must be constrained,
+server-side, to either a single firm (`user_type` not `INTERNAL`, with `firm_id`) or to `INTERNAL` users only
+(`user_type=INTERNAL`, no `firm_id`); an unconstrained or conflicting combination of these two fails
+`AuditUserExportCriteria` bean validation and returns `400` before authorisation runs. Supported filters are
+`user_type`, `user_account_status`, `firm_id`, `office_id`, `app_id`, `app_role_id` and `never_activated_filter`.
+`AuditUserExportQueryRepository` resolves matching profile IDs using keyset (cursor) pagination — each batch
+requests IDs greater than the last-seen ID from the previous batch, ordered ascending, rather than an offset page
+number, so profiles inserted or deleted elsewhere during a long export cannot cause a later batch to skip or
+duplicate a profile — then batch-loads full details with roles and app data fetched (office data is never
+fetched there; office filtering happens entirely in the ID query). `AuditUserExportBatchReader` clears the JPA
+persistence context after mapping each batch to DTOs, so entities loaded by one batch do not stay cached for the
+whole export under Open EntityManager in View (left enabled for the rest of the application); a multi-firm user
+appears only in the single firm (or `INTERNAL`) context being exported, never across every firm they belong to.
+`AuditUserExportMapper` preserves the legacy
+User Access Audit CSV contract and column order: `Name`, `Email`, `Firm name`, `Firm ID`, `Multi-firm`,
+`Provider Admin`, `App Access`, `SiLAS Account Status`, `Roles Assigned`. `Multi-firm` and `Provider Admin` are
+rendered as `Yes`/`No`; `Provider Admin` is `Yes` when the profile holds an authz role of type `PROVIDER_ADMIN`
+(currently `FIRM_USER_MANAGER`); `App Access` and `Roles Assigned` list every distinct app name / role name on the
+profile (not just those matching the request filters), alphabetically sorted and comma-joined. A request matching
+no profiles returns `200` with a header-only CSV. The response is streamed (`text/csv`) with `Content-Disposition`
+`user-access-audit_<FirmID>_<yyyy-MM-dd>_<HHmm>_UTC.csv` for a firm export or
+`user-access-audit_INTERNAL_<yyyy-MM-dd>_<HHmm>_UTC.csv` for an INTERNAL-only export, using the UTC
+`auditExportClock` bean. Only export start metadata (actor, scope) is logged; CSV content is
+never logged.
+
+CSV construction for every export (not just audit) is centralised in `service.csv.CsvExportWriter`, a single
+reusable, injectable component wrapping one configured `CsvMapper`. Column order, header text and per-column
+formatting come entirely from `@JsonPropertyOrder`/`@JsonProperty` on the row record passed to it; feature code
+maps its business data to an annotated row type and never constructs CSV infrastructure itself. It writes
+incrementally to the supplied `OutputStream` (no intermediate string, no temporary files) and writes a
+header-only CSV when there are no rows. Future CSV exports, including scheduler-driven ones, should depend on
+this component rather than duplicating CSV construction.
+
 Query service, handler, and controller results are checked recursively for entity
 leakage through collections, wrappers, DTO fields, and projection accessors.
 Tech Services calls intentionally precede database updates; this ordering is unchanged.

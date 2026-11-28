@@ -447,7 +447,11 @@ class ArchitectureTest {
             .and().areAnnotatedWith(RestController.class)
             .should().beAnnotatedWith(RequiresReadScope.class)
             .orShould().beMetaAnnotatedWith(RequiresReadScope.class)
-            .because("Query endpoints must declare the user_data.read scope requirement");
+            .orShould().beAnnotatedWith(RequiresAdminScope.class)
+            .orShould().beMetaAnnotatedWith(RequiresAdminScope.class)
+            .because("Query endpoints must declare at least the user_data.read scope requirement; "
+                    + "endpoints exposing more sensitive data (e.g. bulk/audit exports) may instead "
+                    + "require the stricter user_data.admin scope, which is a superset of read");
 
     static ArchCondition<JavaClass> exposeOnlyReadMethods() {
         return new ArchCondition<>("expose only read repository methods") {
